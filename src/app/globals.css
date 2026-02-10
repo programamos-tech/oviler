@@ -1,26 +1,70 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  /* Paleta más sobria y “de batalla” */
+  --background: 255 255 255; /* blanco limpio */
+  --foreground: 15 23 42; /* slate muy oscuro para texto principal */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --ov-surface-soft: 236 239 244;
+  --ov-surface-strong: 255 255 255;
+
+  --ov-primary: 30 58 138; /* azul oscuro para botones principales */
+  --ov-accent: 221 77 143; /* #dd4d8f rosa de marca */
+  --ov-accent-light: 236 72 153; /* rosado más claro */
+  --ov-muted: 100 116 139; /* slate medio */
+  --ov-pink: #dd4d8f;
+  --ov-pink-hover: #c94582;
+  --ov-pink-muted: #e88ab0; /* para fondos suaves / dark */
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Matte dark mode, look más técnico */
+    --background: 15 23 42;
+    --foreground: 226 232 240;
+
+    --ov-surface-soft: 15 23 42;
+    --ov-surface-strong: 15 23 42;
+
+    --ov-primary: 59 130 246; /* azul más claro en dark */
+    --ov-accent: 221 77 143; /* #dd4d8f */
+    --ov-accent-light: 249 168 212;
+    --ov-muted: 148 163 184;
   }
 }
 
+@theme inline {
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+  --font-logo: var(--font-young-serif);
+  --color-ov-pink: var(--ov-pink);
+  --color-ov-pink-hover: var(--ov-pink-hover);
+  --color-ov-pink-muted: var(--ov-pink-muted);
+}
+
+/* Asegurar que los botones y acentos rosa usen la variable (Tailwind puede no generar ov-pink con guión) */
+@layer utilities {
+  .bg-ov-pink { background-color: var(--ov-pink) !important; }
+  .hover\:bg-ov-pink-hover:hover { background-color: var(--ov-pink-hover) !important; }
+  .dark .dark\:bg-ov-pink { background-color: var(--ov-pink) !important; }
+  .dark .dark\:hover\:bg-ov-pink-hover:hover { background-color: var(--ov-pink-hover) !important; }
+  .text-ov-pink { color: var(--ov-pink) !important; }
+  .hover\:text-ov-pink-hover:hover { color: var(--ov-pink-hover) !important; }
+  .dark .dark\:text-ov-pink-muted { color: var(--ov-pink-muted) !important; }
+  .bg-ov-pink\/10 { background-color: color-mix(in srgb, var(--ov-pink) 10%, transparent) !important; }
+  .bg-ov-pink\/20 { background-color: color-mix(in srgb, var(--ov-pink) 20%, transparent) !important; }
+  .text-ov-pink-hover { color: var(--ov-pink-hover) !important; }
+  .dark .dark\:bg-ov-pink\/20 { background-color: color-mix(in srgb, var(--ov-pink) 20%, transparent) !important; }
+  .dark .dark\:text-ov-pink-muted { color: var(--ov-pink-muted) !important; }
+  .shadow-ov-pink\/40 { --tw-shadow-color: color-mix(in srgb, var(--ov-pink) 40%, transparent); box-shadow: 0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color); }
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont,
+    "SF Pro Text", sans-serif;
+  letter-spacing: -0.01em;
 }
