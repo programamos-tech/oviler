@@ -9,8 +9,9 @@ const AUTH_PATHS = ["/login", "/registro", "/onboarding"];
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuth = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  const isLanding = pathname === "/";
 
-  if (isAuth) {
+  if (isAuth || isLanding) {
     return <>{children}</>;
   }
 

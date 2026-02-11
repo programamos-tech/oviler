@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import Notifications from "./Notifications";
 
 const iconClass = "h-5 w-5 shrink-0";
@@ -107,6 +108,7 @@ const navItems: NavItem[] = [
     items: [
       { label: "Listado de productos", href: "/inventario" },
       { label: "Nuevo producto", href: "/inventario/nuevo" },
+      { label: "Categorías", href: "/inventario/categorias" },
       { label: "Actualizar stock", href: "/inventario/actualizar-stock" },
       { label: "Transferir stock", href: "/inventario/transferir" },
     ],
@@ -135,10 +137,30 @@ const navItems: NavItem[] = [
 
 export default function TopNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    async function loadUser() {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: userData } = await supabase
+          .from("users")
+          .select("name, email")
+          .eq("id", authUser.id)
+          .single();
+        if (userData) {
+          setUser(userData);
+        }
+      }
+    }
+    loadUser();
+  }, [supabase]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -161,9 +183,12 @@ export default function TopNav() {
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
       <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Logo */}
-        <Link href="/" className="flex shrink-0 items-center font-logo">
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-1 font-logo">
+          <svg className="h-6 w-6 shrink-0 text-slate-900 dark:text-slate-50 sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
           <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-            Ovile<span className="text-ov-pink">r</span>
+            NOU
           </span>
         </Link>
 
@@ -266,7 +291,7 @@ export default function TopNav() {
                 </svg>
               </div>
               <span className="max-w-[120px] truncate text-[13px] font-medium sm:max-w-[140px] lg:max-w-none">
-                andresruss.str
+                {user?.name || user?.email || "Usuario"}
               </span>
               <svg
                 className={`h-4 w-4 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${userMenuOpen ? "rotate-180" : ""}`}
@@ -281,9 +306,11 @@ export default function TopNav() {
               <div className="absolute right-0 top-full z-50 mt-1 min-w-[10rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     setUserMenuOpen(false);
-                    // TODO: llamar signOut / redirect a login
+                    await supabase.auth.signOut();
+                    router.push("/login");
+                    router.refresh();
                   }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                 >

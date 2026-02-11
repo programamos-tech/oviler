@@ -1,10 +1,51 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
   "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
 const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
 
 export default function ConfigurarSucursalPage() {
+  const [branchId, setBranchId] = useState<string | null>(null);
+  const [hasBodega, setHasBodega] = useState(false);
+  const [responsableIva, setResponsableIva] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+      if (!ub?.branch_id || cancelled) return;
+      setBranchId(ub.branch_id);
+      const { data: branch } = await supabase.from("branches").select("has_bodega, responsable_iva").eq("id", ub.branch_id).single();
+      if (branch && !cancelled) {
+        setHasBodega(!!branch.has_bodega);
+        setResponsableIva(!!branch.responsable_iva);
+      }
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  async function handleSave() {
+    if (!branchId) return;
+    setSaving(true);
+    const supabase = createClient();
+    await supabase.from("branches").update({
+      has_bodega: hasBodega,
+      responsable_iva: responsableIva,
+      updated_at: new Date().toISOString(),
+    }).eq("id", branchId);
+    setSaving(false);
+  }
+
   return (
     <div className="space-y-4">
       <header className="space-y-2">
@@ -59,7 +100,7 @@ export default function ConfigurarSucursalPage() {
             <div className="mt-3 space-y-3">
               <div>
                 <label className={labelClass}>Nombre de la sucursal <span className="text-ov-pink">*</span></label>
-                <input placeholder="Ej. Oviler Principal" className={inputClass} />
+                <input placeholder="Ej. Sucursal Principal" className={inputClass} />
               </div>
               <div>
                 <label className={labelClass}>NIT <span className="text-ov-pink">*</span></label>
@@ -83,6 +124,9 @@ export default function ConfigurarSucursalPage() {
             <label className="mt-3 flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
+                checked={responsableIva}
+                onChange={(e) => setResponsableIva(e.target.checked)}
+                disabled={loading}
                 className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
               />
               <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
@@ -90,7 +134,29 @@ export default function ConfigurarSucursalPage() {
               </span>
             </label>
             <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
-              Si está marcado, en ventas de esta sucursal se aplicará IVA según la configuración del producto.
+              Si está marcado, al crear productos podrás elegir &quot;Aplicar IVA (19%)&quot;. Por defecto los productos no llevan IVA.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              Inventario
+            </p>
+            <label className="mt-3 flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                name="has_bodega"
+                checked={hasBodega}
+                onChange={(e) => setHasBodega(e.target.checked)}
+                disabled={loading}
+                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+              />
+              <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                Esta sucursal tiene bodega
+              </span>
+            </label>
+            <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
+              Si activas la bodega, podrás tener stock en local y en bodega por separado y usar &quot;Transferir stock&quot; para mover entre ellos. Si no, todo el stock será en un solo lugar (local).
             </p>
           </div>
         </div>
@@ -106,9 +172,11 @@ export default function ConfigurarSucursalPage() {
             <div className="mt-4 border-t border-slate-200 pt-3">
               <button
                 type="button"
-                className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
+                onClick={handleSave}
+                disabled={loading || saving || !branchId}
+                className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-900 dark:hover:bg-slate-800"
               >
-                Guardar cambios
+                {saving ? "Guardando…" : "Guardar cambios"}
               </button>
             </div>
           </div>

@@ -101,7 +101,7 @@ const masItems = [
 ];
 
 const tabs = [
-  { label: "Inicio", href: "/", icon: HomeIcon },
+  { label: "Inicio", href: "/dashboard", icon: HomeIcon },
   { label: "Ventas", href: "/ventas", icon: CartIcon },
   { label: "Clientes", href: "/clientes", icon: UsersIcon },
   { label: "Inventario", href: "/inventario", icon: BoxIcon },
@@ -159,7 +159,7 @@ export default function BottomNav() {
   }, [masOpen]);
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
+    if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
     return href !== "#" && pathname.startsWith(href);
   };
 

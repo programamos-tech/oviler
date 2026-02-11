@@ -1,6 +1,29 @@
+"use client";
+
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function TransferStockPage() {
+  const searchParams = useSearchParams();
+  const productIdFromUrl = searchParams.get("productId");
+  const [hasBodega, setHasBodega] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+      if (!ub?.branch_id || cancelled) return;
+      const { data: branch } = await supabase.from("branches").select("has_bodega").eq("id", ub.branch_id).single();
+      if (!cancelled) setHasBodega(!!branch?.has_bodega);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="space-y-4">
       <header className="space-y-2">
@@ -14,9 +37,9 @@ export default function TransferStockPage() {
             </p>
           </div>
           <Link
-            href="/inventario"
+            href={productIdFromUrl ? `/inventario/${productIdFromUrl}` : "/inventario"}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            title="Volver a inventario"
+            title={productIdFromUrl ? "Volver al detalle del producto" : "Volver a inventario"}
           >
             <svg
               className="h-5 w-5"
@@ -35,6 +58,26 @@ export default function TransferStockPage() {
         </div>
       </header>
 
+      {hasBodega === null && (
+        <p className="text-[13px] text-slate-500 dark:text-slate-400">Cargando…</p>
+      )}
+
+      {hasBodega === false && (
+        <div className="rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:ring-amber-800">
+          <p className="text-[14px] font-medium text-amber-800 dark:text-amber-200">
+            Esta sucursal no tiene bodega activa.
+          </p>
+          <p className="mt-1 text-[13px] text-amber-700 dark:text-amber-300">
+            Para transferir stock entre local y bodega, activa la opción &quot;Esta sucursal tiene bodega&quot; en{" "}
+            <Link href="/sucursales/configurar" className="font-semibold underline hover:no-underline">
+              Configurar sucursal
+            </Link>
+            .
+          </p>
+        </div>
+      )}
+
+      {hasBodega === true && (
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
         <div className="space-y-4">
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -136,6 +179,7 @@ export default function TransferStockPage() {
           </div>
         </div>
       </section>
+      )}
     </div>
   );
 }

@@ -219,7 +219,7 @@ export default function NewSalePage() {
                   Domicilio
                 </p>
                 <p className="mt-1 text-[13px] font-medium text-slate-600 dark:text-slate-400">
-                  Si activas el domicilio, Oviler crea el pedido
+                  Si activas el domicilio, NOU crea el pedido
                   automáticamente.
                 </p>
               </div>

@@ -21,9 +21,9 @@ const youngSerif = Young_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Oviler",
+  title: "NOU - Software para Inventarios",
   description:
-    "Oviler - Plataforma SaaS para ventas a domicilio, inventario y cierres de caja inteligentes.",
+    "NOU - Software para Inventarios. Gestiona tu inventario, ventas, clientes y más desde un solo lugar.",
 };
 
 export default function RootLayout({

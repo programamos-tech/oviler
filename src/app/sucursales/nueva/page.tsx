@@ -56,7 +56,7 @@ export default function NuevaSucursalPage() {
             <div className="mt-3 space-y-3">
               <div>
                 <label className={labelClass}>Nombre de la sucursal <span className="text-ov-pink">*</span></label>
-                <input placeholder="Ej. Oviler Norte" className={inputClass} />
+                <input placeholder="Ej. Sucursal Norte" className={inputClass} />
               </div>
               <div>
                 <label className={labelClass}>NIT <span className="text-ov-pink">*</span></label>

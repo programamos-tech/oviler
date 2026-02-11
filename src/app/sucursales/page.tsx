@@ -3,7 +3,7 @@ import Link from "next/link";
 const sucursales = [
   {
     id: "1",
-    name: "Oviler Principal",
+    name: "Sucursal Principal",
     nit: "900.123.456-7",
     address: "Calle 50 # 10-20",
     phone: "601 123 4567",
@@ -12,7 +12,7 @@ const sucursales = [
   },
   {
     id: "2",
-    name: "Oviler Norte",
+    name: "Sucursal Norte",
     nit: "900.123.456-7",
     address: "Cra 15 # 80-10",
     phone: "601 765 4321",

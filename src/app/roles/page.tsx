@@ -150,7 +150,7 @@ export default function RolesPage() {
               Usuarios y roles
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Gestiona empleados, roles y permisos. Define quién puede hacer qué en Oviler.
+              Gestiona empleados, roles y permisos. Define quién puede hacer qué en NOU.
             </p>
           </div>
           <div className="flex gap-2">

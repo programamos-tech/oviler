@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+
+type Category = { id: string; name: string };
 
 const IVA_RATE = 0.19;
 
@@ -10,9 +14,52 @@ function formatMoney(value: number) {
 }
 
 export default function NewProductPage() {
-  const [aplicarIva, setAplicarIva] = useState(true);
+  const router = useRouter();
+  const [responsableIva, setResponsableIva] = useState(false);
+  const [aplicarIva, setAplicarIva] = useState(false);
   const [baseCosto, setBaseCosto] = useState("");
   const [basePrecio, setBasePrecio] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [referencia, setReferencia] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [marca, setMarca] = useState("");
+  const [categoria, setCategoria] = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [stockInicial, setStockInicial] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
+      if (!userRow?.organization_id || cancelled) return;
+      const { data } = await supabase
+        .from("categories")
+        .select("id, name")
+        .eq("organization_id", userRow.organization_id)
+        .order("name", { ascending: true });
+      if (!cancelled) setCategories(data ?? []);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+      if (!ub?.branch_id || cancelled) return;
+      const { data: branch } = await supabase.from("branches").select("responsable_iva").eq("id", ub.branch_id).single();
+      if (!cancelled) setResponsableIva(!!branch?.responsable_iva);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const numBaseCosto = Number(String(baseCosto).replace(/\D/g, "")) || 0;
   const numBasePrecio = Number(String(basePrecio).replace(/\D/g, "")) || 0;
@@ -30,12 +77,86 @@ export default function NewProductPage() {
     setBasePrecio(v ? formatMoney(Number(v)) : "");
   };
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const name = nombre.trim();
+    const sku = referencia.trim();
+    if (!name || !sku) {
+      setError("Nombre y referencia son obligatorios.");
+      return;
+    }
+    const cost = numBaseCosto;
+    const price = numBasePrecio;
+
+    setSaving(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError("Debes iniciar sesión.");
+      setSaving(false);
+      return;
+    }
+    const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
+    if (!userRow?.organization_id) {
+      setError("No se encontró tu organización.");
+      setSaving(false);
+      return;
+    }
+    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+    if (!ub?.branch_id) {
+      setError("No tienes una sucursal asignada.");
+      setSaving(false);
+      return;
+    }
+
+    const { data: product, error: productError } = await supabase
+      .from("products")
+      .insert({
+        organization_id: userRow.organization_id,
+        name,
+        sku,
+        description: descripcion.trim() || null,
+        brand: marca.trim() || null,
+        category_id: categoria || null,
+        base_cost: cost,
+        base_price: price,
+        apply_iva: responsableIva ? aplicarIva : false,
+      })
+      .select("id")
+      .single();
+
+    if (productError || !product) {
+      setError(productError?.message ?? "Error al crear el producto.");
+      setSaving(false);
+      return;
+    }
+
+    const qty = Math.max(0, Number(stockInicial) || 0);
+    if (qty > 0) {
+      const { error: invError } = await supabase.from("inventory").insert({
+        product_id: product.id,
+        branch_id: ub.branch_id,
+        quantity: qty,
+        location: "local",
+      });
+      if (invError) {
+        setError(invError.message || "Producto creado pero falló el stock inicial.");
+        setSaving(false);
+        return;
+      }
+    }
+
+    setSaving(false);
+    router.push("/inventario");
+  }
+
   const inputClass =
     "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
   const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
 
   return (
-    <div className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <header className="space-y-2">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -68,6 +189,12 @@ export default function NewProductPage() {
         </div>
       </header>
 
+      {error && (
+        <div className="rounded-xl bg-red-50 p-4 text-[14px] font-medium text-red-800 dark:bg-red-900/30 dark:text-red-200" role="alert">
+          {error}
+        </div>
+      )}
+
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
         {/* Columna izquierda: Información básica + Control de stock */}
         <div className="space-y-4">
@@ -83,13 +210,20 @@ export default function NewProductPage() {
                 <input
                   placeholder="Nombre del producto"
                   className={inputClass}
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
                 />
               </div>
               <div>
                 <label className={labelClass}>
                   Referencia <span className="text-ov-pink">*</span>
                 </label>
-                <input placeholder="REF-001" className={inputClass} />
+                <input
+                  placeholder="REF-001"
+                  className={inputClass}
+                  value={referencia}
+                  onChange={(e) => setReferencia(e.target.value)}
+                />
               </div>
               <div>
                 <label className={labelClass}>Descripción (opcional)</label>
@@ -97,22 +231,42 @@ export default function NewProductPage() {
                   rows={2}
                   placeholder="Descripción detallada del producto (opcional)"
                   className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
                 />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className={labelClass}>Marca (opcional)</label>
-                  <input placeholder="Marca del producto" className={inputClass} />
+                  <input
+                    placeholder="Marca del producto"
+                    className={inputClass}
+                    value={marca}
+                    onChange={(e) => setMarca(e.target.value)}
+                  />
                 </div>
                 <div>
                   <label className={labelClass}>Categoría (opcional)</label>
-                  <select className={inputClass}>
+                  <select
+                    className={inputClass}
+                    value={categoria}
+                    onChange={(e) => setCategoria(e.target.value)}
+                  >
                     <option value="">Seleccionar categoría</option>
-                    <option value="alimentos">Alimentos básicos</option>
-                    <option value="aseo">Aseo</option>
-                    <option value="bebidas">Bebidas</option>
-                    <option value="otros">Otros</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
+                  {categories.length === 0 && (
+                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                      <Link href="/inventario/categorias" className="font-medium text-ov-pink hover:underline">
+                        Configura tus categorías
+                      </Link>{" "}
+                      en Inventario para usarlas aquí.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -129,7 +283,16 @@ export default function NewProductPage() {
               <input
                 type="number"
                 min={0}
-                defaultValue={0}
+                value={stockInicial === 0 ? "" : stockInicial}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "") {
+                    setStockInicial(0);
+                    return;
+                  }
+                  const num = parseInt(v.replace(/^0+/, ""), 10);
+                  if (!Number.isNaN(num) && num >= 0) setStockInicial(num);
+                }}
                 placeholder="0"
                 className={inputClass}
               />
@@ -146,23 +309,29 @@ export default function NewProductPage() {
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Información financiera
             </p>
-            <label className="mt-3 flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={aplicarIva}
-                onChange={(e) => setAplicarIva(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
-              />
-              <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Aplicar IVA (19%)</span>
-            </label>
-            {aplicarIva && (
-              <p className="mt-2 text-[13px] font-medium text-slate-600 dark:text-slate-400">
-                Ingresa los precios SIN IVA. El sistema calcula automáticamente el IVA (19%).
-              </p>
+            {responsableIva && (
+              <>
+                <label className="mt-3 flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={aplicarIva}
+                    onChange={(e) => setAplicarIva(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                  />
+                  <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Aplicar IVA (19%)</span>
+                </label>
+                {aplicarIva && (
+                  <p className="mt-2 text-[13px] font-medium text-slate-600 dark:text-slate-400">
+                    Ingresa los precios SIN IVA. El sistema calcula automáticamente el IVA (19%).
+                  </p>
+                )}
+              </>
             )}
             <div className="mt-3 space-y-3">
               <div>
-                <label className={labelClass}>Costo de compra (base sin IVA) <span className="text-ov-pink">*</span></label>
+                <label className={labelClass}>
+                  {responsableIva ? "Costo de compra (base sin IVA)" : "Costo de compra"} <span className="text-ov-pink">*</span>
+                </label>
                 <div className="flex rounded-lg border border-slate-300 dark:border-slate-700">
                   <span className="flex items-center rounded-l-lg border-r border-slate-300 bg-slate-50 px-3 text-[14px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">$</span>
                   <input
@@ -176,15 +345,14 @@ export default function NewProductPage() {
                 </div>
                 {aplicarIva && (
                   <p className="mt-1 text-[13px] text-slate-600 dark:text-slate-400">
-                    IVA (19%): $ {formatMoney(ivaCosto)} — Total: $ {formatMoney(totalCosto)}
+                    IVA (19%): $ {formatMoney(ivaCosto)} — Total con IVA: $ {formatMoney(totalCosto)}
                   </p>
-                )}
-                {!aplicarIva && (
-                  <p className="mt-1 text-[13px] font-medium text-slate-700 dark:text-slate-200">Total: $ {formatMoney(numBaseCosto)}</p>
                 )}
               </div>
               <div>
-                <label className={labelClass}>Precio de venta (base sin IVA) <span className="text-ov-pink">*</span></label>
+                <label className={labelClass}>
+                  {responsableIva ? "Precio de venta (base sin IVA)" : "Precio de venta"} <span className="text-ov-pink">*</span>
+                </label>
                 <div className="flex rounded-lg border border-slate-300 dark:border-slate-700">
                   <span className="flex items-center rounded-l-lg border-r border-slate-300 bg-slate-50 px-3 text-[14px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">$</span>
                   <input
@@ -198,12 +366,12 @@ export default function NewProductPage() {
                 </div>
                 {aplicarIva && (
                   <p className="mt-1 text-[13px] text-slate-600 dark:text-slate-400">
-                    IVA (19%): $ {formatMoney(ivaPrecio)} — Total: $ {formatMoney(totalPrecio)}
+                    IVA (19%): $ {formatMoney(ivaPrecio)} — Total con IVA: $ {formatMoney(totalPrecio)}
                   </p>
                 )}
-                {!aplicarIva && (
-                  <p className="mt-1 text-[13px] font-medium text-slate-700 dark:text-slate-200">Total: $ {formatMoney(numBasePrecio)}</p>
-                )}
+                <p className="mt-1.5 text-[12px] text-slate-500 dark:text-slate-400">
+                  Este producto no podrá ser vendido por menos del valor de precio de venta.
+                </p>
               </div>
             </div>
           </div>
@@ -215,7 +383,11 @@ export default function NewProductPage() {
             <div className="mt-3 space-y-3 text-[13px]">
               <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                 <p className="font-bold text-slate-800 dark:text-slate-100">Producto</p>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">Se completará al guardar</p>
+                <div className="mt-1.5 space-y-1 text-slate-600 dark:text-slate-400">
+                  <p><span className="font-medium text-slate-700 dark:text-slate-300">Nombre:</span> {nombre.trim() || "—"}</p>
+                  <p><span className="font-medium text-slate-700 dark:text-slate-300">Referencia:</span> {referencia.trim() || "—"}</p>
+                  {categoria && <p><span className="font-medium text-slate-700 dark:text-slate-300">Categoría:</span> {categories.find((c) => c.id === categoria)?.name ?? "—"}</p>}
+                </div>
               </div>
               <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                 <p className="font-bold text-slate-800 dark:text-slate-100">Precio de venta</p>
@@ -245,15 +417,16 @@ export default function NewProductPage() {
                 </p>
               </div>
               <button
-                type="button"
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
+                type="submit"
+                disabled={saving}
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
               >
-                Crear producto
+                {saving ? "Creando…" : "Crear producto"}
               </button>
             </div>
           </div>
         </div>
       </section>
-    </div>
+    </form>
   );
 }

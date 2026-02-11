@@ -9,7 +9,7 @@ const inputClass =
   "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:ring-slate-500";
 const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
 
-export default function LoginPage() {
+export default function RegistroPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,40 +21,60 @@ export default function LoginPage() {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const name = formData.get("name") as string;
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      // 1. Crear usuario en Supabase Auth
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name,
+          },
+        },
       });
 
-      if (signInError) {
-        setError(signInError.message || "Error al iniciar sesión");
+      if (signUpError) {
+        setError(signUpError.message || "Error al crear la cuenta");
         setLoading(false);
         return;
       }
 
-      if (data.user) {
-        // Verificar si el usuario tiene organización (ya completó onboarding)
-        const { data: userData, error: userError } = await supabase
-          .from("users")
-          .select("organization_id")
-          .eq("id", data.user.id)
-          .single();
-
-        if (userError || !userData) {
-          // Usuario no tiene organización, redirigir a onboarding
-          router.push("/onboarding");
-        } else {
-          // Usuario tiene organización, redirigir a dashboard
-          router.push("/dashboard");
-        }
-        router.refresh();
+      if (!authData.user) {
+        setError("Error al crear la cuenta. Por favor intenta de nuevo.");
+        setLoading(false);
+        return;
       }
+
+      // 2. Crear organización y usuario en la tabla (vía API con service_role, evita RLS)
+      const res = await fetch("/api/auth/create-organization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Error al crear la organización. Por favor intenta de nuevo.");
+        setLoading(false);
+        return;
+      }
+
+      // 3. Redirigir a onboarding para crear la primera sucursal
+      router.push("/onboarding");
+      router.refresh();
     } catch (err) {
-      setError("Error inesperado. Por favor intenta de nuevo.");
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === "Failed to fetch" || message.includes("fetch")) {
+        setError(
+          "No se pudo conectar con el servidor. Revisa que la URL y la clave de Supabase en .env.local sean correctas y que tu proyecto no esté pausado (Dashboard de Supabase)."
+        );
+      } else {
+        setError(message || "Error inesperado. Por favor intenta de nuevo.");
+      }
       setLoading(false);
     }
   };
@@ -77,7 +97,7 @@ export default function LoginPage() {
       {/* Derecha: formulario */}
       <div className="flex flex-1 items-center justify-center px-4 py-8 lg:py-12 lg:pr-16 xl:pr-24">
         <div className="w-full max-w-[380px] rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-8">
-          <h2 className="mb-6 text-xl font-bold text-slate-900 dark:text-slate-50">Iniciar sesión</h2>
+          <h2 className="mb-6 text-xl font-bold text-slate-900 dark:text-slate-50">Crear cuenta</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
@@ -86,8 +106,22 @@ export default function LoginPage() {
               </div>
             )}
             <div>
+              <label htmlFor="name" className={labelClass}>
+                Nombre completo <span className="text-ov-pink">*</span>
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                placeholder="Tu nombre"
+                className={inputClass}
+                required
+                disabled={loading}
+              />
+            </div>
+            <div>
               <label htmlFor="email" className={labelClass}>
-                Correo
+                Correo <span className="text-ov-pink">*</span>
               </label>
               <input
                 id="email"
@@ -101,39 +135,39 @@ export default function LoginPage() {
             </div>
             <div>
               <label htmlFor="password" className={labelClass}>
-                Contraseña
+                Contraseña <span className="text-ov-pink">*</span>
               </label>
               <input
                 id="password"
                 name="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="Mínimo 6 caracteres"
                 className={inputClass}
                 required
+                minLength={6}
                 disabled={loading}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <Link
-                href="#"
-                className="text-[13px] font-medium text-ov-pink hover:underline dark:text-ov-pink-muted"
-              >
-                ¿Olvidaste tu contraseña?
-              </Link>
-              <Link
-                href="/registro"
-                className="text-[13px] font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-              >
-                Crear cuenta
-              </Link>
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-[12px]">
+                Al crear una cuenta, aceptas nuestros términos de servicio y política de privacidad.
+              </p>
             </div>
             <button
               type="submit"
               disabled={loading}
               className="h-10 w-full rounded-lg bg-slate-900 px-4 text-[14px] font-medium text-white shadow-sm transition-colors hover:bg-slate-800 disabled:opacity-70 dark:bg-slate-800 dark:hover:bg-slate-700"
             >
-              {loading ? "Iniciando sesión..." : "Entrar"}
+              {loading ? "Creando cuenta..." : "Crear cuenta"}
             </button>
+            <div className="text-center">
+              <Link
+                href="/login"
+                className="text-[13px] font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                ¿Ya tienes cuenta? Inicia sesión
+              </Link>
+            </div>
           </form>
         </div>
       </div>
