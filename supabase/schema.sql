@@ -80,12 +80,27 @@ CREATE TABLE IF NOT EXISTS customers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  cedula TEXT,
   email TEXT,
   phone TEXT,
-  address TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 7b. CUSTOMER_ADDRESSES (Varias direcciones por cliente: casa, oficina, etc.)
+CREATE TABLE IF NOT EXISTS customer_addresses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  address TEXT NOT NULL,
+  reference_point TEXT,
+  is_default BOOLEAN NOT NULL DEFAULT false,
+  display_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer_id ON customer_addresses(customer_id);
 
 -- 8. SALES (Pertenecen a una sucursal específica)
 CREATE TABLE IF NOT EXISTS sales (
@@ -101,6 +116,20 @@ CREATE TABLE IF NOT EXISTS sales (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 8b. SALE_ITEMS (Ítems por venta: producto, cantidad, precio unitario, descuento opcional)
+CREATE TABLE IF NOT EXISTS sale_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sale_id UUID NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  quantity INT NOT NULL CHECK (quantity > 0),
+  unit_price DECIMAL(10,2) NOT NULL,
+  discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+  discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
+CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items(product_id);
+
 -- 9. CATEGORIES (Categorías de productos por organización)
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -109,6 +138,36 @@ CREATE TABLE IF NOT EXISTS categories (
   display_order INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(organization_id, name)
+);
+
+-- 10. ACTIVITIES (Muro por organización y sucursal, retención 90 días)
+CREATE TABLE IF NOT EXISTS activities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  actor_type TEXT NOT NULL DEFAULT 'user' CHECK (actor_type IN ('user', 'system')),
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id UUID,
+  summary TEXT NOT NULL,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS activity_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS activity_likes (
+  activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (activity_id, user_id)
 );
 
 -- ============================================
@@ -123,8 +182,14 @@ CREATE INDEX IF NOT EXISTS idx_inventory_branch_id ON inventory(branch_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_product_id ON inventory(product_id);
 CREATE INDEX IF NOT EXISTS idx_sales_branch_id ON sales(branch_id);
 CREATE INDEX IF NOT EXISTS idx_sales_user_id ON sales(user_id);
+CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales(customer_id);
 CREATE INDEX IF NOT EXISTS idx_customers_organization_id ON customers(organization_id);
 CREATE INDEX IF NOT EXISTS idx_categories_organization_id ON categories(organization_id);
+CREATE INDEX IF NOT EXISTS idx_activities_organization_id ON activities(organization_id);
+CREATE INDEX IF NOT EXISTS idx_activities_branch_id ON activities(branch_id);
+CREATE INDEX IF NOT EXISTS idx_activities_created_at ON activities(organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activities_org_branch_created ON activities(organization_id, branch_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_comments_activity_id ON activity_comments(activity_id);
 CREATE INDEX IF NOT EXISTS idx_user_branches_user_id ON user_branches(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_branches_branch_id ON user_branches(branch_id);
 
@@ -139,6 +204,7 @@ ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customer_addresses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_branches ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Usuarios solo ven su organización
@@ -222,6 +288,18 @@ CREATE POLICY "Users create sales in their branches"
     )
   );
 
+-- Policy: sale_items (ver/crear/eliminar solo de ventas de sus sucursales)
+ALTER TABLE sale_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users see sale_items of their branches"
+  ON sale_items FOR SELECT
+  USING (sale_id IN (SELECT id FROM sales WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())));
+CREATE POLICY "Users insert sale_items for sales in their branches"
+  ON sale_items FOR INSERT
+  WITH CHECK (sale_id IN (SELECT id FROM sales WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())));
+CREATE POLICY "Users delete sale_items of their branches"
+  ON sale_items FOR DELETE
+  USING (sale_id IN (SELECT id FROM sales WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())));
+
 -- Policy: Usuarios solo ven clientes de su organización
 CREATE POLICY "Users see only customers in their organization"
   ON customers FOR SELECT
@@ -239,6 +317,35 @@ CREATE POLICY "Users create customers in their organization"
       SELECT organization_id FROM users WHERE id = auth.uid()
     )
   );
+CREATE POLICY "Users update customers in their organization"
+  ON customers FOR UPDATE
+  USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
+  WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "Users delete customers in their organization"
+  ON customers FOR DELETE
+  USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+
+-- Policy: Direcciones de clientes (ver/crear/actualizar/eliminar solo las de clientes de su org)
+CREATE POLICY "Users see addresses of customers in their organization"
+  ON customer_addresses FOR SELECT
+  USING (
+    customer_id IN (SELECT id FROM customers WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
+  );
+CREATE POLICY "Users insert addresses for customers in their organization"
+  ON customer_addresses FOR INSERT
+  WITH CHECK (
+    customer_id IN (SELECT id FROM customers WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
+  );
+CREATE POLICY "Users update addresses of customers in their organization"
+  ON customer_addresses FOR UPDATE
+  USING (
+    customer_id IN (SELECT id FROM customers WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
+  );
+CREATE POLICY "Users delete addresses of customers in their organization"
+  ON customer_addresses FOR DELETE
+  USING (
+    customer_id IN (SELECT id FROM customers WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
+  );
 
 -- Policy: Categorías (solo ver/crear/actualizar/eliminar las de su organización)
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
@@ -255,6 +362,19 @@ CREATE POLICY "Users update categories in their organization"
 CREATE POLICY "Users delete categories in their organization"
   ON categories FOR DELETE
   USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+
+-- Policy: Actividades (muro, retención 90 días)
+ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_likes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users see activities of their organization and branches" ON activities FOR SELECT USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()) AND (branch_id IS NULL OR branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())));
+CREATE POLICY "Users insert activities in their organization and branches" ON activities FOR INSERT WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()) AND (branch_id IS NULL OR branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())));
+CREATE POLICY "Users see comments of their org activities" ON activity_comments FOR SELECT USING (activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())));
+CREATE POLICY "Users insert comments on their org activities" ON activity_comments FOR INSERT WITH CHECK (activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())) AND user_id = auth.uid());
+CREATE POLICY "Users delete own comments" ON activity_comments FOR DELETE USING (user_id = auth.uid());
+CREATE POLICY "Users see likes of their org activities" ON activity_likes FOR SELECT USING (activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())));
+CREATE POLICY "Users insert likes on their org activities" ON activity_likes FOR INSERT WITH CHECK (activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())) AND user_id = auth.uid());
+CREATE POLICY "Users delete own likes" ON activity_likes FOR DELETE USING (user_id = auth.uid());
 
 -- Policy: Usuarios pueden ver sus relaciones con sucursales
 CREATE POLICY "Users see their branch assignments"

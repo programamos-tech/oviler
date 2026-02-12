@@ -6,24 +6,21 @@ import { createClient } from "@/lib/supabase/client";
 export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [hideSensitiveInfo, setHideSensitiveInfo] = useState(false);
-  const [branch, setBranch] = useState<{ name: string; logo_url: string | null } | null>(null);
   const [hasSales, setHasSales] = useState<boolean | null>(null);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   useEffect(() => {
-    async function loadBranchAndSales() {
+    async function loadHasSales() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
       if (!ub?.branch_id) return;
-      const { data: branchData } = await supabase.from("branches").select("name, logo_url").eq("id", ub.branch_id).single();
-      if (branchData) setBranch({ name: branchData.name, logo_url: branchData.logo_url ?? null });
       const { count } = await supabase.from("sales").select("*", { count: "exact", head: true }).eq("branch_id", ub.branch_id);
       setHasSales((count ?? 0) > 0);
     }
-    loadBranchAndSales();
+    loadHasSales();
   }, []);
 
   const formatDate = (date: Date) => {
@@ -137,36 +134,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header con navegación temporal */}
-      <header className="space-y-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
-                {branch?.logo_url ? (
-                  <img src={branch.logo_url} alt="" className="h-full w-full object-contain p-1" />
-                ) : (
-                  <span className="text-lg font-bold text-slate-400 dark:text-slate-500">
-                    {branch?.name?.charAt(0)?.toUpperCase() || "S"}
-                  </span>
-                )}
-              </div>
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Estás en
-                </p>
-                <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
-                  {branch?.name || "Dashboard"}
-                </h1>
-                <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-neutral-400">
-                  Resumen de ventas y métricas del negocio
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Controles del dashboard */}
-          <div className="flex items-center gap-2">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+          Dashboard
+        </h1>
+        <div className="flex items-center gap-2">
             {/* Botón para ocultar información sensible */}
             <button
               onClick={() => setHideSensitiveInfo(!hideSensitiveInfo)}
@@ -264,7 +236,6 @@ export default function DashboardPage() {
                 />
               </svg>
             </button>
-          </div>
         </div>
       </header>
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Breadcrumb from "@/app/components/Breadcrumb";
 
 const IVA_RATE = 0.19;
 const PAGE_SIZE = 20;
@@ -266,6 +267,7 @@ export default function InventoryPage() {
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto">
       <header className="space-y-2">
+        <Breadcrumb items={[{ label: "Inventario" }]} />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">

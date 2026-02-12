@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
 
 const IVA_RATE = 0.19;
@@ -127,7 +128,13 @@ export default function ProductDetailPage() {
     <div className="space-y-6">
       {/* Card: nombre del producto + métricas y acciones */}
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
-        <div className="flex items-start justify-between gap-3">
+        <Breadcrumb
+          items={[
+            { label: "Inventario", href: "/inventario" },
+            { label: product.name },
+          ]}
+        />
+        <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
               {product.name}

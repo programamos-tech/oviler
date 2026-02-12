@@ -1,1011 +1,400 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import Breadcrumb from "@/app/components/Breadcrumb";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
+
+const PAGE_SIZE = 20;
+
+type CustomerAddress = {
+  id: string;
+  label: string;
+  address: string;
+  reference_point: string | null;
+  is_default: boolean;
+  display_order: number;
+};
+
+type CustomerRow = {
+  id: string;
+  organization_id: string;
+  name: string;
+  cedula: string | null;
+  email: string | null;
+  phone: string | null;
+  created_at: string;
+  customer_addresses: CustomerAddress[] | null;
+};
 
 export default function CustomersPage() {
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [showLoadingUI, setShowLoadingUI] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const hasFocusedList = useRef(false);
+  const loadingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) {
+      loadingDelayRef.current = setTimeout(() => setShowLoadingUI(true), 400);
+    } else {
+      if (loadingDelayRef.current) clearTimeout(loadingDelayRef.current);
+      loadingDelayRef.current = null;
+      setShowLoadingUI(false);
+    }
+    return () => {
+      if (loadingDelayRef.current) clearTimeout(loadingDelayRef.current);
+    };
+  }, [loading]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
+      if (!userRow?.organization_id || cancelled) return;
+
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      let q = supabase
+        .from("customers")
+        .select("id, organization_id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)", { count: "exact" })
+        .eq("organization_id", userRow.organization_id)
+        .eq("active", true)
+        .order("name", { ascending: true })
+        .range(from, to);
+
+      const qTrim = searchQuery.trim();
+      if (qTrim) {
+        q = q.or(`name.ilike.%${qTrim}%,cedula.ilike.%${qTrim}%,email.ilike.%${qTrim}%,phone.ilike.%${qTrim}%`);
+      }
+
+      let { data: customersData, count, error } = await q;
+      if (cancelled) return;
+      // Si falla (ej. columna active no existe), intentar sin filtrar por active
+      if (error) {
+        const q2 = supabase
+          .from("customers")
+          .select("id, organization_id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)", { count: "exact" })
+          .eq("organization_id", userRow.organization_id)
+          .order("name", { ascending: true })
+          .range(from, to);
+        const q2WithSearch = qTrim ? q2.or(`name.ilike.%${qTrim}%,cedula.ilike.%${qTrim}%,email.ilike.%${qTrim}%,phone.ilike.%${qTrim}%`) : q2;
+        const res2 = await q2WithSearch;
+        if (cancelled) return;
+        customersData = res2.data;
+        count = res2.count;
+        error = res2.error;
+      }
+      if (!error) {
+        setCustomers((customersData ?? []) as CustomerRow[]);
+        setTotalCount(count ?? 0);
+      } else {
+        setCustomers([]);
+        setTotalCount(0);
+      }
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [refreshKey, page, searchQuery]);
+
+  const filteredCustomers = customers.filter((c) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.cedula?.includes(searchQuery.trim()) ?? false) ||
+      (c.email?.toLowerCase().includes(q) ?? false) ||
+      (c.phone?.includes(searchQuery.trim()) ?? false)
+    );
+  });
+
+  useEffect(() => {
+    setSelectedIndex((i) => Math.min(i, Math.max(0, filteredCustomers.length - 1)));
+  }, [filteredCustomers.length]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (filteredCustomers.length === 0) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.min(i + 1, filteredCustomers.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        router.push(`/clientes/${filteredCustomers[selectedIndex].id}`);
+      }
+    },
+    [filteredCustomers, selectedIndex, router]
+  );
+
+  useEffect(() => {
+    cardRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedIndex]);
+
+  useEffect(() => {
+    if (!loading && filteredCustomers.length > 0 && listRef.current && !hasFocusedList.current) {
+      hasFocusedList.current = true;
+      listRef.current.focus({ preventScroll: true });
+    }
+  }, [loading, filteredCustomers.length]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const showPagination = !loading && totalCount > 0;
+  const pageNumbers = (() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const around = 2;
+    const start = Math.max(1, page - around);
+    const end = Math.min(totalPages, page + around);
+    const nums: (number | "…")[] = [];
+    if (start > 1) { nums.push(1); if (start > 2) nums.push("…"); }
+    for (let i = start; i <= end; i++) nums.push(i);
+    if (end < totalPages) { if (end < totalPages - 1) nums.push("…"); nums.push(totalPages); }
+    return nums;
+  })();
+
+  const paginationBar = showPagination && (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+      <p className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
+        {totalCount} {totalCount === 1 ? "cliente" : "clientes"}
+        {totalPages > 1 && <> · Página {page} de {totalPages}</>}
+      </p>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            aria-label="Página anterior"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          {pageNumbers.map((n, i) =>
+            n === "…" ? (
+              <span key={`ellipsis-${i}`} className="px-2 text-slate-400">…</span>
+            ) : (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setPage(n)}
+                className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg border px-2 text-[13px] font-medium ${
+                  page === n
+                    ? "border-ov-pink bg-ov-pink text-white dark:bg-ov-pink dark:text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                }`}
+              >
+                {n}
+              </button>
+            )
+          )}
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            aria-label="Página siguiente"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto">
       <header className="space-y-2">
+        <Breadcrumb items={[{ label: "Clientes" }]} />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
               Clientes
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Construye tu base de clientes con datos claros: historial de compras,
-              frecuencia y montos. Tu tienda deja de vender a desconocidos.
+              Lista de clientes de tu organización. Busca por nombre, email o teléfono.
             </p>
           </div>
-          <Link
-            href="/clientes/nueva"
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRefreshKey((k) => k + 1)}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Nuevo cliente
-          </Link>
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Actualizar
+            </button>
+            <Link
+              href="/clientes/nueva"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo cliente
+            </Link>
+          </div>
         </div>
       </header>
 
-      {/* Lista de clientes como cards expandibles */}
-      <section className="space-y-3">
-        {/* Card 1 - Cliente frecuente */}
-        <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
-          <summary className="flex cursor-pointer list-none items-center gap-4">
-            <div className="flex w-12 h-12 items-center justify-center rounded-full bg-slate-900 text-white dark:bg-slate-700">
-              <span className="text-[16px] font-bold">MG</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
-                María López
-              </p>
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                8 pedidos con domicilio · Cliente VIP
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Total comprado
-              </p>
-              <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
-                $245.800
-              </p>
-            </div>
-            <div className="w-32 text-right">
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Ticket promedio
-              </p>
-              <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
-                $30.725
-              </p>
-            </div>
-          </summary>
-          <div className="mt-3 border-t border-slate-200 pt-3 text-[13px] text-slate-700 dark:border-slate-800 dark:text-slate-300">
-            <div className="grid gap-6 lg:grid-cols-2">
-              {/* Columna izquierda: Información y gráfica */}
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Información del cliente
-                  </p>
-                  <div className="space-y-2 text-[13px]">
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="h-4 w-4 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                        />
-                      </svg>
-                      <span className="font-bold">Teléfono:</span>
-                      <span className="text-slate-600 dark:text-slate-400">
-                        312 000 0000
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Dirección:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          Cra 10 # 20-30, Apto 502, portería azul
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="h-4 w-4 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                      <span className="font-bold">Primera compra:</span>
-                      <span className="text-slate-600 dark:text-slate-400">
-                        Hace 3 meses
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="h-4 w-4 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <span className="font-bold">Última compra:</span>
-                      <span className="text-slate-600 dark:text-slate-400">
-                        Hace 2 días
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Gráfica de ticket promedio */}
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Ticket promedio mensual
-                  </p>
-                  <div className="rounded-lg bg-white border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
-                    {/* Eje Y con valores */}
-                    <div className="relative h-40 mb-2">
-                      <div className="absolute inset-0 flex flex-col justify-between text-[10px] text-slate-500 dark:text-slate-400 pr-2">
-                        <span>$40k</span>
-                        <span>$30k</span>
-                        <span>$20k</span>
-                        <span>$10k</span>
-                        <span>$0</span>
-                      </div>
-                      {/* Líneas de referencia horizontales */}
-                      <div className="absolute inset-0 ml-8 flex flex-col justify-between">
-                        <div className="border-t border-slate-200 dark:border-slate-700"></div>
-                        <div className="border-t border-slate-200 dark:border-slate-700"></div>
-                        <div className="border-t border-slate-200 dark:border-slate-700"></div>
-                        <div className="border-t border-slate-200 dark:border-slate-700"></div>
-                        <div className="border-t border-slate-300 dark:border-slate-600"></div>
-                      </div>
-                      {/* Barras del gráfico */}
-                      <div className="ml-8 h-full flex items-end justify-between gap-3">
-                        <div className="flex flex-col items-center gap-1 flex-1 group relative">
-                          <div 
-                            className="w-full bg-gradient-to-t from-[rgb(234,88,12)] to-orange-400 rounded-t hover:from-[rgb(234,88,12)] hover:to-orange-300 transition-all cursor-pointer shadow-sm"
-                            style={{ height: '48%' }}
-                          >
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-700 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              $18.500
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 flex-1 group relative">
-                          <div 
-                            className="w-full bg-gradient-to-t from-[rgb(234,88,12)] to-orange-400 rounded-t hover:from-[rgb(234,88,12)] hover:to-orange-300 transition-all cursor-pointer shadow-sm"
-                            style={{ height: '60%' }}
-                          >
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-700 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              $23.200
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 flex-1 group relative">
-                          <div 
-                            className="w-full bg-gradient-to-t from-[rgb(234,88,12)] to-orange-400 rounded-t hover:from-[rgb(234,88,12)] hover:to-orange-300 transition-all cursor-pointer shadow-sm"
-                            style={{ height: '72%' }}
-                          >
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-700 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              $27.800
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 flex-1 group relative">
-                          <div 
-                            className="w-full bg-gradient-to-t from-[rgb(234,88,12)] to-orange-400 rounded-t hover:from-[rgb(234,88,12)] hover:to-orange-300 transition-all cursor-pointer shadow-sm"
-                            style={{ height: '80%' }}
-                          >
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-700 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              $30.900
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 flex-1 group relative">
-                          <div 
-                            className="w-full bg-gradient-to-t from-[rgb(234,88,12)] to-orange-400 rounded-t hover:from-[rgb(234,88,12)] hover:to-orange-300 transition-all cursor-pointer shadow-md"
-                            style={{ height: '100%' }}
-                          >
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-700 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              $35.400
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Eje X con meses */}
-                    <div className="ml-8 flex justify-between gap-3">
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex-1 text-center">Ene</span>
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex-1 text-center">Feb</span>
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex-1 text-center">Mar</span>
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex-1 text-center">Abr</span>
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex-1 text-center">May</span>
-                    </div>
-                    {/* Información adicional */}
-                    <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-[12px]">
-                      <span className="font-medium text-slate-600 dark:text-slate-400">Promedio: $30.725</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">+15% vs mes anterior</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Columna derecha: Insights y top productos */}
-              <div className="space-y-4">
-                {/* Insights */}
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Insights
-                  </p>
-                  <div className="space-y-2 rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
-                    <div className="flex items-start gap-2 text-[13px]">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-emerald-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Tendencia:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          Cliente en crecimiento. Aumentó frecuencia de compra 25% este mes.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2 text-[13px]">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-blue-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Frecuencia:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          Compra cada 4 días en promedio. Cliente muy activo.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2 text-[13px]">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-orange-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Preferencia:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          100% de sus compras son a domicilio. Cliente VIP.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Top productos */}
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Top productos comprados
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded bg-[rgb(234,88,12)] text-[11px] font-bold text-white">
-                          1
-                        </span>
-                        <span className="font-medium text-[13px]">Aceite 1L</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[13px] font-bold">12 veces</span>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">$270.000</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-400 text-[11px] font-bold text-white">
-                          2
-                        </span>
-                        <span className="font-medium text-[13px]">Arroz 500g</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[13px] font-bold">8 veces</span>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">$24.000</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-400 text-[11px] font-bold text-white">
-                          3
-                        </span>
-                        <span className="font-medium text-[13px]">Leche</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[13px] font-bold">6 veces</span>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">$24.000</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-800">
-              <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400">
-                Cliente registrado desde hace 3 meses
-              </p>
-              <button className="inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-300 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-                Editar cliente
-              </button>
-            </div>
+      {!loading && totalCount > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="relative flex-1 min-w-0 max-w-md">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+              placeholder="Buscar por nombre, cédula, email o teléfono..."
+              className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-[14px] text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
+            />
           </div>
-        </details>
+        </div>
+      )}
 
-        {/* Card 2 - Cliente frecuente */}
-        <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
-          <summary className="flex cursor-pointer list-none items-center gap-4">
-            <div className="flex w-12 h-12 items-center justify-center rounded-full bg-slate-900 text-white dark:bg-slate-700">
-              <span className="text-[16px] font-bold">CG</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
-                Carlos Gómez
-              </p>
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Cliente frecuente · 15 compras
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Total comprado
-              </p>
-              <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
-                $280.500
-              </p>
-            </div>
-            <div className="w-32 text-right">
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Ticket promedio
-              </p>
-              <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
-                $18.700
-              </p>
-            </div>
-          </summary>
-          <div className="mt-3 border-t border-slate-200 pt-3 text-[13px] text-slate-700 dark:border-slate-800 dark:text-slate-300">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Información del cliente
-                  </p>
-                  <div className="space-y-2 text-[13px]">
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="h-4 w-4 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                        />
-                      </svg>
-                      <span className="font-bold">Teléfono:</span>
-                      <span className="text-slate-600 dark:text-slate-400">
-                        315 123 4567
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Dirección:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          Cra 8 # 15-25, Barrio San José
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="h-4 w-4 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                      <span className="font-bold">Primera compra:</span>
-                      <span className="text-slate-600 dark:text-slate-400">
-                        Hace 5 meses
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="h-4 w-4 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <span className="font-bold">Última compra:</span>
-                      <span className="text-slate-600 dark:text-slate-400">
-                        Hoy
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Ticket promedio mensual
-                  </p>
-                  <div className="rounded-lg bg-white border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
-                    <div className="relative h-40 mb-2">
-                      <div className="absolute inset-0 flex flex-col justify-between text-[10px] text-slate-500 dark:text-slate-400 pr-2">
-                        <span>$25k</span>
-                        <span>$20k</span>
-                        <span>$15k</span>
-                        <span>$10k</span>
-                        <span>$0</span>
-                      </div>
-                      <div className="absolute inset-0 ml-8 flex flex-col justify-between">
-                        <div className="border-t border-slate-200 dark:border-slate-700"></div>
-                        <div className="border-t border-slate-200 dark:border-slate-700"></div>
-                        <div className="border-t border-slate-200 dark:border-slate-700"></div>
-                        <div className="border-t border-slate-200 dark:border-slate-700"></div>
-                        <div className="border-t border-slate-300 dark:border-slate-600"></div>
-                      </div>
-                      <div className="ml-8 h-full flex items-end justify-between gap-3">
-                        <div className="flex flex-col items-center gap-1 flex-1 group relative">
-                          <div 
-                            className="w-full bg-gradient-to-t from-[rgb(234,88,12)] to-orange-400 rounded-t hover:from-[rgb(234,88,12)] hover:to-orange-300 transition-all cursor-pointer shadow-sm"
-                            style={{ height: '56%' }}
-                          >
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-700 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              $14.000
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 flex-1 group relative">
-                          <div 
-                            className="w-full bg-gradient-to-t from-[rgb(234,88,12)] to-orange-400 rounded-t hover:from-[rgb(234,88,12)] hover:to-orange-300 transition-all cursor-pointer shadow-sm"
-                            style={{ height: '52%' }}
-                          >
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-700 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              $13.000
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 flex-1 group relative">
-                          <div 
-                            className="w-full bg-gradient-to-t from-[rgb(234,88,12)] to-orange-400 rounded-t hover:from-[rgb(234,88,12)] hover:to-orange-300 transition-all cursor-pointer shadow-sm"
-                            style={{ height: '64%' }}
-                          >
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-700 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              $16.000
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 flex-1 group relative">
-                          <div 
-                            className="w-full bg-gradient-to-t from-[rgb(234,88,12)] to-orange-400 rounded-t hover:from-[rgb(234,88,12)] hover:to-orange-300 transition-all cursor-pointer shadow-sm"
-                            style={{ height: '60%' }}
-                          >
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-700 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              $15.000
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1 flex-1 group relative">
-                          <div 
-                            className="w-full bg-gradient-to-t from-[rgb(234,88,12)] to-orange-400 rounded-t hover:from-[rgb(234,88,12)] hover:to-orange-300 transition-all cursor-pointer shadow-md"
-                            style={{ height: '100%' }}
-                          >
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-700 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              $20.200
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="ml-8 flex justify-between gap-3">
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex-1 text-center">Ene</span>
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex-1 text-center">Feb</span>
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex-1 text-center">Mar</span>
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex-1 text-center">Abr</span>
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex-1 text-center">May</span>
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-[12px]">
-                      <span className="font-medium text-slate-600 dark:text-slate-400">Promedio: $18.700</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">+8% vs mes anterior</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Insights
-                  </p>
-                  <div className="space-y-2 rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
-                    <div className="flex items-start gap-2 text-[13px]">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-emerald-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Tendencia:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          Cliente estable. Mantiene frecuencia constante de compras.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2 text-[13px]">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-blue-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Frecuencia:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          Compra cada 6 días en promedio. Cliente regular.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2 text-[13px]">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-orange-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Preferencia:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          60% compras físicas, 40% a domicilio. Cliente mixto.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Top productos comprados
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded bg-[rgb(234,88,12)] text-[11px] font-bold text-white">
-                          1
-                        </span>
-                        <span className="font-medium text-[13px]">Coca-Cola 1.5L</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[13px] font-bold">10 veces</span>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">$55.000</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-400 text-[11px] font-bold text-white">
-                          2
-                        </span>
-                        <span className="font-medium text-[13px]">Papas fritas</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[13px] font-bold">7 veces</span>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">$53.900</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-400 text-[11px] font-bold text-white">
-                          3
-                        </span>
-                        <span className="font-medium text-[13px]">Pan tajado integral</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[13px] font-bold">5 veces</span>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">$21.000</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-800">
-              <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400">
-                Cliente registrado desde hace 5 meses
-              </p>
-              <button className="inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-300 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-                Editar cliente
-              </button>
-            </div>
+      <section
+        ref={listRef}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        className="space-y-3 outline-none"
+        aria-label="Lista de clientes. Usa flechas arriba y abajo para moverte, Enter para abrir."
+      >
+        {loading && showLoadingUI ? (
+          <div className="flex min-h-[200px] items-center justify-center pt-48 pb-12">
+            <p className="font-logo text-lg font-bold tracking-tight text-slate-800 dark:text-white sm:text-xl" aria-live="polite">
+              NOU<span className="animate-pulse">...</span>
+            </p>
           </div>
-        </details>
-
-        {/* Card 3 - Cliente nuevo */}
-        <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
-          <summary className="flex cursor-pointer list-none items-center gap-4">
-            <div className="flex w-12 h-12 items-center justify-center rounded-full bg-slate-900 text-white dark:bg-slate-700">
-              <span className="text-[16px] font-bold">JP</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
-                Juan Pérez
-              </p>
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Nuevo cliente · Primera compra
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Total comprado
-              </p>
-              <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
-                $46.000
-              </p>
-            </div>
-            <div className="w-32 text-right">
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Ticket promedio
-              </p>
-              <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
-                $46.000
-              </p>
-            </div>
-          </summary>
-          <div className="mt-3 border-t border-slate-200 pt-3 text-[13px] text-slate-700 dark:border-slate-800 dark:text-slate-300">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Información del cliente
-                  </p>
-                  <div className="space-y-2 text-[13px]">
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="h-4 w-4 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                        />
-                      </svg>
-                      <span className="font-bold">Teléfono:</span>
-                      <span className="text-slate-600 dark:text-slate-400">
-                        320 555 1234
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Dirección:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          Cra 15 # 45-12, Barrio Los Almendros
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="h-4 w-4 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                      <span className="font-bold">Primera compra:</span>
-                      <span className="text-slate-600 dark:text-slate-400">
-                        Hoy
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="h-4 w-4 text-slate-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <span className="font-bold">Última compra:</span>
-                      <span className="text-slate-600 dark:text-slate-400">
-                        Hoy
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Ticket promedio mensual
-                  </p>
-                  <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
-                    <div className="flex items-center justify-center h-32">
-                      <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                        Datos insuficientes para mostrar gráfica
+        ) : loading ? (
+          <div className="min-h-[280px]" aria-hidden />
+        ) : filteredCustomers.length === 0 ? (
+          <div className="rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <p className="text-[15px] font-medium text-slate-700 dark:text-slate-300">
+              {totalCount === 0 ? "Aún no tienes clientes" : "Ningún cliente coincide con la búsqueda en esta página"}
+            </p>
+            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+              {totalCount === 0 ? "Registra tu primer cliente para verlo aquí." : "Prueba con otro término de búsqueda."}
+            </p>
+            <Link
+              href="/clientes/nueva"
+              className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover"
+            >
+              Nuevo cliente
+            </Link>
+          </div>
+        ) : (
+          filteredCustomers.map((c, index) => {
+            const isSelected = index === selectedIndex;
+            return (
+              <div
+                key={c.id}
+                ref={(el) => { cardRefs.current[index] = el; }}
+                role="button"
+                tabIndex={-1}
+                onClick={() => router.push(`/clientes/${c.id}`)}
+                className={`rounded-xl shadow-sm ring-1 cursor-pointer transition-all ${
+                  isSelected
+                    ? "bg-slate-100 ring-slate-300 dark:bg-slate-800 dark:ring-slate-600"
+                    : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
+                }`}
+              >
+                <div className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-x-6 gap-y-2 sm:gap-y-0 items-center px-4 py-3 sm:px-6 sm:py-4">
+                  <div className="col-span-2 sm:col-span-1 min-w-0">
+                    <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">
+                      {c.name}
+                    </p>
+                    {c.cedula && (
+                      <p className="mt-0.5 text-[13px] font-semibold text-slate-600 dark:text-slate-400 truncate" title={c.cedula}>
+                        CC {c.cedula}
                       </p>
-                    </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-semibold text-slate-700 dark:text-slate-200 truncate" title={c.email ?? undefined}>
+                      {c.email || "—"}
+                    </p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-semibold text-slate-700 dark:text-slate-200 truncate" title={c.phone ?? undefined}>
+                      {c.phone || "—"}
+                    </p>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1 min-w-0">
+                    {(() => {
+                      const addrs = c.customer_addresses ?? [];
+                      const sorted = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
+                      const first = sorted[0];
+                      if (first) {
+                        return (
+                          <>
+                            <p className="text-[14px] font-semibold text-slate-600 dark:text-slate-300 truncate" title={first.address}>
+                              {addrs.length > 1 ? `${first.label}: ${first.address}` : first.address}
+                            </p>
+                            {first.reference_point && (
+                              <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400 truncate" title={first.reference_point}>
+                                Ref: {first.reference_point}
+                              </p>
+                            )}
+                            {addrs.length > 1 && (
+                              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                +{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}
+                              </p>
+                            )}
+                          </>
+                        );
+                      }
+                      return <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400">—</p>;
+                    })()}
+                  </div>
+                  <div className="col-span-2 sm:col-span-1 flex items-center justify-end">
+                    <span className="group relative inline-flex" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/clientes/${c.id}`}
+                        className="inline-flex shrink-0 items-center justify-center p-1 text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink dark:hover:text-ov-pink-hover"
+                        aria-label="Ver detalle"
+                      >
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </Link>
+                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:bg-slate-700">
+                        Ver detalle
+                      </span>
+                    </span>
                   </div>
                 </div>
               </div>
-
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Insights
-                  </p>
-                  <div className="space-y-2 rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
-                    <div className="flex items-start gap-2 text-[13px]">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-blue-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Estado:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          Cliente nuevo. Primera compra registrada hoy.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2 text-[13px]">
-                      <svg
-                        className="h-4 w-4 mt-0.5 text-orange-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      <div>
-                        <span className="font-bold">Preferencia:</span>
-                        <p className="text-slate-600 dark:text-slate-400">
-                          Primera compra fue a domicilio. Potencial cliente recurrente.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Top productos comprados
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded bg-[rgb(234,88,12)] text-[11px] font-bold text-white">
-                          1
-                        </span>
-                        <span className="font-medium text-[13px]">Leche</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[13px] font-bold">1 vez</span>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">$12.000</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-400 text-[11px] font-bold text-white">
-                          2
-                        </span>
-                        <span className="font-medium text-[13px]">Pan francés</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[13px] font-bold">1 vez</span>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">$30.000</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-800">
-              <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400">
-                Cliente nuevo · Registrado hoy
-              </p>
-              <button className="inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-300 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-                Editar cliente
-              </button>
-            </div>
-          </div>
-        </details>
+            );
+          })
+        )}
       </section>
+
+      {paginationBar}
     </div>
   );
 }

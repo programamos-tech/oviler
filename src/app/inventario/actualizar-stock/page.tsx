@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/lib/activities";
+import Breadcrumb from "@/app/components/Breadcrumb";
 
 type ProductOption = { id: string; name: string; sku: string | null };
 
@@ -16,6 +18,11 @@ export default function UpdateStockPage() {
   const [branchId, setBranchId] = useState<string | null>(null);
   const [location, setLocation] = useState<"local" | "bodega">("local");
   const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null);
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [productSearchResults, setProductSearchResults] = useState<ProductOption[]>([]);
+  const [searchingProducts, setSearchingProducts] = useState(false);
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
   const [currentStock, setCurrentStock] = useState<number | null>(null);
   const [movementType, setMovementType] = useState<"entrada" | "ajuste">("entrada");
   const [quantity, setQuantity] = useState("");
@@ -100,6 +107,50 @@ export default function UpdateStockPage() {
     fetchCurrentStock(selectedProduct.id, branchId, location, hasBodega);
   }, [selectedProduct?.id, branchId, location, hasBodega, fetchCurrentStock]);
 
+  useEffect(() => {
+    const q = productSearchQuery.trim();
+    if (q.length < 2) {
+      setProductSearchResults([]);
+      setSearchDropdownOpen(!!q);
+      return;
+    }
+    let cancelled = false;
+    setSearchingProducts(true);
+    const t = setTimeout(async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
+      if (!userRow?.organization_id || cancelled) return;
+      const { data } = await supabase
+        .from("products")
+        .select("id, name, sku")
+        .eq("organization_id", userRow.organization_id)
+        .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
+        .order("name", { ascending: true })
+        .limit(20);
+      if (!cancelled) {
+        setProductSearchResults((data as ProductOption[]) ?? []);
+        setSearchDropdownOpen(true);
+      }
+      if (!cancelled) setSearchingProducts(false);
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [productSearchQuery]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target as Node)) {
+        setSearchDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const qtyNum = quantity === "" ? null : parseInt(quantity, 10);
   const validQty = qtyNum !== null && !Number.isNaN(qtyNum) && qtyNum >= 0;
   const afterStock =
@@ -115,6 +166,8 @@ export default function UpdateStockPage() {
     if (!canSubmit || !selectedProduct || !branchId || qtyNum === null) return;
     setSaving(true);
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: userRow } = user ? await supabase.from("users").select("organization_id").eq("id", user.id).single() : { data: null };
     const newQty = movementType === "entrada" ? (currentStock ?? 0) + qtyNum : qtyNum;
 
     if (hasBodega) {
@@ -152,6 +205,34 @@ export default function UpdateStockPage() {
         });
       }
     }
+
+    if (user && userRow?.organization_id) {
+      try {
+        const previousQty = currentStock ?? 0;
+        const deltaNum = newQty - previousQty;
+        const deltaStr = deltaNum >= 0 ? `+${deltaNum}` : String(deltaNum);
+        await logActivity(supabase, {
+          organizationId: userRow.organization_id,
+          branchId,
+          userId: user.id,
+          action: "stock_adjusted",
+          entityType: "product",
+          entityId: selectedProduct.id,
+          summary: `${movementType === "entrada" ? "Registró entrada" : "Ajustó stock"}: ${selectedProduct.name} (${selectedProduct.sku ?? "—"}), estaba ${previousQty}, quedó en ${newQty} (${deltaStr})`,
+          metadata: {
+            productName: selectedProduct.name,
+            sku: selectedProduct.sku ?? null,
+            previousQuantity: previousQty,
+            newQuantity: newQty,
+            delta: deltaNum,
+            movementType,
+          },
+        });
+      } catch {
+        // No bloquear el flujo si falla el registro de actividad
+      }
+    }
+
     setSaving(false);
     setQuantity("");
     setReason("");
@@ -162,6 +243,15 @@ export default function UpdateStockPage() {
   return (
     <div className="space-y-4">
       <header className="space-y-2">
+        <Breadcrumb
+          items={[
+            { label: "Inventario", href: "/inventario" },
+            ...(selectedProduct && productIdFromUrl
+              ? [{ label: selectedProduct.name, href: `/inventario/${selectedProduct.id}` }]
+              : []),
+            { label: "Actualizar stock" },
+          ]}
+        />
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
@@ -202,16 +292,65 @@ export default function UpdateStockPage() {
             <label className="mt-3 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
               Buscar producto
             </label>
-            <div className="mt-2">
+            <div className="mt-2 relative" ref={searchDropdownRef}>
               <input
-                readOnly
-                value={loadingProduct ? "Cargando…" : selectedProduct ? `${selectedProduct.name}${selectedProduct.sku ? ` (${selectedProduct.sku})` : ""}` : ""}
-                placeholder="Nombre o código"
+                readOnly={!!loadingProduct}
+                value={loadingProduct ? "Cargando…" : selectedProduct ? `${selectedProduct.name}${selectedProduct.sku ? ` (${selectedProduct.sku})` : ""}` : productSearchQuery}
+                onChange={(e) => {
+                  if (!loadingProduct) {
+                    setProductSearchQuery(e.target.value);
+                    if (selectedProduct) setSelectedProduct(null);
+                  }
+                }}
+                onFocus={() => productSearchQuery.trim().length >= 2 && setSearchDropdownOpen(true)}
+                placeholder="Nombre o código (escribe al menos 2 letras)"
                 className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               />
+              {selectedProduct && !loadingProduct && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setProductSearchQuery("");
+                    setCurrentStock(null);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-0.5 text-[12px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                >
+                  Cambiar
+                </button>
+              )}
+              {searchDropdownOpen && (productSearchQuery.trim().length >= 2 || productSearchResults.length > 0) && (
+                <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                  {searchingProducts ? (
+                    <p className="px-4 py-3 text-[13px] text-slate-500 dark:text-slate-400">Buscando…</p>
+                  ) : productSearchResults.length === 0 ? (
+                    <p className="px-4 py-3 text-[13px] text-slate-500 dark:text-slate-400">Ningún producto coincide.</p>
+                  ) : (
+                    <ul className="py-1">
+                      {productSearchResults.map((p) => (
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProduct(p);
+                              setProductSearchQuery("");
+                              setSearchDropdownOpen(false);
+                              setProductSearchResults([]);
+                            }}
+                            className="flex w-full flex-col items-start gap-0.5 px-4 py-2.5 text-left text-[13px] hover:bg-slate-100 dark:hover:bg-slate-800"
+                          >
+                            <span className="font-medium text-slate-900 dark:text-slate-100">{p.name}</span>
+                            {p.sku && <span className="text-[12px] text-slate-500 dark:text-slate-400">{p.sku}</span>}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
             <p className="mt-2 text-[13px] font-medium text-slate-600 dark:text-slate-400">
-              {selectedProduct ? "Producto cargado." : "Selecciona el producto al que aplicarás el movimiento."}
+              {selectedProduct ? "Producto seleccionado." : "Escribe nombre o referencia para buscar y selecciona un producto."}
             </p>
 
             <div className="mt-4">

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
+import { logActivity } from "@/lib/activities";
+import Breadcrumb from "@/app/components/Breadcrumb";
 
 const inputClass =
   "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
@@ -75,17 +77,36 @@ export default function CategoriasPage() {
       return;
     }
     const nextOrder = categories.length > 0 ? Math.max(...categories.map((c) => c.display_order), 0) + 1 : 0;
-    const { error: insertError } = await supabase.from("categories").insert({
-      organization_id: userRow.organization_id,
-      name,
-      display_order: nextOrder,
-    });
+    const { data: newCat, error: insertError } = await supabase
+      .from("categories")
+      .insert({
+        organization_id: userRow.organization_id,
+        name,
+        display_order: nextOrder,
+      })
+      .select("id")
+      .single();
     if (insertError) {
       setError(insertError.message === "duplicate key value violates unique constraint \"categories_organization_id_name_key\""
         ? "Ya existe una categoría con ese nombre."
         : insertError.message);
       setSaving(false);
       return;
+    }
+    if (newCat?.id) {
+      try {
+        await logActivity(supabase, {
+          organizationId: userRow.organization_id,
+          userId: user.id,
+          action: "category_created",
+          entityType: "category",
+          entityId: newCat.id,
+          summary: `Creó la categoría ${name}`,
+          metadata: { name },
+        });
+      } catch {
+        // No bloquear el flujo si falla el registro de actividad
+      }
     }
     setNewName("");
     await loadCategories();
@@ -120,6 +141,7 @@ export default function CategoriasPage() {
   return (
     <div className="space-y-4">
       <header className="space-y-2">
+        <Breadcrumb items={[{ label: "Inventario", href: "/inventario" }, { label: "Categorías" }]} />
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">

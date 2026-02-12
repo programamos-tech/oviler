@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/lib/activities";
+import Breadcrumb from "@/app/components/Breadcrumb";
 
 type Category = { id: string; name: string };
 
@@ -147,6 +149,21 @@ export default function NewProductPage() {
       }
     }
 
+    try {
+      await logActivity(supabase, {
+        organizationId: userRow.organization_id,
+        branchId: ub.branch_id,
+        userId: user.id,
+        action: "product_created",
+        entityType: "product",
+        entityId: product.id,
+        summary: `Creó el producto ${name}`,
+        metadata: { sku, name },
+      });
+    } catch {
+      // No bloquear el flujo si falla el registro de actividad
+    }
+
     setSaving(false);
     router.push("/inventario");
   }
@@ -158,6 +175,7 @@ export default function NewProductPage() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <header className="space-y-2">
+        <Breadcrumb items={[{ label: "Inventario", href: "/inventario" }, { label: "Nuevo producto" }]} />
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">

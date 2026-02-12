@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/lib/activities";
+import Breadcrumb from "@/app/components/Breadcrumb";
 
 type Category = { id: string; name: string };
 
@@ -32,6 +34,7 @@ export default function EditProductPage() {
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initialProductRef = useRef<{ name: string; sku: string; description: string; brand: string; category_id: string; base_cost: number; base_price: number; apply_iva: boolean } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -62,16 +65,26 @@ export default function EditProductPage() {
         return;
       }
       if (!cancelled) {
+        const cost = p.base_cost != null ? Number(p.base_cost) : 0;
+        const price = p.base_price != null ? Number(p.base_price) : 0;
         setNombre(p.name ?? "");
         setReferencia(p.sku ?? "");
         setDescripcion(p.description ?? "");
         setMarca(p.brand ?? "");
         setCategoria(p.category_id ?? "");
         setAplicarIva(!!p.apply_iva);
-        const cost = p.base_cost != null ? Number(p.base_cost) : 0;
-        const price = p.base_price != null ? Number(p.base_price) : 0;
         setBaseCosto(cost ? formatMoney(cost) : "");
         setBasePrecio(price ? formatMoney(price) : "");
+        initialProductRef.current = {
+          name: p.name ?? "",
+          sku: p.sku ?? "",
+          description: p.description ?? "",
+          brand: p.brand ?? "",
+          category_id: p.category_id ?? "",
+          base_cost: cost,
+          base_price: price,
+          apply_iva: !!p.apply_iva,
+        };
       }
       setLoading(false);
     })();
@@ -106,6 +119,16 @@ export default function EditProductPage() {
     }
     setSaving(true);
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const [userRowRes, ubRes] = user
+      ? await Promise.all([
+          supabase.from("users").select("organization_id").eq("id", user.id).single(),
+          supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single(),
+        ])
+      : [{ data: null }, { data: null }];
+    const userRow = userRowRes.data;
+    const branchId = ubRes.data?.branch_id ?? null;
+
     const { error: updateError } = await supabase
       .from("products")
       .update({
@@ -126,6 +149,43 @@ export default function EditProductPage() {
       setSaving(false);
       return;
     }
+
+    if (user && userRow?.organization_id) {
+      try {
+        const initial = initialProductRef.current;
+        const labels: string[] = [];
+        if (initial) {
+          if ((initial.name || "").trim() !== name) labels.push("nombre");
+          if ((initial.sku || "").trim() !== sku) labels.push("referencia");
+          if ((initial.description || "").trim() !== (descripcion || "").trim()) labels.push("descripción");
+          if ((initial.brand || "").trim() !== (marca || "").trim()) labels.push("marca");
+          if ((initial.category_id || "") !== (categoria || "")) labels.push("categoría");
+          if (initial.base_cost !== numBaseCosto) labels.push("costo");
+          if (initial.base_price !== numBasePrecio) labels.push("precio");
+          if (initial.apply_iva !== (responsableIva ? aplicarIva : false)) labels.push("IVA");
+        }
+        const summary =
+          labels.length === 0
+            ? `Editó el producto ${name}`
+            : labels.length === 1
+              ? `Editó la ${labels[0]} de ${name}`
+              : `Editó ${labels.slice(0, -1).join(", ")} y ${labels[labels.length - 1]} de ${name}`;
+
+        await logActivity(supabase, {
+          organizationId: userRow.organization_id,
+          branchId,
+          userId: user.id,
+          action: "product_updated",
+          entityType: "product",
+          entityId: id,
+          summary,
+          metadata: { sku, name, changedFields: labels },
+        });
+      } catch {
+        // No bloquear el flujo si falla el registro de actividad
+      }
+    }
+
     setSaving(false);
     router.push(`/inventario/${id}`);
   }
@@ -154,6 +214,13 @@ export default function EditProductPage() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <header className="space-y-2">
+        <Breadcrumb
+          items={[
+            { label: "Inventario", href: "/inventario" },
+            { label: nombre.trim() || "Producto", href: id ? `/inventario/${id}` : undefined },
+            { label: "Editar" },
+          ]}
+        />
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">

@@ -135,6 +135,8 @@ const navItems: NavItem[] = [
   },
 ];
 
+const APP_NAME = "ToroCell";
+
 export default function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -142,6 +144,7 @@ export default function TopNav() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [branch, setBranch] = useState<{ name: string; logo_url: string | null } | null>(null);
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -160,6 +163,18 @@ export default function TopNav() {
       }
     }
     loadUser();
+  }, [supabase]);
+
+  useEffect(() => {
+    async function loadBranch() {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", authUser.id).limit(1).single();
+      if (!ub?.branch_id) return;
+      const { data: branchData } = await supabase.from("branches").select("name, logo_url").eq("id", ub.branch_id).single();
+      if (branchData) setBranch({ name: branchData.name, logo_url: branchData.logo_url ?? null });
+    }
+    loadBranch();
   }, [supabase]);
 
   useEffect(() => {
@@ -182,13 +197,39 @@ export default function TopNav() {
   return (
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
       <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Logo */}
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-1 font-logo">
-          <svg className="h-6 w-6 shrink-0 text-slate-900 dark:text-slate-50 sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-          </svg>
-          <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-            NOU
+        {/* Logo redondo + ToroCell + Powered by NOU */}
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-3 font-logo pt-1" title={`${APP_NAME} · ${branch?.name ?? "Sucursal"}`}>
+          <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 sm:h-10 sm:w-10">
+            {branch?.logo_url ? (
+              <img src={branch.logo_url} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-sm font-bold text-slate-500 dark:text-slate-400 sm:text-base">
+                {branch?.name?.charAt(0)?.toUpperCase() ?? "T"}
+              </span>
+            )}
+          </div>
+          <div className="hidden flex-col justify-center sm:flex">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-50">
+                {APP_NAME}
+              </span>
+              {branch?.name && branch.name.trim().toLowerCase() !== APP_NAME.toLowerCase() && (
+                <span className="truncate text-[12px] font-medium text-slate-500 dark:text-slate-400 max-w-[120px] lg:max-w-[160px]">
+                  · {branch.name}
+                </span>
+              )}
+            </div>
+            <span className="mt-1 flex items-center gap-1 text-[10px] font-bold text-slate-400 dark:text-slate-500">
+              Powered by
+              <svg className="h-3 w-3 shrink-0 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              NOU Inventarios
+            </span>
+          </div>
+          {/* Solo logo + ToroCell en móvil */}
+          <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:hidden">
+            {APP_NAME}
           </span>
         </Link>
 

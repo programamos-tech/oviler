@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Breadcrumb from "@/app/components/Breadcrumb";
 
 export default function TransferStockPage() {
   const searchParams = useSearchParams();
@@ -27,6 +28,7 @@ export default function TransferStockPage() {
   return (
     <div className="space-y-4">
       <header className="space-y-2">
+        <Breadcrumb items={[{ label: "Inventario", href: "/inventario" }, { label: "Transferir stock" }]} />
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
