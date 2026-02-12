@@ -8,6 +8,14 @@ const inputClass =
   "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
 const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
 
+type DeliveryPerson = {
+  id: string;
+  name: string;
+  code: string;
+  phone: string | null;
+  active: boolean;
+};
+
 export default function ConfigurarSucursalPage() {
   const [branchId, setBranchId] = useState<string | null>(null);
   const [hasBodega, setHasBodega] = useState(false);
@@ -16,6 +24,14 @@ export default function ConfigurarSucursalPage() {
   const [invoiceCancelRequiresApproval, setInvoiceCancelRequiresApproval] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  // Estados para domiciliarios
+  const [deliveryPersons, setDeliveryPersons] = useState<DeliveryPerson[]>([]);
+  const [editingPerson, setEditingPerson] = useState<DeliveryPerson | null>(null);
+  const [newPersonName, setNewPersonName] = useState("");
+  const [newPersonCode, setNewPersonCode] = useState("");
+  const [newPersonPhone, setNewPersonPhone] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -33,6 +49,17 @@ export default function ConfigurarSucursalPage() {
         setInvoicePrintType(branch.invoice_print_type === "tirilla" ? "tirilla" : "block");
         setInvoiceCancelRequiresApproval(!!branch.invoice_cancel_requires_approval);
       }
+      
+      // Cargar domiciliarios
+      const { data: persons } = await supabase
+        .from("delivery_persons")
+        .select("id, name, code, phone, active")
+        .eq("branch_id", ub.branch_id)
+        .order("code", { ascending: true });
+      if (!cancelled && persons) {
+        setDeliveryPersons(persons as DeliveryPerson[]);
+      }
+      
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -230,6 +257,220 @@ export default function ConfigurarSucursalPage() {
             <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
               Si activas la bodega, podrás tener stock en local y en bodega por separado y usar &quot;Transferir stock&quot; para mover entre ellos. Si no, todo el stock será en un solo lugar (local).
             </p>
+          </div>
+
+          {/* Gestión de domiciliarios */}
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <div className="flex items-center justify-between">
+              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                Domiciliarios
+              </p>
+              {!showAddForm && !editingPerson && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddForm(true);
+                    setNewPersonName("");
+                    setNewPersonCode("");
+                    setNewPersonPhone("");
+                  }}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-[12px] font-medium text-white transition-colors hover:bg-emerald-700"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Agregar
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+              Gestiona los domiciliarios de esta sucursal. Si hay 1 o 2 domiciliarios, se seleccionará automáticamente el primero al crear una venta con envío.
+            </p>
+
+            {/* Formulario de agregar/editar */}
+            {(showAddForm || editingPerson) && (
+              <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                <div>
+                  <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                    Código <span className="text-ov-pink">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editingPerson?.code ?? newPersonCode}
+                    onChange={(e) => editingPerson ? setEditingPerson({...editingPerson, code: e.target.value}) : setNewPersonCode(e.target.value.toUpperCase())}
+                    placeholder="Ej. D1, D2, D3"
+                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-[13px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                    Nombre <span className="text-ov-pink">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editingPerson?.name ?? newPersonName}
+                    onChange={(e) => editingPerson ? setEditingPerson({...editingPerson, name: e.target.value}) : setNewPersonName(e.target.value)}
+                    placeholder="Ej. Juan Pérez"
+                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-[13px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                    Teléfono
+                  </label>
+                  <input
+                    type="text"
+                    value={editingPerson?.phone ?? newPersonPhone}
+                    onChange={(e) => editingPerson ? setEditingPerson({...editingPerson, phone: e.target.value}) : setNewPersonPhone(e.target.value)}
+                    placeholder="Ej. 300 123 4567"
+                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-[13px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!branchId) return;
+                      const supabase = createClient();
+                      if (editingPerson) {
+                        // Actualizar
+                        await supabase
+                          .from("delivery_persons")
+                          .update({
+                            name: editingPerson.name,
+                            code: editingPerson.code,
+                            phone: editingPerson.phone || null,
+                            updated_at: new Date().toISOString(),
+                          })
+                          .eq("id", editingPerson.id);
+                        setEditingPerson(null);
+                      } else {
+                        // Crear
+                        if (!newPersonName.trim() || !newPersonCode.trim()) return;
+                        await supabase
+                          .from("delivery_persons")
+                          .insert({
+                            branch_id: branchId,
+                            name: newPersonName.trim(),
+                            code: newPersonCode.trim().toUpperCase(),
+                            phone: newPersonPhone.trim() || null,
+                            active: true,
+                          });
+                        setNewPersonName("");
+                        setNewPersonCode("");
+                        setNewPersonPhone("");
+                        setShowAddForm(false);
+                      }
+                      // Recargar lista
+                      const { data } = await supabase
+                        .from("delivery_persons")
+                        .select("id, name, code, phone, active")
+                        .eq("branch_id", branchId)
+                        .order("code", { ascending: true });
+                      if (data) setDeliveryPersons(data as DeliveryPerson[]);
+                    }}
+                    className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-emerald-700"
+                  >
+                    {editingPerson ? "Guardar" : "Agregar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setEditingPerson(null);
+                      setNewPersonName("");
+                      setNewPersonCode("");
+                      setNewPersonPhone("");
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Lista de domiciliarios */}
+            <div className="mt-4 space-y-2">
+              {deliveryPersons.length === 0 ? (
+                <p className="text-[13px] text-slate-500 dark:text-slate-400">
+                  No hay domiciliarios registrados. Agrega uno para poder asignar envíos.
+                </p>
+              ) : (
+                deliveryPersons.map((person) => (
+                  <div
+                    key={person.id}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/30"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-bold text-slate-800 dark:text-slate-100">
+                          {person.code}
+                        </span>
+                        <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                          {person.name}
+                        </span>
+                        {!person.active && (
+                          <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                            Inactivo
+                          </span>
+                        )}
+                      </div>
+                      {person.phone && (
+                        <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                          {person.phone}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingPerson(person)}
+                        className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                        title="Editar"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!branchId) return;
+                          const supabase = createClient();
+                          await supabase
+                            .from("delivery_persons")
+                            .update({ active: !person.active, updated_at: new Date().toISOString() })
+                            .eq("id", person.id);
+                          const { data } = await supabase
+                            .from("delivery_persons")
+                            .select("id, name, code, phone, active")
+                            .eq("branch_id", branchId)
+                            .order("code", { ascending: true });
+                          if (data) setDeliveryPersons(data as DeliveryPerson[]);
+                        }}
+                        className={`rounded-lg p-1.5 transition-colors ${
+                          person.active
+                            ? "text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                            : "text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                        }`}
+                        title={person.active ? "Desactivar" : "Activar"}
+                      >
+                        {person.active ? (
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H6" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 

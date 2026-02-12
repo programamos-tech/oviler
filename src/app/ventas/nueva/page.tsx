@@ -85,6 +85,8 @@ export default function NewSalePage() {
   const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
   const [selectedDeliveryAddressId, setSelectedDeliveryAddressId] = useState<string | null>(null);
   const [deliveryFee, setDeliveryFee] = useState<string>("");
+  const [deliveryPersons, setDeliveryPersons] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [selectedDeliveryPersonId, setSelectedDeliveryPersonId] = useState<string | null>(null);
   const [paymentPending, setPaymentPending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -102,6 +104,34 @@ export default function NewSalePage() {
   useEffect(() => {
     setCustomerHighlightIndex(0);
   }, [customerResults]);
+
+  // Cargar domiciliarios cuando se carga la sucursal
+  useEffect(() => {
+    if (!branchId) {
+      setDeliveryPersons([]);
+      setSelectedDeliveryPersonId(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("delivery_persons")
+        .select("id, name, code")
+        .eq("branch_id", branchId)
+        .eq("active", true)
+        .order("code", { ascending: true });
+      if (cancelled) return;
+      const list = (data ?? []) as Array<{ id: string; name: string; code: string }>;
+      setDeliveryPersons(list);
+      // Si hay 1 o 2 domiciliarios, seleccionar automáticamente el primero (d1)
+      // Si hay más de 2, mostrar el selector para que el usuario elija
+      if (list.length > 0 && list.length <= 2 && !selectedDeliveryPersonId) {
+        setSelectedDeliveryPersonId(list[0].id);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [branchId]);
 
   // Al cambiar cliente: cargar direcciones y resetear venta a domicilio
   useEffect(() => {
@@ -516,6 +546,8 @@ export default function NewSalePage() {
         payload.is_delivery = true;
         if (selectedDeliveryAddressId) payload.delivery_address_id = selectedDeliveryAddressId;
         if (deliveryFee.trim() !== "") payload.delivery_fee = parseFormattedPrice(deliveryFee) || null;
+        if (selectedDeliveryPersonId) payload.delivery_person_id = selectedDeliveryPersonId;
+        payload.delivery_paid = false; // Por defecto no pagado
         if (paymentPending) payload.payment_pending = true;
       }
       const { data: sale, error: saleError } = await supabase
@@ -911,22 +943,37 @@ export default function NewSalePage() {
             )}
           </div>
 
-          {/* Venta a domicilio (solo con cliente seleccionado) */}
-          {selectedCustomer && (
-            <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-              <label className="flex cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={isDelivery}
-                  onChange={(e) => { setIsDelivery(e.target.checked); if (!e.target.checked) setPaymentPending(false); }}
-                  className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
-                />
-                <svg className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h.01" />
-                </svg>
-                <span className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Venta a domicilio</span>
-              </label>
-              {isDelivery && (
+          {/* Venta a domicilio */}
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <label className={`flex items-center gap-2 ${selectedCustomer ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
+              <input
+                type="checkbox"
+                checked={isDelivery}
+                disabled={!selectedCustomer}
+                onChange={(e) => { 
+                  setIsDelivery(e.target.checked); 
+                  if (!e.target.checked) {
+                    setPaymentPending(false);
+                  } else {
+                    // Si se activa delivery y hay 1 o 2 domiciliarios, seleccionar automáticamente el primero
+                    if (deliveryPersons.length > 0 && deliveryPersons.length <= 2 && !selectedDeliveryPersonId) {
+                      setSelectedDeliveryPersonId(deliveryPersons[0].id);
+                    }
+                  }
+                }}
+                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <svg className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h.01" />
+              </svg>
+              <span className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Venta a domicilio</span>
+            </label>
+            {!selectedCustomer && (
+              <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
+                Selecciona un cliente para habilitar la venta a domicilio
+              </p>
+            )}
+            {isDelivery && selectedCustomer && (
                 <div className="mt-3 space-y-3">
                   {customerAddresses.length === 0 ? (
                     <p className="text-[13px] text-slate-500 dark:text-slate-400">Este cliente no tiene direcciones registradas.</p>
@@ -957,6 +1004,38 @@ export default function NewSalePage() {
                       </ul>
                     </div>
                   )}
+                  {deliveryPersons.length > 0 && (
+                    <div>
+                      <label className="block text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                        Domiciliario
+                        {deliveryPersons.length <= 2 && selectedDeliveryPersonId && (
+                          <span className="ml-2 text-[11px] font-normal text-slate-400">
+                            ({deliveryPersons.find(p => p.id === selectedDeliveryPersonId)?.code})
+                          </span>
+                        )}
+                      </label>
+                      {deliveryPersons.length > 2 ? (
+                        <select
+                          value={selectedDeliveryPersonId || ""}
+                          onChange={(e) => setSelectedDeliveryPersonId(e.target.value || null)}
+                          className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-[14px] font-medium text-slate-800 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-600/50"
+                        >
+                          <option value="">Seleccionar domiciliario</option>
+                          {deliveryPersons.map((person) => (
+                            <option key={person.id} value={person.id}>
+                              {person.code} - {person.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[14px] font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          {selectedDeliveryPersonId 
+                            ? `${deliveryPersons.find(p => p.id === selectedDeliveryPersonId)?.code} - ${deliveryPersons.find(p => p.id === selectedDeliveryPersonId)?.name}`
+                            : "Sin domiciliarios disponibles"}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div>
                     <label className="block text-[12px] font-medium text-slate-500 dark:text-slate-400">
                       Valor del domicilio <span className="font-normal text-slate-400">(opcional)</span>
@@ -983,8 +1062,7 @@ export default function NewSalePage() {
                   </label>
                 </div>
               )}
-            </div>
-          )}
+          </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Método de pago</p>

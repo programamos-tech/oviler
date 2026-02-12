@@ -50,11 +50,14 @@ type SaleDetail = {
   is_delivery: boolean;
   delivery_address_id: string | null;
   delivery_fee: number | null;
+  delivery_person_id: string | null;
+  delivery_paid: boolean;
   created_at: string;
   cancellation_requested_at?: string | null;
   cancellation_requested_by?: string | null;
   customers: { name: string; phone: string | null } | null;
   users: { name: string } | null;
+  delivery_persons: { name: string; code: string } | null;
   branches: {
     name: string;
     nit: string | null;
@@ -119,6 +122,7 @@ export default function SaleDetailPage() {
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [markingDeliveryPaid, setMarkingDeliveryPaid] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -128,7 +132,7 @@ export default function SaleDetailPage() {
       const { data: saleData, error: saleError } = await supabase
         .from("sales")
         .select(
-          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_address_id, delivery_fee, created_at, customers(name, phone), users!user_id(name)"
+          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_address_id, delivery_fee, delivery_person_id, delivery_paid, created_at, customers(name, phone), users!user_id(name), delivery_persons(name, code)"
         )
         .eq("id", id)
         .single();
@@ -272,6 +276,21 @@ export default function SaleDetailPage() {
     await supabase.from("sales").update({ payment_pending: false }).eq("id", sale.id);
     setSale((prev) => (prev ? { ...prev, payment_pending: false } : null));
     setMarkingPaid(false);
+  }
+
+  async function handleMarkDeliveryAsPaid() {
+    if (!sale?.id) return;
+    setMarkingDeliveryPaid(true);
+    const supabase = createClient();
+    await supabase
+      .from("sales")
+      .update({ 
+        delivery_paid: true,
+        delivery_paid_at: new Date().toISOString()
+      })
+      .eq("id", sale.id);
+    setSale((prev) => (prev ? { ...prev, delivery_paid: true } : null));
+    setMarkingDeliveryPaid(false);
   }
 
   function handlePrint() {
@@ -675,14 +694,54 @@ export default function SaleDetailPage() {
                     </tr>
                   )}
                   {sale.is_delivery && deliveryFee > 0 && (
-                    <tr>
-                      <td colSpan={3} className="py-1.5 pr-2 text-right text-[13px] text-slate-600 dark:text-slate-400">
-                        Domicilio
-                      </td>
-                      <td className="py-1.5 text-right tabular-nums font-medium text-slate-800 dark:text-slate-100">
-                        $ {formatMoney(deliveryFee)}
-                      </td>
-                    </tr>
+                    <>
+                      <tr>
+                        <td colSpan={3} className="py-1.5 pr-2 text-right text-[13px] text-slate-600 dark:text-slate-400">
+                          <div className="flex items-center justify-end gap-2">
+                            <span>Envío</span>
+                            {sale.delivery_persons && (
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                ({sale.delivery_persons.code} - {sale.delivery_persons.name})
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-1.5 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="tabular-nums font-medium text-slate-800 dark:text-slate-100">
+                              $ {formatMoney(deliveryFee)}
+                            </span>
+                            {!sale.delivery_paid ? (
+                              <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[12px] font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" title="Pago de envío pendiente">
+                                  <svg className="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  Pendiente
+                                </span>
+                                <label className="inline-flex cursor-pointer items-center gap-2 px-2.5 py-1 text-[12px] font-medium text-slate-700 hover:opacity-80 dark:text-slate-200">
+                                  <input
+                                    type="checkbox"
+                                    checked={false}
+                                    onChange={handleMarkDeliveryAsPaid}
+                                    disabled={markingDeliveryPaid}
+                                    className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600"
+                                  />
+                                  <span className={markingDeliveryPaid ? "opacity-50" : ""}>
+                                    {markingDeliveryPaid ? "Guardando…" : "Pagado"}
+                                  </span>
+                                </label>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-bold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" title="Envío pagado">
+                                <MdCheck className="mr-1.5 h-4 w-4" aria-hidden />
+                                Pagado
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    </>
                   )}
                   <tr className="border-t border-slate-200 dark:border-slate-700">
                     <td colSpan={3} className="py-2.5 pr-2 text-right text-[13px] font-bold text-slate-700 dark:text-slate-200">

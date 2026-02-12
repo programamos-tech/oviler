@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { MdLocalShipping, MdStore } from "react-icons/md";
+import { MdLocalShipping, MdStore, MdWarning, MdCheckCircle } from "react-icons/md";
 
 const PAGE_SIZE = 20;
 
@@ -40,6 +40,8 @@ type SaleRow = {
   status: "completed" | "cancelled";
   payment_pending?: boolean;
   is_delivery: boolean;
+  delivery_paid: boolean;
+  delivery_fee: number | null;
   created_at: string;
   customers: { name: string } | null;
   users: { name: string } | null;
@@ -94,7 +96,7 @@ export default function SalesPage() {
       let q = supabase
         .from("sales")
         .select(
-          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, created_at, customers(name), users!user_id(name)",
+          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_paid, delivery_fee, created_at, customers(name), users!user_id(name)",
           { count: "exact" }
         )
         .eq("branch_id", ub.branch_id)
@@ -390,7 +392,39 @@ export default function SalesPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-[0.75fr_0.9fr_1.2fr_1fr_1fr_1.2fr_auto] gap-x-3 gap-y-2 sm:gap-x-4 sm:gap-y-0 items-center px-4 py-3 sm:px-5 sm:py-4">
                   <div className="col-span-2 sm:col-span-1 min-w-0 flex items-center gap-2">
                     {s.is_delivery ? (
-                      <MdLocalShipping className="h-5 w-5 shrink-0 text-slate-600 dark:text-slate-300" title="A domicilio" aria-hidden />
+                      <span className="group relative inline-flex">
+                        <MdLocalShipping 
+                          className={`h-5 w-5 shrink-0 ${
+                            s.delivery_fee && s.delivery_fee > 0 && !s.delivery_paid
+                              ? "text-amber-500 dark:text-amber-400"
+                              : s.delivery_fee && s.delivery_fee > 0 && s.delivery_paid
+                              ? "text-emerald-500 dark:text-emerald-400"
+                              : "text-slate-600 dark:text-slate-300"
+                          }`}
+                          aria-hidden 
+                        />
+                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 flex items-start gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-[13px] font-medium text-white opacity-0 shadow-xl transition-opacity duration-200 group-hover:opacity-100 dark:bg-slate-800">
+                          {s.delivery_fee && s.delivery_fee > 0 && !s.delivery_paid ? (
+                            <>
+                              <MdWarning className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" aria-hidden />
+                              <span className="flex flex-col leading-tight">
+                                <span>El envío</span>
+                                <span>no se ha pagado</span>
+                              </span>
+                            </>
+                          ) : s.delivery_fee && s.delivery_fee > 0 && s.delivery_paid ? (
+                            <>
+                              <MdCheckCircle className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" aria-hidden />
+                              <span className="flex flex-col leading-tight">
+                                <span>El envío</span>
+                                <span>está pagado</span>
+                              </span>
+                            </>
+                          ) : (
+                            <span>A domicilio</span>
+                          )}
+                        </span>
+                      </span>
                     ) : (
                       <MdStore className="h-5 w-5 shrink-0 text-slate-600 dark:text-slate-300" title="En tienda" aria-hidden />
                     )}
