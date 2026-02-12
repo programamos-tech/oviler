@@ -3,25 +3,208 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+type DashboardData = {
+  totalIncome: number;
+  cash: number;
+  transfer: number;
+  totalSales: number;
+  physicalSales: number;
+  deliverySales: number;
+  cancelledInvoices: number;
+  cancelledTotal: number;
+  cancelledList: { invoice_number: string; total: number }[];
+  topProducts: { name: string; units: number; total: number }[];
+  last7Days: { day: string; sales: number }[];
+  yesterdayIncome: number;
+};
+
+const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function getDayBounds(date: Date): { start: string; end: string } {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
 export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [hideSensitiveInfo, setHideSensitiveInfo] = useState(false);
-  const [hasSales, setHasSales] = useState<boolean | null>(null);
+  const [branchId, setBranchId] = useState<string | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   useEffect(() => {
-    async function loadHasSales() {
-      const supabase = createClient();
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user || cancelled) return;
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id) return;
-      const { count } = await supabase.from("sales").select("*", { count: "exact", head: true }).eq("branch_id", ub.branch_id);
-      setHasSales((count ?? 0) > 0);
-    }
-    loadHasSales();
+      if (!ub?.branch_id || cancelled) return;
+      setBranchId(ub.branch_id);
+    })();
+    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!branchId) {
+      setDashboardData(null);
+      setLoading(false);
+      return;
+    }
+    const supabase = createClient();
+    let cancelled = false;
+    setLoading(true);
+    const { start, end } = getDayBounds(selectedDate);
+    const yesterday = new Date(selectedDate);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const { start: yStart, end: yEnd } = getDayBounds(yesterday);
+
+    (async () => {
+      const [
+        { data: salesDay },
+        { data: salesYesterday },
+        { data: salesLast7 },
+      ] = await Promise.all([
+        supabase
+          .from("sales")
+          .select("id, total, payment_method, amount_cash, amount_transfer, is_delivery, status, invoice_number")
+          .eq("branch_id", branchId)
+          .gte("created_at", start)
+          .lte("created_at", end),
+        supabase
+          .from("sales")
+          .select("total")
+          .eq("branch_id", branchId)
+          .eq("status", "completed")
+          .gte("created_at", yStart)
+          .lte("created_at", yEnd),
+        supabase
+          .from("sales")
+          .select("total, created_at")
+          .eq("branch_id", branchId)
+          .eq("status", "completed")
+          .gte("created_at", (() => {
+            const d = new Date(selectedDate);
+            d.setDate(d.getDate() - 6);
+            d.setHours(0, 0, 0, 0);
+            return d.toISOString();
+          })())
+          .lte("created_at", end),
+      ]);
+
+      if (cancelled) return;
+
+      const sales = (salesDay ?? []) as Array<{
+        id: string;
+        total: number;
+        payment_method: string;
+        amount_cash: number | null;
+        amount_transfer: number | null;
+        is_delivery: boolean;
+        status: string;
+        invoice_number: string;
+      }>;
+      const completed = sales.filter((s) => s.status === "completed");
+      const totalIncome = completed.reduce((a, s) => a + Number(s.total), 0);
+      let cash = 0;
+      let transfer = 0;
+      completed.forEach((s) => {
+        const t = Number(s.total);
+        if (s.payment_method === "cash") {
+          cash += t;
+        } else if (s.payment_method === "transfer") {
+          transfer += t;
+        } else if (s.payment_method === "mixed") {
+          const ac = Number(s.amount_cash ?? 0);
+          const at = Number(s.amount_transfer ?? 0);
+          if (ac + at > 0) {
+            cash += ac;
+            transfer += at;
+          } else {
+            cash += t;
+          }
+        }
+      });
+      if (totalIncome > cash + transfer) {
+        cash += totalIncome - cash - transfer;
+      }
+      const physicalSales = completed.filter((s) => !s.is_delivery).length;
+      const deliverySales = completed.filter((s) => s.is_delivery).length;
+      const cancelledSales = sales.filter((s) => s.status === "cancelled");
+      const cancelledTotal = cancelledSales.reduce((a, s) => a + Number(s.total), 0);
+      const cancelledList = cancelledSales.map((s) => ({ invoice_number: s.invoice_number, total: Number(s.total) }));
+      const yesterdayIncome = (salesYesterday ?? []).reduce((a, s) => a + Number((s as { total: number }).total), 0);
+
+      const byDay: Record<string, number> = {};
+      const last7Start = new Date(selectedDate);
+      last7Start.setDate(last7Start.getDate() - 6);
+      last7Start.setHours(0, 0, 0, 0);
+      (salesLast7 ?? []).forEach((s: { total: number; created_at: string }) => {
+        const d = new Date(s.created_at).toDateString();
+        byDay[d] = (byDay[d] ?? 0) + Number(s.total);
+      });
+      const last7Days: { day: string; sales: number }[] = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(last7Start);
+        d.setDate(d.getDate() + i);
+        const key = d.toDateString();
+        last7Days.push({
+          day: DAY_LABELS[d.getDay()],
+          sales: byDay[key] ?? 0,
+        });
+      }
+
+      const completedIds = completed.map((s) => s.id);
+      let items: Array<{ product_id: string; quantity: number; unit_price: number; discount_percent: number; discount_amount: number; products: { name: string } | null }> = [];
+      if (completedIds.length > 0) {
+        const { data: itemsDay } = await supabase
+          .from("sale_items")
+          .select("product_id, quantity, unit_price, discount_percent, discount_amount, products(name)")
+          .in("sale_id", completedIds);
+        items = (itemsDay ?? []) as typeof items;
+      }
+      if (cancelled) return;
+
+      const byProduct: Record<string, { name: string; units: number; total: number }> = {};
+      items.forEach((it) => {
+        const lineTotal = Math.max(
+          0,
+          Math.round(
+            it.quantity * Number(it.unit_price) * (1 - Number(it.discount_percent || 0) / 100) - Number(it.discount_amount || 0)
+          )
+        );
+        const name = it.products?.name ?? "—";
+        if (!byProduct[it.product_id]) byProduct[it.product_id] = { name, units: 0, total: 0 };
+        byProduct[it.product_id].units += it.quantity;
+        byProduct[it.product_id].total += lineTotal;
+      });
+      const topProducts = Object.values(byProduct)
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5);
+
+      setDashboardData({
+        totalIncome,
+        cash,
+        transfer,
+        totalSales: completed.length,
+        physicalSales,
+        deliverySales,
+        cancelledInvoices: cancelledSales.length,
+        cancelledTotal,
+        cancelledList,
+        topProducts,
+        last7Days,
+        yesterdayIncome,
+      });
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [branchId, selectedDate]);
 
   const formatDate = (date: Date) => {
     const today = new Date();
@@ -70,57 +253,21 @@ export default function DashboardPage() {
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
 
-  // Datos: en sucursal nueva (sin ventas) todo en cero; si hay ventas, datos de ejemplo
-  const isTodaySelected = isToday;
-  const isEmptyBranch = hasSales === false;
-  const mockData = isEmptyBranch
-    ? {
-        totalIncome: 0,
-        cash: 0,
-        transfer: 0,
-        warrantiesToday: 0,
-        cancelledInvoices: 0,
-        totalSales: 0,
-        physicalSales: 0,
-        deliverySales: 0,
-        topProducts: [] as { name: string; units: number; total: number }[],
-        last7Days: [
-          { day: "Lun", sales: 0 },
-          { day: "Mar", sales: 0 },
-          { day: "Mié", sales: 0 },
-          { day: "Jue", sales: 0 },
-          { day: "Vie", sales: 0 },
-          { day: "Sáb", sales: 0 },
-          { day: "Dom", sales: 0 },
-        ],
-      }
-    : {
-        totalIncome: isTodaySelected ? 1250000 : 980000,
-        cash: isTodaySelected ? 750000 : 580000,
-        transfer: isTodaySelected ? 500000 : 400000,
-        warrantiesToday: isTodaySelected ? 3 : 2,
-        cancelledInvoices: isTodaySelected ? 1 : 0,
-        totalSales: isTodaySelected ? 24 : 18,
-        physicalSales: isTodaySelected ? 15 : 12,
-        deliverySales: isTodaySelected ? 9 : 6,
-        topProducts: [
-          { name: "Aceite 1L", units: 45, total: 1012500 },
-          { name: "Coca-Cola 1.5L", units: 32, total: 176000 },
-          { name: "Pan francés", units: 28, total: 140000 },
-          { name: "Arroz 1kg", units: 22, total: 55000 },
-          { name: "Azúcar 1kg", units: 18, total: 45000 },
-        ],
-        last7Days: [
-          { day: "Lun", sales: 1080000 },
-          { day: "Mar", sales: 1150000 },
-          { day: "Mié", sales: 1350000 },
-          { day: "Jue", sales: 1200000 },
-          { day: "Vie", sales: 1250000 },
-          { day: "Sáb", sales: 1380000 },
-          { day: "Dom", sales: isTodaySelected ? 1390000 : 1390000 },
-        ],
-      };
-
+  const data = dashboardData ?? {
+    totalIncome: 0,
+    cash: 0,
+    transfer: 0,
+    totalSales: 0,
+    physicalSales: 0,
+    deliverySales: 0,
+    cancelledInvoices: 0,
+    cancelledTotal: 0,
+    cancelledList: [],
+    topProducts: [],
+    last7Days: DAY_LABELS.map((day) => ({ day, sales: 0 })),
+    yesterdayIncome: 0,
+  };
+  const warrantiesToday = 0; // Sin tabla de garantías en DB aún
 
   const formatSensitiveValue = (value: number | string, type: "currency" | "number" = "currency") => {
     if (hideSensitiveInfo) {
@@ -135,9 +282,14 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
-          Dashboard
-        </h1>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+            Dashboard
+          </h1>
+          <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            Resumen de ventas e ingresos de tu sucursal. Cambia el día para ver métricas de esa fecha.
+          </p>
+        </div>
         <div className="flex items-center gap-2">
             {/* Botón para ocultar información sensible */}
             <button
@@ -239,6 +391,10 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {loading && (
+        <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">Cargando métricas…</p>
+      )}
+
       {/* Métricas principales - Primera fila (3 cards) */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {/* Ingreso total */}
@@ -249,7 +405,7 @@ export default function DashboardPage() {
                 Ingreso total
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {formatSensitiveValue(mockData.totalIncome)}
+                {formatSensitiveValue(data.totalIncome)}
               </p>
             </div>
             <svg
@@ -273,7 +429,7 @@ export default function DashboardPage() {
                   Efectivo:
                 </span>
                 <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">
-                  {formatSensitiveValue(mockData.cash)}
+                  {formatSensitiveValue(data.cash)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -281,17 +437,17 @@ export default function DashboardPage() {
                   Transferencia:
                 </span>
                 <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">
-                  {formatSensitiveValue(mockData.transfer)}
+                  {formatSensitiveValue(data.transfer)}
                 </span>
               </div>
-              {!hideSensitiveInfo && !isEmptyBranch && (
+              {!hideSensitiveInfo && data.yesterdayIncome > 0 && (
                 <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                   <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
                     Comparación con ayer
                   </p>
                   <p className="mt-1 text-[14px] font-bold text-emerald-600 dark:text-emerald-400">
-                    +{formatSensitiveValue(mockData.totalIncome - 980000)} (
-                    {980000 > 0 ? Math.round(((mockData.totalIncome - 980000) / 980000) * 100) : 0}
+                    +{formatSensitiveValue(data.totalIncome - data.yesterdayIncome)} (
+                    {data.yesterdayIncome > 0 ? Math.round(((data.totalIncome - data.yesterdayIncome) / data.yesterdayIncome) * 100) : 0}
                     %)
                   </p>
                 </div>
@@ -308,7 +464,7 @@ export default function DashboardPage() {
                 Efectivo
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {formatSensitiveValue(mockData.cash)}
+                {formatSensitiveValue(data.cash)}
               </p>
             </div>
             <svg
@@ -332,18 +488,18 @@ export default function DashboardPage() {
                   Porcentaje del total:
                 </span>
                 <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">
-                  {mockData.totalIncome > 0 ? Math.round((mockData.cash / mockData.totalIncome) * 100) : 0}%
+                  {data.totalIncome > 0 ? Math.round((data.cash / data.totalIncome) * 100) : 0}%
                 </span>
               </div>
               <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                 <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                  Ventas en efectivo: {hideSensitiveInfo ? "***" : mockData.physicalSales}
+                  Ventas en efectivo: {hideSensitiveInfo ? "***" : data.physicalSales}
                 </p>
                 {!hideSensitiveInfo && (
                   <p className="mt-1 text-[12px] font-medium text-slate-600 dark:text-slate-400">
                     Ticket promedio:{" "}
                     {formatSensitiveValue(
-                      mockData.physicalSales > 0 ? Math.round(mockData.cash / mockData.physicalSales) : 0
+                      data.physicalSales > 0 ? Math.round(data.cash / data.physicalSales) : 0
                     )}
                   </p>
                 )}
@@ -360,7 +516,7 @@ export default function DashboardPage() {
                 Transferencia
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {formatSensitiveValue(mockData.transfer)}
+                {formatSensitiveValue(data.transfer)}
               </p>
             </div>
             <svg
@@ -384,18 +540,18 @@ export default function DashboardPage() {
                   Porcentaje del total:
                 </span>
                 <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">
-                  {mockData.totalIncome > 0 ? Math.round((mockData.transfer / mockData.totalIncome) * 100) : 0}%
+                  {data.totalIncome > 0 ? Math.round((data.transfer / data.totalIncome) * 100) : 0}%
                 </span>
               </div>
               <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                 <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                  Ventas con transferencia: {hideSensitiveInfo ? "***" : mockData.deliverySales}
+                  Ventas con transferencia: {hideSensitiveInfo ? "***" : data.deliverySales}
                 </p>
                 {!hideSensitiveInfo && (
                   <p className="mt-1 text-[12px] font-medium text-slate-600 dark:text-slate-400">
                     Ticket promedio:{" "}
                     {formatSensitiveValue(
-                      mockData.deliverySales > 0 ? Math.round(mockData.transfer / mockData.deliverySales) : 0
+                      data.deliverySales > 0 ? Math.round(data.transfer / data.deliverySales) : 0
                     )}
                   </p>
                 )}
@@ -415,16 +571,16 @@ export default function DashboardPage() {
                 Total ventas
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo ? "***" : mockData.totalSales}
+                {hideSensitiveInfo ? "***" : data.totalSales}
               </p>
               {!hideSensitiveInfo && (
                 <div className="mt-1 flex gap-2 text-[10px] font-medium">
                   <span className="text-slate-600 dark:text-slate-400">
-                    {mockData.physicalSales} físicas
+                    {data.physicalSales} físicas
                   </span>
                   <span className="text-slate-400 dark:text-slate-500">·</span>
                   <span className="text-slate-600 dark:text-slate-400">
-                    {mockData.deliverySales} domicilio
+                    {data.deliverySales} domicilio
                   </span>
                 </div>
               )}
@@ -451,11 +607,11 @@ export default function DashboardPage() {
                     Ventas físicas
                   </p>
                   <p className="mt-1 text-[16px] font-bold text-slate-900 dark:text-slate-50">
-                    {hideSensitiveInfo ? "***" : mockData.physicalSales}
+                    {hideSensitiveInfo ? "***" : data.physicalSales}
                   </p>
                   {!hideSensitiveInfo && (
                     <p className="mt-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
-                      {mockData.totalSales > 0 ? Math.round((mockData.physicalSales / mockData.totalSales) * 100) : 0}% del total
+                      {data.totalSales > 0 ? Math.round((data.physicalSales / data.totalSales) * 100) : 0}% del total
                     </p>
                   )}
                 </div>
@@ -464,11 +620,11 @@ export default function DashboardPage() {
                     Ventas a domicilio
                   </p>
                   <p className="mt-1 text-[16px] font-bold text-slate-900 dark:text-slate-50">
-                    {hideSensitiveInfo ? "***" : mockData.deliverySales}
+                    {hideSensitiveInfo ? "***" : data.deliverySales}
                   </p>
                   {!hideSensitiveInfo && (
                     <p className="mt-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
-                      {mockData.totalSales > 0 ? Math.round((mockData.deliverySales / mockData.totalSales) * 100) : 0}% del total
+                      {data.totalSales > 0 ? Math.round((data.deliverySales / data.totalSales) * 100) : 0}% del total
                     </p>
                   )}
                 </div>
@@ -478,7 +634,7 @@ export default function DashboardPage() {
                   <p className="text-[12px] font-medium text-slate-700 dark:text-slate-300">
                     Ticket promedio:{" "}
                     {formatSensitiveValue(
-                      mockData.totalSales > 0 ? Math.round(mockData.totalIncome / mockData.totalSales) : 0
+                      data.totalSales > 0 ? Math.round(data.totalIncome / data.totalSales) : 0
                     )}
                   </p>
                 </div>
@@ -495,7 +651,7 @@ export default function DashboardPage() {
                 Garantías gestionadas
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo ? "***" : mockData.warrantiesToday}
+                {hideSensitiveInfo ? "***" : warrantiesToday}
               </p>
               <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
                 {formatDate(selectedDate)}
@@ -521,7 +677,7 @@ export default function DashboardPage() {
                   <div className="grid grid-cols-3 gap-2">
                     <div className="rounded-lg bg-orange-50 p-2 text-center dark:bg-orange-950">
                       <p className="text-[12px] font-bold text-ov-pink dark:text-ov-pink-muted">
-                        {isTodaySelected ? 1 : 0}
+                        0
                       </p>
                       <p className="text-[10px] font-medium text-orange-600 dark:text-orange-400">
                         Pendientes
@@ -529,7 +685,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="rounded-lg bg-emerald-50 p-2 text-center dark:bg-emerald-950">
                       <p className="text-[12px] font-bold text-emerald-700 dark:text-emerald-300">
-                        {isTodaySelected ? 1 : 1}
+                        0
                       </p>
                       <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
                         Aprobadas
@@ -537,7 +693,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="rounded-lg bg-red-50 p-2 text-center dark:bg-red-950">
                       <p className="text-[12px] font-bold text-red-700 dark:text-red-300">
-                        {isTodaySelected ? 1 : 1}
+                        0
                       </p>
                       <p className="text-[10px] font-medium text-red-600 dark:text-red-400">
                         Rechazadas
@@ -548,7 +704,7 @@ export default function DashboardPage() {
               {!hideSensitiveInfo && (
                 <div className="mt-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                   <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                    Valor total en garantías: {formatSensitiveValue(28000)}
+                    Valor total en garantías: {formatSensitiveValue(0)}
                   </p>
                 </div>
               )}
@@ -564,7 +720,7 @@ export default function DashboardPage() {
                 Facturas anuladas
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo ? "***" : mockData.cancelledInvoices}
+                {hideSensitiveInfo ? "***" : data.cancelledInvoices}
               </p>
               <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
                 {formatDate(selectedDate)}
@@ -586,25 +742,24 @@ export default function DashboardPage() {
           </summary>
           <div className="mt-3 border-t border-slate-200 pt-3 text-[13px] text-slate-700 dark:border-slate-800 dark:text-slate-300">
             <div className="space-y-2">
-              {mockData.cancelledInvoices > 0 ? (
+              {data.cancelledInvoices > 0 ? (
                 <>
-                  <div className="rounded-lg bg-red-50 p-3 dark:bg-red-950">
-                    <p className="text-[12px] font-bold text-red-800 dark:text-red-200">
-                      Venta #VTA-1023
-                    </p>
-                    <p className="mt-1 text-[11px] font-medium text-red-700 dark:text-red-300">
-                      Anulada por: Juan Pérez
-                    </p>
-                    {!hideSensitiveInfo && (
-                      <p className="mt-1 text-[11px] font-medium text-red-700 dark:text-red-300">
-                        Valor: {formatSensitiveValue(45000)}
+                  {data.cancelledList.slice(0, 3).map((c, i) => (
+                    <div key={i} className="rounded-lg bg-red-50 p-3 dark:bg-red-950">
+                      <p className="text-[12px] font-bold text-red-800 dark:text-red-200">
+                        Factura #{c.invoice_number}
                       </p>
-                    )}
-                  </div>
-                  {!hideSensitiveInfo && (
+                      {!hideSensitiveInfo && (
+                        <p className="mt-1 text-[11px] font-medium text-red-700 dark:text-red-300">
+                          Valor: {formatSensitiveValue(c.total)}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                  {!hideSensitiveInfo && data.cancelledTotal > 0 && (
                     <div className="mt-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                       <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                        Impacto en ingresos: -{formatSensitiveValue(45000)}
+                        Impacto en ingresos: -{formatSensitiveValue(data.cancelledTotal)}
                       </p>
                     </div>
                   )}
@@ -633,17 +788,22 @@ export default function DashboardPage() {
               Ingresos por día
             </p>
           </div>
-          {/* Gráfica completamente nueva */}
+          {/* Gráfica últimos 7 días (datos reales) */}
           <div className="relative h-56">
-            {/* Eje Y */}
-            <div className="absolute left-0 top-0 flex h-full flex-col justify-between pr-3 text-[10px] font-medium text-slate-400 dark:text-slate-500">
-              <span>{hideSensitiveInfo ? "***" : "$1.4M"}</span>
-              <span>{hideSensitiveInfo ? "***" : "$1.2M"}</span>
-              <span>{hideSensitiveInfo ? "***" : "$1.0M"}</span>
-              <span>{hideSensitiveInfo ? "***" : "$800k"}</span>
-              <span>{hideSensitiveInfo ? "***" : "$600k"}</span>
-              <span className="text-slate-300 dark:text-slate-600">$0</span>
-            </div>
+            {/* Eje Y dinámico */}
+            {(() => {
+              const maxSales = Math.max(...data.last7Days.map((d) => d.sales), 1);
+              const ticks = [1, 0.8, 0.6, 0.4, 0.2, 0].map((r) => Math.round(maxSales * r));
+              return (
+                <div className="absolute left-0 top-0 flex h-full flex-col justify-between pr-3 text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                  {ticks.map((v, i) => (
+                    <span key={i}>
+                      {hideSensitiveInfo ? "***" : v === 0 ? "$0" : v >= 1000000 ? `$${(v / 1000000).toFixed(1)}M` : `$${(v / 1000).toFixed(0)}k`}
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Área de gráfica */}
             <div className="relative ml-12 h-full pb-6">
@@ -658,7 +818,7 @@ export default function DashboardPage() {
 
               {/* Días */}
               <div className="absolute bottom-0 left-0 right-0 flex justify-between">
-                {mockData.last7Days.map((day, i) => (
+                {data.last7Days.map((day, i) => (
                   <div key={i} className="group relative flex-1 text-center">
                     {!hideSensitiveInfo && (
                       <span className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold text-slate-700 opacity-0 transition-opacity group-hover:opacity-100 dark:text-slate-300">
@@ -675,13 +835,17 @@ export default function DashboardPage() {
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Promedio diario:{" "}
               <span className="font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo ? "***" : isEmptyBranch ? "$0" : "$1.042.857"}
+                {hideSensitiveInfo ? "***" : (() => {
+                  const total = data.last7Days.reduce((a, d) => a + d.sales, 0);
+                  const daysWithSales = data.last7Days.filter((d) => d.sales > 0).length;
+                  return daysWithSales > 0 ? `$${Math.round(total / daysWithSales).toLocaleString("es-CO")}` : "$0";
+                })()}
               </span>
             </div>
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Total semana:{" "}
               <span className="font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo ? "***" : isEmptyBranch ? "$0" : "$7.300.000"}
+                {hideSensitiveInfo ? "***" : `$${data.last7Days.reduce((a, d) => a + d.sales, 0).toLocaleString("es-CO")}`}
               </span>
             </div>
           </div>
@@ -698,11 +862,11 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="space-y-2">
-            {mockData.topProducts.length === 0 ? (
+            {data.topProducts.length === 0 ? (
               <p className="rounded-lg border border-slate-200 bg-slate-50 py-6 text-center text-[13px] font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
                 Aún no hay productos más vendidos. Las ventas aparecerán aquí.
               </p>
-            ) : mockData.topProducts.map((product, index) => (
+            ) : data.topProducts.map((product, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between rounded-lg border border-slate-200 bg-[#F8FAFC] p-2.5 dark:border-slate-800 dark:bg-slate-950"

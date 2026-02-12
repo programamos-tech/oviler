@@ -73,7 +73,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: <NavIconHome /> },
+  { label: "Dashboard", href: "/dashboard", icon: <NavIconHome /> },
   {
     label: "Ventas",
     href: "/ventas",
@@ -191,6 +191,7 @@ export default function TopNav() {
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
+    if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
     return pathname.startsWith(href);
   };
 
