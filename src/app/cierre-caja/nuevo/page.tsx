@@ -101,6 +101,22 @@ export default function NewCashClosingPage() {
     deliveryByPerson: Array<{ personId: string; personName: string; personCode: string; total: number; unpaid: number }>;
     warrantyEgressCash: number;
     warrantyEgressTransfer: number;
+    warrantyEgressItems: Array<{
+      id: string;
+      warranty_type: string;
+      amount_cash: number;
+      amount_transfer: number;
+      description: string;
+      invoice_number: string | null;
+    }>;
+    expenseEgressCash: number;
+    expenseEgressTransfer: number;
+    expenseEgressItems: Array<{
+      id: string;
+      concept: string;
+      amount: number;
+      payment_method: string;
+    }>;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -108,6 +124,8 @@ export default function NewCashClosingPage() {
   const [actualTransfer, setActualTransfer] = useState("");
   const [differenceReason, setDifferenceReason] = useState("");
   const [notes, setNotes] = useState("");
+  const [showEgressModal, setShowEgressModal] = useState(false);
+  const [showExpenses, setShowExpenses] = useState(true);
 
   useEffect(() => {
     const supabase = createClient();
@@ -128,6 +146,16 @@ export default function NewCashClosingPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!branchId) return;
+    let cancelled = false;
+    const supabase = createClient();
+    supabase.from("branches").select("show_expenses").eq("id", branchId).single().then(({ data }) => {
+      if (!cancelled && data) setShowExpenses((data as { show_expenses?: boolean }).show_expenses !== false);
+    });
+    return () => { cancelled = true; };
+  }, [branchId]);
 
   useEffect(() => {
     if (!branchId) return;
@@ -321,9 +349,17 @@ export default function NewCashClosingPage() {
       let warrantiesCount = 0;
       let warrantyEgressCash = 0;
       let warrantyEgressTransfer = 0;
+      const warrantyEgressItems: Array<{
+        id: string;
+        warranty_type: string;
+        amount_cash: number;
+        amount_transfer: number;
+        description: string;
+        invoice_number: string | null;
+      }> = [];
       const { data: warrantiesDay } = await supabase
         .from("warranties")
-        .select("id, warranty_type, sale_id, sale_item_id, product_id, quantity, replacement_product_id, branch_id, sale_items(unit_price, quantity), sales(branch_id, payment_method, amount_cash, amount_transfer)")
+        .select("id, warranty_type, sale_id, sale_item_id, product_id, quantity, replacement_product_id, branch_id, sale_items(unit_price, quantity), sales(branch_id, payment_method, amount_cash, amount_transfer, invoice_number)")
         .eq("status", "processed")
         .gte("created_at", start)
         .lte("created_at", end);
@@ -339,7 +375,7 @@ export default function NewCashClosingPage() {
         replacement_product_id: string | null;
         branch_id: string | null;
         sale_items: { unit_price: number; quantity: number } | Array<{ unit_price: number; quantity: number }> | null;
-        sales: { branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null } | Array<{ branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null }> | null;
+        sales: { branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null; invoice_number?: string | null } | Array<{ branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null; invoice_number?: string | null }> | null;
       }>;
 
       const forBranch = warrantyList.filter((w) => {
@@ -352,12 +388,12 @@ export default function NewCashClosingPage() {
         const productIds = [...new Set([...forBranch.map((w) => w.product_id), ...forBranch.map((w) => w.replacement_product_id).filter(Boolean) as string[]])];
         const { data: productsData } = await supabase
           .from("products")
-          .select("id, base_price, apply_iva")
+          .select("id, name, base_price, apply_iva")
           .in("id", productIds);
         if (cancelled) return;
-        const productsMap: Record<string, { base_price: number | null; apply_iva: boolean }> = {};
-        (productsData ?? []).forEach((p: { id: string; base_price: number | null; apply_iva: boolean }) => {
-          productsMap[p.id] = { base_price: p.base_price, apply_iva: !!p.apply_iva };
+        const productsMap: Record<string, { name: string; base_price: number | null; apply_iva: boolean }> = {};
+        (productsData ?? []).forEach((p: { id: string; name: string; base_price: number | null; apply_iva: boolean }) => {
+          productsMap[p.id] = { name: p.name ?? "", base_price: p.base_price, apply_iva: !!p.apply_iva };
         });
 
         for (const w of forBranch) {
@@ -373,26 +409,54 @@ export default function NewCashClosingPage() {
             }
           }
 
+          const invoiceNumber = sal && !Array.isArray(sal) ? (sal as { invoice_number?: string | null }).invoice_number : null;
+          const productName = productsMap[w.product_id]?.name ?? "Producto";
+
           if (w.warranty_type === "refund") {
             const amount = productValue;
+            let egressCash = 0;
+            let egressTransfer = 0;
             if (sal?.payment_method === "transfer") {
               warrantyTransferImpact -= amount;
+              egressTransfer = amount;
             } else if (sal?.payment_method === "mixed" && sal.amount_cash != null && sal.amount_transfer != null) {
               const total = Number(sal.amount_cash) + Number(sal.amount_transfer);
               if (total > 0) {
-                warrantyCashImpact -= Math.round((Number(sal.amount_cash) / total) * amount);
-                warrantyTransferImpact -= amount - Math.round((Number(sal.amount_cash) / total) * amount);
+                egressCash = Math.round((Number(sal.amount_cash) / total) * amount);
+                egressTransfer = amount - egressCash;
+                warrantyCashImpact -= egressCash;
+                warrantyTransferImpact -= egressTransfer;
               } else {
                 warrantyCashImpact -= amount;
+                egressCash = amount;
               }
             } else {
               warrantyCashImpact -= amount;
+              egressCash = amount;
             }
+            warrantyEgressItems.push({
+              id: w.id,
+              warranty_type: "refund",
+              amount_cash: egressCash,
+              amount_transfer: egressTransfer,
+              description: `Devolución${invoiceNumber ? ` · Factura ${invoiceNumber}` : ""} · ${productName}`,
+              invoice_number: invoiceNumber ?? null,
+            });
           } else if (w.warranty_type === "exchange" && w.replacement_product_id) {
             const repl = productsMap[w.replacement_product_id];
             const replacementValue = repl ? salePriceFromProduct(repl.base_price, repl.apply_iva) * (w.quantity || 1) : 0;
             const diff = replacementValue - productValue;
             warrantyCashImpact += diff;
+            if (diff < 0) {
+              warrantyEgressItems.push({
+                id: w.id,
+                warranty_type: "exchange",
+                amount_cash: -diff,
+                amount_transfer: 0,
+                description: `Cambio · diferencia a devolver${invoiceNumber ? ` · Factura ${invoiceNumber}` : ""} · ${productName}`,
+                invoice_number: invoiceNumber ?? null,
+              });
+            }
           }
           // repair: no impacto
         }
@@ -402,6 +466,29 @@ export default function NewCashClosingPage() {
         warrantyEgressCash = warrantyCashImpact < 0 ? -warrantyCashImpact : 0;
         warrantyEgressTransfer = warrantyTransferImpact < 0 ? -warrantyTransferImpact : 0;
       }
+
+      // Egresos registrados (tabla expenses): restar del efectivo/transferencia del día
+      let expenseEgressCash = 0;
+      let expenseEgressTransfer = 0;
+      const expenseEgressItems: Array<{ id: string; concept: string; amount: number; payment_method: string }> = [];
+      const { data: expensesDay } = await supabase
+        .from("expenses")
+        .select("id, amount, payment_method, concept")
+        .eq("branch_id", branchId)
+        .gte("created_at", start)
+        .lte("created_at", end);
+      if (cancelled) return;
+      (expensesDay ?? []).forEach((e: { id: string; amount: number; payment_method: string; concept: string }) => {
+        const amount = Number(e.amount) || 0;
+        expenseEgressItems.push({ id: e.id, concept: e.concept || "", amount, payment_method: e.payment_method });
+        if (e.payment_method === "cash") {
+          expenseEgressCash += amount;
+          cash -= amount;
+        } else {
+          expenseEgressTransfer += amount;
+          transfer -= amount;
+        }
+      });
 
       const totalAfterWarranties = cash + transfer;
       const cashPct = totalAfterWarranties > 0 ? Math.round((cash / totalAfterWarranties) * 100) : 0;
@@ -423,6 +510,10 @@ export default function NewCashClosingPage() {
         deliveryByPerson,
         warrantyEgressCash,
         warrantyEgressTransfer,
+        warrantyEgressItems: warrantyEgressItems,
+        expenseEgressCash,
+        expenseEgressTransfer,
+        expenseEgressItems,
       });
       setLoading(false);
     })();
@@ -881,12 +972,25 @@ export default function NewCashClosingPage() {
 
               {/* Egresos por garantías (dinero devuelto a clientes) - siempre visible */}
               <div className="mt-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-                <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                  Egresos por garantías
-                </p>
-                <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
-                  Dinero devuelto a clientes (devoluciones y diferencias de cambio)
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                      Egresos por garantías
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                      Dinero devuelto a clientes (devoluciones y diferencias de cambio)
+                    </p>
+                  </div>
+                  {(cashCloseData.warrantyEgressItems.length > 0 || (showExpenses && cashCloseData.expenseEgressItems.length > 0)) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowEgressModal(true)}
+                      className="shrink-0 rounded-lg px-3 py-1.5 text-[12px] font-medium text-ov-pink hover:bg-ov-pink/10 dark:hover:bg-ov-pink/20"
+                    >
+                      Ver detalle
+                    </button>
+                  )}
+                </div>
                 <div className="mt-3 space-y-1.5">
                     {cashCloseData.warrantyEgressCash > 0 && (
                       <div className="flex items-center justify-between text-[14px]">
@@ -904,14 +1008,134 @@ export default function NewCashClosingPage() {
                         </span>
                       </div>
                     )}
+                  { showExpenses && (cashCloseData.expenseEgressCash > 0 || cashCloseData.expenseEgressTransfer > 0) && (
+                    <>
+                      <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-800">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">Egresos registrados</p>
+                        {cashCloseData.expenseEgressCash > 0 && (
+                          <div className="flex items-center justify-between text-[14px]">
+                            <span className="text-slate-600 dark:text-slate-400">Efectivo</span>
+                            <span className="font-medium text-slate-900 dark:text-slate-50">
+                              {formatValue(cashCloseData.expenseEgressCash)}
+                            </span>
+                          </div>
+                        )}
+                        {cashCloseData.expenseEgressTransfer > 0 && (
+                          <div className="flex items-center justify-between text-[14px]">
+                            <span className="text-slate-600 dark:text-slate-400">Transferencia</span>
+                            <span className="font-medium text-slate-900 dark:text-slate-50">
+                              {formatValue(cashCloseData.expenseEgressTransfer)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                   <div className="flex items-center justify-between border-t border-slate-200 pt-2 dark:border-slate-800">
                     <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Total egresos</span>
                     <span className="font-bold text-slate-900 dark:text-slate-50">
-                      {formatValue(cashCloseData.warrantyEgressCash + cashCloseData.warrantyEgressTransfer)}
+                      {formatValue(
+                        cashCloseData.warrantyEgressCash + cashCloseData.warrantyEgressTransfer +
+                        cashCloseData.expenseEgressCash + cashCloseData.expenseEgressTransfer
+                      )}
                     </span>
                   </div>
                 </div>
               </div>
+
+              {/* Modal detalle de egresos por garantías */}
+              {showEgressModal && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/60"
+                  onClick={() => setShowEgressModal(false)}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="egress-modal-title"
+                >
+                  <div
+                    className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-slate-900 dark:ring-1 dark:ring-slate-800"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+                      <h2 id="egress-modal-title" className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
+                        Detalle de egresos
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={() => setShowEgressModal(false)}
+                        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                        aria-label="Cerrar"
+                      >
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="max-h-[60vh] overflow-y-auto px-4 py-3">
+                      {cashCloseData.warrantyEgressItems.length === 0 && (!showExpenses || cashCloseData.expenseEgressItems.length === 0) ? (
+                        <p className="text-[14px] text-slate-500 dark:text-slate-400">No hay egresos en este día.</p>
+                      ) : (
+                        <>
+                          {cashCloseData.warrantyEgressItems.length > 0 && (
+                            <div>
+                              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Por garantías</p>
+                              <ul className="space-y-3">
+                                {cashCloseData.warrantyEgressItems.map((item) => (
+                                  <li
+                                    key={item.id}
+                                    className="rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 px-3 dark:border-slate-700 dark:bg-slate-800/50"
+                                  >
+                                    <p className="text-[13px] font-medium text-slate-900 dark:text-slate-100">
+                                      {item.description}
+                                    </p>
+                                    <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[12px] text-slate-600 dark:text-slate-400">
+                                      {item.amount_cash > 0 && (
+                                        <span>Efectivo: {formatValue(item.amount_cash)}</span>
+                                      )}
+                                      {item.amount_transfer > 0 && (
+                                        <span>Transferencia: {formatValue(item.amount_transfer)}</span>
+                                      )}
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {showExpenses && cashCloseData.expenseEgressItems.length > 0 && (
+                            <div className={cashCloseData.warrantyEgressItems.length > 0 ? "mt-4" : ""}>
+                              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Egresos registrados</p>
+                              <ul className="space-y-3">
+                                {cashCloseData.expenseEgressItems.map((item) => (
+                                  <li
+                                    key={item.id}
+                                    className="rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 px-3 dark:border-slate-700 dark:bg-slate-800/50"
+                                  >
+                                    <p className="text-[13px] font-medium text-slate-900 dark:text-slate-100">
+                                      {item.concept}
+                                    </p>
+                                    <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-400">
+                                      {item.payment_method === "cash" ? "Efectivo" : "Transferencia"}: {formatValue(item.amount)}
+                                    </p>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-800">
+                            <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Total</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-50">
+                              {formatValue(
+                                cashCloseData.warrantyEgressCash + cashCloseData.warrantyEgressTransfer +
+                                cashCloseData.expenseEgressCash + cashCloseData.expenseEgressTransfer
+                              )}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Desglose por domiciliario */}
               {cashCloseData.deliveryByPerson.length > 0 && (

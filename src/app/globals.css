@@ -19,14 +19,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Matte dark mode, look más técnico */
-    --background: 15 23 42;
+    /* Dark mode matte / suave, un poco más oscuro */
+    --background: 22 22 28;
     --foreground: 226 232 240;
 
-    --ov-surface-soft: 15 23 42;
-    --ov-surface-strong: 15 23 42;
+    --ov-surface-soft: 22 22 28;
+    --ov-surface-strong: 32 32 38;
 
-    --ov-primary: 59 130 246; /* azul más claro en dark */
+    --ov-primary: 59 130 246;
     --ov-accent: 221 77 143; /* #dd4d8f */
     --ov-accent-light: 249 168 212;
     --ov-muted: 148 163 184;
@@ -67,4 +67,27 @@ body {
   font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont,
     "SF Pro Text", sans-serif;
   letter-spacing: -0.01em;
+}
+
+/* Dark mode: tonos matte, un poco más oscuros */
+@media (prefers-color-scheme: dark) {
+  .dark\:bg-slate-900 { --tw-bg-opacity: 1; background-color: rgb(26 26 34 / var(--tw-bg-opacity)) !important; }
+  .dark\:bg-slate-900\/95 { background-color: rgb(26 26 34 / 0.95) !important; }
+  .dark\:bg-slate-900\/90 { background-color: rgb(26 26 34 / 0.9) !important; }
+  .dark\:bg-slate-800 { --tw-bg-opacity: 1; background-color: rgb(36 36 44 / var(--tw-bg-opacity)) !important; }
+  .dark\:bg-slate-700 { --tw-bg-opacity: 1; background-color: rgb(46 46 54 / var(--tw-bg-opacity)) !important; }
+  .dark\:bg-slate-950 { --tw-bg-opacity: 1; background-color: rgb(18 18 24 / var(--tw-bg-opacity)) !important; }
+  .dark\:bg-slate-800\/30 { background-color: rgb(36 36 44 / 0.3) !important; }
+  .dark\:bg-slate-900\/20 { background-color: rgb(26 26 34 / 0.2) !important; }
+  .dark\:bg-slate-800\/50 { background-color: rgb(36 36 44 / 0.5) !important; }
+  .dark\:bg-slate-950\/60 { background-color: rgb(18 18 24 / 0.6) !important; }
+  .dark\:ring-slate-800 { --tw-ring-color: rgb(44 44 52) !important; }
+  .dark\:ring-slate-700 { --tw-ring-color: rgb(52 52 60) !important; }
+  .dark\:border-slate-800 { border-color: rgb(44 44 52) !important; }
+  .dark\:border-slate-700 { border-color: rgb(52 52 60) !important; }
+  .dark\:border-t-slate-800 { border-top-color: rgb(44 44 52) !important; }
+  .dark\:border-t-slate-700 { border-top-color: rgb(52 52 60) !important; }
+  /* Mejor legibilidad: texto e iconos más visibles en dark (sin tocar slate-300/200) */
+  .dark\:text-slate-500 { color: rgb(148 163 184) !important; }
+  .dark\:text-slate-400 { color: rgb(203 213 225) !important; }
 }

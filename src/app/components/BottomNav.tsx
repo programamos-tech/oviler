@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 /* Iconos del panel "Más" */
 function IconGarantias() {
@@ -62,8 +63,24 @@ function IconCog() {
     </svg>
   );
 }
+function IconEgresos() {
+  return (
+    <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+    </svg>
+  );
+}
 
 const masItems = [
+  {
+    label: "Egresos",
+    href: "/egresos",
+    icon: IconEgresos,
+    items: [
+      { label: "Ver egresos", href: "/egresos", icon: IconList },
+      { label: "Nuevo egreso", href: "/egresos/nuevo", icon: IconPlus },
+    ],
+  },
   {
     label: "Actividades",
     href: "/actividades",
@@ -138,10 +155,27 @@ function MoreIcon({ active }: { active: boolean }) {
 export default function BottomNav() {
   const pathname = usePathname();
   const [masOpen, setMasOpen] = useState(false);
+  const [showExpenses, setShowExpenses] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+      if (!ub?.branch_id || cancelled) return;
+      const { data: branch } = await supabase.from("branches").select("show_expenses").eq("id", ub.branch_id).single();
+      if (!cancelled && branch) setShowExpenses(branch.show_expenses !== false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     setMasOpen(false);
   }, [pathname]);
+
+  const displayMasItems = showExpenses === false ? masItems.filter((g) => g.label !== "Egresos") : masItems;
 
   useEffect(() => {
     if (masOpen) document.body.style.overflow = "hidden";
@@ -224,7 +258,7 @@ export default function BottomNav() {
             </button>
           </div>
           <div className="py-3">
-            {masItems.map((group) => {
+            {displayMasItems.map((group) => {
               const GroupIcon = group.icon;
               return (
                 <div key={group.label} className="mb-4 px-3">

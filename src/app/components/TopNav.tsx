@@ -130,6 +130,13 @@ function IconCash() {
     </svg>
   );
 }
+function IconEgresos() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+    </svg>
+  );
+}
 
 const navItems: NavItem[] = [
   {
@@ -139,6 +146,15 @@ const navItems: NavItem[] = [
     items: [
       { label: "Ver cierres", href: "/cierre-caja", icon: <IconList />, description: "Historial de cierres de caja" },
       { label: "Nuevo cierre", href: "/cierre-caja/nuevo", icon: <IconPlus />, description: "Realizar cierre de caja del día" },
+    ],
+  },
+  {
+    label: "Egresos",
+    href: "/egresos",
+    icon: <IconEgresos />,
+    items: [
+      { label: "Ver egresos", href: "/egresos", icon: <IconList />, description: "Lista de egresos y gastos" },
+      { label: "Nuevo egreso", href: "/egresos/nuevo", icon: <IconPlus />, description: "Registrar egreso o gasto" },
     ],
   },
   {
@@ -204,7 +220,7 @@ export default function TopNav() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
-  const [branch, setBranch] = useState<{ name: string; logo_url: string | null } | null>(null);
+  const [branch, setBranch] = useState<{ name: string; logo_url: string | null; show_expenses?: boolean } | null>(null);
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -231,8 +247,8 @@ export default function TopNav() {
       if (!authUser) return;
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", authUser.id).limit(1).single();
       if (!ub?.branch_id) return;
-      const { data: branchData } = await supabase.from("branches").select("name, logo_url").eq("id", ub.branch_id).single();
-      if (branchData) setBranch({ name: branchData.name, logo_url: branchData.logo_url ?? null });
+      const { data: branchData } = await supabase.from("branches").select("name, logo_url, show_expenses").eq("id", ub.branch_id).single();
+      if (branchData) setBranch({ name: branchData.name, logo_url: branchData.logo_url ?? null, show_expenses: branchData.show_expenses !== false });
     }
     loadBranch();
   }, [supabase]);
@@ -274,6 +290,8 @@ export default function TopNav() {
     return pathname.startsWith(href);
   };
 
+  const displayNavItems = branch && branch.show_expenses === false ? navItems.filter((item) => item.label !== "Egresos") : navItems;
+
   return (
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
       <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
@@ -288,18 +306,18 @@ export default function TopNav() {
               </span>
             )}
           </div>
-          <div className="hidden flex-col justify-center sm:flex">
+          <div className="hidden flex-col justify-center sm:flex leading-tight">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-50">
+              <span className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-50">
                 {APP_NAME}
               </span>
               {branch?.name && branch.name.trim().toLowerCase() !== APP_NAME.toLowerCase() && (
-                <span className="truncate text-[12px] font-medium text-slate-500 dark:text-slate-400 max-w-[120px] lg:max-w-[160px]">
+                <span className="truncate text-[13px] font-medium text-slate-500 dark:text-slate-400 max-w-[120px] lg:max-w-[160px]">
                   · {branch.name}
                 </span>
               )}
             </div>
-            <span className="mt-1 flex items-center gap-1 text-[10px] font-bold text-slate-400 dark:text-slate-500">
+            <span className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-slate-400 dark:text-slate-500">
               Powered by
               <svg className="h-3 w-3 shrink-0 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -308,14 +326,14 @@ export default function TopNav() {
             </span>
           </div>
           {/* Solo logo + ToroCell en móvil */}
-          <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:hidden">
+          <span className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:hidden">
             {APP_NAME}
           </span>
         </Link>
 
         {/* Tablet (md–lg): menú arriba solo con iconos, separados. Desktop (lg+): solo texto, sin iconos */}
         <div className="hidden items-center gap-2 md:flex md:gap-3 lg:gap-1 xl:gap-2">
-          {navItems.map((item) => {
+          {displayNavItems.map((item) => {
             const hasDropdown = item.items && item.items.length > 0;
             const isItemActive = isActive(item.href);
             const isOpen = openDropdown === item.label;
@@ -367,17 +385,20 @@ export default function TopNav() {
                       </svg>
                     </Link>
                     {isOpen && (
-                      <div 
-                        className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-800"
-                        onMouseEnter={() => setOpenDropdown(item.label)}
-                        onMouseLeave={(e) => {
-                          const relatedTarget = e.relatedTarget as HTMLElement;
-                          const dropdownEl = dropdownRefs.current[item.label];
-                          if (dropdownEl && !dropdownEl.contains(relatedTarget)) {
-                            setOpenDropdown(null);
-                          }
-                        }}
-                      >
+                      <>
+                        {/* Puente invisible para que el hover no se pierda al bajar el ratón al dropdown */}
+                        <div className="absolute left-0 top-full z-50 h-2 w-80" aria-hidden />
+                        <div 
+                          className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-800"
+                          onMouseEnter={() => setOpenDropdown(item.label)}
+                          onMouseLeave={(e) => {
+                            const relatedTarget = e.relatedTarget as HTMLElement;
+                            const dropdownEl = dropdownRefs.current[item.label];
+                            if (dropdownEl && relatedTarget && !dropdownEl.contains(relatedTarget)) {
+                              setOpenDropdown(null);
+                            }
+                          }}
+                        >
                         <div className="space-y-1">
                           {item.items?.map((subItem) => {
                             const isSubItemActive = pathname === subItem.href;
@@ -392,18 +413,8 @@ export default function TopNav() {
                                     : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-50"
                                 }`}
                               >
-                                <div className="shrink-0">
-                                  {subItem.icon ? (
-                                    <div className={`h-10 w-10 flex items-center justify-center rounded-lg ${
-                                      isSubItemActive
-                                        ? "bg-slate-200 text-slate-700 dark:bg-slate-600 dark:text-slate-200"
-                                        : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
-                                    }`}>
-                                      {subItem.icon}
-                                    </div>
-                                  ) : (
-                                    <div className="h-10 w-10 rounded-lg bg-slate-100 dark:bg-slate-700" />
-                                  )}
+                                <div className="shrink-0 flex items-center justify-center text-slate-500 dark:text-slate-400">
+                                  {subItem.icon ?? <span className="h-6 w-6" />}
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className={`text-[14px] font-semibold leading-tight ${isSubItemActive ? "text-slate-900 dark:text-slate-50" : "text-slate-900 dark:text-slate-100"}`}>
@@ -424,6 +435,7 @@ export default function TopNav() {
                           })}
                         </div>
                       </div>
+                      </>
                     )}
                   </>
                 ) : (

@@ -925,12 +925,6 @@ export default function NewWarrantyPage() {
                   </span>
                 </div>
               )}
-              <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
-                <strong>Contable:</strong> Devolución = egreso de caja y reducción de ingreso por ventas. Cambio con diferencia positiva = ingreso adicional; con diferencia negativa = egreso (devolución de dinero al cliente). Reparación = sin movimiento de efectivo por la garantía.
-              </p>
-              <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-                <strong>Cierre de caja:</strong> Devolución → el efectivo (o transferencia) esperado del día baja. Cambio con &quot;cliente paga&quot; → el efectivo esperado sube. Cambio con &quot;se devuelve al cliente&quot; → el efectivo esperado baja. Reparación → no cambia el cierre.
-              </p>
             </div>
             <button
               type="button"

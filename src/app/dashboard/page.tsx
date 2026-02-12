@@ -437,7 +437,7 @@ export default function DashboardPage() {
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
             Dashboard
           </h1>
-          <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+          <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-300">
             Resumen de ventas e ingresos de tu sucursal. Cambia el día para ver métricas de esa fecha.
           </p>
         </div>
@@ -465,7 +465,7 @@ export default function DashboardPage() {
             {/* Botón para ocultar información sensible */}
             <button
               onClick={() => setHideSensitiveInfo(!hideSensitiveInfo)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               title={hideSensitiveInfo ? "Mostrar información" : "Ocultar información sensible"}
             >
               {hideSensitiveInfo ? (
@@ -508,7 +508,7 @@ export default function DashboardPage() {
             {/* Navegación temporal */}
             <button
               onClick={goToPreviousDay}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               title="Día anterior"
             >
               <svg
@@ -538,7 +538,7 @@ export default function DashboardPage() {
             <button
               onClick={goToNextDay}
               disabled={isToday}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 ${
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 ${
                 isToday
                   ? "cursor-not-allowed opacity-50"
                   : ""
@@ -563,7 +563,7 @@ export default function DashboardPage() {
       </header>
 
       {loading && (
-        <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">Cargando métricas…</p>
+        <p className="text-[13px] font-medium text-slate-500 dark:text-slate-300">Cargando métricas…</p>
       )}
 
       {/* Métricas principales - Primera fila */}
@@ -572,7 +572,7 @@ export default function DashboardPage() {
         <div className="rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                 Ingreso tienda (nuestro)
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
@@ -580,7 +580,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-500"
+              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -596,7 +596,7 @@ export default function DashboardPage() {
           {data.totalDeliveryFees > 0 && (
             <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
               <div className="flex items-center justify-between">
-                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                   Envíos totales (+)
                 </p>
                 <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
@@ -612,7 +612,7 @@ export default function DashboardPage() {
           <div className="rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                   Egresos
                 </p>
                 <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
@@ -620,7 +620,7 @@ export default function DashboardPage() {
                 </p>
               </div>
               <svg
-                className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-500"
+                className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -633,7 +633,7 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <p className="mt-2 text-[12px] text-slate-600 dark:text-slate-400">
+            <p className="mt-2 text-[12px] text-slate-600 dark:text-slate-300">
               Envíos pendientes y otros conceptos
             </p>
           </div>
@@ -643,7 +643,7 @@ export default function DashboardPage() {
         <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
           <summary className="flex cursor-pointer list-none items-center justify-between">
             <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                 Efectivo
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
@@ -651,7 +651,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-500"
+              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -675,11 +675,11 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                   Ventas en efectivo: {hideSensitiveInfo ? "***" : data.cashSales}
                 </p>
                 {!hideSensitiveInfo && (
-                  <p className="mt-1 text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <p className="mt-1 text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Ticket promedio:{" "}
                     {formatSensitiveValue(
                       data.cashSales > 0 ? Math.round(data.cash / data.cashSales) : 0
@@ -695,7 +695,7 @@ export default function DashboardPage() {
         <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
           <summary className="flex cursor-pointer list-none items-center justify-between">
             <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                 Transferencia
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
@@ -703,7 +703,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-500"
+              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -727,11 +727,11 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                   Ventas con transferencia: {hideSensitiveInfo ? "***" : data.transferSales}
                 </p>
                 {!hideSensitiveInfo && (
-                  <p className="mt-1 text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <p className="mt-1 text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Ticket promedio:{" "}
                     {formatSensitiveValue(
                       data.transferSales > 0 ? Math.round(data.transfer / data.transferSales) : 0
@@ -750,7 +750,7 @@ export default function DashboardPage() {
         <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
           <summary className="flex cursor-pointer list-none items-center justify-between">
             <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                 Inversión total en stock
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
@@ -758,7 +758,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-500"
+              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -777,7 +777,7 @@ export default function DashboardPage() {
                 <>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                         Stock disponible
                       </p>
                       <p className="mt-1 text-[16px] font-bold text-slate-900 dark:text-slate-50">
@@ -794,18 +794,18 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                    <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                    <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                       Valor total de tu inventario según el costo de compra de cada producto (incluye defectuosos).
                     </p>
                   </div>
                   <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950">
-                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                       Ganancia esperada
                     </p>
                     <p className="mt-1 text-[18px] font-bold text-emerald-700 dark:text-emerald-400">
                       {formatSensitiveValue(data.expectedProfit)}
                     </p>
-                    <p className="mt-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                    <p className="mt-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">
                       Ganancia potencial al vender todo el inventario disponible.
                     </p>
                   </div>
@@ -827,18 +827,18 @@ export default function DashboardPage() {
         <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
           <summary className="flex cursor-pointer list-none items-center justify-between">
             <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                 Garantías gestionadas
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
                 {hideSensitiveInfo ? "***" : warrantiesToday}
               </p>
-              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-300">
                 {formatDate(selectedDate)}
               </p>
             </div>
             <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-500"
+              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -883,7 +883,7 @@ export default function DashboardPage() {
                 )}
               {!hideSensitiveInfo && (
                 <div className="mt-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Valor total en garantías: {formatSensitiveValue(0)}
                   </p>
                 </div>
@@ -896,18 +896,18 @@ export default function DashboardPage() {
         <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
           <summary className="flex cursor-pointer list-none items-center justify-between">
             <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                 Facturas anuladas
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
                 {hideSensitiveInfo ? "***" : data.cancelledInvoices}
               </p>
-              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-300">
                 {formatDate(selectedDate)}
               </p>
             </div>
             <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-500"
+              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -938,7 +938,7 @@ export default function DashboardPage() {
                   ))}
                   {!hideSensitiveInfo && data.cancelledTotal > 0 && (
                     <div className="mt-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                      <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                      <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                         Impacto en ingresos: -{formatSensitiveValue(data.cancelledTotal)}
                       </p>
                     </div>
@@ -946,7 +946,7 @@ export default function DashboardPage() {
                 </>
               ) : (
                 <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     No hay facturas anuladas {formatDate(selectedDate)}
                   </p>
                 </div>
@@ -964,7 +964,7 @@ export default function DashboardPage() {
             <h2 className="text-base font-bold text-slate-900 dark:text-slate-50">
               Ventas últimos 7 días
             </h2>
-            <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-300">
               Ingresos por día
             </p>
           </div>
@@ -975,7 +975,7 @@ export default function DashboardPage() {
               const maxSales = Math.max(...data.last7Days.map((d) => d.sales), 1);
               const ticks = [1, 0.8, 0.6, 0.4, 0.2, 0].map((r) => Math.round(maxSales * r));
               return (
-                <div className="absolute left-0 top-0 flex h-full flex-col justify-between pr-3 text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                <div className="absolute left-0 top-0 flex h-full flex-col justify-between pr-3 text-[10px] font-medium text-slate-400 dark:text-slate-300">
                   {ticks.map((v, i) => (
                     <span key={i}>
                       {hideSensitiveInfo ? "***" : v === 0 ? "$0" : v >= 1000000 ? `$${(v / 1000000).toFixed(1)}M` : `$${(v / 1000).toFixed(0)}k`}
@@ -1033,14 +1033,14 @@ export default function DashboardPage() {
               <div className="absolute bottom-0 left-0 right-0 flex justify-between">
                 {data.last7Days.map((day, i) => (
                   <div key={i} className="relative flex-1 text-center">
-                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">{day.day}</span>
+                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{day.day}</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-2 dark:border-slate-800">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
               Promedio diario:{" "}
               <span className="font-bold text-slate-900 dark:text-slate-50">
                 {hideSensitiveInfo ? "***" : (() => {
@@ -1050,7 +1050,7 @@ export default function DashboardPage() {
                 })()}
               </span>
             </div>
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
               Total semana:{" "}
               <span className="font-bold text-slate-900 dark:text-slate-50">
                 {hideSensitiveInfo ? "***" : `$${data.last7Days.reduce((a, d) => a + d.sales, 0).toLocaleString("es-CO")}`}
@@ -1065,13 +1065,13 @@ export default function DashboardPage() {
             <h2 className="text-base font-bold text-[#334155] dark:text-slate-50">
               Productos más vendidos
             </h2>
-            <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-300">
               {formatDate(selectedDate)}
             </p>
           </div>
           <div className="space-y-2">
             {data.topProducts.length === 0 ? (
-              <p className="rounded-lg border border-slate-200 bg-slate-50 py-6 text-center text-[13px] font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
+              <p className="rounded-lg border border-slate-200 bg-slate-50 py-6 text-center text-[13px] font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
                 Aún no hay productos más vendidos. Las ventas aparecerán aquí.
               </p>
             ) : data.topProducts.map((product, index) => (
@@ -1093,7 +1093,7 @@ export default function DashboardPage() {
                     <p className="text-[14px] font-bold text-[#334155] dark:text-slate-50">
                       {product.name}
                     </p>
-                    <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                    <p className="text-[12px] font-medium text-slate-500 dark:text-slate-300">
                       {hideSensitiveInfo ? "***" : `${product.units} unidades`}
                     </p>
                   </div>
@@ -1102,7 +1102,7 @@ export default function DashboardPage() {
                   <p className="text-[14px] font-bold text-[#334155] dark:text-slate-50">
                     {formatSensitiveValue(product.total)}
                   </p>
-                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                     Total vendido
                   </p>
                 </div>
@@ -1162,6 +1162,8 @@ function CashCloseModal({
     transferPercentage: number;
     warrantyEgressCash: number;
     warrantyEgressTransfer: number;
+    expenseEgressCash: number;
+    expenseEgressTransfer: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [actualCash, setActualCash] = useState("");
@@ -1431,6 +1433,29 @@ function CashCloseModal({
         warrantyEgressTransfer = warrantyTransferImpact < 0 ? -warrantyTransferImpact : 0;
       }
 
+      // Egresos registrados (tabla expenses): restar del efectivo/transferencia del día
+      let expenseEgressCash = 0;
+      let expenseEgressTransfer = 0;
+      if (branchId) {
+        const { data: expensesDay } = await supabase
+          .from("expenses")
+          .select("amount, payment_method")
+          .eq("branch_id", branchId)
+          .gte("created_at", start)
+          .lte("created_at", end);
+        if (cancelled) return;
+        (expensesDay ?? []).forEach((e: { amount: number; payment_method: string }) => {
+          const amount = Number(e.amount) || 0;
+          if (e.payment_method === "cash") {
+            expenseEgressCash += amount;
+            cash -= amount;
+          } else {
+            expenseEgressTransfer += amount;
+            transfer -= amount;
+          }
+        });
+      }
+
       const totalIncomeAfter = cash + transfer;
       const cashPct = totalIncomeAfter > 0 ? Math.round((cash / totalIncomeAfter) * 100) : 0;
       const transferPct = totalIncomeAfter > 0 ? Math.round((transfer / totalIncomeAfter) * 100) : 0;
@@ -1450,6 +1475,8 @@ function CashCloseModal({
         transferPercentage: transferPct,
         warrantyEgressCash,
         warrantyEgressTransfer,
+        expenseEgressCash,
+        expenseEgressTransfer,
       });
       setLoading(false);
     })();
@@ -1521,13 +1548,13 @@ function CashCloseModal({
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
             Cierre de caja manual
           </h2>
-          <p className="mt-1 text-[13px] text-slate-600 dark:text-slate-400">
+          <p className="mt-1 text-[13px] text-slate-600 dark:text-slate-300">
             Resumen del día {selectedDate.toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </p>
         </div>
 
         {loading ? (
-          <div className="py-8 text-center text-slate-500 dark:text-slate-400">
+          <div className="py-8 text-center text-slate-500 dark:text-slate-300">
             Cargando datos...
           </div>
         ) : cashCloseData ? (
@@ -1551,13 +1578,13 @@ function CashCloseModal({
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Efectivo
                   </p>
                   <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
                     {formatValue(cashCloseData.cash)}
                   </p>
-                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-300">
                     {cashCloseData.cashPercentage}% del total
                   </p>
                 </div>
@@ -1579,13 +1606,13 @@ function CashCloseModal({
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Transferencia
                   </p>
                   <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
                     {formatValue(cashCloseData.transfer)}
                   </p>
-                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-300">
                     {cashCloseData.transferPercentage}% del total
                   </p>
                 </div>
@@ -1607,7 +1634,7 @@ function CashCloseModal({
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Total ventas
                   </p>
                   <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
@@ -1616,19 +1643,19 @@ function CashCloseModal({
                   {!hideSensitiveInfo && cashCloseData.totalSales > 0 && (
                     <div className="mt-1 flex items-center gap-3">
                       <div className="flex items-center gap-1.5">
-                        <svg className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-3.5 w-3.5 text-slate-500 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
-                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-300">
                           {Math.round((cashCloseData.physicalSales / cashCloseData.totalSales) * 100)}%
                         </span>
                       </div>
                       <span className="text-slate-300 dark:text-slate-600">·</span>
                       <div className="flex items-center gap-1.5">
-                        <svg className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-3.5 w-3.5 text-slate-500 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                         </svg>
-                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-300">
                           {Math.round((cashCloseData.deliverySales / cashCloseData.totalSales) * 100)}%
                         </span>
                       </div>
@@ -1646,13 +1673,13 @@ function CashCloseModal({
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* Efectivo */}
                 <div>
-                  <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Efectivo esperado
                   </label>
                   <div className="text-lg font-bold text-slate-900 dark:text-slate-50">
                     {formatValue(cashCloseData.cash)}
                   </div>
-                  <label className="mt-3 mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <label className="mt-3 mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Efectivo ingresado
                   </label>
                   <input
@@ -1665,7 +1692,7 @@ function CashCloseModal({
                   />
                   {actualCash && (
                     <div className="mt-2">
-                      <span className="text-[12px] text-slate-600 dark:text-slate-400">
+                      <span className="text-[12px] text-slate-600 dark:text-slate-300">
                         Diferencia:{" "}
                       </span>
                       <span
@@ -1686,13 +1713,13 @@ function CashCloseModal({
 
                 {/* Transferencia */}
                 <div>
-                  <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Transferencia esperada
                   </label>
                   <div className="text-lg font-bold text-slate-900 dark:text-slate-50">
                     {formatValue(cashCloseData.transfer)}
                   </div>
-                  <label className="mt-3 mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <label className="mt-3 mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Transferencia ingresada
                   </label>
                   <input
@@ -1705,7 +1732,7 @@ function CashCloseModal({
                   />
                   {actualTransfer && (
                     <div className="mt-2">
-                      <span className="text-[12px] text-slate-600 dark:text-slate-400">
+                      <span className="text-[12px] text-slate-600 dark:text-slate-300">
                         Diferencia:{" "}
                       </span>
                       <span
@@ -1730,7 +1757,7 @@ function CashCloseModal({
                 (Number(actualCash || 0) - cashCloseData.cash !== 0 ||
                   Number(actualTransfer || 0) - cashCloseData.transfer !== 0) && (
                   <div className="mt-4">
-                    <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                    <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-300">
                       Motivo de la diferencia (opcional)
                     </label>
                     <textarea
@@ -1763,7 +1790,7 @@ function CashCloseModal({
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Total unidades vendidas
                   </p>
                   <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
@@ -1788,14 +1815,14 @@ function CashCloseModal({
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Facturas anuladas
                   </p>
                   <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
                     {hideSensitiveInfo ? "***" : cashCloseData.cancelledInvoices}
                   </p>
                   {cashCloseData.cancelledInvoices > 0 && (
-                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-300">
                       {formatValue(cashCloseData.cancelledTotal)}
                     </p>
                   )}
@@ -1818,7 +1845,7 @@ function CashCloseModal({
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Garantías
                   </p>
                   <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
@@ -1833,13 +1860,13 @@ function CashCloseModal({
               <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
                 Egresos por garantías
               </p>
-              <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+              <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-300">
                 Dinero devuelto a clientes (devoluciones y diferencias de cambio)
               </p>
               <div className="mt-3 space-y-1.5">
                 {cashCloseData.warrantyEgressCash > 0 && (
                   <div className="flex items-center justify-between text-[14px]">
-                    <span className="text-slate-600 dark:text-slate-400">Efectivo</span>
+                    <span className="text-slate-600 dark:text-slate-300">Efectivo</span>
                     <span className="font-medium text-slate-900 dark:text-slate-50">
                       {hideSensitiveInfo ? "***" : formatValue(cashCloseData.warrantyEgressCash)}
                     </span>
@@ -1847,16 +1874,40 @@ function CashCloseModal({
                 )}
                 {cashCloseData.warrantyEgressTransfer > 0 && (
                   <div className="flex items-center justify-between text-[14px]">
-                    <span className="text-slate-600 dark:text-slate-400">Transferencia</span>
+                    <span className="text-slate-600 dark:text-slate-300">Transferencia</span>
                     <span className="font-medium text-slate-900 dark:text-slate-50">
                       {hideSensitiveInfo ? "***" : formatValue(cashCloseData.warrantyEgressTransfer)}
                     </span>
                   </div>
                 )}
+                { (cashCloseData.expenseEgressCash > 0 || cashCloseData.expenseEgressTransfer > 0) && (
+                  <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-800">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">Egresos registrados</p>
+                    {cashCloseData.expenseEgressCash > 0 && (
+                      <div className="flex items-center justify-between text-[14px]">
+                        <span className="text-slate-600 dark:text-slate-300">Efectivo</span>
+                        <span className="font-medium text-slate-900 dark:text-slate-50">
+                          {hideSensitiveInfo ? "***" : formatValue(cashCloseData.expenseEgressCash)}
+                        </span>
+                      </div>
+                    )}
+                    {cashCloseData.expenseEgressTransfer > 0 && (
+                      <div className="flex items-center justify-between text-[14px]">
+                        <span className="text-slate-600 dark:text-slate-300">Transferencia</span>
+                        <span className="font-medium text-slate-900 dark:text-slate-50">
+                          {hideSensitiveInfo ? "***" : formatValue(cashCloseData.expenseEgressTransfer)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center justify-between border-t border-slate-200 pt-2 dark:border-slate-800">
                   <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Total egresos</span>
                   <span className="font-bold text-slate-900 dark:text-slate-50">
-                    {hideSensitiveInfo ? "***" : formatValue(cashCloseData.warrantyEgressCash + cashCloseData.warrantyEgressTransfer)}
+                    {hideSensitiveInfo ? "***" : formatValue(
+                      cashCloseData.warrantyEgressCash + cashCloseData.warrantyEgressTransfer +
+                      cashCloseData.expenseEgressCash + cashCloseData.expenseEgressTransfer
+                    )}
                   </span>
                 </div>
               </div>
@@ -1872,13 +1923,13 @@ function CashCloseModal({
                   <table className="w-full text-[13px]">
                     <thead>
                       <tr className="border-b border-slate-200 dark:border-slate-700">
-                        <th className="pb-2 text-left font-medium text-slate-600 dark:text-slate-400">
+                        <th className="pb-2 text-left font-medium text-slate-600 dark:text-slate-300">
                           Producto
                         </th>
-                        <th className="pb-2 text-right font-medium text-slate-600 dark:text-slate-400">
+                        <th className="pb-2 text-right font-medium text-slate-600 dark:text-slate-300">
                           Cantidad
                         </th>
-                        <th className="pb-2 text-right font-medium text-slate-600 dark:text-slate-400">
+                        <th className="pb-2 text-right font-medium text-slate-600 dark:text-slate-300">
                           Total
                         </th>
                       </tr>
@@ -1892,7 +1943,7 @@ function CashCloseModal({
                           <td className="py-2 text-slate-900 dark:text-slate-50">
                             {product.name}
                           </td>
-                          <td className="py-2 text-right text-slate-600 dark:text-slate-400">
+                          <td className="py-2 text-right text-slate-600 dark:text-slate-300">
                             {hideSensitiveInfo ? "***" : `${product.quantity} unidades`}
                           </td>
                           <td className="py-2 text-right font-medium text-slate-900 dark:text-slate-50">
@@ -1917,7 +1968,7 @@ function CashCloseModal({
                   </table>
                 </div>
               ) : (
-                <div className="rounded-lg bg-slate-50 p-4 text-center text-[13px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                <div className="rounded-lg bg-slate-50 p-4 text-center text-[13px] text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                   No se vendieron productos este día
                 </div>
               )}
@@ -1941,7 +1992,7 @@ function CashCloseModal({
                     </div>
                     <div className="ml-6 space-y-1">
                       {outOfStockProducts.map((p, i) => (
-                        <div key={i} className="text-[12px] text-slate-600 dark:text-slate-400">
+                        <div key={i} className="text-[12px] text-slate-600 dark:text-slate-300">
                           • {p.name}
                         </div>
                       ))}
@@ -1960,7 +2011,7 @@ function CashCloseModal({
                     </div>
                     <div className="ml-6 space-y-1">
                       {lowStockProducts.map((p, i) => (
-                        <div key={i} className="text-[12px] text-slate-600 dark:text-slate-400">
+                        <div key={i} className="text-[12px] text-slate-600 dark:text-slate-300">
                           • {p.name} ({p.quantity} unidades, mínimo: {p.min_stock})
                         </div>
                       ))}
