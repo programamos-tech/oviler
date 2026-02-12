@@ -65,15 +65,6 @@ function IconCog() {
 
 const masItems = [
   {
-    label: "Garantías",
-    href: "/garantias",
-    icon: IconGarantias,
-    items: [
-      { label: "Ver garantías", href: "/garantias", icon: IconList },
-      { label: "Nueva garantía", href: "/garantias/nueva", icon: IconPlus },
-    ],
-  },
-  {
     label: "Actividades",
     href: "/actividades",
     icon: IconActividades,

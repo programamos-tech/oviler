@@ -7,6 +7,8 @@ import Breadcrumb from "@/app/components/Breadcrumb";
 import { createClient } from "@/lib/supabase/client";
 import { MdStore, MdLocalShipping } from "react-icons/md";
 
+const IVA_RATE = 0.19;
+
 function getDayBounds(date: Date): { start: string; end: string } {
   const year = date.getFullYear();
   const month = date.getMonth();
@@ -14,6 +16,11 @@ function getDayBounds(date: Date): { start: string; end: string } {
   const start = new Date(year, month, day, 0, 0, 0, 0);
   const end = new Date(year, month, day, 23, 59, 59, 999);
   return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function salePriceFromProduct(basePrice: number | null, applyIva: boolean): number {
+  const base = Number(basePrice) ?? 0;
+  return applyIva ? base + Math.round(base * IVA_RATE) : base;
 }
 
 export default function NewCashClosingPage() {
@@ -92,6 +99,8 @@ export default function NewCashClosingPage() {
     cashPercentage: number;
     transferPercentage: number;
     deliveryByPerson: Array<{ personId: string; personName: string; personCode: string; total: number; unpaid: number }>;
+    warrantyEgressCash: number;
+    warrantyEgressTransfer: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -306,20 +315,114 @@ export default function NewCashClosingPage() {
       });
       const deliveryByPerson = Object.values(deliveryByPersonMap).sort((a, b) => a.personCode.localeCompare(b.personCode));
 
+      // Garantías procesadas del día: ajustar efectivo/transferencia y egresos
+      let warrantyCashImpact = 0;
+      let warrantyTransferImpact = 0;
+      let warrantiesCount = 0;
+      let warrantyEgressCash = 0;
+      let warrantyEgressTransfer = 0;
+      const { data: warrantiesDay } = await supabase
+        .from("warranties")
+        .select("id, warranty_type, sale_id, sale_item_id, product_id, quantity, replacement_product_id, branch_id, sale_items(unit_price, quantity), sales(branch_id, payment_method, amount_cash, amount_transfer)")
+        .eq("status", "processed")
+        .gte("created_at", start)
+        .lte("created_at", end);
+      if (cancelled) return;
+
+      const warrantyList = (warrantiesDay ?? []) as Array<{
+        id: string;
+        warranty_type: string;
+        sale_id: string | null;
+        sale_item_id: string | null;
+        product_id: string;
+        quantity: number;
+        replacement_product_id: string | null;
+        branch_id: string | null;
+        sale_items: { unit_price: number; quantity: number } | Array<{ unit_price: number; quantity: number }> | null;
+        sales: { branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null } | Array<{ branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null }> | null;
+      }>;
+
+      const forBranch = warrantyList.filter((w) => {
+        const sal = Array.isArray(w.sales) ? w.sales[0] : w.sales;
+        return w.branch_id === branchId || sal?.branch_id === branchId;
+      });
+      warrantiesCount = forBranch.length;
+
+      if (forBranch.length > 0) {
+        const productIds = [...new Set([...forBranch.map((w) => w.product_id), ...forBranch.map((w) => w.replacement_product_id).filter(Boolean) as string[]])];
+        const { data: productsData } = await supabase
+          .from("products")
+          .select("id, base_price, apply_iva")
+          .in("id", productIds);
+        if (cancelled) return;
+        const productsMap: Record<string, { base_price: number | null; apply_iva: boolean }> = {};
+        (productsData ?? []).forEach((p: { id: string; base_price: number | null; apply_iva: boolean }) => {
+          productsMap[p.id] = { base_price: p.base_price, apply_iva: !!p.apply_iva };
+        });
+
+        for (const w of forBranch) {
+          const si = Array.isArray(w.sale_items) ? w.sale_items[0] : w.sale_items;
+          const sal = Array.isArray(w.sales) ? w.sales[0] : w.sales;
+          let productValue = 0;
+          if (si && si.unit_price != null) {
+            productValue = Number(si.unit_price) * (si.quantity ?? w.quantity ?? 1);
+          } else {
+            const prod = productsMap[w.product_id];
+            if (prod) {
+              productValue = salePriceFromProduct(prod.base_price, prod.apply_iva) * (w.quantity || 1);
+            }
+          }
+
+          if (w.warranty_type === "refund") {
+            const amount = productValue;
+            if (sal?.payment_method === "transfer") {
+              warrantyTransferImpact -= amount;
+            } else if (sal?.payment_method === "mixed" && sal.amount_cash != null && sal.amount_transfer != null) {
+              const total = Number(sal.amount_cash) + Number(sal.amount_transfer);
+              if (total > 0) {
+                warrantyCashImpact -= Math.round((Number(sal.amount_cash) / total) * amount);
+                warrantyTransferImpact -= amount - Math.round((Number(sal.amount_cash) / total) * amount);
+              } else {
+                warrantyCashImpact -= amount;
+              }
+            } else {
+              warrantyCashImpact -= amount;
+            }
+          } else if (w.warranty_type === "exchange" && w.replacement_product_id) {
+            const repl = productsMap[w.replacement_product_id];
+            const replacementValue = repl ? salePriceFromProduct(repl.base_price, repl.apply_iva) * (w.quantity || 1) : 0;
+            const diff = replacementValue - productValue;
+            warrantyCashImpact += diff;
+          }
+          // repair: no impacto
+        }
+
+        cash += warrantyCashImpact;
+        transfer += warrantyTransferImpact;
+        warrantyEgressCash = warrantyCashImpact < 0 ? -warrantyCashImpact : 0;
+        warrantyEgressTransfer = warrantyTransferImpact < 0 ? -warrantyTransferImpact : 0;
+      }
+
+      const totalAfterWarranties = cash + transfer;
+      const cashPct = totalAfterWarranties > 0 ? Math.round((cash / totalAfterWarranties) * 100) : 0;
+      const transferPct = totalAfterWarranties > 0 ? Math.round((transfer / totalAfterWarranties) * 100) : 0;
+
       setCashCloseData({
         cash,
         transfer,
         cancelledInvoices: cancelledSales.length,
         cancelledTotal,
-        warranties: 0,
+        warranties: warrantiesCount,
         products: productsList,
         totalSales: completed.length,
         physicalSales,
         deliverySales,
         totalUnits,
-        cashPercentage,
-        transferPercentage,
+        cashPercentage: cashPct,
+        transferPercentage: transferPct,
         deliveryByPerson,
+        warrantyEgressCash,
+        warrantyEgressTransfer,
       });
       setLoading(false);
     })();
@@ -773,6 +876,40 @@ export default function NewCashClosingPage() {
                   <span className="text-base font-bold text-slate-900 dark:text-slate-50">
                     {formatValue(cashCloseData.cash + cashCloseData.transfer)}
                   </span>
+                </div>
+              </div>
+
+              {/* Egresos por garantías (dinero devuelto a clientes) - siempre visible */}
+              <div className="mt-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+                <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  Egresos por garantías
+                </p>
+                <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                  Dinero devuelto a clientes (devoluciones y diferencias de cambio)
+                </p>
+                <div className="mt-3 space-y-1.5">
+                    {cashCloseData.warrantyEgressCash > 0 && (
+                      <div className="flex items-center justify-between text-[14px]">
+                        <span className="text-slate-600 dark:text-slate-400">Efectivo</span>
+                        <span className="font-medium text-slate-900 dark:text-slate-50">
+                          {formatValue(cashCloseData.warrantyEgressCash)}
+                        </span>
+                      </div>
+                    )}
+                    {cashCloseData.warrantyEgressTransfer > 0 && (
+                      <div className="flex items-center justify-between text-[14px]">
+                        <span className="text-slate-600 dark:text-slate-400">Transferencia</span>
+                        <span className="font-medium text-slate-900 dark:text-slate-50">
+                          {formatValue(cashCloseData.warrantyEgressTransfer)}
+                        </span>
+                      </div>
+                    )}
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-2 dark:border-slate-800">
+                    <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Total egresos</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-50">
+                      {formatValue(cashCloseData.warrantyEgressCash + cashCloseData.warrantyEgressTransfer)}
+                    </span>
+                  </div>
                 </div>
               </div>
 

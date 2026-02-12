@@ -22,6 +22,7 @@ export default function ConfigurarSucursalPage() {
   const [responsableIva, setResponsableIva] = useState(false);
   const [invoicePrintType, setInvoicePrintType] = useState<"tirilla" | "block">("block");
   const [invoiceCancelRequiresApproval, setInvoiceCancelRequiresApproval] = useState(false);
+  const [warrantyBySale, setWarrantyBySale] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -42,12 +43,13 @@ export default function ConfigurarSucursalPage() {
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
       if (!ub?.branch_id || cancelled) return;
       setBranchId(ub.branch_id);
-      const { data: branch } = await supabase.from("branches").select("has_bodega, responsable_iva, invoice_print_type, invoice_cancel_requires_approval").eq("id", ub.branch_id).single();
+      const { data: branch } = await supabase.from("branches").select("has_bodega, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, warranty_by_sale").eq("id", ub.branch_id).single();
       if (branch && !cancelled) {
         setHasBodega(!!branch.has_bodega);
         setResponsableIva(!!branch.responsable_iva);
         setInvoicePrintType(branch.invoice_print_type === "tirilla" ? "tirilla" : "block");
         setInvoiceCancelRequiresApproval(!!branch.invoice_cancel_requires_approval);
+        setWarrantyBySale(branch.warranty_by_sale !== false);
       }
       
       // Cargar domiciliarios
@@ -74,6 +76,7 @@ export default function ConfigurarSucursalPage() {
       responsable_iva: responsableIva,
       invoice_print_type: invoicePrintType,
       invoice_cancel_requires_approval: invoiceCancelRequiresApproval,
+      warranty_by_sale: warrantyBySale,
       updated_at: new Date().toISOString(),
     }).eq("id", branchId);
     setSaving(false);
@@ -214,6 +217,49 @@ export default function ConfigurarSucursalPage() {
             <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
               Si está marcado, al anular una factura la solicitud quedará pendiente hasta que un administrador u owner la apruebe. Si no, la anulación se aplica de inmediato.
             </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              Garantías
+            </p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+              Define si las garantías se registran por factura (venta) o directamente por producto.
+            </p>
+            <div className="mt-3 space-y-2">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="warranty_by_sale"
+                  checked={warrantyBySale === true}
+                  onChange={() => setWarrantyBySale(true)}
+                  disabled={loading}
+                  className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                />
+                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                  Por venta (factura)
+                </span>
+              </label>
+              <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
+                Se elige la factura y luego el producto de esa venta. Ideal cuando siempre se pide ticket.
+              </p>
+              <label className="mt-2 flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="warranty_by_sale"
+                  checked={warrantyBySale === false}
+                  onChange={() => setWarrantyBySale(false)}
+                  disabled={loading}
+                  className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                />
+                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                  Por producto
+                </span>
+              </label>
+              <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
+                Se elige directamente el producto y el cliente, sin exigir número de factura.
+              </p>
+            </div>
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">

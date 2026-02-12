@@ -86,6 +86,16 @@ type SaleItemRow = {
   products: { name: string; sku: string | null } | null;
 };
 
+type WarrantyRow = {
+  id: string;
+  warranty_type: "exchange" | "refund" | "repair";
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "processed";
+  created_at: string;
+  products: { name: string } | null;
+  replacement_product: { name: string } | null;
+};
+
 function lineSubtotal(item: SaleItemRow): number {
   const raw = item.quantity * item.unit_price;
   const byPercent = raw * (Number(item.discount_percent) || 0) / 100;
@@ -112,6 +122,7 @@ export default function SaleDetailPage() {
   const id = params?.id as string | undefined;
   const [sale, setSale] = useState<SaleDetail | null>(null);
   const [items, setItems] = useState<SaleItemRow[]>([]);
+  const [warranties, setWarranties] = useState<WarrantyRow[]>([]);
   const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddress | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -172,6 +183,14 @@ export default function SaleDetailPage() {
         .eq("sale_id", id);
 
       if (!cancelled) setItems((itemsData ?? []) as SaleItemRow[]);
+
+      // Cargar garantías de esta venta
+      const { data: warrantiesData } = await supabase
+        .from("warranties")
+        .select("id, warranty_type, reason, status, created_at, products(name), replacement_product:products!warranties_replacement_product_id_fkey(name)")
+        .eq("sale_id", id)
+        .order("created_at", { ascending: false });
+      if (!cancelled) setWarranties((warrantiesData ?? []) as WarrantyRow[]);
 
       if (s.delivery_address_id) {
         const { data: addr } = await supabase
@@ -757,6 +776,105 @@ export default function SaleDetailPage() {
           )}
         </div>
       </section>
+
+      {/* Sección de Garantías */}
+      <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 print:shadow-none print:ring-0">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+            Garantías {warranties.length > 0 && `(${warranties.length})`}
+          </h2>
+          <Link
+            href={`/garantias/nueva?sale_id=${sale.id}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 print:hidden"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nueva garantía
+          </Link>
+        </div>
+        <div className="mt-4">
+          {warranties.length === 0 ? (
+            <div className="rounded-lg border-2 border-dashed border-slate-200 bg-slate-50/50 p-6 text-center dark:border-slate-700 dark:bg-slate-800/30">
+              <svg className="mx-auto h-10 w-10 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <p className="mt-3 text-[14px] font-medium text-slate-600 dark:text-slate-400">
+                No hay garantías registradas para esta venta
+              </p>
+              <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-500">
+                Las garantías relacionadas con los productos de esta factura aparecerán aquí.
+              </p>
+              <Link
+                href={`/garantias/nueva?sale_id=${sale.id}`}
+                className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover print:hidden"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Registrar garantía
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {warranties.map((warranty) => {
+                const statusColors: Record<string, { bg: string; text: string }> = {
+                  pending: { bg: "bg-orange-500/10", text: "text-orange-700 dark:text-orange-300" },
+                  approved: { bg: "bg-emerald-500/10", text: "text-emerald-700 dark:text-emerald-300" },
+                  rejected: { bg: "bg-red-500/10", text: "text-red-700 dark:text-red-300" },
+                  processed: { bg: "bg-blue-500/10", text: "text-blue-700 dark:text-blue-300" },
+                };
+                const statusLabels: Record<string, string> = {
+                  pending: "Pendiente",
+                  approved: "Aprobada",
+                  rejected: "Rechazada",
+                  processed: "Procesada",
+                };
+                const typeLabels: Record<string, string> = {
+                  exchange: "Cambio",
+                  refund: "Devolución",
+                  repair: "Reparación",
+                };
+                const color = statusColors[warranty.status] || statusColors.pending;
+                return (
+                  <Link
+                    key={warranty.id}
+                    href="/garantias"
+                    className="block rounded-lg border border-slate-200 bg-slate-50 p-3 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">
+                            {warranty.products?.name ?? "Producto"}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold ${color.bg} ${color.text}`}>
+                            {statusLabels[warranty.status]}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-400">
+                          {typeLabels[warranty.warranty_type]} · {formatDate(warranty.created_at)}
+                        </p>
+                        {warranty.replacement_product && (
+                          <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-500">
+                            Reemplazo: {warranty.replacement_product.name}
+                          </p>
+                        )}
+                        <p className="mt-2 text-[12px] text-slate-600 dark:text-slate-400 line-clamp-2">
+                          {warranty.reason}
+                        </p>
+                      </div>
+                      <svg className="h-5 w-5 shrink-0 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
 
       <ConfirmDeleteModal
         isOpen={cancelOpen}

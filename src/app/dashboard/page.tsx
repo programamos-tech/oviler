@@ -23,11 +23,14 @@ type DashboardData = {
   last7Days: { day: string; sales: number }[];
   yesterdayIncome: number;
   totalStockInvestment: number;
+  defectiveStockInvestment: number;
   expectedProfit: number;
   grossProfit: number;
 };
 
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+const IVA_RATE = 0.19;
 
 function getDayBounds(date: Date): { start: string; end: string } {
   const year = date.getFullYear();
@@ -36,6 +39,11 @@ function getDayBounds(date: Date): { start: string; end: string } {
   const start = new Date(year, month, day, 0, 0, 0, 0);
   const end = new Date(year, month, day, 23, 59, 59, 999);
   return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function salePriceFromProduct(basePrice: number | null, applyIva: boolean): number {
+  const base = Number(basePrice) ?? 0;
+  return applyIva ? base + Math.round(base * IVA_RATE) : base;
 }
 
 export default function DashboardPage() {
@@ -81,6 +89,7 @@ export default function DashboardPage() {
         { data: salesYesterday },
         { data: salesLast7 },
         { data: inventoryData },
+        { data: defectiveData },
       ] = await Promise.all([
         supabase
           .from("sales")
@@ -117,6 +126,11 @@ export default function DashboardPage() {
           .from("inventory")
           .select("product_id, quantity, products(base_cost, base_price)")
           .eq("branch_id", branchId),
+        supabase
+          .from("defective_products")
+          .select("product_id, quantity, products(base_cost)")
+          .eq("branch_id", branchId)
+          .in("disposition", ["pending", "returned_to_supplier", "destroyed"]),
       ]);
 
       if (cancelled) return;
@@ -255,11 +269,29 @@ export default function DashboardPage() {
         quantity: number;
         products: { base_cost: number | null; base_price: number | null } | null;
       }>;
-      const totalStockInvestment = inventory.reduce((sum, inv) => {
+      const defectiveProducts = (defectiveData ?? []) as Array<{
+        product_id: string;
+        quantity: number;
+        products: { base_cost: number | null } | null;
+      }>;
+      
+      // Stock disponible (inventory)
+      const availableStockInvestment = inventory.reduce((sum, inv) => {
         const cost = Number(inv.products?.base_cost ?? 0);
         const qty = Number(inv.quantity ?? 0);
         return sum + cost * qty;
       }, 0);
+      
+      // Stock defectuoso (defective_products)
+      const defectiveStockInvestment = defectiveProducts.reduce((sum, def) => {
+        const cost = Number(def.products?.base_cost ?? 0);
+        const qty = Number(def.quantity ?? 0);
+        return sum + cost * qty;
+      }, 0);
+      
+      // Stock total (disponible + defectuoso)
+      const totalStockInvestment = availableStockInvestment + defectiveStockInvestment;
+      
       const expectedProfit = inventory.reduce((sum, inv) => {
         const cost = Number(inv.products?.base_cost ?? 0);
         const price = Number(inv.products?.base_price ?? 0);
@@ -308,6 +340,7 @@ export default function DashboardPage() {
         last7Days,
         yesterdayIncome,
         totalStockInvestment,
+        defectiveStockInvestment,
         expectedProfit,
         grossProfit,
       });
@@ -380,7 +413,8 @@ export default function DashboardPage() {
     topProducts: [],
     last7Days: DAY_LABELS.map((day) => ({ day, sales: 0 })),
     yesterdayIncome: 0,
-    totalStockInvestment: 0,
+        totalStockInvestment: 0,
+        defectiveStockInvestment: 0,
     expectedProfit: 0,
     grossProfit: 0,
   };
@@ -741,9 +775,27 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {!hideSensitiveInfo && (
                 <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
+                      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        Stock disponible
+                      </p>
+                      <p className="mt-1 text-[16px] font-bold text-slate-900 dark:text-slate-50">
+                        {formatSensitiveValue(data.totalStockInvestment - data.defectiveStockInvestment)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-orange-50 p-3 dark:bg-orange-950">
+                      <p className="text-[11px] font-medium text-orange-600 dark:text-orange-400">
+                        Stock defectuoso
+                      </p>
+                      <p className="mt-1 text-[16px] font-bold text-orange-700 dark:text-orange-300">
+                        {formatSensitiveValue(data.defectiveStockInvestment)}
+                      </p>
+                    </div>
+                  </div>
                   <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                     <p className="text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                      Valor total de tu inventario según el costo de compra de cada producto.
+                      Valor total de tu inventario según el costo de compra de cada producto (incluye defectuosos).
                     </p>
                   </div>
                   <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950">
@@ -754,9 +806,17 @@ export default function DashboardPage() {
                       {formatSensitiveValue(data.expectedProfit)}
                     </p>
                     <p className="mt-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
-                      Ganancia potencial al vender todo el inventario.
+                      Ganancia potencial al vender todo el inventario disponible.
                     </p>
                   </div>
+                  {data.defectiveStockInvestment > 0 && (
+                    <Link
+                      href="/inventario/merma"
+                      className="block rounded-lg border-2 border-orange-200 bg-orange-50 p-3 text-center text-[12px] font-medium text-orange-700 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300 dark:hover:bg-orange-900"
+                    >
+                      Ver productos defectuosos →
+                    </Link>
+                  )}
                 </>
               )}
             </div>
@@ -1100,6 +1160,8 @@ function CashCloseModal({
     totalUnits: number;
     cashPercentage: number;
     transferPercentage: number;
+    warrantyEgressCash: number;
+    warrantyEgressTransfer: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [actualCash, setActualCash] = useState("");
@@ -1282,19 +1344,112 @@ function CashCloseModal({
       setLowStockProducts(lowStock);
       setOutOfStockProducts(outOfStock);
 
+      // Garantías procesadas del día: ajustar efectivo/transferencia y egresos
+      let warrantyCashImpact = 0;
+      let warrantyTransferImpact = 0;
+      let warrantiesCount = 0;
+      let warrantyEgressCash = 0;
+      let warrantyEgressTransfer = 0;
+      const { data: warrantiesDay } = await supabase
+        .from("warranties")
+        .select("id, warranty_type, sale_id, sale_item_id, product_id, quantity, replacement_product_id, branch_id, sale_items(unit_price, quantity), sales(branch_id, payment_method, amount_cash, amount_transfer)")
+        .eq("status", "processed")
+        .gte("created_at", start)
+        .lte("created_at", end);
+      if (cancelled) return;
+
+      const warrantyList = (warrantiesDay ?? []) as Array<{
+        id: string;
+        warranty_type: string;
+        sale_id: string | null;
+        sale_item_id: string | null;
+        product_id: string;
+        quantity: number;
+        replacement_product_id: string | null;
+        branch_id: string | null;
+        sale_items: { unit_price: number; quantity: number } | Array<{ unit_price: number; quantity: number }> | null;
+        sales: { branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null } | Array<{ branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null }> | null;
+      }>;
+
+      const forBranch = branchId ? warrantyList.filter((w) => {
+        const sal = Array.isArray(w.sales) ? w.sales[0] : w.sales;
+        return w.branch_id === branchId || sal?.branch_id === branchId;
+      }) : [];
+      warrantiesCount = forBranch.length;
+
+      if (forBranch.length > 0 && branchId) {
+        const productIds = [...new Set([...forBranch.map((w) => w.product_id), ...forBranch.map((w) => w.replacement_product_id).filter(Boolean) as string[]])];
+        const { data: productsData } = await supabase
+          .from("products")
+          .select("id, base_price, apply_iva")
+          .in("id", productIds);
+        if (cancelled) return;
+        const productsMap: Record<string, { base_price: number | null; apply_iva: boolean }> = {};
+        (productsData ?? []).forEach((p: { id: string; base_price: number | null; apply_iva: boolean }) => {
+          productsMap[p.id] = { base_price: p.base_price, apply_iva: !!p.apply_iva };
+        });
+
+        for (const w of forBranch) {
+          const si = Array.isArray(w.sale_items) ? w.sale_items[0] : w.sale_items;
+          const sal = Array.isArray(w.sales) ? w.sales[0] : w.sales;
+          let productValue = 0;
+          if (si && si.unit_price != null) {
+            productValue = Number(si.unit_price) * (si.quantity ?? w.quantity ?? 1);
+          } else {
+            const prod = productsMap[w.product_id];
+            if (prod) {
+              productValue = salePriceFromProduct(prod.base_price, prod.apply_iva) * (w.quantity || 1);
+            }
+          }
+
+          if (w.warranty_type === "refund") {
+            const amount = productValue;
+            if (sal?.payment_method === "transfer") {
+              warrantyTransferImpact -= amount;
+            } else if (sal?.payment_method === "mixed" && sal.amount_cash != null && sal.amount_transfer != null) {
+              const total = Number(sal.amount_cash) + Number(sal.amount_transfer);
+              if (total > 0) {
+                warrantyCashImpact -= Math.round((Number(sal.amount_cash) / total) * amount);
+                warrantyTransferImpact -= amount - Math.round((Number(sal.amount_cash) / total) * amount);
+              } else {
+                warrantyCashImpact -= amount;
+              }
+            } else {
+              warrantyCashImpact -= amount;
+            }
+          } else if (w.warranty_type === "exchange" && w.replacement_product_id) {
+            const repl = productsMap[w.replacement_product_id];
+            const replacementValue = repl ? salePriceFromProduct(repl.base_price, repl.apply_iva) * (w.quantity || 1) : 0;
+            const diff = replacementValue - productValue;
+            warrantyCashImpact += diff;
+          }
+        }
+
+        cash += warrantyCashImpact;
+        transfer += warrantyTransferImpact;
+        warrantyEgressCash = warrantyCashImpact < 0 ? -warrantyCashImpact : 0;
+        warrantyEgressTransfer = warrantyTransferImpact < 0 ? -warrantyTransferImpact : 0;
+      }
+
+      const totalIncomeAfter = cash + transfer;
+      const cashPct = totalIncomeAfter > 0 ? Math.round((cash / totalIncomeAfter) * 100) : 0;
+      const transferPct = totalIncomeAfter > 0 ? Math.round((transfer / totalIncomeAfter) * 100) : 0;
+
       setCashCloseData({
         cash,
         transfer,
         cancelledInvoices: cancelledSales.length,
         cancelledTotal,
-        warranties: 0, // Por ahora 0, se puede agregar si hay tabla de garantías
+        warranties: warrantiesCount,
         products: productsList,
         totalSales: completed.length,
         physicalSales,
         deliverySales,
         totalUnits,
-        cashPercentage,
-        transferPercentage,
+        cashPercentage: cashPct,
+        transferPercentage: transferPct,
+        warrantyEgressCash,
+        warrantyEgressTransfer,
       });
       setLoading(false);
     })();
@@ -1671,6 +1826,40 @@ function CashCloseModal({
                   </p>
                 </div>
               </button>
+            </div>
+
+            {/* Egresos por garantías - siempre visible */}
+            <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                Egresos por garantías
+              </p>
+              <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                Dinero devuelto a clientes (devoluciones y diferencias de cambio)
+              </p>
+              <div className="mt-3 space-y-1.5">
+                {cashCloseData.warrantyEgressCash > 0 && (
+                  <div className="flex items-center justify-between text-[14px]">
+                    <span className="text-slate-600 dark:text-slate-400">Efectivo</span>
+                    <span className="font-medium text-slate-900 dark:text-slate-50">
+                      {hideSensitiveInfo ? "***" : formatValue(cashCloseData.warrantyEgressCash)}
+                    </span>
+                  </div>
+                )}
+                {cashCloseData.warrantyEgressTransfer > 0 && (
+                  <div className="flex items-center justify-between text-[14px]">
+                    <span className="text-slate-600 dark:text-slate-400">Transferencia</span>
+                    <span className="font-medium text-slate-900 dark:text-slate-50">
+                      {hideSensitiveInfo ? "***" : formatValue(cashCloseData.warrantyEgressTransfer)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-slate-200 pt-2 dark:border-slate-800">
+                  <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Total egresos</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-50">
+                    {hideSensitiveInfo ? "***" : formatValue(cashCloseData.warrantyEgressCash + cashCloseData.warrantyEgressTransfer)}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Productos vendidos */}

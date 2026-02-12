@@ -148,14 +148,7 @@ const navItems: NavItem[] = [
     items: [
       { label: "Ver ventas", href: "/ventas", icon: <IconList />, description: "Lista de todas las ventas" },
       { label: "Nueva venta", href: "/ventas/nueva", icon: <IconPlus />, description: "Registrar nueva venta" },
-    ],
-  },
-  {
-    label: "Garantías",
-    href: "/garantias",
-    icon: <NavIconShield />,
-    items: [
-      { label: "Ver garantías", href: "/garantias", icon: <IconList />, description: "Lista de garantías gestionadas" },
+      { label: "Ver garantías", href: "/garantias", icon: <NavIconShield />, description: "Lista de garantías gestionadas" },
       { label: "Nueva garantía", href: "/garantias/nueva", icon: <IconPlus />, description: "Registrar nueva garantía" },
     ],
   },
