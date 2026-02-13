@@ -21,9 +21,9 @@ const youngSerif = Young_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "NOU - Software para Inventarios",
+  title: "NOU Inventarios | NOU Technology",
   description:
-    "NOU - Software para Inventarios. Gestiona tu inventario, ventas, clientes y más desde un solo lugar.",
+    "SaaS premium de inventarios. Implementación, configuración, capacitación y licencia anual. Si tienes problemas con el inventario, nosotros vamos.",
 };
 
 export default function RootLayout({

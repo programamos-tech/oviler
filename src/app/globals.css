@@ -91,3 +91,17 @@ body {
   .dark\:text-slate-500 { color: rgb(148 163 184) !important; }
   .dark\:text-slate-400 { color: rgb(203 213 225) !important; }
 }
+
+/* Mismo fondo oscuro de la plataforma/dashboard (gris neutro, no azul) para landing */
+.bg-platform-dark {
+  background-color: rgb(26 26 34);
+}
+.bg-platform-dark\/85 {
+  background-color: rgb(26 26 34 / 0.85);
+}
+.bg-platform-dark\/75 {
+  background-color: rgb(26 26 34 / 0.75);
+}
+.bg-platform-dark\/70 {
+  background-color: rgb(26 26 34 / 0.7);
+}

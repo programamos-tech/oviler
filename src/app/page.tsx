@@ -1,13 +1,15 @@
 import Link from "next/link";
 
+const COMPANY = "NOU Technology";
+const PRODUCT = "NOU Inventarios";
+
 export default function LandingPage() {
   return (
-    <div className="relative flex min-h-screen flex-col" style={{ backgroundImage: 'url(/pexels-kampus-7289718.jpg)', backgroundSize: 'cover', backgroundPosition: 'top center', backgroundAttachment: 'fixed' }}>
-      {/* Overlay oscuro para legibilidad */}
-      <div className="absolute inset-0 z-0 bg-slate-900/60" />
-      
+    <div className="relative flex min-h-screen flex-col" style={{ backgroundImage: "url(/pexels-kampus-7289718.jpg)", backgroundSize: "cover", backgroundPosition: "top center", backgroundAttachment: "fixed" }}>
+      <div className="absolute inset-0 z-0 bg-platform-dark/70" />
+
       {/* Navbar */}
-      <nav className="relative sticky top-0 z-50 border-b border-white/20 bg-transparent">
+      <nav className="relative sticky top-0 z-50 border-b border-white/10 bg-platform-dark/85 backdrop-blur-sm">
         <div className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex shrink-0 items-center gap-1.5">
             <svg className="h-7 w-7 shrink-0 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -15,24 +17,18 @@ export default function LandingPage() {
             </svg>
             <div className="flex flex-col">
               <span className="font-logo text-xl font-bold tracking-tight text-white leading-none">
-                NOU
+                {PRODUCT}
               </span>
               <span className="text-[9px] font-medium tracking-wide text-white/90 leading-tight">
-                Software para Inventarios
+                por {COMPANY}
               </span>
             </div>
           </Link>
           <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="hidden inline-flex h-9 items-center justify-center rounded-lg px-4 text-[13px] font-medium text-white transition-colors hover:bg-white/20 sm:flex"
-            >
+            <Link href="/login" className="hidden inline-flex h-9 items-center justify-center rounded-lg px-4 text-[13px] font-medium text-white transition-colors hover:bg-white/20 sm:flex">
               Iniciar sesión
             </Link>
-            <Link
-              href="/login"
-              className="inline-flex h-9 items-center justify-center rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover"
-            >
+            <Link href="/login" className="inline-flex h-9 items-center justify-center rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover">
               Solicitar demo
             </Link>
           </div>
@@ -40,169 +36,162 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="relative flex min-h-screen items-center overflow-hidden bg-transparent">
-        <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-          <div className="grid gap-12 lg:grid-cols-2 lg:items-center lg:gap-16">
-            {/* Contenido izquierdo */}
-            <div className="space-y-8">
-              <div className="space-y-4">
-                <h1 className="font-logo text-5xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl">
-                  NOU
-                </h1>
-                <p className="text-xl font-semibold text-white sm:text-2xl">
-                  ¿Sabes cuánto tienes en Inventario ahora?
-                </p>
-                <p className="text-xl font-semibold text-white sm:text-2xl">
-                  Nou.
-                </p>
-              </div>
-              <p className="max-w-xl text-lg leading-relaxed text-white/90 sm:text-xl">
-                Con Nou sabes cuánto vendes y cuánto tienes en el Inventario siempre.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <Link
-                  href="/login"
-                  className="inline-flex h-11 items-center justify-center rounded-lg bg-white px-6 text-[15px] font-medium text-slate-900 shadow-sm transition-colors hover:bg-white/90"
-                >
-                  Solicitar demo
-                </Link>
-                <Link
-                  href="/login"
-                  className="inline-flex h-11 items-center justify-center rounded-lg border border-white/30 bg-white/10 px-6 text-[15px] font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/20"
-                >
-                  Iniciar sesión
-                </Link>
-              </div>
-            </div>
+      <section className="relative flex min-h-screen items-center overflow-hidden bg-platform-dark/75 backdrop-blur-[2px]">
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
+        <div className="max-w-3xl">
+          <h1 className="font-logo text-3xl font-bold leading-tight tracking-tight text-white drop-shadow-md sm:text-4xl md:text-5xl lg:text-6xl">
+            <span className="whitespace-nowrap">Si tienes problemas con el inventario,</span>
+            <br />
+            nosotros vamos.
+          </h1>
+          <p className="mt-6 text-base leading-relaxed text-white sm:text-lg md:text-xl lg:leading-[1.6]">
+            No vendemos solo software. Conocemos tu negocio, te mostramos la plataforma, hacemos pruebas y, si te convence, la implementamos en tu sistema: usuarios, IVA, bodega, sucursales.
+          </p>
+          <p className="mt-4 text-base leading-relaxed text-white sm:text-lg md:text-xl lg:leading-[1.6]">
+            Capacitamos a tu equipo y te acompañamos con una <strong className="text-white">licencia anual</strong>.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-4">
+            <Link href="/login" className="inline-flex h-12 items-center justify-center rounded-lg bg-white px-6 text-[15px] font-semibold text-slate-900 shadow-lg transition-colors hover:bg-white/95">
+              Solicitar demo
+            </Link>
+            <Link href="#como-trabajamos" className="inline-flex h-12 items-center justify-center rounded-lg border-2 border-white/50 bg-white/10 px-6 text-[15px] font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/20">
+              Cómo trabajamos
+            </Link>
+          </div>
+        </div>
+        </div>
+      </section>
 
+      {/* Cómo trabajamos */}
+      <section id="como-trabajamos" className="relative z-10 border-t border-white/10 bg-platform-dark py-16 sm:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="font-logo text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Cómo trabajamos
+          </h2>
+          <p className="mt-3 max-w-2xl text-lg text-white/80">
+            Un proceso claro para que tu negocio quede operando con {PRODUCT} sin que tengas que configurar nada solo.
+          </p>
+          <ul className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { step: "1", title: "Conocemos tu negocio", desc: "Vamos a tu local, entendemos cómo manejas inventario, ventas y despachos." },
+              { step: "2", title: "Te mostramos la plataforma", desc: "Demo en vivo de NOU Inventarios adaptada a lo que nos contaste." },
+              { step: "3", title: "Pruebas a tu ritmo", desc: "Si te interesa, hacemos pruebas y ajustes hasta que te cierre." },
+              { step: "4", title: "Implementación completa", desc: "Configuramos la plataforma: usuarios, IVA, bodega, sucursales y numeración." },
+              { step: "5", title: "Capacitación", desc: "Capacitamos a los empleados que van a usar el sistema día a día." },
+              { step: "6", title: "Licencia anual", desc: "Vendes con nosotros una licencia anual e incorporas soporte y actualizaciones." },
+            ].map((item) => (
+              <li key={item.step} className="rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-ov-pink/20 text-sm font-bold text-ov-pink">
+                  {item.step}
+                </span>
+                <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
+                <p className="mt-2 text-[14px] leading-relaxed text-white/80">{item.desc}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* Producto */}
+      <section id="producto" className="relative z-10 border-t border-white/10 bg-platform-dark py-16 sm:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="font-logo text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            El software: {PRODUCT}
+          </h2>
+          <p className="mt-3 max-w-2xl text-lg text-white/80">
+            La plataforma que implementamos incluye inventario, ventas, clientes, egresos, cierre de caja, garantías y múltiples sucursales. Todo listo para que tu equipo trabaje con orden.
+          </p>
+          <div className="mt-10 flex flex-wrap gap-4">
+            <Link href="/login" className="inline-flex h-11 items-center justify-center rounded-lg bg-ov-pink px-6 text-[15px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover">
+                Solicitar demo
+              </Link>
           </div>
         </div>
       </section>
 
-      {/* Footer profesional */}
-      <footer className="relative z-10 border-t border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-white/10 bg-platform-dark">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
-            {/* Logo y descripción */}
             <div className="col-span-2 sm:col-span-3 lg:col-span-2">
               <Link href="/" className="mb-4 flex items-center gap-1.5">
                 <svg className="h-6 w-6 shrink-0 text-ov-pink" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
                 <div className="flex flex-col">
-                  <span className="font-logo text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 leading-none">
-                    NOU
+                  <span className="font-logo text-lg font-bold tracking-tight text-white leading-none">
+                    {PRODUCT}
                   </span>
-                  <span className="text-[10px] font-medium tracking-wide text-slate-500 dark:text-slate-400 leading-tight">
-                    Software para Inventarios
+                  <span className="text-[10px] font-medium tracking-wide text-slate-400 leading-tight">
+                    por {COMPANY}
                   </span>
                 </div>
               </Link>
-              <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-slate-600 dark:text-slate-400">
-                Gestiona tu inventario, ventas y despachos desde un solo lugar. Control total sobre tu negocio.
+              <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-slate-400">
+                Implementación, configuración, capacitación y licencia anual. Si tienes problemas con el inventario, nosotros vamos.
               </p>
             </div>
-
-            {/* Producto */}
             <div>
-              <h3 className="mb-4 text-[13px] font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+              <h3 className="mb-4 text-[13px] font-bold uppercase tracking-wide text-white">
                 Producto
               </h3>
               <ul className="space-y-2.5 text-[14px]">
                 <li>
-                  <Link href="#features" className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200">
-                    Características
-                  </Link>
+                  <a href="#como-trabajamos" className="text-slate-400 transition-colors hover:text-white">
+                    Cómo trabajamos
+                  </a>
                 </li>
                 <li>
-                  <Link href="#pricing" className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200">
-                    Precios
-                  </Link>
+                  <a href="#producto" className="text-slate-400 transition-colors hover:text-white">
+                    NOU Inventarios
+                  </a>
                 </li>
                 <li>
-                  <Link href="/login" className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200">
-                    Demo
+                  <Link href="/login" className="text-slate-400 transition-colors hover:text-white">
+                    Solicitar demo
                   </Link>
                 </li>
               </ul>
             </div>
-
-            {/* Empresa */}
             <div>
-              <h3 className="mb-4 text-[13px] font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+              <h3 className="mb-4 text-[13px] font-bold uppercase tracking-wide text-white">
                 Empresa
               </h3>
               <ul className="space-y-2.5 text-[14px]">
                 <li>
-                  <Link href="/contacto" className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200">
+                  <Link href="/contacto" className="text-slate-400 transition-colors hover:text-white">
                     Contacto
                   </Link>
                 </li>
                 <li>
-                  <Link href="/sobre-nosotros" className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200">
+                  <Link href="/sobre-nosotros" className="text-slate-400 transition-colors hover:text-white">
                     Sobre nosotros
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/blog" className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200">
-                    Blog
                   </Link>
                 </li>
               </ul>
             </div>
-
-            {/* Legal */}
             <div>
-              <h3 className="mb-4 text-[13px] font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+              <h3 className="mb-4 text-[13px] font-bold uppercase tracking-wide text-white">
                 Legal
               </h3>
               <ul className="space-y-2.5 text-[14px]">
                 <li>
-                  <Link href="/politica-privacidad" className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200">
+                  <Link href="/politica-privacidad" className="text-slate-400 transition-colors hover:text-white">
                     Privacidad
                   </Link>
                 </li>
                 <li>
-                  <Link href="/terminos" className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200">
+                  <Link href="/terminos" className="text-slate-400 transition-colors hover:text-white">
                     Términos
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/cookies" className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200">
-                    Cookies
                   </Link>
                 </li>
               </ul>
             </div>
           </div>
-
-          {/* Línea divisoria y copyright */}
-          <div className="mt-12 border-t border-slate-200 pt-8 dark:border-slate-800">
-            <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-              <p className="text-[13px] text-slate-500 dark:text-slate-400">
-                © {new Date().getFullYear()} NOW Sistemas - NOU Software para Inventarios. Todos los derechos reservados.
-              </p>
-              <div className="flex items-center gap-6">
-                <Link href="#" className="text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
-                  <span className="sr-only">Twitter</span>
-                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
-                  </svg>
-                </Link>
-                <Link href="#" className="text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
-                  <span className="sr-only">LinkedIn</span>
-                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path fillRule="evenodd" d="M19 0h-14a5 5 0 00-5 5v14a5 5 0 005 5h14a5 5 0 005-5v-14a5 5 0 00-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" clipRule="evenodd" />
-                  </svg>
-                </Link>
-                <Link href="#" className="text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
-                  <span className="sr-only">GitHub</span>
-                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
-                  </svg>
-                </Link>
-              </div>
-            </div>
+          <div className="mt-12 border-t border-white/10 pt-8">
+            <p className="text-center text-[13px] text-slate-400 sm:text-left">
+              © {new Date().getFullYear()} {COMPANY}. {PRODUCT} — Todos los derechos reservados.
+            </p>
           </div>
         </div>
       </footer>

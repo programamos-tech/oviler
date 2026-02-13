@@ -89,10 +89,10 @@ export default function LoginPage() {
           <svg className="h-8 w-8 shrink-0 text-slate-900 dark:text-slate-50 sm:h-10 sm:w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
           </svg>
-          <span>NOU</span>
+          <span>NOU Inventarios</span>
         </Link>
         <p className="mt-4 max-w-md text-[15px] leading-relaxed text-slate-600 dark:text-slate-400">
-          Software para Inventarios. Gestiona tu inventario, ventas, clientes y más desde un solo lugar. Configura tu negocio en minutos.
+          Por NOU Technology. SaaS premium: implementación, capacitación y licencia anual. Si tienes problemas con el inventario, nosotros vamos.
         </p>
       </div>
 
