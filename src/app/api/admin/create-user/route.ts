@@ -39,6 +39,7 @@ export async function POST(request: Request) {
     const admin = createAdminClient()
 
     // 1. Crear usuario en auth.users usando admin client (no envía email automáticamente)
+    // email_confirm: true confirma el email sin enviar email de confirmación
     const { data: authData, error: authError } = await admin.auth.admin.createUser({
       email,
       password,
@@ -49,12 +50,27 @@ export async function POST(request: Request) {
     })
 
     if (authError || !authData.user) {
-      console.error('Error creating auth user:', authError)
+      console.error('Error creating auth user with admin client:', {
+        error: authError,
+        code: authError?.code,
+        message: authError?.message,
+        details: authError?.details,
+        hint: authError?.hint,
+      })
       return NextResponse.json(
-        { error: authError?.message || 'Error al crear el usuario en auth' },
+        { 
+          error: authError?.message || 'Error al crear el usuario en auth',
+          code: authError?.code,
+          details: authError?.details,
+        },
         { status: 500 }
       )
     }
+
+    console.log('User created successfully with admin client:', {
+      userId: authData.user.id,
+      email: authData.user.email,
+    })
 
     // 2. Si se proporciona organization_id, crear registro en tabla users
     if (organization_id) {
