@@ -56,9 +56,14 @@ export default function RegistroPage() {
 
         const fallbackData = await fallbackRes.json().catch(() => ({}));
         if (!fallbackRes.ok) {
-          console.error("Fallback admin create-user failed:", fallbackData);
+          console.error("Fallback admin create-user failed:", {
+            status: fallbackRes.status,
+            data: fallbackData,
+          });
+          // Si el fallback falla, mostrar mensaje más específico
+          const errorMsg = fallbackData.error || "Error al crear la cuenta";
           setError(
-            "Se ha alcanzado el límite de envío de emails. El sistema intentará crear tu cuenta automáticamente. Por favor intenta iniciar sesión en unos momentos."
+            `Se ha alcanzado el límite de envío de emails. ${errorMsg}. Por favor intenta iniciar sesión en unos momentos o contacta al soporte.`
           );
           setLoading(false);
           return;
