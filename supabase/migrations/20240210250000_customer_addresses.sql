@@ -14,41 +14,53 @@ CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer_id ON customer_addres
 
 ALTER TABLE customer_addresses ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see addresses of customers in their organization"
-  ON customer_addresses FOR SELECT
-  USING (
-    customer_id IN (
-      SELECT id FROM customers
-      WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see addresses of customers in their organization"
+    ON customer_addresses FOR SELECT
+    USING (
+      customer_id IN (
+        SELECT id FROM customers
+        WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users insert addresses for customers in their organization"
-  ON customer_addresses FOR INSERT
-  WITH CHECK (
-    customer_id IN (
-      SELECT id FROM customers
-      WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users insert addresses for customers in their organization"
+    ON customer_addresses FOR INSERT
+    WITH CHECK (
+      customer_id IN (
+        SELECT id FROM customers
+        WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users update addresses of customers in their organization"
-  ON customer_addresses FOR UPDATE
-  USING (
-    customer_id IN (
-      SELECT id FROM customers
-      WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users update addresses of customers in their organization"
+    ON customer_addresses FOR UPDATE
+    USING (
+      customer_id IN (
+        SELECT id FROM customers
+        WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users delete addresses of customers in their organization"
-  ON customer_addresses FOR DELETE
-  USING (
-    customer_id IN (
-      SELECT id FROM customers
-      WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users delete addresses of customers in their organization"
+    ON customer_addresses FOR DELETE
+    USING (
+      customer_id IN (
+        SELECT id FROM customers
+        WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Migrar dirección actual de clientes a la nueva tabla (una fila por cliente que tenga address o reference_point).
 -- reference_point puede no existir en customers si no se aplicó la migración 20240210240000.

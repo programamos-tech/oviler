@@ -18,40 +18,52 @@ CREATE INDEX IF NOT EXISTS idx_expenses_created_at ON expenses(created_at DESC);
 -- RLS
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see expenses of their branches"
-  ON expenses FOR SELECT
-  USING (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see expenses of their branches"
+    ON expenses FOR SELECT
+    USING (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users create expenses for their branches"
-  ON expenses FOR INSERT
-  WITH CHECK (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-    AND user_id = auth.uid()
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users create expenses for their branches"
+    ON expenses FOR INSERT
+    WITH CHECK (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+      AND user_id = auth.uid()
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users update expenses of their branches"
-  ON expenses FOR UPDATE
-  USING (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+DO $$ BEGIN
+  CREATE POLICY "Users update expenses of their branches"
+    ON expenses FOR UPDATE
+    USING (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
     )
-  )
-  WITH CHECK (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-  );
+    WITH CHECK (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users delete expenses of their branches"
-  ON expenses FOR DELETE
-  USING (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users delete expenses of their branches"
+    ON expenses FOR DELETE
+    USING (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

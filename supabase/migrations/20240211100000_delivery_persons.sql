@@ -17,23 +17,29 @@ CREATE INDEX IF NOT EXISTS idx_delivery_persons_active ON delivery_persons(activ
 -- RLS
 ALTER TABLE delivery_persons ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see delivery persons of their branches"
-  ON delivery_persons FOR SELECT
-  USING (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see delivery persons of their branches"
+    ON delivery_persons FOR SELECT
+    USING (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users manage delivery persons of their branches"
-  ON delivery_persons FOR ALL
-  USING (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+DO $$ BEGIN
+  CREATE POLICY "Users manage delivery persons of their branches"
+    ON delivery_persons FOR ALL
+    USING (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
     )
-  )
-  WITH CHECK (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-  );
+    WITH CHECK (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

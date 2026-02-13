@@ -14,29 +14,38 @@ CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales(customer_id);
 
 ALTER TABLE sale_items ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see sale_items of their branches"
-  ON sale_items FOR SELECT
-  USING (
-    sale_id IN (
-      SELECT id FROM sales
-      WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see sale_items of their branches"
+    ON sale_items FOR SELECT
+    USING (
+      sale_id IN (
+        SELECT id FROM sales
+        WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users insert sale_items for sales in their branches"
-  ON sale_items FOR INSERT
-  WITH CHECK (
-    sale_id IN (
-      SELECT id FROM sales
-      WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users insert sale_items for sales in their branches"
+    ON sale_items FOR INSERT
+    WITH CHECK (
+      sale_id IN (
+        SELECT id FROM sales
+        WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users delete sale_items of their branches"
-  ON sale_items FOR DELETE
-  USING (
-    sale_id IN (
-      SELECT id FROM sales
-      WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users delete sale_items of their branches"
+    ON sale_items FOR DELETE
+    USING (
+      sale_id IN (
+        SELECT id FROM sales
+        WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

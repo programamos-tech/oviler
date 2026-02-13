@@ -119,57 +119,96 @@ ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_branches ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see only their organization"
-  ON organizations FOR SELECT
-  USING (id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users see only their organization"
+    ON organizations FOR SELECT
+    USING (id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users see only users in their organization"
-  ON users FOR SELECT
-  USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users see only users in their organization"
+    ON users FOR SELECT
+    USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users see only branches in their organization"
-  ON branches FOR SELECT
-  USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users see only branches in their organization"
+    ON branches FOR SELECT
+    USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users create branches in their organization"
-  ON branches FOR INSERT
-  WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users create branches in their organization"
+    ON branches FOR INSERT
+    WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users see only products in their organization"
-  ON products FOR SELECT
-  USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users see only products in their organization"
+    ON products FOR SELECT
+    USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users create products in their organization"
-  ON products FOR INSERT
-  WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users create products in their organization"
+    ON products FOR INSERT
+    WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users see inventory of their branches"
-  ON inventory FOR SELECT
-  USING (branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users see inventory of their branches"
+    ON inventory FOR SELECT
+    USING (branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users see sales of their branches"
-  ON sales FOR SELECT
-  USING (branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users see sales of their branches"
+    ON sales FOR SELECT
+    USING (branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users create sales in their branches"
-  ON sales FOR INSERT
-  WITH CHECK (branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users create sales in their branches"
+    ON sales FOR INSERT
+    WITH CHECK (branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users see only customers in their organization"
-  ON customers FOR SELECT
-  USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users see only customers in their organization"
+    ON customers FOR SELECT
+    USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users create customers in their organization"
-  ON customers FOR INSERT
-  WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users create customers in their organization"
+    ON customers FOR INSERT
+    WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users see their branch assignments"
-  ON user_branches FOR SELECT
-  USING (user_id = auth.uid());
+DO $$ BEGIN
+  CREATE POLICY "Users see their branch assignments"
+    ON user_branches FOR SELECT
+    USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users can add themselves to branches"
-  ON user_branches FOR INSERT
-  WITH CHECK (user_id = auth.uid());
+DO $$ BEGIN
+  CREATE POLICY "Users can add themselves to branches"
+    ON user_branches FOR INSERT
+    WITH CHECK (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE OR REPLACE FUNCTION check_branch_limit()
 RETURNS TRIGGER AS $$
@@ -186,6 +225,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS before_insert_branch ON branches;
 CREATE TRIGGER before_insert_branch
 BEFORE INSERT ON branches FOR EACH ROW
 EXECUTE FUNCTION check_branch_limit();
@@ -205,6 +245,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS before_insert_user ON users;
 CREATE TRIGGER before_insert_user
 BEFORE INSERT ON users FOR EACH ROW
 EXECUTE FUNCTION check_user_limit();
@@ -217,9 +258,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_organizations_updated_at ON organizations;
 CREATE TRIGGER update_organizations_updated_at BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_branches_updated_at ON branches;
 CREATE TRIGGER update_branches_updated_at BEFORE UPDATE ON branches FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_products_updated_at ON products;
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_customers_updated_at ON customers;
 CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON customers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_sales_updated_at ON sales;
 CREATE TRIGGER update_sales_updated_at BEFORE UPDATE ON sales FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

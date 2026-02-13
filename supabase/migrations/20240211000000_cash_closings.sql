@@ -41,32 +41,41 @@ CREATE INDEX IF NOT EXISTS idx_cash_closings_closing_date ON cash_closings(closi
 -- RLS
 ALTER TABLE cash_closings ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see cash closings of their branches"
-  ON cash_closings FOR SELECT
-  USING (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see cash closings of their branches"
+    ON cash_closings FOR SELECT
+    USING (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users create cash closings for their branches"
-  ON cash_closings FOR INSERT
-  WITH CHECK (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-    AND user_id = auth.uid()
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users create cash closings for their branches"
+    ON cash_closings FOR INSERT
+    WITH CHECK (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+      AND user_id = auth.uid()
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users update cash closings of their branches"
-  ON cash_closings FOR UPDATE
-  USING (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+DO $$ BEGIN
+  CREATE POLICY "Users update cash closings of their branches"
+    ON cash_closings FOR UPDATE
+    USING (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
     )
-  )
-  WITH CHECK (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-  );
+    WITH CHECK (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

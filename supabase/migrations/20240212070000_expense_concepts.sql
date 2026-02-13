@@ -12,29 +12,41 @@ CREATE INDEX IF NOT EXISTS idx_expense_concepts_organization_id ON expense_conce
 
 ALTER TABLE expense_concepts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see expense concepts of their organization"
-  ON expense_concepts FOR SELECT
-  USING (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see expense concepts of their organization"
+    ON expense_concepts FOR SELECT
+    USING (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users create expense concepts in their organization"
-  ON expense_concepts FOR INSERT
-  WITH CHECK (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users create expense concepts in their organization"
+    ON expense_concepts FOR INSERT
+    WITH CHECK (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users update expense concepts in their organization"
-  ON expense_concepts FOR UPDATE
-  USING (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-  )
-  WITH CHECK (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users update expense concepts in their organization"
+    ON expense_concepts FOR UPDATE
+    USING (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+    )
+    WITH CHECK (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users delete expense concepts in their organization"
-  ON expense_concepts FOR DELETE
-  USING (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users delete expense concepts in their organization"
+    ON expense_concepts FOR DELETE
+    USING (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

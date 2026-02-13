@@ -9,22 +9,28 @@ CREATE INDEX IF NOT EXISTS idx_activities_org_branch_created ON activities(organ
 DROP POLICY IF EXISTS "Users see activities of their organization" ON activities;
 DROP POLICY IF EXISTS "Users insert activities in their organization" ON activities;
 
-CREATE POLICY "Users see activities of their organization and branches"
-  ON activities FOR SELECT
-  USING (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-    AND (
-      branch_id IS NULL
-      OR branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see activities of their organization and branches"
+    ON activities FOR SELECT
+    USING (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+      AND (
+        branch_id IS NULL
+        OR branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users insert activities in their organization and branches"
-  ON activities FOR INSERT
-  WITH CHECK (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-    AND (
-      branch_id IS NULL
-      OR branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users insert activities in their organization and branches"
+    ON activities FOR INSERT
+    WITH CHECK (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+      AND (
+        branch_id IS NULL
+        OR branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

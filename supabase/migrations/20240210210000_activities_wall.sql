@@ -37,47 +37,71 @@ ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_likes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see activities of their organization"
-  ON activities FOR SELECT
-  USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users see activities of their organization"
+    ON activities FOR SELECT
+    USING (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users insert activities in their organization"
-  ON activities FOR INSERT
-  WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+DO $$ BEGIN
+  CREATE POLICY "Users insert activities in their organization"
+    ON activities FOR INSERT
+    WITH CHECK (organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users see comments of their org activities"
-  ON activity_comments FOR SELECT
-  USING (
-    activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see comments of their org activities"
+    ON activity_comments FOR SELECT
+    USING (
+      activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users insert comments on their org activities"
-  ON activity_comments FOR INSERT
-  WITH CHECK (
-    activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
-    AND user_id = auth.uid()
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users insert comments on their org activities"
+    ON activity_comments FOR INSERT
+    WITH CHECK (
+      activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
+      AND user_id = auth.uid()
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users delete own comments"
-  ON activity_comments FOR DELETE
-  USING (user_id = auth.uid());
+DO $$ BEGIN
+  CREATE POLICY "Users delete own comments"
+    ON activity_comments FOR DELETE
+    USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users see likes of their org activities"
-  ON activity_likes FOR SELECT
-  USING (
-    activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see likes of their org activities"
+    ON activity_likes FOR SELECT
+    USING (
+      activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users insert likes on their org activities"
-  ON activity_likes FOR INSERT
-  WITH CHECK (
-    activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
-    AND user_id = auth.uid()
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users insert likes on their org activities"
+    ON activity_likes FOR INSERT
+    WITH CHECK (
+      activity_id IN (SELECT id FROM activities WHERE organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid()))
+      AND user_id = auth.uid()
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users delete own likes"
-  ON activity_likes FOR DELETE
-  USING (user_id = auth.uid());
+DO $$ BEGIN
+  CREATE POLICY "Users delete own likes"
+    ON activity_likes FOR DELETE
+    USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Purga: eliminar actividades con más de 90 días (ejecutar por cron diario o semanal).
 CREATE OR REPLACE FUNCTION purge_activities_older_than_90_days()

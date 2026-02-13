@@ -22,29 +22,38 @@ CREATE INDEX IF NOT EXISTS idx_defective_products_disposition ON defective_produ
 -- RLS
 ALTER TABLE defective_products ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see defective products of their branches"
-  ON defective_products FOR SELECT
-  USING (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see defective products of their branches"
+    ON defective_products FOR SELECT
+    USING (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users create defective products for their branches"
-  ON defective_products FOR INSERT
-  WITH CHECK (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users create defective products for their branches"
+    ON defective_products FOR INSERT
+    WITH CHECK (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users update defective products of their branches"
-  ON defective_products FOR UPDATE
-  USING (
-    branch_id IN (
-      SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users update defective products of their branches"
+    ON defective_products FOR UPDATE
+    USING (
+      branch_id IN (
+        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Trigger para actualizar updated_at
 CREATE OR REPLACE FUNCTION update_defective_products_updated_at()
@@ -55,6 +64,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_defective_products_updated_at ON defective_products;
 CREATE TRIGGER update_defective_products_updated_at
   BEFORE UPDATE ON defective_products
   FOR EACH ROW
@@ -84,6 +94,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS handle_repaired_defective_product ON defective_products;
 CREATE TRIGGER handle_repaired_defective_product
   BEFORE UPDATE ON defective_products
   FOR EACH ROW

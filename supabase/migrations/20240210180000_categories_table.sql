@@ -12,29 +12,41 @@ CREATE INDEX IF NOT EXISTS idx_categories_organization_id ON categories(organiza
 
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see categories of their organization"
-  ON categories FOR SELECT
-  USING (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users see categories of their organization"
+    ON categories FOR SELECT
+    USING (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users create categories in their organization"
-  ON categories FOR INSERT
-  WITH CHECK (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users create categories in their organization"
+    ON categories FOR INSERT
+    WITH CHECK (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users update categories in their organization"
-  ON categories FOR UPDATE
-  USING (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-  )
-  WITH CHECK (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users update categories in their organization"
+    ON categories FOR UPDATE
+    USING (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+    )
+    WITH CHECK (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users delete categories in their organization"
-  ON categories FOR DELETE
-  USING (
-    organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-  );
+DO $$ BEGIN
+  CREATE POLICY "Users delete categories in their organization"
+    ON categories FOR DELETE
+    USING (
+      organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

@@ -28,39 +28,48 @@ CREATE INDEX IF NOT EXISTS idx_warranties_status ON warranties(status);
 -- RLS
 ALTER TABLE warranties ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users see warranties of their branches"
-  ON warranties FOR SELECT
-  USING (
-    sale_id IN (
-      SELECT id FROM sales
-      WHERE branch_id IN (
-        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+DO $$ BEGIN
+  CREATE POLICY "Users see warranties of their branches"
+    ON warranties FOR SELECT
+    USING (
+      sale_id IN (
+        SELECT id FROM sales
+        WHERE branch_id IN (
+          SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+        )
       )
-    )
-  );
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users create warranties for sales in their branches"
-  ON warranties FOR INSERT
-  WITH CHECK (
-    sale_id IN (
-      SELECT id FROM sales
-      WHERE branch_id IN (
-        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+DO $$ BEGIN
+  CREATE POLICY "Users create warranties for sales in their branches"
+    ON warranties FOR INSERT
+    WITH CHECK (
+      sale_id IN (
+        SELECT id FROM sales
+        WHERE branch_id IN (
+          SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+        )
       )
-    )
-    AND requested_by = auth.uid()
-  );
+      AND requested_by = auth.uid()
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users update warranties of their branches"
-  ON warranties FOR UPDATE
-  USING (
-    sale_id IN (
-      SELECT id FROM sales
-      WHERE branch_id IN (
-        SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+DO $$ BEGIN
+  CREATE POLICY "Users update warranties of their branches"
+    ON warranties FOR UPDATE
+    USING (
+      sale_id IN (
+        SELECT id FROM sales
+        WHERE branch_id IN (
+          SELECT branch_id FROM user_branches WHERE user_id = auth.uid()
+        )
       )
-    )
-  );
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Trigger para actualizar updated_at
 CREATE OR REPLACE FUNCTION update_warranties_updated_at()
@@ -71,6 +80,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_warranties_updated_at ON warranties;
 CREATE TRIGGER update_warranties_updated_at
   BEFORE UPDATE ON warranties
   FOR EACH ROW
