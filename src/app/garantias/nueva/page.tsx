@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MdSwapHoriz, MdAttachMoney, MdBuild } from "react-icons/md";
 
@@ -58,7 +58,7 @@ const WARRANTY_TYPE_LABELS: Record<string, string> = {
   repair: "Reparación",
 };
 
-export default function NewWarrantyPage() {
+function NewWarrantyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const saleIdParam = searchParams.get("sale_id");
@@ -123,8 +123,12 @@ export default function NewWarrantyPage() {
           .single();
         if (cancelled) return;
         if (saleData) {
-          setSelectedSale(saleData as SaleOption);
-          setSaleSearch(saleData.invoice_number);
+          const transformedSale = {
+            ...saleData,
+            customers: Array.isArray(saleData.customers) ? (saleData.customers[0] || null) : saleData.customers,
+          } as SaleOption;
+          setSelectedSale(transformedSale);
+          setSaleSearch(transformedSale.invoice_number);
         }
       })();
       return () => { cancelled = true; };
@@ -237,7 +241,17 @@ export default function NewWarrantyPage() {
         .order("created_at", { ascending: false })
         .limit(10);
       if (cancelled) return;
-      setSaleResults((data ?? []) as SaleOption[]);
+      setSaleResults(((data ?? []) as Array<{
+        id: string;
+        invoice_number: string;
+        created_at: string;
+        total: number;
+        customer_id: string | null;
+        customers: { name: string }[] | { name: string } | null;
+      }>).map((s) => ({
+        ...s,
+        customers: Array.isArray(s.customers) ? (s.customers[0] || null) : s.customers,
+      })) as SaleOption[]);
     }, 300);
     return () => {
       cancelled = true;
@@ -261,10 +275,20 @@ export default function NewWarrantyPage() {
         .eq("sale_id", selectedSale.id)
         .order("created_at", { ascending: true });
       if (cancelled) return;
-      setSaleItems((data ?? []) as SaleItemOption[]);
+      const transformedItems = ((data ?? []) as Array<{
+        id: string;
+        product_id: string;
+        quantity: number;
+        unit_price: number;
+        products: { name: string; sku: string | null }[] | { name: string; sku: string | null } | null;
+      }>).map((item) => ({
+        ...item,
+        products: Array.isArray(item.products) ? (item.products[0] || null) : item.products,
+      })) as SaleItemOption[];
+      setSaleItems(transformedItems);
       // Si solo hay un ítem, seleccionarlo automáticamente
-      if (data && data.length === 1) {
-        setSelectedSaleItem(data[0] as SaleItemOption);
+      if (transformedItems && transformedItems.length === 1) {
+        setSelectedSaleItem(transformedItems[0]);
       }
     })();
     return () => { cancelled = true; };
@@ -947,5 +971,17 @@ export default function NewWarrantyPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function NewWarrantyPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-slate-500 dark:text-slate-400">Cargando...</p>
+      </div>
+    }>
+      <NewWarrantyContent />
+    </Suspense>
   );
 }

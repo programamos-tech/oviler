@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Breadcrumb from "@/app/components/Breadcrumb";
 
-export default function TransferStockPage() {
+function TransferStockContent() {
   const searchParams = useSearchParams();
   const productIdFromUrl = searchParams.get("productId");
   const [hasBodega, setHasBodega] = useState<boolean | null>(null);
@@ -183,5 +183,17 @@ export default function TransferStockPage() {
       </section>
       )}
     </div>
+  );
+}
+
+export default function TransferStockPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-slate-500 dark:text-slate-400">Cargando...</p>
+      </div>
+    }>
+      <TransferStockContent />
+    </Suspense>
   );
 }

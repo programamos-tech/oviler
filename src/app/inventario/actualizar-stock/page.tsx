@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
 
 type ProductOption = { id: string; name: string; sku: string | null };
 
-export default function UpdateStockPage() {
+function UpdateStockContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const productIdFromUrl = searchParams.get("productId");
@@ -504,5 +504,17 @@ export default function UpdateStockPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function UpdateStockPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-slate-500 dark:text-slate-400">Cargando...</p>
+      </div>
+    }>
+      <UpdateStockContent />
+    </Suspense>
   );
 }

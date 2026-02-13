@@ -109,7 +109,23 @@ export default function ActivityFeedPage() {
       console.error("[Actividades] Error al cargar:", activitiesError.message);
     }
 
-    const list = (activitiesData ?? []) as Activity[];
+    const list = ((activitiesData ?? []) as Array<{
+      id: string;
+      organization_id: string;
+      branch_id: string | null;
+      user_id: string | null;
+      actor_type: string;
+      action: string;
+      entity_type: string;
+      entity_id: string | null;
+      summary: string;
+      metadata: Record<string, unknown>;
+      created_at: string;
+      users: { name: string }[] | { name: string } | null;
+    }>).map((a) => ({
+      ...a,
+      users: Array.isArray(a.users) ? (a.users[0] || null) : a.users,
+    })) as Activity[];
     setActivities(list);
     const ids = list.map((a) => a.id);
     if (ids.length === 0) {
@@ -129,7 +145,17 @@ export default function ActivityFeedPage() {
       supabase.from("activity_likes").select("activity_id, user_id").in("activity_id", ids),
     ]);
 
-    const comments = (commentsRes.data ?? []) as ActivityComment[];
+    const comments = ((commentsRes.data ?? []) as Array<{
+      id: string;
+      activity_id: string;
+      user_id: string;
+      body: string;
+      created_at: string;
+      users: { name: string }[] | { name: string } | null;
+    }>).map((c) => ({
+      ...c,
+      users: Array.isArray(c.users) ? (c.users[0] || null) : c.users,
+    })) as ActivityComment[];
     const byActivity: Record<string, ActivityComment[]> = {};
     for (const c of comments) {
       if (!byActivity[c.activity_id]) byActivity[c.activity_id] = [];
@@ -272,12 +298,15 @@ export default function ActivityFeedPage() {
                       <p className="mt-1 text-[14px] text-slate-700 dark:text-slate-300">
                         {a.metadata.movementType === "entrada" ? "Registró entrada:" : "Ajustó stock:"}{" "}
                         <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.productName)}</span>
-                        {a.metadata.sku && (
-                          <>
-                            {" "}
-                            <span className="font-bold text-slate-800 dark:text-slate-200">({String(a.metadata.sku)})</span>
-                          </>
-                        )}
+                        {(() => {
+                          const sku = typeof a.metadata.sku === "string" ? a.metadata.sku : null;
+                          return sku ? (
+                            <>
+                              {" "}
+                              <span className="font-bold text-slate-800 dark:text-slate-200">({sku})</span>
+                            </>
+                          ) : null;
+                        })()}
                         {" — estaba "}
                         <span className="font-bold">{Number(a.metadata.previousQuantity)}</span>
                         {", quedó en "}

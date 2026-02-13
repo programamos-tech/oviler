@@ -243,7 +243,17 @@ export default function DashboardPage() {
           .from("sale_items")
           .select("product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost)")
           .in("sale_id", completedIds);
-        items = (itemsDay ?? []) as typeof items;
+        items = ((itemsDay ?? []) as Array<{
+          product_id: string;
+          quantity: number;
+          unit_price: number;
+          discount_percent: number;
+          discount_amount: number;
+          products: { name: string; base_cost: number | null }[] | { name: string; base_cost: number | null } | null;
+        }>).map((it) => ({
+          ...it,
+          products: Array.isArray(it.products) ? (it.products[0] || null) : it.products,
+        }));
       }
       if (cancelled) return;
 
@@ -264,16 +274,22 @@ export default function DashboardPage() {
         .sort((a, b) => b.total - a.total)
         .slice(0, 5);
 
-      const inventory = (inventoryData ?? []) as Array<{
+      const inventory = ((inventoryData ?? []) as Array<{
         product_id: string;
         quantity: number;
-        products: { base_cost: number | null; base_price: number | null } | null;
-      }>;
-      const defectiveProducts = (defectiveData ?? []) as Array<{
+        products: { base_cost: number | null; base_price: number | null }[] | { base_cost: number | null; base_price: number | null } | null;
+      }>).map((inv) => ({
+        ...inv,
+        products: Array.isArray(inv.products) ? (inv.products[0] || null) : inv.products,
+      }));
+      const defectiveProducts = ((defectiveData ?? []) as Array<{
         product_id: string;
         quantity: number;
-        products: { base_cost: number | null } | null;
-      }>;
+        products: { base_cost: number | null }[] | { base_cost: number | null } | null;
+      }>).map((def) => ({
+        ...def,
+        products: Array.isArray(def.products) ? (def.products[0] || null) : def.products,
+      }));
       
       // Stock disponible (inventory)
       const availableStockInvestment = inventory.reduce((sum, inv) => {
@@ -1251,7 +1267,19 @@ function CashCloseModal({
         if (error) {
           console.error("Error fetching sale_items:", error);
         }
-        itemsDay = { data: items ?? [] };
+        itemsDay = { 
+          data: ((items ?? []) as Array<{
+            product_id: string;
+            quantity: number;
+            unit_price: number;
+            discount_percent: number;
+            discount_amount: number;
+            products: { name: string }[] | { name: string } | null;
+          }>).map((it) => ({
+            ...it,
+            products: Array.isArray(it.products) ? (it.products[0] || null) : it.products,
+          }))
+        };
       }
 
       if (cancelled) return;

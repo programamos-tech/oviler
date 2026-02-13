@@ -133,13 +133,16 @@ export default function CashClosingDetailPage() {
       if (cancelled) return;
 
       // Calcular total de delivery fees y desglose por domiciliario
-      const sales = (salesData ?? []) as Array<{
+      const sales = ((salesData ?? []) as Array<{
         id: string;
         delivery_fee: number | null;
         delivery_person_id: string | null;
         delivery_paid: boolean;
-        delivery_persons: { name: string; code: string } | null;
-      }>;
+        delivery_persons: { name: string; code: string }[] | { name: string; code: string } | null;
+      }>).map((s) => ({
+        ...s,
+        delivery_persons: Array.isArray(s.delivery_persons) ? (s.delivery_persons[0] || null) : s.delivery_persons,
+      }));
       
       const deliveryFees = sales.reduce((sum, s) => {
         return sum + (Number(s.delivery_fee) || 0);
@@ -182,7 +185,18 @@ export default function CashClosingDetailPage() {
         if (cancelled) return;
         
         // Agrupar productos por product_id y calcular totales
-        const items = (itemsData ?? []) as ProductItem[];
+        const items = ((itemsData ?? []) as Array<{
+          product_id: string;
+          quantity: number;
+          unit_price: number;
+          discount_percent: number;
+          discount_amount: number;
+          products: { name: string; sku: string | null }[] | { name: string; sku: string | null } | null;
+        }>).map((it) => ({
+          ...it,
+          products: Array.isArray(it.products) ? (it.products[0] || null) : it.products,
+          total: 0, // Se calculará después
+        })) as ProductItem[];
         const grouped: Record<string, ProductItem & { total: number }> = {};
         items.forEach((it) => {
           const subtotal = lineSubtotal(it);

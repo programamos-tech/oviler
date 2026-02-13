@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Breadcrumb from "@/app/components/Breadcrumb";
@@ -23,7 +23,7 @@ function salePriceFromProduct(basePrice: number | null, applyIva: boolean): numb
   return applyIva ? base + Math.round(base * IVA_RATE) : base;
 }
 
-export default function NewCashClosingPage() {
+function NewCashClosingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const dateParam = searchParams.get("fecha");
@@ -175,7 +175,7 @@ export default function NewCashClosingPage() {
 
       if (cancelled) return;
 
-      const sales = (salesDay ?? []) as Array<{
+      const sales = ((salesDay ?? []) as Array<{
         id: string;
         total: number;
         payment_method: string;
@@ -187,8 +187,11 @@ export default function NewCashClosingPage() {
         delivery_fee: number | null;
         delivery_person_id: string | null;
         delivery_paid: boolean;
-        delivery_persons: { name: string; code: string } | null;
-      }>;
+        delivery_persons: { name: string; code: string }[] | { name: string; code: string } | null;
+      }>).map((s) => ({
+        ...s,
+        delivery_persons: Array.isArray(s.delivery_persons) ? (s.delivery_persons[0] || null) : s.delivery_persons,
+      }));
 
       const completed = sales.filter((s) => s.status === "completed");
       const completedIds = completed.map((s) => s.id);
@@ -210,7 +213,19 @@ export default function NewCashClosingPage() {
         if (error) {
           console.error("Error fetching sale_items:", error);
         }
-        itemsDay = { data: items ?? [] };
+        itemsDay = { 
+          data: ((items ?? []) as Array<{
+            product_id: string;
+            quantity: number;
+            unit_price: number;
+            discount_percent: number;
+            discount_amount: number;
+            products: { name: string }[] | { name: string } | null;
+          }>).map((it) => ({
+            ...it,
+            products: Array.isArray(it.products) ? (it.products[0] || null) : it.products,
+          }))
+        };
       }
 
       if (cancelled) return;
@@ -1240,5 +1255,17 @@ export default function NewCashClosingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function NewCashClosingPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-slate-500 dark:text-slate-400">Cargando...</p>
+      </div>
+    }>
+      <NewCashClosingContent />
+    </Suspense>
   );
 }

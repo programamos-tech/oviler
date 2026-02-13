@@ -154,7 +154,14 @@ export default function SaleDetailPage() {
         setLoading(false);
         return;
       }
-      const s = saleData as SaleDetail & { branch_id: string };
+      const transformedSale = {
+        ...saleData,
+        customers: Array.isArray(saleData.customers) ? (saleData.customers[0] || null) : saleData.customers,
+        users: Array.isArray(saleData.users) ? (saleData.users[0] || null) : saleData.users,
+        delivery_persons: Array.isArray(saleData.delivery_persons) ? (saleData.delivery_persons[0] || null) : saleData.delivery_persons,
+        branches: null, // Se asignará después
+      } as SaleDetail & { branch_id: string };
+      const s = transformedSale;
       let branchData: SaleDetail["branches"] = null;
       if (s.branch_id) {
         const { data: branchRow } = await supabase
@@ -175,14 +182,32 @@ export default function SaleDetailPage() {
           };
         }
       }
-      setSale({ ...saleData, branches: branchData } as SaleDetail);
+      const finalSale = {
+        ...transformedSale,
+        branches: branchData,
+      } as SaleDetail;
+      setSale(finalSale);
 
       const { data: itemsData } = await supabase
         .from("sale_items")
         .select("id, product_id, quantity, unit_price, discount_percent, discount_amount, products(name, sku)")
         .eq("sale_id", id);
 
-      if (!cancelled) setItems((itemsData ?? []) as SaleItemRow[]);
+      if (!cancelled) {
+        const transformedItems = ((itemsData ?? []) as Array<{
+          id: string;
+          product_id: string;
+          quantity: number;
+          unit_price: number;
+          discount_percent: number;
+          discount_amount: number;
+          products: { name: string; sku: string | null }[] | { name: string; sku: string | null } | null;
+        }>).map((item) => ({
+          ...item,
+          products: Array.isArray(item.products) ? (item.products[0] || null) : item.products,
+        })) as SaleItemRow[];
+        setItems(transformedItems);
+      }
 
       // Cargar garantías de esta venta
       const { data: warrantiesData } = await supabase
@@ -190,7 +215,22 @@ export default function SaleDetailPage() {
         .select("id, warranty_type, reason, status, created_at, products(name), replacement_product:products!warranties_replacement_product_id_fkey(name)")
         .eq("sale_id", id)
         .order("created_at", { ascending: false });
-      if (!cancelled) setWarranties((warrantiesData ?? []) as WarrantyRow[]);
+      if (!cancelled) {
+        const transformedWarranties = ((warrantiesData ?? []) as Array<{
+          id: string;
+          warranty_type: string;
+          reason: string;
+          status: string;
+          created_at: string;
+          products: { name: string }[] | { name: string } | null;
+          replacement_product: { name: string }[] | { name: string } | null;
+        }>).map((w) => ({
+          ...w,
+          products: Array.isArray(w.products) ? (w.products[0] || null) : w.products,
+          replacement_product: Array.isArray(w.replacement_product) ? (w.replacement_product[0] || null) : w.replacement_product,
+        })) as WarrantyRow[];
+        setWarranties(transformedWarranties);
+      }
 
       if (s.delivery_address_id) {
         const { data: addr } = await supabase

@@ -116,7 +116,27 @@ export default function SalesPage() {
         setTotalCount(0);
       } else {
         setLoadError(null);
-        setSales((salesData ?? []) as SaleRow[]);
+        setSales(((salesData ?? []) as Array<{
+          id: string;
+          branch_id: string;
+          user_id: string;
+          customer_id: string | null;
+          invoice_number: string;
+          total: number;
+          payment_method: string;
+          status: string;
+          payment_pending?: boolean;
+          is_delivery: boolean;
+          delivery_paid: boolean;
+          delivery_fee: number | null;
+          created_at: string;
+          customers: { name: string }[] | { name: string } | null;
+          users: { name: string }[] | { name: string } | null;
+        }>).map((s) => ({
+          ...s,
+          customers: Array.isArray(s.customers) ? (s.customers[0] || null) : s.customers,
+          users: Array.isArray(s.users) ? (s.users[0] || null) : s.users,
+        })) as SaleRow[]);
         setTotalCount(count ?? 0);
       }
       setLoading(false);
