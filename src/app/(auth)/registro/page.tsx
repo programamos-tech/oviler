@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
@@ -10,7 +9,6 @@ const inputClass =
 const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
 
 export default function RegistroPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
@@ -21,107 +19,91 @@ export default function RegistroPage() {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+    const name = (formData.get("name") as string)?.trim() ?? "";
+    const emailRaw = (formData.get("email") as string) ?? "";
+    const email = emailRaw.trim().toLowerCase();
+    const password = (formData.get("password") as string) ?? "";
+
+    if (!email) {
+      setError("El correo es obligatorio.");
+      setLoading(false);
+      return;
+    }
+    if (!password || password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres.");
+      setLoading(false);
+      return;
+    }
 
     try {
-      // 1. Crear usuario en Supabase Auth usando signUp normal
-      // Si falla por rate limit, intentamos crear directamente con admin API
-      let authData: { user: { id: string; email?: string | null } | null } | null = null;
-      let signUpError: { code?: string; message?: string } | null = null;
-
-      const signUpResult = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-          },
-          emailRedirectTo: undefined, // No enviar email de confirmación
-        },
+      // 1. Crear usuario en Auth (API admin, sin enviar email, ya confirmado)
+      const createUserRes = await fetch("/api/admin/create-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
       });
+      const createUserData = await createUserRes.json().catch(() => ({}));
 
-      signUpError = signUpResult.error;
-      authData = signUpResult.data;
+      if (!createUserRes.ok) {
+        const msg = createUserData.error || "No se pudo crear la cuenta.";
+        if (
+          createUserRes.status === 409 ||
+          String(msg).toLowerCase().includes("already") ||
+          String(msg).toLowerCase().includes("ya existe")
+        ) {
+          setError("Este correo ya está registrado. Ve a Iniciar sesión o usa otro correo.");
+        } else {
+          setError(msg);
+        }
+        setLoading(false);
+        return;
+      }
 
-      // Si hay error de rate limit, intentar crear usuario directamente con admin API
-      if (signUpError && (signUpError.code === "over_email_send_rate_limit" || signUpError.message?.includes("email rate limit"))) {
-        // Fallback: crear usuario directamente sin enviar email
-        const fallbackRes = await fetch("/api/admin/create-user", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name }),
-        });
+      const userId = createUserData.user_id;
+      if (!userId) {
+        setError("Error al crear la cuenta. No se recibió el id de usuario.");
+        setLoading(false);
+        return;
+      }
 
-        const fallbackData = await fallbackRes.json().catch(() => ({}));
-        if (!fallbackRes.ok) {
-          console.error("Fallback admin create-user failed:", {
-            status: fallbackRes.status,
-            data: fallbackData,
-          });
-          // Si el fallback falla, mostrar mensaje más específico
-          const errorMsg = fallbackData.error || "Error al crear la cuenta";
+      // 2. Crear organización y registro en tabla users
+      const orgRes = await fetch("/api/auth/create-organization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, userId }),
+      });
+      const orgData = await orgRes.json().catch(() => ({}));
+
+      if (!orgRes.ok) {
+        setError(orgData.error || "Error al crear la organización. Intenta de nuevo.");
+        setLoading(false);
+        return;
+      }
+
+      // 3. Iniciar sesión en el navegador
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInErr) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const { error: retryErr } = await supabase.auth.signInWithPassword({ email, password });
+        if (retryErr) {
           setError(
-            `Se ha alcanzado el límite de envío de emails. ${errorMsg}. Por favor intenta iniciar sesión en unos momentos o contacta al soporte.`
+            "Cuenta creada pero no se pudo iniciar sesión automáticamente. Ve a Iniciar sesión e ingresa con tu correo y contraseña."
           );
           setLoading(false);
           return;
         }
-
-        // Si se creó con éxito, usar el user_id del fallback
-        authData = { user: { id: fallbackData.user_id, email: fallbackData.email } };
-        signUpError = null;
       }
 
-      if (signUpError) {
-        if (signUpError.code === "user_already_registered" || signUpError.message?.includes("already registered")) {
-          setError(
-            "Este correo ya está registrado. Por favor inicia sesión o intenta con otro correo."
-          );
-        } else {
-          setError(signUpError.message || "Error al crear la cuenta");
-        }
-        setLoading(false);
-        return;
-      }
-
-      if (!authData?.user) {
-        setError("Error al crear la cuenta. Por favor intenta de nuevo.");
-        setLoading(false);
-        return;
-      }
-
-      // 2. Crear organización y usuario en la tabla (vía API con service_role, evita RLS)
-      // Si el usuario fue creado con admin client, pasamos el userId
-      const res = await fetch("/api/auth/create-organization", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          name, 
-          email,
-          userId: authData.user.id // Pasar userId si fue creado con admin client
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error || "Error al crear la organización. Por favor intenta de nuevo.");
-        setLoading(false);
-        return;
-      }
-
-      // 3. Redirigir a onboarding para crear la primera sucursal
-      router.push("/onboarding");
-      router.refresh();
+      await new Promise((r) => setTimeout(r, 200));
+      window.location.href = "/onboarding";
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (message === "Failed to fetch" || message.includes("fetch")) {
         setError(
-          "No se pudo conectar con el servidor. Revisa que la URL y la clave de Supabase en .env.local sean correctas y que tu proyecto no esté pausado (Dashboard de Supabase)."
+          "No se pudo conectar. Revisa .env.local (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) y que el proyecto Supabase no esté pausado."
         );
       } else {
-        setError(message || "Error inesperado. Por favor intenta de nuevo.");
+        setError(message || "Error inesperado. Intenta de nuevo.");
       }
       setLoading(false);
     }
@@ -150,7 +132,15 @@ export default function RegistroPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="rounded-lg bg-red-50 p-3 text-[13px] text-red-700 dark:bg-red-900/20 dark:text-red-400">
-                {error}
+                <p>{error}</p>
+                {error.includes("Iniciar sesión") && (
+                  <Link
+                    href="/login"
+                    className="mt-2 inline-block font-medium underline hover:no-underline"
+                  >
+                    Ir a Iniciar sesión
+                  </Link>
+                )}
               </div>
             )}
             <div>

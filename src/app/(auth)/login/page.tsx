@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
@@ -10,7 +9,6 @@ const inputClass =
 const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
@@ -21,8 +19,14 @@ export default function LoginPage() {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+    const email = (formData.get("email") as string)?.trim().toLowerCase() ?? "";
+    const password = (formData.get("password") as string) ?? "";
+
+    if (!email || !password) {
+      setError("Correo y contraseña son obligatorios.");
+      setLoading(false);
+      return;
+    }
 
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -31,27 +35,45 @@ export default function LoginPage() {
       });
 
       if (signInError) {
-        setError(signInError.message || "Error al iniciar sesión");
+        const msg = signInError.message || "Error al iniciar sesión";
+        if (
+          signInError.message?.toLowerCase().includes("email not confirmed") ||
+          signInError.message?.toLowerCase().includes("email_not_confirmed")
+        ) {
+          setError(
+            "Tu correo aún no está confirmado. Revisa tu bandeja o contacta al administrador para que confirme tu cuenta."
+          );
+        } else if (
+          msg.toLowerCase().includes("invalid login credentials") ||
+          msg.toLowerCase().includes("invalid_credentials")
+        ) {
+          setError(
+            "Correo o contraseña incorrectos. Si acabas de crear la cuenta, usa exactamente el mismo correo y contraseña (el correo se guarda en minúsculas). Si no recuerdas la contraseña, usa «¿Olvidaste tu contraseña?»."
+          );
+        } else {
+          setError(msg);
+        }
         setLoading(false);
         return;
       }
 
       if (data.user) {
-        // Verificar si el usuario tiene organización (ya completó onboarding)
-        const { data: userData, error: userError } = await supabase
+        const { data: userData } = await supabase
           .from("users")
           .select("organization_id")
           .eq("id", data.user.id)
           .single();
 
-        if (userError || !userData) {
-          // Usuario no tiene organización, redirigir a onboarding
-          router.push("/onboarding");
-        } else {
-          // Usuario tiene organización, redirigir a dashboard
-          router.push("/dashboard");
+        let path = "/onboarding";
+        if (userData?.organization_id) {
+          const { data: branches } = await supabase
+            .from("branches")
+            .select("id")
+            .eq("organization_id", userData.organization_id)
+            .limit(1);
+          if (branches?.length) path = "/dashboard";
         }
-        router.refresh();
+        window.location.href = path;
       }
     } catch (err) {
       setError("Error inesperado. Por favor intenta de nuevo.");

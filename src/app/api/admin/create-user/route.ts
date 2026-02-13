@@ -27,11 +27,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verificar que tenemos las credenciales necesarias
+    const emailNorm = String(email).trim().toLowerCase();
+
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error('Missing Supabase credentials')
       return NextResponse.json(
-        { error: 'Error de configuración del servidor' },
+        {
+          error: 'Falta SUPABASE_SERVICE_ROLE_KEY en .env.local. Cópiala desde Supabase → Project Settings → API.',
+        },
         { status: 500 }
       )
     }
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
     // 1. Crear usuario en auth.users usando admin client (no envía email automáticamente)
     // email_confirm: true confirma el email sin enviar email de confirmación
     const { data: authData, error: authError } = await admin.auth.admin.createUser({
-      email,
+      email: emailNorm,
       password,
       email_confirm: true, // Confirmar email automáticamente sin enviar email
       user_metadata: {
@@ -50,18 +53,25 @@ export async function POST(request: Request) {
     })
 
     if (authError || !authData.user) {
+      const msg = authError?.message ?? ''
+      const isDuplicate =
+        authError?.code === 'user_already_exists' ||
+        /already exists|already registered|duplicate|ya existe/i.test(msg)
+      if (isDuplicate) {
+        return NextResponse.json(
+          { error: 'Este correo ya está registrado.' },
+          { status: 409 }
+        )
+      }
       console.error('Error creating auth user with admin client:', {
         error: authError,
         code: authError?.code,
         message: authError?.message,
-        details: authError?.details,
-        hint: authError?.hint,
       })
       return NextResponse.json(
-        { 
+        {
           error: authError?.message || 'Error al crear el usuario en auth',
           code: authError?.code,
-          details: authError?.details,
         },
         { status: 500 }
       )
@@ -77,7 +87,7 @@ export async function POST(request: Request) {
       const { error: userError } = await admin.from('users').insert({
         id: authData.user.id,
         organization_id,
-        email,
+        email: emailNorm,
         name,
         role: 'cashier', // Rol por defecto, puede cambiarse después
         status: 'active',

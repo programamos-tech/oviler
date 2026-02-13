@@ -11,6 +11,8 @@ type DashboardData = {
   unpaidDeliveryFees: number; // Envíos pendientes de pago
   cash: number;
   transfer: number;
+  totalExpensesCash: number; // Egresos en efectivo del día
+  totalExpensesTransfer: number; // Egresos en transferencia del día
   totalSales: number;
   physicalSales: number;
   deliverySales: number;
@@ -201,7 +203,28 @@ export default function DashboardPage() {
           }
         }
       });
-      
+
+      // Egresos del día (tabla expenses): restar de efectivo/transferencia
+      let totalExpensesCash = 0;
+      let totalExpensesTransfer = 0;
+      const { data: expensesDay } = await supabase
+        .from("expenses")
+        .select("amount, payment_method")
+        .eq("branch_id", branchId)
+        .gte("created_at", start)
+        .lte("created_at", end);
+      if (cancelled) return;
+      (expensesDay ?? []).forEach((e: { amount: number; payment_method: string }) => {
+        const amount = Number(e.amount) || 0;
+        if (e.payment_method === "cash") {
+          totalExpensesCash += amount;
+          cash -= amount;
+        } else {
+          totalExpensesTransfer += amount;
+          transfer -= amount;
+        }
+      });
+
       const totalIncome = totalStoreIncome; // Total ingresos tienda (sin delivery)
       const physicalSales = completed.filter((s) => !s.is_delivery).length;
       const deliverySales = completed.filter((s) => s.is_delivery).length;
@@ -344,6 +367,8 @@ export default function DashboardPage() {
         unpaidDeliveryFees,
         cash,
         transfer,
+        totalExpensesCash,
+        totalExpensesTransfer,
         totalSales: completed.length,
         physicalSales,
         deliverySales,
@@ -418,6 +443,8 @@ export default function DashboardPage() {
     unpaidDeliveryFees: 0,
     cash: 0,
     transfer: 0,
+    totalExpensesCash: 0,
+    totalExpensesTransfer: 0,
     totalSales: 0,
     physicalSales: 0,
     deliverySales: 0,
@@ -429,11 +456,12 @@ export default function DashboardPage() {
     topProducts: [],
     last7Days: DAY_LABELS.map((day) => ({ day, sales: 0 })),
     yesterdayIncome: 0,
-        totalStockInvestment: 0,
-        defectiveStockInvestment: 0,
+    totalStockInvestment: 0,
+    defectiveStockInvestment: 0,
     expectedProfit: 0,
     grossProfit: 0,
   };
+  const totalExpensesDay = data.totalExpensesCash + data.totalExpensesTransfer;
   const warrantiesToday = 0; // Sin tabla de garantías en DB aún
 
   const formatSensitiveValue = (value: number | string, type: "currency" | "number" = "currency") => {
@@ -589,7 +617,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                Ingreso tienda (nuestro)
+                Ingreso total
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
                 {formatSensitiveValue(data.totalIncome)}
@@ -613,7 +641,7 @@ export default function DashboardPage() {
             <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                  Envíos totales (+)
+                  Domicilios
                 </p>
                 <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
                   +{formatSensitiveValue(data.totalDeliveryFees)}
@@ -624,36 +652,31 @@ export default function DashboardPage() {
         </div>
 
         {/* Egresos */}
-        {data.unpaidDeliveryFees > 0 && (
-          <div className="rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                  Egresos
-                </p>
-                <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                  {formatSensitiveValue(data.unpaidDeliveryFees)}
-                </p>
-              </div>
-              <svg
-                className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+        <div className="rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
+                Egresos
+              </p>
+              <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
+                {formatSensitiveValue(totalExpensesDay)}
+              </p>
             </div>
-            <p className="mt-2 text-[12px] text-slate-600 dark:text-slate-300">
-              Envíos pendientes y otros conceptos
-            </p>
+            <svg
+              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 14l-7 7m0 0l-7-7m7 7V3"
+              />
+            </svg>
           </div>
-        )}
+        </div>
 
         {/* Efectivo */}
         <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
@@ -1093,18 +1116,12 @@ export default function DashboardPage() {
             ) : data.topProducts.map((product, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-[#F8FAFC] p-2.5 dark:border-slate-800 dark:bg-slate-950"
+                className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-b-0 dark:border-slate-800"
               >
                 <div className="flex items-center gap-3">
-                  <div
-                    className={`flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-bold ${
-                      index === 0
-                        ? "bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20 dark:text-ov-pink-muted"
-                        : "bg-slate-200 text-slate-600 dark:bg-slate-600/30 dark:text-slate-300"
-                    }`}
-                  >
-                    {index + 1}
-                  </div>
+                  <span className="text-[12px] font-bold text-slate-400 dark:text-slate-500 tabular-nums">
+                    {index + 1}.
+                  </span>
                   <div>
                     <p className="text-[14px] font-bold text-[#334155] dark:text-slate-50">
                       {product.name}

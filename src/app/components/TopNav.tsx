@@ -295,38 +295,23 @@ export default function TopNav() {
   return (
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
       <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Logo redondo + ToroCell + Powered by NOU */}
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-3 font-logo pt-1" title={`${APP_NAME} · ${branch?.name ?? "Sucursal"}`}>
-          <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 sm:h-10 sm:w-10">
+        {/* Logo redondo + nombre del negocio */}
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-1.5 font-logo pt-1" title={APP_NAME}>
+          <div className={`mt-1 flex shrink-0 items-center justify-center overflow-hidden ${branch?.logo_url ? "h-9 w-9 rounded-full bg-white ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 sm:h-10 sm:w-10" : "h-9 w-9 sm:h-10 sm:w-10"}`}>
             {branch?.logo_url ? (
               <img src={branch.logo_url} alt="" className="h-full w-full object-cover" />
             ) : (
-              <span className="text-sm font-bold text-slate-500 dark:text-slate-400 sm:text-base">
-                {branch?.name?.charAt(0)?.toUpperCase() ?? "T"}
-              </span>
-            )}
-          </div>
-          <div className="hidden flex-col justify-center sm:flex leading-tight">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-50">
-                {APP_NAME}
-              </span>
-              {branch?.name && branch.name.trim().toLowerCase() !== APP_NAME.toLowerCase() && (
-                <span className="truncate text-[13px] font-medium text-slate-500 dark:text-slate-400 max-w-[120px] lg:max-w-[160px]">
-                  · {branch.name}
-                </span>
-              )}
-            </div>
-            <span className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-slate-400 dark:text-slate-500">
-              Powered by
-              <svg className="h-3 w-3 shrink-0 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <svg className="h-6 w-6 shrink-0 text-ov-pink dark:text-ov-pink-muted sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
-              NOU Inventarios
+            )}
+          </div>
+          <div className="hidden sm:flex flex-col justify-center leading-tight">
+            <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+              {APP_NAME}
             </span>
           </div>
-          {/* Solo logo + ToroCell en móvil */}
-          <span className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:hidden">
+          <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:hidden sm:text-xl">
             {APP_NAME}
           </span>
         </Link>

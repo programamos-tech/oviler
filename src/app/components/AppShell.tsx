@@ -22,8 +22,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto min-w-0 max-w-[1600px]">{children}</div>
       </main>
       <BottomNav />
-      {/* Barra informativa Powered by NOU */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 hidden border-t border-slate-200/50 bg-gradient-to-r from-slate-50 to-white px-4 py-1.5 backdrop-blur-sm md:block dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800">
+      {/* Barra informativa Powered by NOU - efecto liquid/glass */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 hidden border-t border-slate-200/30 px-4 py-1.5 md:block bg-white/30 dark:bg-slate-900/30 backdrop-blur-md dark:border-slate-700/30">
         <div className="mx-auto flex max-w-[1600px] items-center justify-center gap-2">
           <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
             <svg className="h-3 w-3 shrink-0 text-ov-pink" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

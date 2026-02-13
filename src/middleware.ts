@@ -1,10 +1,22 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+type CookieEntry = { name: string; value: string; options?: Record<string, unknown> }
+
+/** Copia las cookies que Supabase pidió guardar al redirect para no perder la sesión */
+function redirectWithCookies(url: URL, cookiesFromSetAll: CookieEntry[]) {
+  const res = NextResponse.redirect(url)
+  cookiesFromSetAll.forEach(({ name, value, options }) =>
+    res.cookies.set(name, value, (options as { path?: string }) ?? { path: '/' })
+  )
+  return res
+}
+
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
+  const supabaseResponse = NextResponse.next({
     request,
   })
+  const cookiesFromSetAll: CookieEntry[] = []
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,14 +26,11 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
+        setAll(cookiesToSet: CookieEntry[]) {
+          cookiesToSet.forEach((c) => {
+            cookiesFromSetAll.push(c)
+            supabaseResponse.cookies.set(c.name, c.value, c.options ?? {})
           })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
         },
       },
     }
@@ -39,7 +48,7 @@ export async function middleware(request: NextRequest) {
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    return redirectWithCookies(url, cookiesFromSetAll)
   }
 
   // Si está autenticado y trata de acceder a login o registro, verificar si necesita onboarding
@@ -58,15 +67,13 @@ export async function middleware(request: NextRequest) {
         .limit(1)
 
       if (!branches || branches.length === 0) {
-        // No tiene sucursales, redirigir a onboarding
         const url = request.nextUrl.clone()
         url.pathname = '/onboarding'
-        return NextResponse.redirect(url)
+        return redirectWithCookies(url, cookiesFromSetAll)
       } else {
-        // Tiene sucursales, redirigir a dashboard
         const url = request.nextUrl.clone()
         url.pathname = '/dashboard'
-        return NextResponse.redirect(url)
+        return redirectWithCookies(url, cookiesFromSetAll)
       }
     }
   }
