@@ -26,9 +26,12 @@ export default function RegistroPage() {
     const password = formData.get("password") as string;
 
     try {
-      // 1. Crear usuario en Supabase Auth
-      // Deshabilitamos el envío de email de confirmación para evitar rate limits
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      // 1. Crear usuario en Supabase Auth usando signUp normal
+      // Si falla por rate limit, intentamos crear directamente con admin API
+      let authData: { user: { id: string; email?: string | null } | null } | null = null;
+      let signUpError: { code?: string; message?: string } | null = null;
+
+      const signUpResult = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -39,13 +42,34 @@ export default function RegistroPage() {
         },
       });
 
-      if (signUpError) {
-        // Manejar específicamente el error de rate limit
-        if (signUpError.code === "over_email_send_rate_limit" || signUpError.message?.includes("email rate limit")) {
+      signUpError = signUpResult.error;
+      authData = signUpResult.data;
+
+      // Si hay error de rate limit, intentar crear usuario directamente con admin API
+      if (signUpError && (signUpError.code === "over_email_send_rate_limit" || signUpError.message?.includes("email rate limit"))) {
+        // Fallback: crear usuario directamente sin enviar email
+        const fallbackRes = await fetch("/api/admin/create-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name }),
+        });
+
+        const fallbackData = await fallbackRes.json().catch(() => ({}));
+        if (!fallbackRes.ok) {
           setError(
-            "Se ha alcanzado el límite de envío de emails. Por favor espera unos minutos antes de intentar de nuevo."
+            "Se ha alcanzado el límite de envío de emails. Por favor espera unos minutos antes de intentar de nuevo, o contacta al soporte."
           );
-        } else if (signUpError.code === "user_already_registered") {
+          setLoading(false);
+          return;
+        }
+
+        // Si se creó con éxito, usar el user_id del fallback
+        authData = { user: { id: fallbackData.user_id, email: fallbackData.email } };
+        signUpError = null;
+      }
+
+      if (signUpError) {
+        if (signUpError.code === "user_already_registered" || signUpError.message?.includes("already registered")) {
           setError(
             "Este correo ya está registrado. Por favor inicia sesión o intenta con otro correo."
           );
@@ -56,7 +80,7 @@ export default function RegistroPage() {
         return;
       }
 
-      if (!authData.user) {
+      if (!authData?.user) {
         setError("Error al crear la cuenta. Por favor intenta de nuevo.");
         setLoading(false);
         return;
