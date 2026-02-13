@@ -27,7 +27,28 @@ export async function POST(request: Request) {
       )
     }
 
-    const admin = createAdminClient()
+    // Verificar que tenemos las credenciales necesarias
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Missing Supabase credentials:', {
+        hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      })
+      return NextResponse.json(
+        { error: 'Error de configuración del servidor' },
+        { status: 500 }
+      )
+    }
+
+    let admin
+    try {
+      admin = createAdminClient()
+    } catch (err) {
+      console.error('Error creating admin client:', err)
+      return NextResponse.json(
+        { error: 'Error de configuración del servidor' },
+        { status: 500 }
+      )
+    }
 
     const { data: orgData, error: orgError } = await admin
       .from('organizations')
@@ -41,7 +62,13 @@ export async function POST(request: Request) {
       .single()
 
     if (orgError || !orgData) {
-      console.error('Error creating organization:', orgError)
+      console.error('Error creating organization:', {
+        error: orgError,
+        code: orgError?.code,
+        message: orgError?.message,
+        details: orgError?.details,
+        hint: orgError?.hint,
+      })
       return NextResponse.json(
         { error: orgError?.message || 'Error al crear la organización' },
         { status: 500 }
@@ -58,7 +85,15 @@ export async function POST(request: Request) {
     })
 
     if (userError) {
-      console.error('Error creating user record:', userError)
+      console.error('Error creating user record:', {
+        error: userError,
+        code: userError?.code,
+        message: userError?.message,
+        details: userError?.details,
+        hint: userError?.hint,
+      })
+      // Si falla crear el usuario, intentar eliminar la organización creada
+      await admin.from('organizations').delete().eq('id', orgData.id)
       return NextResponse.json(
         { error: userError.message || 'Error al crear el usuario' },
         { status: 500 }
