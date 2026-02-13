@@ -5,7 +5,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { name, email } = body as { name?: string; email?: string }
+    const { name, email, password, userId } = body as { 
+      name?: string
+      email?: string
+      password?: string
+      userId?: string // Si viene del admin client, ya tenemos el userId
+    }
 
     if (!name || !email) {
       return NextResponse.json(
@@ -14,17 +19,25 @@ export async function POST(request: Request) {
       )
     }
 
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+    // Si viene userId, significa que el usuario ya fue creado con admin client
+    // Si no, verificamos que el usuario esté autenticado
+    let user
+    if (userId) {
+      user = { id: userId }
+    } else {
+      const supabase = await createClient()
+      const {
+        data: { user: authUser },
+        error: authError,
+      } = await supabase.auth.getUser()
 
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'No autorizado. Inicia sesión primero.' },
-        { status: 401 }
-      )
+      if (authError || !authUser) {
+        return NextResponse.json(
+          { error: 'No autorizado. Inicia sesión primero.' },
+          { status: 401 }
+        )
+      }
+      user = authUser
     }
 
     // Verificar que tenemos las credenciales necesarias

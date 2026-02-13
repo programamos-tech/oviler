@@ -56,8 +56,9 @@ export default function RegistroPage() {
 
         const fallbackData = await fallbackRes.json().catch(() => ({}));
         if (!fallbackRes.ok) {
+          console.error("Fallback admin create-user failed:", fallbackData);
           setError(
-            "Se ha alcanzado el límite de envío de emails. Por favor espera unos minutos antes de intentar de nuevo, o contacta al soporte."
+            "Se ha alcanzado el límite de envío de emails. El sistema intentará crear tu cuenta automáticamente. Por favor intenta iniciar sesión en unos momentos."
           );
           setLoading(false);
           return;
@@ -87,10 +88,15 @@ export default function RegistroPage() {
       }
 
       // 2. Crear organización y usuario en la tabla (vía API con service_role, evita RLS)
+      // Si el usuario fue creado con admin client, pasamos el userId
       const res = await fetch("/api/auth/create-organization", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ 
+          name, 
+          email,
+          userId: authData.user.id // Pasar userId si fue creado con admin client
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
