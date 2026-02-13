@@ -27,6 +27,7 @@ export default function RegistroPage() {
 
     try {
       // 1. Crear usuario en Supabase Auth
+      // Deshabilitamos el envío de email de confirmación para evitar rate limits
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -34,11 +35,23 @@ export default function RegistroPage() {
           data: {
             name,
           },
+          emailRedirectTo: undefined, // No enviar email de confirmación
         },
       });
 
       if (signUpError) {
-        setError(signUpError.message || "Error al crear la cuenta");
+        // Manejar específicamente el error de rate limit
+        if (signUpError.code === "over_email_send_rate_limit" || signUpError.message?.includes("email rate limit")) {
+          setError(
+            "Se ha alcanzado el límite de envío de emails. Por favor espera unos minutos antes de intentar de nuevo."
+          );
+        } else if (signUpError.code === "user_already_registered") {
+          setError(
+            "Este correo ya está registrado. Por favor inicia sesión o intenta con otro correo."
+          );
+        } else {
+          setError(signUpError.message || "Error al crear la cuenta");
+        }
         setLoading(false);
         return;
       }
