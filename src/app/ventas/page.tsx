@@ -409,8 +409,41 @@ export default function SalesPage() {
                     : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
                 }`}
               >
-                <div className="grid grid-cols-2 sm:grid-cols-[0.75fr_0.9fr_1.2fr_1fr_1fr_1.2fr_auto] gap-x-3 gap-y-2 sm:gap-x-4 sm:gap-y-0 items-center px-4 py-3 sm:px-5 sm:py-4">
-                  <div className="col-span-2 sm:col-span-1 min-w-0 flex items-center gap-2">
+                {/* Mobile: layout apilado con etiquetas */}
+                <div className="flex flex-col gap-2 px-4 py-3 sm:hidden">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Factura</span>
+                    <div className="flex min-w-0 items-center gap-2">
+                      {s.is_delivery ? <MdLocalShipping className="h-4 w-4 shrink-0 text-slate-500" /> : <MdStore className="h-4 w-4 shrink-0 text-slate-500" />}
+                      <span className="truncate font-bold tabular-nums text-slate-900 dark:text-slate-50">{displayInvoiceNumber(s.invoice_number)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Fecha</span>
+                    <span className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{formatTime(s.created_at)} · {formatDate(s.created_at)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cliente</span>
+                    <span className="truncate text-right text-[14px] font-medium text-slate-900 dark:text-slate-50">{customerName}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Pago · Estado</span>
+                    <span className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{paymentLabel(s)} · <span className={statusClass(s)}>{statusLabel(s)}</span></span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Total</span>
+                    <span className="text-base font-bold tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(Number(s.total))}</span>
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <span className="inline-flex items-center gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/ventas/${s.id}`} className="hover:underline">Ver detalle</Link>
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </span>
+                  </div>
+                </div>
+                {/* Desktop: grid */}
+                <div className="hidden grid-cols-[0.75fr_0.9fr_1.2fr_1fr_1fr_1.2fr_auto] gap-x-4 items-center px-5 py-4 sm:grid">
+                  <div className="min-w-0 flex items-center gap-2">
                     {s.is_delivery ? (
                       <span className="group relative inline-flex">
                         <MdLocalShipping 
@@ -480,7 +513,7 @@ export default function SalesPage() {
                       $ {formatMoney(Number(s.total))}
                     </p>
                   </div>
-                  <div className="col-span-2 sm:col-span-1 flex items-center justify-end">
+                  <div className="flex items-center justify-end">
                     <span className="group relative inline-flex" onClick={(e) => e.stopPropagation()}>
                       <Link
                         href={`/ventas/${s.id}`}

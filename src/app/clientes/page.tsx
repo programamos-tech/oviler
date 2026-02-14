@@ -221,12 +221,12 @@ export default function CustomersPage() {
   );
 
   return (
-    <div className="space-y-4 max-w-[1600px] mx-auto">
-      <header className="space-y-2">
+    <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
+      <header className="space-y-2 min-w-0">
         <Breadcrumb items={[{ label: "Clientes" }]} />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
               Clientes
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
@@ -322,8 +322,61 @@ export default function CustomersPage() {
                     : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
                 }`}
               >
-                <div className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-x-6 gap-y-2 sm:gap-y-0 items-center px-4 py-3 sm:px-6 sm:py-4">
-                  <div className="col-span-2 sm:col-span-1 min-w-0">
+                {/* Mobile: layout apilado con etiquetas */}
+                <div className="flex flex-col gap-2 px-4 py-3 sm:hidden">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Nombre</span>
+                    <p className="truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{c.name}</p>
+                  </div>
+                  {c.cedula && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cédula</span>
+                      <p className="text-[14px] font-semibold text-slate-700 dark:text-slate-200">CC {c.cedula}</p>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Email</span>
+                    <p className="truncate text-right text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Teléfono</span>
+                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.phone || "—"}</p>
+                  </div>
+                  <div className="flex items-start justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400 shrink-0">Dirección</span>
+                    <div className="min-w-0 text-right">
+                      {(() => {
+                        const addrs = c.customer_addresses ?? [];
+                        const sorted = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
+                        const first = sorted[0];
+                        if (first) {
+                          return (
+                            <>
+                              <p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 truncate" title={first.address}>
+                                {addrs.length > 1 ? `${first.label}: ${first.address}` : first.address}
+                              </p>
+                              {addrs.length > 1 && (
+                                <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                  +{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}
+                                </p>
+                              )}
+                            </>
+                          );
+                        }
+                        return <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400">—</p>;
+                      })()}
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <span className="inline-flex items-center gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/clientes/${c.id}`} className="hover:underline">Ver detalle</Link>
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </span>
+                  </div>
+                </div>
+                {/* Desktop: grid */}
+                <div className="hidden grid-cols-[1fr_1fr_1fr_1fr_auto] gap-x-6 items-center px-6 py-4 sm:grid">
+                  <div className="min-w-0">
                     <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">
                       {c.name}
                     </p>
@@ -343,7 +396,7 @@ export default function CustomersPage() {
                       {c.phone || "—"}
                     </p>
                   </div>
-                  <div className="col-span-2 sm:col-span-1 min-w-0">
+                  <div className="min-w-0">
                     {(() => {
                       const addrs = c.customer_addresses ?? [];
                       const sorted = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
@@ -370,7 +423,7 @@ export default function CustomersPage() {
                       return <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400">—</p>;
                     })()}
                   </div>
-                  <div className="col-span-2 sm:col-span-1 flex items-center justify-end">
+                  <div className="flex items-center justify-end">
                     <span className="group relative inline-flex" onClick={(e) => e.stopPropagation()}>
                       <Link
                         href={`/clientes/${c.id}`}
@@ -393,6 +446,7 @@ export default function CustomersPage() {
           })
         )}
       </section>
+
 
       {paginationBar}
     </div>

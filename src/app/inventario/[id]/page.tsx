@@ -125,9 +125,9 @@ export default function ProductDetailPage() {
   const margenGanancia = price > 0 ? Math.round(((price - cost) / price) * 100) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {/* Card: nombre del producto + métricas y acciones */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
+      <div className="min-w-0 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
         <Breadcrumb
           items={[
             { label: "Inventario", href: "/inventario" },
@@ -136,7 +136,7 @@ export default function ProductDetailPage() {
         />
         <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
               {product.name}
             </h1>
             <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
@@ -153,25 +153,25 @@ export default function ProductDetailPage() {
             </svg>
           </Link>
         </div>
-        <div className="mt-5 flex flex-wrap items-start justify-between gap-4 sm:gap-6">
-          <div className="flex flex-wrap gap-4 sm:gap-6">
+        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Precio de venta</p>
               <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">$ {formatMoney(price)}</p>
               {product.apply_iva && <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">incl. IVA 19%</p>}
             </div>
-            <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6">
+            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Stock en sucursal</p>
               <p className={`mt-0.5 text-lg font-bold sm:text-xl ${stockColorClass}`}>
                 {stock} unidades
               </p>
             </div>
-            <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6">
+            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Costo</p>
               <p className="mt-0.5 text-lg font-bold text-slate-700 dark:text-slate-300 sm:text-xl">$ {formatMoney(cost)}</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 print:hidden">
             <Link href={`/inventario/${product.id}/editar`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover">
               Editar
             </Link>
@@ -189,14 +189,14 @@ export default function ProductDetailPage() {
       </div>
 
       {/* Insights: valor en stock y ganancia */}
-      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
+      <div className="min-w-0 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
         <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
           Valor e ingresos estimados
         </h2>
         <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
           Con el stock actual en esta sucursal.
         </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Plata en stock
@@ -234,10 +234,10 @@ export default function ProductDetailPage() {
       </div>
 
       {/* Contenido en dos columnas */}
-      <section className="grid gap-5 lg:grid-cols-[1fr_1fr]">
+      <section className="grid min-w-0 gap-5 lg:grid-cols-[1fr_1fr]">
         {/* Datos del producto */}
-        <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div className="min-w-0 space-y-4">
+          <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Identificación
             </h2>
@@ -258,7 +258,7 @@ export default function ProductDetailPage() {
         </div>
 
         {/* Ventas de este producto */}
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
             Ventas de este producto
           </h2>

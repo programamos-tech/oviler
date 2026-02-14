@@ -475,17 +475,17 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+        <div className="min-w-0">
+          <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
             Dashboard
           </h1>
-          <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-300">
+          <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-300 sm:text-[13px]">
             Resumen de ventas e ingresos de tu sucursal. Cambia el día para ver métricas de esa fecha.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
             {/* Botón Cerrar caja */}
             <button
               onClick={() => router.push(`/cierre-caja/nuevo?fecha=${selectedDate.toISOString().split("T")[0]}`)}
@@ -611,9 +611,9 @@ export default function DashboardPage() {
       )}
 
       {/* Métricas principales - Primera fila */}
-      <section className={`grid gap-3 ${data.unpaidDeliveryFees > 0 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+      <section className={`grid grid-cols-1 gap-3 ${data.unpaidDeliveryFees > 0 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
         {/* Ingreso total */}
-        <div className="rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div className="min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
@@ -652,7 +652,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Egresos */}
-        <div className="rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div className="min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
@@ -679,7 +679,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Efectivo */}
-        <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
+        <details className="group min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
           <summary className="flex cursor-pointer list-none items-center justify-between">
             <div className="flex-1">
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
@@ -731,7 +731,7 @@ export default function DashboardPage() {
         </details>
 
         {/* Transferencia */}
-        <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
+        <details className="group min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
           <summary className="flex cursor-pointer list-none items-center justify-between">
             <div className="flex-1">
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
@@ -784,7 +784,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Métricas secundarias - Segunda fila (3 cards) */}
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {/* Inversión total en stock */}
         <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
           <summary className="flex cursor-pointer list-none items-center justify-between">

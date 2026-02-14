@@ -191,9 +191,9 @@ export default function CustomerDetailPage() {
   const totalVentas = completedSales.reduce((sum, s) => sum + Number(s.total), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {/* Card: nombre + resumen y acciones */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
+      <div className="min-w-0 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
         <Breadcrumb
           items={[
             { label: "Clientes", href: "/clientes" },
@@ -219,8 +219,8 @@ export default function CustomerDetailPage() {
             </svg>
           </Link>
         </div>
-        <div className="mt-5 flex flex-wrap items-start justify-between gap-4 sm:gap-6">
-          <div className="flex flex-wrap gap-4 sm:gap-6">
+        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Ticket promedio</p>
               <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
@@ -230,13 +230,13 @@ export default function CustomerDetailPage() {
                 {completedSales.length} {completedSales.length === 1 ? "venta" : "ventas"}
               </p>
             </div>
-            <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6">
+            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total comprado</p>
               <p className="mt-0.5 text-lg font-bold text-emerald-700 dark:text-emerald-300 sm:text-xl">
                 {completedSales.length > 0 ? `$ ${formatMoney(totalVentas)}` : "—"}
               </p>
             </div>
-            <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6 min-w-0 max-w-[280px]">
+            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700 min-w-0 max-w-[280px]">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Direcciones</p>
               {addresses.length === 0 ? (
                 <p className="mt-0.5 text-lg font-bold text-slate-500 dark:text-slate-400 sm:text-xl">—</p>
@@ -264,7 +264,7 @@ export default function CustomerDetailPage() {
               )}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 print:hidden">
             <Link
               href={`/clientes/${customer.id}/editar`}
               className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
@@ -283,8 +283,8 @@ export default function CustomerDetailPage() {
       </div>
 
       {/* Ventas y top productos, uno al lado del otro */}
-      <section className="grid gap-5 lg:grid-cols-2">
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+      <section className="grid min-w-0 gap-5 lg:grid-cols-2">
+        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Ventas de este cliente
             </h2>
@@ -323,7 +323,7 @@ export default function CustomerDetailPage() {
             )}
         </div>
 
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
             Top productos comprados
           </h2>

@@ -506,27 +506,27 @@ export default function SaleDetailPage() {
             </Link>
           </div>
         </div>
-        <div className="mt-5 flex flex-wrap items-start justify-between gap-4 sm:gap-6">
-          <div className="flex flex-wrap gap-4 sm:gap-6">
+        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total</p>
               <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
                 $ {formatMoney(sale.total)}
               </p>
             </div>
-            <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6">
+            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Método de pago</p>
               <p className="mt-0.5 text-lg font-medium text-slate-700 dark:text-slate-300 sm:text-xl">
                 {paymentLabel}
               </p>
             </div>
-            <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6">
+            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Estado</p>
               <p className={`mt-0.5 text-lg font-semibold sm:text-xl ${statusClass}`}>
                 {statusLabel}
               </p>
             </div>
-            <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6">
+            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Fecha y hora</p>
               <p className="mt-0.5 text-[14px] font-medium text-slate-700 dark:text-slate-300">
                 {formatDate(sale.created_at)} · {formatTime(sale.created_at)}

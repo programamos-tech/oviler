@@ -265,12 +265,12 @@ export default function InventoryPage() {
   );
 
   return (
-    <div className="space-y-4 max-w-[1600px] mx-auto">
-      <header className="space-y-2">
+    <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
+      <header className="space-y-2 min-w-0">
         <Breadcrumb items={[{ label: "Inventario" }]} />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
+          <div className="min-w-0">
+              <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
                 Productos
               </h1>
               <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
@@ -330,7 +330,7 @@ export default function InventoryPage() {
               <option value="bajo">Stock bajo</option>
               <option value="con-stock">Con stock</option>
             </select>
-            <label className="ml-2 text-[13px] font-medium text-slate-600 dark:text-slate-400 sm:ml-0">Categoría:</label>
+            <label className="text-[13px] font-medium text-slate-600 dark:text-slate-400">Categoría:</label>
             <select
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
@@ -401,8 +401,48 @@ export default function InventoryPage() {
                     : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
                 }`}
               >
-                <div className="grid grid-cols-2 sm:grid-cols-[1.5fr_1fr_1fr_0.8fr_1fr_1.2fr_auto] gap-x-3 gap-y-2 sm:gap-x-4 sm:gap-y-0 items-center px-4 py-3 sm:px-5 sm:py-4">
-                  <div className="col-span-2 sm:col-span-1 min-w-0">
+                {/* Mobile: layout apilado con etiquetas */}
+                <div className="flex flex-col gap-2 px-4 py-3 sm:hidden">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Producto</span>
+                    <p className="truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{p.name}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Código</span>
+                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{p.sku || "—"}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Categoría</span>
+                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock</span>
+                    <p className="text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{stock} {stock === 1 ? "unidad" : "unidades"}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Estado</span>
+                    <p className={`text-[14px] font-bold ${stockStatus.class}`}>{stockStatus.label}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Precio</span>
+                    <p className="text-base font-bold tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(price)}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                    <span className="inline-flex items-center gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/inventario/${p.id}`} className="hover:underline">Ver detalle</Link>
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </span>
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/inventario/actualizar-stock?productId=${p.id}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline">Ajustar stock</Link>
+                    </span>
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/inventario/transferir?productId=${p.id}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline">Transferir</Link>
+                    </span>
+                  </div>
+                </div>
+                {/* Desktop: grid */}
+                <div className="hidden grid-cols-[1.5fr_1fr_1fr_0.8fr_1fr_1.2fr_auto] gap-x-4 items-center px-5 py-4 sm:grid">
+                  <div className="min-w-0">
                     <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">
                       {p.name}
                     </p>
@@ -427,8 +467,8 @@ export default function InventoryPage() {
                       {stockStatus.label}
                     </p>
                   </div>
-                  <div className="col-span-2 sm:col-span-1 flex items-center justify-end gap-2 sm:gap-3">
-                    <span className="text-[14px] sm:text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums shrink-0 mr-3 sm:mr-5">
+                  <div className="flex items-center justify-end gap-2 sm:gap-3">
+                    <span className="text-[14px] sm:text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums shrink-0">
                       $ {formatMoney(price)}
                     </span>
                     <span className="group relative inline-flex" onClick={(e) => e.stopPropagation()}>

@@ -241,8 +241,8 @@ function UpdateStockContent() {
   }
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-2">
+    <div className="min-w-0 space-y-4">
+      <header className="space-y-2 min-w-0">
         <Breadcrumb
           items={[
             { label: "Inventario", href: "/inventario" },
@@ -252,9 +252,9 @@ function UpdateStockContent() {
             { label: "Actualizar stock" },
           ]}
         />
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
               Actualizar stock
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
@@ -263,7 +263,7 @@ function UpdateStockContent() {
           </div>
           <Link
             href={productIdFromUrl ? `/inventario/${productIdFromUrl}` : "/inventario"}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             title={productIdFromUrl ? "Volver al detalle del producto" : "Volver a inventario"}
           >
             <svg
@@ -283,9 +283,9 @@ function UpdateStockContent() {
         </div>
       </header>
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
-        <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
+        <div className="min-w-0 space-y-4">
+          <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Producto y movimiento
             </p>
@@ -452,8 +452,8 @@ function UpdateStockContent() {
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div className="min-w-0 space-y-4">
+          <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Resumen del movimiento
             </p>
@@ -483,7 +483,7 @@ function UpdateStockContent() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <div className="space-y-3">
               <div className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
                 <p className="font-bold text-slate-700 dark:text-slate-100">Paso final</p>
