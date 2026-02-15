@@ -12,9 +12,7 @@ export default function LandingPage() {
       <nav className="relative sticky top-0 z-50 border-b border-white/10 bg-platform-dark/85 backdrop-blur-sm">
         <div className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex shrink-0 items-center gap-1.5">
-            <svg className="h-7 w-7 shrink-0 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
+            <span className="material-symbols-outlined h-7 w-7 shrink-0 text-[28px] text-white" aria-hidden>inventory_2</span>
             <div className="flex flex-col">
               <span className="font-logo text-xl font-bold tracking-tight text-white leading-none">
                 {PRODUCT}
@@ -115,9 +113,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
             <div className="col-span-2 sm:col-span-3 lg:col-span-2">
               <Link href="/" className="mb-4 flex items-center gap-1.5">
-                <svg className="h-6 w-6 shrink-0 text-ov-pink" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
+                <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[24px] text-ov-pink" aria-hidden>inventory_2</span>
                 <div className="flex flex-col">
                   <span className="font-logo text-lg font-bold tracking-tight text-white leading-none">
                     {PRODUCT}

@@ -105,3 +105,9 @@ body {
 .bg-platform-dark\/70 {
   background-color: rgb(26 26 34 / 0.7);
 }
+
+/* Google Material Symbols Outlined - NOU Inventarios */
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined", sans-serif;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
