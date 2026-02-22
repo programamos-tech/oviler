@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getCopy, type SalesMode } from "../sales-mode";
 
 const IVA_RATE = 0.19;
 
@@ -97,6 +98,7 @@ export default function NewSalePage() {
   const customerItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [productHighlightIndex, setProductHighlightIndex] = useState(0);
   const [stockByProductId, setStockByProductId] = useState<Record<string, number>>({});
+  const [salesMode, setSalesMode] = useState<SalesMode>("sales");
   const productListRef = useRef<HTMLUListElement>(null);
   const productItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -236,8 +238,9 @@ export default function NewSalePage() {
       setBranchId(ub.branch_id);
       const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
       if (userRow?.organization_id) setOrgId(userRow.organization_id);
-      const { data: branch } = await supabase.from("branches").select("name").eq("id", ub.branch_id).single();
+      const { data: branch } = await supabase.from("branches").select("name, sales_mode").eq("id", ub.branch_id).single();
       if (branch?.name) setBranchName(branch.name);
+      if (branch && "sales_mode" in branch) setSalesMode((branch as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales");
     })();
     return () => { cancelled = true; };
   }, []);
@@ -503,6 +506,10 @@ export default function NewSalePage() {
       setError("Agrega al menos un producto al carrito.");
       return;
     }
+    if (isDelivery && deliveryFee.trim() === "") {
+      setError("El valor del domicilio es obligatorio (puede ser 0 si es gratis).");
+      return;
+    }
     const payPending = isDelivery && paymentPending;
     if (!payPending && paymentMethod === "mixed") {
       const cash = parseFormattedPrice(amountCash);
@@ -529,7 +536,7 @@ export default function NewSalePage() {
         invoice_number: invoiceNumber,
         total,
         payment_method: paymentMethod,
-        status: "completed",
+        status: salesMode === "orders" ? "pending" : "completed",
       };
       if (paymentMethod === "cash" && amountReceived.trim() !== "") {
         payload.amount_received = parseFormattedPrice(amountReceived) || null;
@@ -545,7 +552,7 @@ export default function NewSalePage() {
       if (isDelivery) {
         payload.is_delivery = true;
         if (selectedDeliveryAddressId) payload.delivery_address_id = selectedDeliveryAddressId;
-        if (deliveryFee.trim() !== "") payload.delivery_fee = parseFormattedPrice(deliveryFee) || null;
+        payload.delivery_fee = parseFormattedPrice(deliveryFee) ?? 0;
         if (selectedDeliveryPersonId) payload.delivery_person_id = selectedDeliveryPersonId;
         payload.delivery_paid = false; // Por defecto no pagado
         if (paymentPending) payload.payment_pending = true;
@@ -583,7 +590,7 @@ export default function NewSalePage() {
     return (
       <div className="space-y-4">
         <header className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">Nueva venta</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">{getCopy(salesMode).newButton}</h1>
           <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">Cargando sucursal…</p>
         </header>
       </div>
@@ -593,10 +600,10 @@ export default function NewSalePage() {
   return (
     <div className="space-y-4">
       <header className="space-y-2">
-        <Breadcrumb items={[{ label: "Ventas", href: "/ventas" }, { label: "Nueva venta" }]} />
+        <Breadcrumb items={[{ label: getCopy(salesMode).sectionTitle, href: "/ventas" }, { label: getCopy(salesMode).newButton }]} />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">Nueva venta</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">{getCopy(salesMode).newButton}</h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Selecciona el cliente, agrega productos al carrito y elige el método de pago.
             </p>
@@ -1038,7 +1045,7 @@ export default function NewSalePage() {
                   )}
                   <div>
                     <label className="block text-[12px] font-medium text-slate-500 dark:text-slate-400">
-                      Valor del domicilio <span className="font-normal text-slate-400">(opcional)</span>
+                      Valor del domicilio <span className="text-ov-pink">*</span>
                     </label>
                     <input
                       type="text"

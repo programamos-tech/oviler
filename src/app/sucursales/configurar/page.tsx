@@ -50,8 +50,10 @@ export default function ConfigurarSucursalPage() {
   const [warrantyBySale, setWarrantyBySale] = useState(true);
   const [warrantyRequiresApproval, setWarrantyRequiresApproval] = useState(true);
   const [showExpenses, setShowExpenses] = useState(true);
+  const [salesMode, setSalesMode] = useState<"sales" | "orders">("sales");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   
   // Estados para domiciliarios
   const [deliveryPersons, setDeliveryPersons] = useState<DeliveryPerson[]>([]);
@@ -75,7 +77,7 @@ export default function ConfigurarSucursalPage() {
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
       if (!ub?.branch_id || cancelled) return;
       setBranchId(ub.branch_id);
-      const { data: branch } = await supabase.from("branches").select("organization_id, name, nit, address, phone, logo_url, has_bodega, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, warranty_by_sale, warranty_requires_approval, show_expenses").eq("id", ub.branch_id).single();
+      const { data: branch } = await supabase.from("branches").select("organization_id, name, nit, address, phone, logo_url, has_bodega, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, warranty_by_sale, warranty_requires_approval, show_expenses, sales_mode").eq("id", ub.branch_id).single();
       if (branch && !cancelled) {
         setOrganizationId((branch as { organization_id?: string }).organization_id ?? null);
         setBranchName((branch as { name?: string }).name ?? "");
@@ -90,6 +92,7 @@ export default function ConfigurarSucursalPage() {
         setWarrantyBySale(branch.warranty_by_sale !== false);
         setWarrantyRequiresApproval((branch as { warranty_requires_approval?: boolean }).warranty_requires_approval !== false);
         setShowExpenses((branch as { show_expenses?: boolean }).show_expenses !== false);
+        setSalesMode((branch as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales");
       }
       
       const orgId = (branch as { organization_id?: string } | null)?.organization_id;
@@ -126,7 +129,7 @@ export default function ConfigurarSucursalPage() {
     }
     setSaving(true);
     const supabase = createClient();
-    await supabase.from("branches").update({
+    const { error } = await supabase.from("branches").update({
       name: nameTrim,
       nit: nit.trim() || null,
       address: address.trim() || null,
@@ -138,9 +141,16 @@ export default function ConfigurarSucursalPage() {
       warranty_by_sale: warrantyBySale,
       warranty_requires_approval: warrantyRequiresApproval,
       show_expenses: showExpenses,
+      sales_mode: salesMode,
       updated_at: new Date().toISOString(),
     }).eq("id", branchId);
     setSaving(false);
+    if (error) {
+      alert("No se pudieron guardar los cambios: " + (error.message || "Error desconocido.") + (error.message?.includes("sales_mode") || error.message?.includes("column") ? " ¿Ejecutaste las migraciones de Supabase (branches.sales_mode)?" : ""));
+      return;
+    }
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
   }
 
   return (
@@ -306,6 +316,49 @@ export default function ConfigurarSucursalPage() {
             <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
               Si está marcado, al anular una factura la solicitud quedará pendiente hasta que un administrador u owner la apruebe. Si no, la anulación se aplica de inmediato.
             </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              Modo de operación
+            </p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+              Define si en esta sucursal manejas ventas (retail) o pedidos (restaurante/domicilios). Cambia los textos y estados en la app.
+            </p>
+            <div className="mt-3 space-y-2">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="sales_mode"
+                  checked={salesMode === "sales"}
+                  onChange={() => setSalesMode("sales")}
+                  disabled={loading}
+                  className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                />
+                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                  Ventas (tienda / retail)
+                </span>
+              </label>
+              <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
+                Verás &quot;Ventas&quot;, &quot;Nueva venta&quot;. Estados: Completada, Anulada.
+              </p>
+              <label className="mt-2 flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="sales_mode"
+                  checked={salesMode === "orders"}
+                  onChange={() => setSalesMode("orders")}
+                  disabled={loading}
+                  className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                />
+                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                  Pedidos (restaurante / domicilios)
+                </span>
+              </label>
+              <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
+                Verás &quot;Pedidos&quot;, &quot;Nuevo pedido&quot;. Estados: Pendiente, En preparación, En camino, Entregado, Anulado.
+              </p>
+            </div>
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -777,6 +830,11 @@ export default function ConfigurarSucursalPage() {
               >
                 {saving ? "Guardando…" : "Guardar cambios"}
               </button>
+              {saveSuccess && (
+                <p className="mt-3 text-center text-[13px] font-medium text-emerald-600 dark:text-emerald-400" role="status">
+                  Cambios guardados correctamente.
+                </p>
+              )}
             </div>
           </div>
         </div>

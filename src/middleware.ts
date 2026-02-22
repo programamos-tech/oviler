@@ -40,12 +40,16 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Rutas públicas
+  // Rutas públicas (páginas)
   const publicPaths = ['/login', '/registro', '/']
   const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + '/'))
 
+  // APIs que deben funcionar sin sesión (registro de nueva cuenta)
+  const publicApiPaths = ['/api/admin/create-user', '/api/auth/create-organization']
+  const isPublicApi = publicApiPaths.some((path) => request.nextUrl.pathname === path)
+
   // Si no está autenticado y trata de acceder a ruta protegida, redirigir a login
-  if (!user && !isPublicPath) {
+  if (!user && !isPublicPath && !isPublicApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return redirectWithCookies(url, cookiesFromSetAll)

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const COMPANY = "NOU Technology";
-const PRODUCT = "NOU Inventarios";
+const PRODUCT = "NOU back office";
 
 export default function LandingPage() {
   return (
@@ -11,8 +11,8 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="relative sticky top-0 z-50 border-b border-white/10 bg-platform-dark/85 backdrop-blur-sm">
         <div className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex shrink-0 items-center gap-1.5">
-            <span className="material-symbols-outlined h-7 w-7 shrink-0 text-[28px] text-white" aria-hidden>inventory_2</span>
+          <Link href="/" className="flex shrink-0 items-center gap-1">
+            <span className="material-symbols-outlined h-7 w-7 shrink-0 text-[28px] text-white" aria-hidden>storefront</span>
             <div className="flex flex-col">
               <span className="font-logo text-xl font-bold tracking-tight text-white leading-none">
                 {PRODUCT}
@@ -72,7 +72,7 @@ export default function LandingPage() {
           <ul className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {[
               { step: "1", title: "Conocemos tu negocio", desc: "Vamos a tu local, entendemos cómo manejas inventario, ventas y despachos." },
-              { step: "2", title: "Te mostramos la plataforma", desc: "Demo en vivo de NOU Inventarios adaptada a lo que nos contaste." },
+              { step: "2", title: "Te mostramos la plataforma", desc: `Demo en vivo de ${PRODUCT} adaptada a lo que nos contaste.` },
               { step: "3", title: "Pruebas a tu ritmo", desc: "Si te interesa, hacemos pruebas y ajustes hasta que te cierre." },
               { step: "4", title: "Implementación completa", desc: "Configuramos la plataforma: usuarios, IVA, bodega, sucursales y numeración." },
               { step: "5", title: "Capacitación", desc: "Capacitamos a los empleados que van a usar el sistema día a día." },
@@ -112,8 +112,8 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
             <div className="col-span-2 sm:col-span-3 lg:col-span-2">
-              <Link href="/" className="mb-4 flex items-center gap-1.5">
-                <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[24px] text-ov-pink" aria-hidden>inventory_2</span>
+              <Link href="/" className="mb-4 flex items-center gap-1">
+                <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[24px] text-ov-pink" aria-hidden>storefront</span>
                 <div className="flex flex-col">
                   <span className="font-logo text-lg font-bold tracking-tight text-white leading-none">
                     {PRODUCT}
@@ -139,7 +139,7 @@ export default function LandingPage() {
                 </li>
                 <li>
                   <a href="#producto" className="text-slate-400 transition-colors hover:text-white">
-                    NOU Inventarios
+                    {PRODUCT}
                   </a>
                 </li>
                 <li>

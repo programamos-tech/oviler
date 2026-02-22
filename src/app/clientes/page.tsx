@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -154,7 +153,7 @@ export default function CustomersPage() {
   }, [loading, filteredCustomers.length]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const showPagination = !loading && totalCount > 0;
+  const showPagination = !loading && totalCount > PAGE_SIZE;
   const pageNumbers = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     const around = 2;
@@ -223,7 +222,6 @@ export default function CustomersPage() {
   return (
     <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
       <header className="space-y-2 min-w-0">
-        <Breadcrumb items={[{ label: "Clientes" }]} />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
@@ -307,143 +305,121 @@ export default function CustomersPage() {
             </Link>
           </div>
         ) : (
-          filteredCustomers.map((c, index) => {
-            const isSelected = index === selectedIndex;
-            return (
+          <>
+            {/* Desktop: tabla con mismos encabezados y grid que inventario */}
+            <div className="hidden overflow-hidden rounded-xl ring-1 ring-slate-200 bg-white dark:ring-slate-800 dark:bg-slate-900 sm:block">
               <div
-                key={c.id}
-                ref={(el) => { cardRefs.current[index] = el; }}
-                role="button"
-                tabIndex={-1}
-                onClick={() => router.push(`/clientes/${c.id}`)}
-                className={`rounded-xl shadow-sm ring-1 cursor-pointer transition-all ${
-                  isSelected
-                    ? "bg-slate-100 ring-slate-300 dark:bg-slate-800 dark:ring-slate-600"
-                    : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
-                }`}
+                className="grid grid-cols-[minmax(120px,1.5fr)_minmax(80px,0.8fr)_1fr_minmax(90px,0.9fr)_minmax(140px,1.5fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800"
+                aria-hidden
               >
-                {/* Mobile: layout apilado con etiquetas */}
-                <div className="flex flex-col gap-2 px-4 py-3 sm:hidden">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Nombre</span>
-                    <p className="truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{c.name}</p>
-                  </div>
-                  {c.cedula && (
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cédula</span>
-                      <p className="text-[14px] font-semibold text-slate-700 dark:text-slate-200">CC {c.cedula}</p>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Email</span>
-                    <p className="truncate text-right text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Teléfono</span>
-                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.phone || "—"}</p>
-                  </div>
-                  <div className="flex items-start justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400 shrink-0">Dirección</span>
-                    <div className="min-w-0 text-right">
-                      {(() => {
-                        const addrs = c.customer_addresses ?? [];
-                        const sorted = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
-                        const first = sorted[0];
-                        if (first) {
-                          return (
-                            <>
-                              <p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 truncate" title={first.address}>
-                                {addrs.length > 1 ? `${first.label}: ${first.address}` : first.address}
-                              </p>
-                              {addrs.length > 1 && (
-                                <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                                  +{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}
-                                </p>
-                              )}
-                            </>
-                          );
-                        }
-                        return <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400">—</p>;
-                      })()}
-                    </div>
-                  </div>
-                  <div className="flex justify-end pt-1">
-                    <span className="inline-flex items-center gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}>
-                      <Link href={`/clientes/${c.id}`} className="hover:underline">Ver detalle</Link>
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                    </span>
-                  </div>
-                </div>
-                {/* Desktop: grid */}
-                <div className="hidden grid-cols-[1fr_1fr_1fr_1fr_auto] gap-x-6 items-center px-6 py-4 sm:grid">
-                  <div className="min-w-0">
-                    <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">
-                      {c.name}
-                    </p>
-                    {c.cedula && (
-                      <p className="mt-0.5 text-[13px] font-semibold text-slate-600 dark:text-slate-400 truncate" title={c.cedula}>
-                        CC {c.cedula}
-                      </p>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-semibold text-slate-700 dark:text-slate-200 truncate" title={c.email ?? undefined}>
-                      {c.email || "—"}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-semibold text-slate-700 dark:text-slate-200 truncate" title={c.phone ?? undefined}>
-                      {c.phone || "—"}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    {(() => {
-                      const addrs = c.customer_addresses ?? [];
-                      const sorted = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
-                      const first = sorted[0];
-                      if (first) {
-                        return (
-                          <>
-                            <p className="text-[14px] font-semibold text-slate-600 dark:text-slate-300 truncate" title={first.address}>
-                              {addrs.length > 1 ? `${first.label}: ${first.address}` : first.address}
-                            </p>
-                            {first.reference_point && (
-                              <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400 truncate" title={first.reference_point}>
-                                Ref: {first.reference_point}
-                              </p>
-                            )}
-                            {addrs.length > 1 && (
-                              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                                +{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}
-                              </p>
-                            )}
-                          </>
-                        );
-                      }
-                      return <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400">—</p>;
-                    })()}
-                  </div>
-                  <div className="flex items-center justify-end">
-                    <span className="group relative inline-flex" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/clientes/${c.id}`}
-                        className="inline-flex shrink-0 items-center justify-center p-1 text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink dark:hover:text-ov-pink-hover"
-                        aria-label="Ver detalle"
-                      >
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </Link>
-                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:bg-slate-700">
-                        Ver detalle
-                      </span>
-                    </span>
-                  </div>
-                </div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cliente</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cédula</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Email</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Teléfono</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Dirección</div>
+                <div className="min-w-0 pl-4 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Acciones</div>
               </div>
-            );
-          })
+              {filteredCustomers.map((c, index) => {
+                const isSelected = index === selectedIndex;
+                const isLast = index === filteredCustomers.length - 1;
+                const addrs = c.customer_addresses ?? [];
+                const sortedAddrs = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
+                const firstAddr = sortedAddrs[0];
+                return (
+                  <div
+                    key={c.id}
+                    ref={(el) => { cardRefs.current[index] = el; }}
+                    role="button"
+                    tabIndex={-1}
+                    onClick={() => router.push(`/clientes/${c.id}`)}
+                    className={`grid grid-cols-[minmax(120px,1.5fr)_minmax(80px,0.8fr)_1fr_minmax(90px,0.9fr)_minmax(140px,1.5fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-4 cursor-pointer transition-colors border-b border-slate-100 dark:border-slate-800 ${
+                      isLast ? "border-b-0" : ""
+                    } ${
+                      isSelected ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">{c.name}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.cedula ? `CC ${c.cedula}` : "—"}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.email || "—"}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.phone || "—"}</p>
+                    </div>
+                    <div className="min-w-0">
+                      {firstAddr ? (
+                        <>
+                          <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate" title={firstAddr.address}>
+                            {addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address}
+                          </p>
+                          {firstAddr.reference_point && (
+                            <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400 truncate" title={firstAddr.reference_point}>Ref: {firstAddr.reference_point}</p>
+                          )}
+                          {addrs.length > 1 && (
+                            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">+{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}</p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400">—</p>
+                      )}
+                    </div>
+                    <div className="min-w-0 pl-6 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                      <span className="relative inline-flex group/tooltip">
+                        <Link href={`/clientes/${c.id}`} className="inline-flex p-1 text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink dark:hover:text-ov-pink-hover" aria-label="Ver detalle">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        </Link>
+                        <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Ver detalle del cliente</span>
+                      </span>
+                      <span className="relative inline-flex group/tooltip">
+                        <Link href={`/clientes/${c.id}/editar`} className="inline-flex p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Editar">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" /></svg>
+                        </Link>
+                        <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Editar nombre, cédula, contacto y direcciones</span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Mobile: tarjetas apiladas (igual estilo que inventario) */}
+            <div className="space-y-3 sm:hidden">
+              {filteredCustomers.map((c, index) => {
+                const isSelected = index === selectedIndex;
+                const addrs = c.customer_addresses ?? [];
+                const sortedAddrs = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
+                const firstAddr = sortedAddrs[0];
+                return (
+                  <div
+                    key={c.id}
+                    ref={(el) => { cardRefs.current[index] = el; }}
+                    role="button"
+                    tabIndex={-1}
+                    onClick={() => router.push(`/clientes/${c.id}`)}
+                    className={`rounded-xl shadow-sm ring-1 cursor-pointer transition-all px-4 py-3 ${
+                      isSelected ? "bg-slate-100 ring-slate-300 dark:bg-slate-800 dark:ring-slate-600" : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cliente</span><p className="truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{c.name}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cédula</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.cedula ? `CC ${c.cedula}` : "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Email</span><p className="truncate text-right text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Teléfono</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.phone || "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Dirección</span><div className="min-w-0 text-right"><p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 truncate" title={firstAddr?.address}>{firstAddr ? (addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address) : "—"}</p>{addrs.length > 1 && <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">+{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}</p>}</div></div>
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                        <span className="inline-flex gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}><Link href={`/clientes/${c.id}`} className="hover:underline" title="Ver detalle del cliente">Ver detalle</Link><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
+                        <span onClick={(e) => e.stopPropagation()}><Link href={`/clientes/${c.id}/editar`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Editar nombre, cédula, contacto y direcciones">Editar</Link></span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </section>
 

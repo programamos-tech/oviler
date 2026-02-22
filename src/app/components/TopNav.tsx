@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { getCopy } from "@/app/ventas/sales-mode";
 import Notifications from "./Notifications";
 
 const iconClass = "h-5 w-5 shrink-0";
@@ -149,15 +150,6 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: "Egresos",
-    href: "/egresos",
-    icon: <IconEgresos />,
-    items: [
-      { label: "Ver egresos", href: "/egresos", icon: <IconList />, description: "Lista de egresos y gastos" },
-      { label: "Nuevo egreso", href: "/egresos/nuevo", icon: <IconPlus />, description: "Registrar egreso o gasto" },
-    ],
-  },
-  {
     label: "Ventas",
     href: "/ventas",
     icon: <NavIconCart />,
@@ -189,7 +181,15 @@ const navItems: NavItem[] = [
       { label: "Transferir stock", href: "/inventario/transferir", icon: <IconTransfer />, description: "Mover productos entre sucursales" },
     ],
   },
-  { label: "Actividades", href: "/actividades", icon: <NavIconClipboard /> },
+  {
+    label: "Egresos",
+    href: "/egresos",
+    icon: <IconEgresos />,
+    items: [
+      { label: "Ver egresos", href: "/egresos", icon: <IconList />, description: "Lista de egresos y gastos" },
+      { label: "Nuevo egreso", href: "/egresos/nuevo", icon: <IconPlus />, description: "Registrar egreso o gasto" },
+    ],
+  },
   {
     label: "Roles",
     href: "/roles",
@@ -209,9 +209,10 @@ const navItems: NavItem[] = [
       { label: "Nueva sucursal", href: "/sucursales/nueva", icon: <IconPlus />, description: "Crear nueva sucursal" },
     ],
   },
+  { label: "Actividades", href: "/actividades", icon: <NavIconClipboard /> },
 ];
 
-const APP_NAME = "ToroCell";
+const FALLBACK_APP_NAME = "NOU back office";
 
 export default function TopNav() {
   const pathname = usePathname();
@@ -220,7 +221,7 @@ export default function TopNav() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
-  const [branch, setBranch] = useState<{ name: string; logo_url: string | null; show_expenses?: boolean } | null>(null);
+  const [branch, setBranch] = useState<{ name: string; logo_url: string | null; show_expenses?: boolean; sales_mode?: string } | null>(null);
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -247,8 +248,8 @@ export default function TopNav() {
       if (!authUser) return;
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", authUser.id).limit(1).single();
       if (!ub?.branch_id) return;
-      const { data: branchData } = await supabase.from("branches").select("name, logo_url, show_expenses").eq("id", ub.branch_id).single();
-      if (branchData) setBranch({ name: branchData.name, logo_url: branchData.logo_url ?? null, show_expenses: branchData.show_expenses !== false });
+      const { data: branchData } = await supabase.from("branches").select("name, logo_url, show_expenses, sales_mode").eq("id", ub.branch_id).single();
+      if (branchData) setBranch({ name: branchData.name, logo_url: branchData.logo_url ?? null, show_expenses: branchData.show_expenses !== false, sales_mode: (branchData as { sales_mode?: string }).sales_mode });
     }
     loadBranch();
   }, [supabase]);
@@ -295,24 +296,18 @@ export default function TopNav() {
   return (
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
       <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Logo redondo + nombre del negocio */}
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-1.5 font-logo pt-1" title={APP_NAME}>
-          <div className={`mt-1 flex shrink-0 items-center justify-center overflow-hidden ${branch?.logo_url ? "h-9 w-9 rounded-full bg-white ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 sm:h-10 sm:w-10" : "h-9 w-9 sm:h-10 sm:w-10"}`}>
-            {branch?.logo_url ? (
-              <img src={branch.logo_url} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <svg className="h-6 w-6 shrink-0 text-ov-pink dark:text-ov-pink-muted sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            )}
+        {/* Marca NOU: logo + nombre de la plataforma */}
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-1 font-logo pt-1" title="NOU">
+          <div className="mt-1 flex shrink-0 items-center justify-center">
+            <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[26px] text-ov-pink dark:text-ov-pink-muted sm:h-7 sm:w-7 sm:text-[28px]" aria-hidden>storefront</span>
           </div>
           <div className="hidden sm:flex flex-col justify-center leading-tight">
             <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-              {APP_NAME}
+              NOU
             </span>
           </div>
           <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:hidden sm:text-xl">
-            {APP_NAME}
+            NOU
           </span>
         </Link>
 
@@ -322,6 +317,7 @@ export default function TopNav() {
             const hasDropdown = item.items && item.items.length > 0;
             const isItemActive = isActive(item.href);
             const isOpen = openDropdown === item.label;
+            const navLabel = item.label === "Ventas" && branch?.sales_mode === "orders" ? "Pedidos" : item.label;
 
             return (
               <div
@@ -350,8 +346,8 @@ export default function TopNav() {
                   <>
                     <Link
                       href={item.href}
-                      title={item.label}
-                      aria-label={item.label}
+                      title={navLabel}
+                      aria-label={navLabel}
                       className={`flex items-center gap-1 rounded-lg px-2 py-2 text-[13px] font-medium transition-colors md:px-3 md:py-2.5 lg:px-4 lg:py-2 xl:text-[14px] ${
                         isItemActive
                           ? "bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-50"
@@ -359,7 +355,7 @@ export default function TopNav() {
                       }`}
                     >
                       <span className="lg:hidden">{item.icon}</span>
-                      <span className="hidden lg:inline">{item.label}</span>
+                      <span className="hidden lg:inline">{navLabel}</span>
                       <svg
                         className={`hidden h-3 w-3 shrink-0 lg:block transition-transform ${isOpen ? "rotate-180" : ""}`}
                         fill="none"
@@ -387,6 +383,9 @@ export default function TopNav() {
                         <div className="space-y-1">
                           {item.items?.map((subItem) => {
                             const isSubItemActive = pathname === subItem.href;
+                            const salesCopy = item.label === "Ventas" && branch?.sales_mode ? getCopy(branch.sales_mode as "sales" | "orders") : null;
+                            const subLabel = salesCopy && subItem.href === "/ventas" ? `Ver ${salesCopy.sectionTitle}` : salesCopy && subItem.href === "/ventas/nueva" ? salesCopy.newButton : subItem.label;
+                            const subDescription = salesCopy && subItem.href === "/ventas" ? (branch?.sales_mode === "orders" ? "Lista de todos los pedidos" : "Lista de todas las ventas") : salesCopy && subItem.href === "/ventas/nueva" ? (branch?.sales_mode === "orders" ? "Registrar nuevo pedido" : "Registrar nueva venta") : subItem.description;
                             return (
                               <Link
                                 key={subItem.href}
@@ -403,15 +402,15 @@ export default function TopNav() {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className={`text-[14px] font-semibold leading-tight ${isSubItemActive ? "text-slate-900 dark:text-slate-50" : "text-slate-900 dark:text-slate-100"}`}>
-                                    {subItem.label}
+                                    {subLabel}
                                   </div>
-                                  {subItem.description && (
+                                  {(subDescription ?? subItem.description) && (
                                     <div className={`mt-0.5 text-[12px] leading-tight ${
                                       isSubItemActive
                                         ? "text-slate-600 dark:text-slate-300"
                                         : "text-slate-500 dark:text-slate-400"
                                     }`}>
-                                      {subItem.description}
+                                      {subDescription ?? subItem.description}
                                     </div>
                                   )}
                                 </div>
@@ -426,8 +425,8 @@ export default function TopNav() {
                 ) : (
                   <Link
                     href={item.href}
-                    title={item.label}
-                    aria-label={item.label}
+                    title={navLabel}
+                    aria-label={navLabel}
                     className={`flex items-center gap-1 rounded-lg px-2 py-2 text-[13px] font-medium transition-colors md:px-3 md:py-2.5 lg:px-4 lg:py-2 xl:text-[14px] ${
                       isItemActive
                         ? "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50"
@@ -435,7 +434,7 @@ export default function TopNav() {
                     }`}
                   >
                     <span className="lg:hidden">{item.icon}</span>
-                    <span className="hidden lg:inline">{item.label}</span>
+                    <span className="hidden lg:inline">{navLabel}</span>
                   </Link>
                 )}
               </div>

@@ -4,11 +4,14 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import DatePickerCard from "@/app/components/DatePickerCard";
 
 type DashboardData = {
   totalIncome: number; // Ingresos tienda (sin delivery fees)
   totalDeliveryFees: number; // Total envíos (no es ingreso de la tienda)
   unpaidDeliveryFees: number; // Envíos pendientes de pago
+  incomeCash: number; // Ingresos por ventas en efectivo (antes de restar egresos)
+  incomeTransfer: number; // Ingresos por ventas en transferencia (antes de restar egresos)
   cash: number;
   transfer: number;
   totalExpensesCash: number; // Egresos en efectivo del día
@@ -28,6 +31,9 @@ type DashboardData = {
   defectiveStockInvestment: number;
   expectedProfit: number;
   grossProfit: number;
+  lastExpense: { amount: number; concept: string } | null;
+  lastCashSale: { total: number; invoice_number: string } | null;
+  lastTransferSale: { total: number; invoice_number: string } | null;
 };
 
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -43,6 +49,20 @@ function getDayBounds(date: Date): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
+function getRangeBounds(dateFrom: Date, dateTo: Date): { start: string; end: string } {
+  const start = new Date(dateFrom.getFullYear(), dateFrom.getMonth(), dateFrom.getDate(), 0, 0, 0, 0);
+  const end = new Date(dateTo.getFullYear(), dateTo.getMonth(), dateTo.getDate(), 23, 59, 59, 999);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function firstDayOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function toDateInputValue(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 function salePriceFromProduct(basePrice: number | null, applyIva: boolean): number {
   const base = Number(basePrice) ?? 0;
   return applyIva ? base + Math.round(base * IVA_RATE) : base;
@@ -50,7 +70,17 @@ function salePriceFromProduct(basePrice: number | null, applyIva: boolean): numb
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  type DateFilterMode = "today" | "range";
+  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>("today");
+  const [selectedDay, setSelectedDay] = useState<Date>(() => {
+    const t = new Date();
+    return new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  });
+  const [dateFrom, setDateFrom] = useState<Date>(() => firstDayOfMonth(new Date()));
+  const [dateTo, setDateTo] = useState<Date>(() => {
+    const t = new Date();
+    return new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  });
   const [hideSensitiveInfo, setHideSensitiveInfo] = useState(false);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -80,10 +110,14 @@ export default function DashboardPage() {
     const supabase = createClient();
     let cancelled = false;
     setLoading(true);
-    const { start, end } = getDayBounds(selectedDate);
-    const yesterday = new Date(selectedDate);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const { start: yStart, end: yEnd } = getDayBounds(yesterday);
+    const { start, end } =
+      dateFilterMode === "today"
+        ? getDayBounds(selectedDay)
+        : getRangeBounds(dateFrom, dateTo);
+    const refDate = dateFilterMode === "today" ? selectedDay : dateFrom;
+    const dayBeforeRef = new Date(refDate);
+    dayBeforeRef.setDate(dayBeforeRef.getDate() - 1);
+    const { start: yStart, end: yEnd } = getDayBounds(dayBeforeRef);
 
     (async () => {
       const [
@@ -95,7 +129,7 @@ export default function DashboardPage() {
       ] = await Promise.all([
         supabase
           .from("sales")
-          .select("id, total, payment_method, amount_cash, amount_transfer, is_delivery, status, invoice_number, delivery_fee, delivery_paid")
+          .select("id, total, payment_method, amount_cash, amount_transfer, is_delivery, status, invoice_number, delivery_fee, delivery_paid, created_at")
           .eq("branch_id", branchId)
           .gte("created_at", start)
           .lte("created_at", end),
@@ -148,6 +182,7 @@ export default function DashboardPage() {
         invoice_number: string;
         delivery_fee: number | null;
         delivery_paid: boolean;
+        created_at: string;
       }>;
       const completed = sales.filter((s) => s.status === "completed");
       
@@ -204,6 +239,9 @@ export default function DashboardPage() {
         }
       });
 
+      const incomeCash = cash;
+      const incomeTransfer = transfer;
+
       // Egresos del día (tabla expenses): restar de efectivo/transferencia
       let totalExpensesCash = 0;
       let totalExpensesTransfer = 0;
@@ -224,6 +262,45 @@ export default function DashboardPage() {
           transfer -= amount;
         }
       });
+
+      // Último egreso del día (para mostrar en card)
+      let lastExpense: { amount: number; concept: string } | null = null;
+      const { data: lastExpenseRow } = await supabase
+        .from("expenses")
+        .select("amount, concept")
+        .eq("branch_id", branchId)
+        .gte("created_at", start)
+        .lte("created_at", end)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (lastExpenseRow && lastExpenseRow.amount != null) {
+        lastExpense = { amount: Number(lastExpenseRow.amount), concept: String(lastExpenseRow.concept ?? "") };
+      }
+
+      // Última venta en efectivo y última en transferencia del día (desde ventas completadas)
+      const completedByDate = [...completed].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      const lastCashSale = completedByDate.find(
+        (s) => s.payment_method === "cash" || (s.payment_method === "mixed" && Number(s.amount_cash ?? 0) > 0)
+      );
+      const lastTransferSale = completedByDate.find(
+        (s) => s.payment_method === "transfer" || (s.payment_method === "mixed" && Number(s.amount_transfer ?? 0) > 0)
+      );
+      const lastCashSaleDisplay = lastCashSale
+        ? {
+            total: lastCashSale.payment_method === "cash" ? Number(lastCashSale.total) : Number(lastCashSale.amount_cash ?? 0),
+            invoice_number: lastCashSale.invoice_number,
+          }
+        : null;
+      const lastTransferSaleDisplay = lastTransferSale
+        ? {
+            total: lastTransferSale.payment_method === "transfer" ? Number(lastTransferSale.total) : Number(lastTransferSale.amount_transfer ?? 0),
+            invoice_number: lastTransferSale.invoice_number,
+          }
+        : null;
 
       const totalIncome = totalStoreIncome; // Total ingresos tienda (sin delivery)
       const physicalSales = completed.filter((s) => !s.is_delivery).length;
@@ -259,26 +336,45 @@ export default function DashboardPage() {
         });
       }
 
-      const completedIds = completed.map((s) => s.id);
+      // Productos más vendidos: ítems del día (consulta directa por join sales para no depender del primer fetch)
       let items: Array<{ product_id: string; quantity: number; unit_price: number; discount_percent: number; discount_amount: number; products: { name: string; base_cost: number | null } | null }> = [];
-      if (completedIds.length > 0) {
-        const { data: itemsDay } = await supabase
-          .from("sale_items")
-          .select("product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost)")
-          .in("sale_id", completedIds);
-        items = ((itemsDay ?? []) as Array<{
-          product_id: string;
-          quantity: number;
-          unit_price: number;
-          discount_percent: number;
-          discount_amount: number;
-          products: { name: string; base_cost: number | null }[] | { name: string; base_cost: number | null } | null;
-        }>).map((it) => ({
+      const { data: itemsDayDirect } = await supabase
+        .from("sale_items")
+        .select("product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost), sales!inner(branch_id, created_at, status)")
+        .eq("sales.branch_id", branchId)
+        .gte("sales.created_at", start)
+        .lte("sales.created_at", end)
+        .not("sales.status", "eq", "cancelled");
+      if (cancelled) return;
+      const rawItems = (itemsDayDirect ?? []) as Array<{
+        product_id: string;
+        quantity: number;
+        unit_price: number;
+        discount_percent: number;
+        discount_amount: number;
+        products: { name: string; base_cost: number | null }[] | { name: string; base_cost: number | null } | null;
+      }>;
+      // Si la API no soporta filtro por relación, usar fallback con IDs del fetch de ventas
+      if (rawItems.length === 0) {
+        const saleIdsForItems = sales.filter((s) => s.status !== "cancelled").map((s) => s.id);
+        if (saleIdsForItems.length > 0) {
+          const { data: itemsDayFallback } = await supabase
+            .from("sale_items")
+            .select("product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost)")
+            .in("sale_id", saleIdsForItems);
+          if (cancelled) return;
+          const fallback = (itemsDayFallback ?? []) as typeof rawItems;
+          items = fallback.map((it) => ({
+            ...it,
+            products: Array.isArray(it.products) ? (it.products[0] || null) : it.products,
+          }));
+        }
+      } else {
+        items = rawItems.map((it) => ({
           ...it,
           products: Array.isArray(it.products) ? (it.products[0] || null) : it.products,
         }));
       }
-      if (cancelled) return;
 
       const byProduct: Record<string, { name: string; units: number; total: number }> = {};
       items.forEach((it) => {
@@ -365,6 +461,8 @@ export default function DashboardPage() {
         totalIncome,
         totalDeliveryFees,
         unpaidDeliveryFees,
+        incomeCash,
+        incomeTransfer,
         cash,
         transfer,
         totalExpensesCash,
@@ -384,11 +482,14 @@ export default function DashboardPage() {
         defectiveStockInvestment,
         expectedProfit,
         grossProfit,
+        lastExpense,
+        lastCashSale: lastCashSaleDisplay,
+        lastTransferSale: lastTransferSaleDisplay,
       });
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [branchId, selectedDate]);
+  }, [branchId, dateFilterMode, selectedDay, dateFrom, dateTo]);
 
   const formatDate = (date: Date) => {
     const today = new Date();
@@ -415,32 +516,26 @@ export default function DashboardPage() {
     });
   };
 
-  const goToPreviousDay = () => {
-    const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() - 1);
-    setSelectedDate(newDate);
+  const formatRange = (from: Date, to: Date) => {
+    const sameYear = from.getFullYear() === to.getFullYear();
+    const fmt = (d: Date, short = false) =>
+      d.toLocaleDateString("es-ES", {
+        day: "numeric",
+        month: "short",
+        ...(short ? {} : { year: "numeric" }),
+      });
+    if (from.getTime() === to.getTime()) return fmt(from);
+    return sameYear ? `${fmt(from, true)} - ${fmt(to)}` : `${fmt(from)} - ${fmt(to)}`;
   };
-
-  const goToNextDay = () => {
-    const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + 1);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (newDate <= today) {
-      setSelectedDate(newDate);
-    }
-  };
-
-  const goToToday = () => {
-    setSelectedDate(new Date());
-  };
-
-  const isToday = selectedDate.toDateString() === new Date().toDateString();
+  const periodLabel =
+    dateFilterMode === "today" ? formatDate(selectedDay) : formatRange(dateFrom, dateTo);
 
   const data = dashboardData ?? {
     totalIncome: 0,
     totalDeliveryFees: 0,
     unpaidDeliveryFees: 0,
+    incomeCash: 0,
+    incomeTransfer: 0,
     cash: 0,
     transfer: 0,
     totalExpensesCash: 0,
@@ -460,10 +555,11 @@ export default function DashboardPage() {
     defectiveStockInvestment: 0,
     expectedProfit: 0,
     grossProfit: 0,
+    lastExpense: null,
+    lastCashSale: null,
+    lastTransferSale: null,
   };
   const totalExpensesDay = data.totalExpensesCash + data.totalExpensesTransfer;
-  const warrantiesToday = 0; // Sin tabla de garantías en DB aún
-
   const formatSensitiveValue = (value: number | string, type: "currency" | "number" = "currency") => {
     if (hideSensitiveInfo) {
       return type === "currency" ? "***" : "***";
@@ -482,13 +578,16 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-300 sm:text-[13px]">
-            Resumen de ventas e ingresos de tu sucursal. Cambia el día para ver métricas de esa fecha.
+            Resumen de ventas e ingresos de tu sucursal. Elige el rango de fechas (desde / hasta) para ver las métricas.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
             {/* Botón Cerrar caja */}
             <button
-              onClick={() => router.push(`/cierre-caja/nuevo?fecha=${selectedDate.toISOString().split("T")[0]}`)}
+              onClick={() => {
+                const endDate = dateFilterMode === "today" ? selectedDay : dateTo;
+                router.push(`/cierre-caja/nuevo?fecha=${endDate.toISOString().split("T")[0]}`);
+              }}
               className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
             >
               <svg
@@ -549,60 +648,81 @@ export default function DashboardPage() {
               )}
             </button>
 
-            {/* Navegación temporal */}
-            <button
-              onClick={goToPreviousDay}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-              title="Día anterior"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={goToToday}
-              className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors ${
-                isToday
-                  ? "bg-slate-900 text-white dark:bg-slate-800"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-              }`}
-            >
-              {formatDate(selectedDate)}
-            </button>
-            <button
-              onClick={goToNextDay}
-              disabled={isToday}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 ${
-                isToday
-                  ? "cursor-not-allowed opacity-50"
-                  : ""
-              }`}
-              title="Día siguiente"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
+            {/* Filtro: Hoy o Rango */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setDateFilterMode("today")}
+                  className={`rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                    dateFilterMode === "today"
+                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Hoy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDateFilterMode("range")}
+                  className={`rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                    dateFilterMode === "range"
+                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Rango
+                </button>
+              </div>
+
+              {dateFilterMode === "today" ? (
+                <div className="flex items-center gap-2">
+                  <DatePickerCard
+                    id="dashboard-date-today"
+                    value={selectedDay}
+                    onChange={(d) => d && setSelectedDay(d)}
+                    max={today}
+                    allowClear={false}
+                    aria-label="Seleccionar día"
+                  />
+                  {selectedDay.getTime() !== today.getTime() && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDay(new Date(today.getFullYear(), today.getMonth(), today.getDate()))}
+                      className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                    >
+                      Ir a hoy
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                    <span>Desde</span>
+                    <DatePickerCard
+                      id="dashboard-date-from"
+                      value={dateFrom}
+                      onChange={(d) => d && setDateFrom(d)}
+                      max={dateTo}
+                      allowClear={false}
+                      aria-label="Fecha desde"
+                    />
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                    <span>Hasta</span>
+                    <DatePickerCard
+                      id="dashboard-date-to"
+                      value={dateTo}
+                      onChange={(d) => d && setDateTo(d)}
+                      min={dateFrom}
+                      max={today}
+                      allowClear={false}
+                      aria-label="Fecha hasta"
+                    />
+                  </label>
+                </>
+              )}
+            </div>
         </div>
       </header>
 
@@ -610,8 +730,8 @@ export default function DashboardPage() {
         <p className="text-[13px] font-medium text-slate-500 dark:text-slate-300">Cargando métricas…</p>
       )}
 
-      {/* Métricas principales - Primera fila */}
-      <section className={`grid grid-cols-1 gap-3 ${data.unpaidDeliveryFees > 0 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+      {/* Métricas principales - Primera fila (4 cards) */}
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {/* Ingreso total */}
         <div className="min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div className="flex items-center justify-between">
@@ -676,11 +796,23 @@ export default function DashboardPage() {
               />
             </svg>
           </div>
+          {data.lastExpense && (
+            <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
+              <div className="flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate text-[12px] font-medium text-slate-600 dark:text-slate-300" title={data.lastExpense.concept}>
+                  Último: {data.lastExpense.concept || "Egreso"}
+                </p>
+                <p className="shrink-0 text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                  -{formatSensitiveValue(data.lastExpense.amount)}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Efectivo */}
-        <details className="group min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
-          <summary className="flex cursor-pointer list-none items-center justify-between">
+        <div className="min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                 Efectivo
@@ -702,37 +834,24 @@ export default function DashboardPage() {
                 d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
               />
             </svg>
-          </summary>
-          <div className="mt-3 border-t border-slate-200 pt-3 text-[13px] text-slate-700 dark:border-slate-800 dark:text-slate-300">
-            <div className="space-y-2">
+          </div>
+          {data.lastCashSale && (
+            <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
               <div className="flex items-center justify-between">
-                <span className="text-[13px] font-bold text-slate-800 dark:text-slate-100">
-                  Porcentaje del total:
-                </span>
-                <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">
-                  {data.totalIncome > 0 ? Math.round((data.cash / data.totalIncome) * 100) : 0}%
-                </span>
-              </div>
-              <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                 <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                  Ventas en efectivo: {hideSensitiveInfo ? "***" : data.cashSales}
+                  Último: Fact #{data.lastCashSale.invoice_number}
                 </p>
-                {!hideSensitiveInfo && (
-                  <p className="mt-1 text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                    Ticket promedio:{" "}
-                    {formatSensitiveValue(
-                      data.cashSales > 0 ? Math.round(data.cash / data.cashSales) : 0
-                    )}
-                  </p>
-                )}
+                <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                  +{formatSensitiveValue(data.lastCashSale.total)}
+                </p>
               </div>
             </div>
-          </div>
-        </details>
+          )}
+        </div>
 
         {/* Transferencia */}
-        <details className="group min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
-          <summary className="flex cursor-pointer list-none items-center justify-between">
+        <div className="min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className="flex items-center justify-between">
             <div className="flex-1">
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
                 Transferencia
@@ -754,245 +873,20 @@ export default function DashboardPage() {
                 d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
               />
             </svg>
-          </summary>
-          <div className="mt-3 border-t border-slate-200 pt-3 text-[13px] text-slate-700 dark:border-slate-800 dark:text-slate-300">
-            <div className="space-y-2">
+          </div>
+          {data.lastTransferSale && (
+            <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
               <div className="flex items-center justify-between">
-                <span className="text-[13px] font-bold text-slate-800 dark:text-slate-100">
-                  Porcentaje del total:
-                </span>
-                <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">
-                  {data.totalIncome > 0 ? Math.round((data.transfer / data.totalIncome) * 100) : 0}%
-                </span>
-              </div>
-              <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                 <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                  Ventas con transferencia: {hideSensitiveInfo ? "***" : data.transferSales}
+                  Último: Fact #{data.lastTransferSale.invoice_number}
                 </p>
-                {!hideSensitiveInfo && (
-                  <p className="mt-1 text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                    Ticket promedio:{" "}
-                    {formatSensitiveValue(
-                      data.transferSales > 0 ? Math.round(data.transfer / data.transferSales) : 0
-                    )}
-                  </p>
-                )}
+                <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                  +{formatSensitiveValue(data.lastTransferSale.total)}
+                </p>
               </div>
             </div>
-          </div>
-        </details>
-      </section>
-
-      {/* Métricas secundarias - Segunda fila (3 cards) */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Inversión total en stock */}
-        <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
-          <summary className="flex cursor-pointer list-none items-center justify-between">
-            <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                Inversión total en stock
-              </p>
-              <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {formatSensitiveValue(data.totalStockInvestment)}
-              </p>
-            </div>
-            <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-              />
-            </svg>
-          </summary>
-          <div className="mt-3 border-t border-slate-200 pt-3 text-[13px] text-slate-700 dark:border-slate-800 dark:text-slate-300">
-            <div className="space-y-2">
-              {!hideSensitiveInfo && (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                        Stock disponible
-                      </p>
-                      <p className="mt-1 text-[16px] font-bold text-slate-900 dark:text-slate-50">
-                        {formatSensitiveValue(data.totalStockInvestment - data.defectiveStockInvestment)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-orange-50 p-3 dark:bg-orange-950">
-                      <p className="text-[11px] font-medium text-orange-600 dark:text-orange-400">
-                        Stock defectuoso
-                      </p>
-                      <p className="mt-1 text-[16px] font-bold text-orange-700 dark:text-orange-300">
-                        {formatSensitiveValue(data.defectiveStockInvestment)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                    <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                      Valor total de tu inventario según el costo de compra de cada producto (incluye defectuosos).
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950">
-                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                      Ganancia esperada
-                    </p>
-                    <p className="mt-1 text-[18px] font-bold text-emerald-700 dark:text-emerald-400">
-                      {formatSensitiveValue(data.expectedProfit)}
-                    </p>
-                    <p className="mt-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">
-                      Ganancia potencial al vender todo el inventario disponible.
-                    </p>
-                  </div>
-                  {data.defectiveStockInvestment > 0 && (
-                    <Link
-                      href="/inventario/merma"
-                      className="block rounded-lg border-2 border-orange-200 bg-orange-50 p-3 text-center text-[12px] font-medium text-orange-700 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300 dark:hover:bg-orange-900"
-                    >
-                      Ver productos defectuosos →
-                    </Link>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </details>
-
-        {/* Garantías gestionadas */}
-        <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
-          <summary className="flex cursor-pointer list-none items-center justify-between">
-            <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                Garantías gestionadas
-              </p>
-              <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo ? "***" : warrantiesToday}
-              </p>
-              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-300">
-                {formatDate(selectedDate)}
-              </p>
-            </div>
-            <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-              />
-            </svg>
-          </summary>
-          <div className="mt-3 border-t border-slate-200 pt-3 text-[13px] text-slate-700 dark:border-slate-800 dark:text-slate-300">
-            <div className="space-y-2">
-                {!hideSensitiveInfo && (
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-lg bg-orange-50 p-2 text-center dark:bg-orange-950">
-                      <p className="text-[12px] font-bold text-ov-pink dark:text-ov-pink-muted">
-                        0
-                      </p>
-                      <p className="text-[10px] font-medium text-orange-600 dark:text-orange-400">
-                        Pendientes
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-emerald-50 p-2 text-center dark:bg-emerald-950">
-                      <p className="text-[12px] font-bold text-emerald-700 dark:text-emerald-300">
-                        0
-                      </p>
-                      <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                        Aprobadas
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-red-50 p-2 text-center dark:bg-red-950">
-                      <p className="text-[12px] font-bold text-red-700 dark:text-red-300">
-                        0
-                      </p>
-                      <p className="text-[10px] font-medium text-red-600 dark:text-red-400">
-                        Rechazadas
-                      </p>
-                    </div>
-                  </div>
-                )}
-              {!hideSensitiveInfo && (
-                <div className="mt-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                    Valor total en garantías: {formatSensitiveValue(0)}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </details>
-
-        {/* Facturas anuladas */}
-        <details className="group rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 open:ring-2 open:ring-ov-pink/30 dark:bg-slate-900 dark:ring-slate-800">
-          <summary className="flex cursor-pointer list-none items-center justify-between">
-            <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                Facturas anuladas
-              </p>
-              <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo ? "***" : data.cancelledInvoices}
-              </p>
-              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-300">
-                {formatDate(selectedDate)}
-              </p>
-            </div>
-            <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </summary>
-          <div className="mt-3 border-t border-slate-200 pt-3 text-[13px] text-slate-700 dark:border-slate-800 dark:text-slate-300">
-            <div className="space-y-2">
-              {data.cancelledInvoices > 0 ? (
-                <>
-                  {data.cancelledList.slice(0, 3).map((c, i) => (
-                    <div key={i} className="rounded-lg bg-red-50 p-3 dark:bg-red-950">
-                      <p className="text-[12px] font-bold text-red-800 dark:text-red-200">
-                        Factura #{c.invoice_number}
-                      </p>
-                      {!hideSensitiveInfo && (
-                        <p className="mt-1 text-[11px] font-medium text-red-700 dark:text-red-300">
-                          Valor: {formatSensitiveValue(c.total)}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                  {!hideSensitiveInfo && data.cancelledTotal > 0 && (
-                    <div className="mt-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                      <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                        Impacto en ingresos: -{formatSensitiveValue(data.cancelledTotal)}
-                      </p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                  <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                    No hay facturas anuladas {formatDate(selectedDate)}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </details>
+          )}
+        </div>
       </section>
 
       {/* Gráfica y productos - lado a lado */}
@@ -1100,48 +994,59 @@ export default function DashboardPage() {
 
         {/* Top productos vendidos */}
         <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <div className="mb-3">
+          <div className="mb-4">
             <h2 className="text-base font-bold text-[#334155] dark:text-slate-50">
               Productos más vendidos
             </h2>
             <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-300">
-              {formatDate(selectedDate)}
+              {periodLabel}
             </p>
           </div>
-          <div className="space-y-2">
-            {data.topProducts.length === 0 ? (
-              <p className="rounded-lg border border-slate-200 bg-slate-50 py-6 text-center text-[13px] font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
-                Aún no hay productos más vendidos. Las ventas aparecerán aquí.
-              </p>
-            ) : data.topProducts.map((product, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-b-0 dark:border-slate-800"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-[12px] font-bold text-slate-400 dark:text-slate-500 tabular-nums">
-                    {index + 1}.
-                  </span>
-                  <div>
-                    <p className="text-[14px] font-bold text-[#334155] dark:text-slate-50">
-                      {product.name}
-                    </p>
-                    <p className="text-[12px] font-medium text-slate-500 dark:text-slate-300">
-                      {hideSensitiveInfo ? "***" : `${product.units} unidades`}
-                    </p>
+          {data.topProducts.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-10 text-center text-[13px] font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-400">
+              Aún no hay productos más vendidos. Las ventas aparecerán aquí.
+            </p>
+          ) : (
+            <div className="space-y-5">
+              {(() => {
+                const maxTotal = Math.max(...data.topProducts.map((p) => p.total), 1);
+                const colors = [
+                  "bg-ov-pink dark:bg-ov-pink-muted",
+                  "bg-slate-500 dark:bg-slate-500",
+                  "bg-slate-400 dark:bg-slate-600",
+                  "bg-slate-300 dark:bg-slate-600",
+                  "bg-slate-200 dark:bg-slate-700",
+                ];
+                return data.topProducts.map((product, index) => (
+                  <div key={index} className="group">
+                    <div className="mb-1 flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+                        {index + 1}. {product.name}
+                      </span>
+                      <span className="shrink-0 text-[13px] font-bold tabular-nums text-slate-900 dark:text-slate-50">
+                        {formatSensitiveValue(product.total)}
+                      </span>
+                    </div>
+                    <div className="relative h-7 w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
+                      <div
+                        className={`h-full rounded-lg transition-all duration-500 ease-out ${colors[index] ?? "bg-slate-300"}`}
+                        style={{
+                          width: `${Math.max((product.total / maxTotal) * 100, 4)}%`,
+                          minWidth: "2px",
+                        }}
+                        title={hideSensitiveInfo ? undefined : `${product.units} unidades`}
+                      />
+                    </div>
+                    {!hideSensitiveInfo && (
+                      <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        {product.units} {product.units === 1 ? "unidad" : "unidades"}
+                      </p>
+                    )}
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-[14px] font-bold text-[#334155] dark:text-slate-50">
-                    {formatSensitiveValue(product.total)}
-                  </p>
-                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                    Total vendido
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+                ));
+              })()}
+            </div>
+          )}
         </section>
       </div>
     </div>

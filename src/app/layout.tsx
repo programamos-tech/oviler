@@ -21,7 +21,7 @@ const youngSerif = Young_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "NOU Inventarios | NOU Technology",
+  title: "NOU back office | NOU Technology",
   description:
     "SaaS premium de inventarios. Implementación, configuración, capacitación y licencia anual. Si tienes problemas con el inventario, nosotros vamos.",
 };

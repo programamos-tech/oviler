@@ -236,31 +236,33 @@ export default function CustomerDetailPage() {
                 {completedSales.length > 0 ? `$ ${formatMoney(totalVentas)}` : "—"}
               </p>
             </div>
-            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700 min-w-0 max-w-[280px]">
+            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700 min-w-0 flex-1 sm:min-w-[280px]">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Direcciones</p>
               {addresses.length === 0 ? (
                 <p className="mt-0.5 text-lg font-bold text-slate-500 dark:text-slate-400 sm:text-xl">—</p>
               ) : (
-                <>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                    <span className="text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl truncate">
-                      {addresses[0].label}
-                    </span>
-                    {addresses[0].is_default && (
-                      <span className="rounded bg-ov-pink/15 px-2 py-0.5 text-[10px] font-bold text-ov-pink dark:bg-ov-pink/20 shrink-0">
-                        Principal
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-[13px] font-medium text-slate-600 dark:text-slate-400 truncate" title={addresses[0].address}>
-                    {addresses[0].address}
-                  </p>
-                  {addresses.length > 1 && (
-                    <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-500">
-                      +{addresses.length - 1} {addresses.length === 2 ? "dirección más" : "direcciones más"}
-                    </p>
-                  )}
-                </>
+                <ul className="mt-2 flex gap-2">
+                  {addresses.map((addr) => (
+                    <li key={addr.id} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50/50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/30">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">{addr.label}</span>
+                        {addr.is_default && (
+                          <span className="rounded bg-ov-pink/15 px-1.5 py-0.5 text-[10px] font-bold text-ov-pink dark:bg-ov-pink/20 shrink-0">
+                            Principal
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-[12px] font-medium text-slate-600 dark:text-slate-400 break-words line-clamp-2" title={addr.address}>
+                        {addr.address}
+                      </p>
+                      {addr.reference_point && (
+                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500 truncate" title={addr.reference_point}>
+                          Ref: {addr.reference_point}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </div>
@@ -299,7 +301,7 @@ export default function CustomerDetailPage() {
                 </p>
               </div>
             ) : (
-              <ul className="mt-3 space-y-2 max-h-[220px] overflow-y-auto">
+              <ul className="mt-3 space-y-2">
                 {sales.map((sale) => (
                   <li
                     key={sale.id}

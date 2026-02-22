@@ -156,6 +156,7 @@ export default function BottomNav() {
   const pathname = usePathname();
   const [masOpen, setMasOpen] = useState(false);
   const [showExpenses, setShowExpenses] = useState<boolean | null>(null);
+  const [salesMode, setSalesMode] = useState<"sales" | "orders">("sales");
 
   useEffect(() => {
     let cancelled = false;
@@ -165,8 +166,11 @@ export default function BottomNav() {
       if (!user || cancelled) return;
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
       if (!ub?.branch_id || cancelled) return;
-      const { data: branch } = await supabase.from("branches").select("show_expenses").eq("id", ub.branch_id).single();
-      if (!cancelled && branch) setShowExpenses(branch.show_expenses !== false);
+      const { data: branch } = await supabase.from("branches").select("show_expenses, sales_mode").eq("id", ub.branch_id).single();
+      if (!cancelled && branch) {
+        setShowExpenses(branch.show_expenses !== false);
+        setSalesMode((branch as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales");
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -196,6 +200,7 @@ export default function BottomNav() {
       >
         {tabs.map((tab) => {
           const active = isActive(tab.href);
+          const tabLabel = tab.label === "Ventas" && salesMode === "orders" ? "Pedidos" : tab.label;
           if (tab.isMore) {
             return (
               <button
@@ -219,9 +224,10 @@ export default function BottomNav() {
               className={`flex flex-col items-center gap-0.5 rounded-lg px-3 py-1 transition-colors ${
                 active ? "text-ov-pink dark:text-ov-pink-muted" : "text-slate-500 dark:text-slate-400"
               }`}
+              aria-label={tabLabel}
             >
               <tab.icon active={active} />
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              <span className="text-[10px] font-medium">{tabLabel}</span>
             </Link>
           );
         })}

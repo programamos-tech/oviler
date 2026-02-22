@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { MdLocalShipping, MdStore, MdCancel, MdCheck } from "react-icons/md";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
+import { getCopy, getStatusLabel, getStatusClass, type SalesMode } from "../sales-mode";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -32,10 +33,12 @@ const PAYMENT_LABELS: Record<string, string> = {
   mixed: "Mixto",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  completed: "Completada",
-  cancelled: "Anulada",
-};
+const ORDER_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "pending", label: "Pendiente" },
+  { value: "preparing", label: "En preparación" },
+  { value: "on_the_way", label: "En camino" },
+  { value: "delivered", label: "Entregado" },
+];
 
 type SaleDetail = {
   id: string;
@@ -45,7 +48,7 @@ type SaleDetail = {
   invoice_number: string;
   total: number;
   payment_method: "cash" | "transfer" | "mixed";
-  status: "completed" | "cancelled";
+  status: string;
   payment_pending?: boolean;
   is_delivery: boolean;
   delivery_address_id: string | null;
@@ -134,6 +137,8 @@ export default function SaleDetailPage() {
   const [rejecting, setRejecting] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [markingDeliveryPaid, setMarkingDeliveryPaid] = useState(false);
+  const [salesMode, setSalesMode] = useState<SalesMode>("sales");
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -166,11 +171,11 @@ export default function SaleDetailPage() {
       if (s.branch_id) {
         const { data: branchRow } = await supabase
           .from("branches")
-          .select("name, nit, address, phone, responsable_iva")
+          .select("name, nit, address, phone, responsable_iva, sales_mode")
           .eq("id", s.branch_id)
           .single();
         if (!cancelled && branchRow) {
-          const row = branchRow as { invoice_print_type?: string; invoice_cancel_requires_approval?: boolean };
+          const row = branchRow as { invoice_print_type?: string; invoice_cancel_requires_approval?: boolean; sales_mode?: string };
           branchData = {
             name: branchRow.name,
             nit: branchRow.nit ?? null,
@@ -180,6 +185,7 @@ export default function SaleDetailPage() {
             invoice_print_type: row.invoice_print_type === "tirilla" ? "tirilla" : "block",
             invoice_cancel_requires_approval: Boolean(row.invoice_cancel_requires_approval),
           };
+          if (row.sales_mode === "orders") setSalesMode("orders");
         }
       }
       const finalSale = {
@@ -249,6 +255,15 @@ export default function SaleDetailPage() {
     })();
     return () => { cancelled = true; };
   }, [id]);
+
+  async function handleOrderStatusChange(newStatus: string) {
+    if (!sale?.id) return;
+    setUpdatingStatus(true);
+    const supabase = createClient();
+    await supabase.from("sales").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", sale.id);
+    setSale((prev) => (prev ? { ...prev, status: newStatus } : null));
+    setUpdatingStatus(false);
+  }
 
   async function handleCancel() {
     if (!sale?.id) return;
@@ -369,7 +384,7 @@ export default function SaleDetailPage() {
       <div className="space-y-4">
         <p className="text-[14px] text-slate-600 dark:text-slate-400">Factura no encontrada.</p>
         <Link href="/ventas" className="text-[14px] font-medium text-ov-pink hover:underline">
-          Volver a ventas
+          Volver al listado
         </Link>
       </div>
     );
@@ -378,21 +393,19 @@ export default function SaleDetailPage() {
   const customerName = sale.customers?.name ?? "Cliente ocasional";
   const branchName = sale.branches?.name ?? "—";
   const userName = sale.users?.name ?? "—";
+  const copy = getCopy(salesMode);
   const paymentLabel = PAYMENT_LABELS[sale.payment_method] ?? sale.payment_method;
   const statusLabel =
-    sale.status === "cancelled"
-      ? STATUS_LABELS.cancelled
-      : sale.payment_pending
-        ? "Pago pendiente"
-        : STATUS_LABELS[sale.status] ?? sale.status;
+    sale.payment_pending && sale.status === "completed"
+      ? "Pago pendiente"
+      : getStatusLabel(sale.status, salesMode);
   const statusClass =
-    sale.status === "cancelled"
-      ? "text-red-600 dark:text-red-400"
-      : sale.payment_pending
-        ? "text-amber-600 dark:text-amber-400"
-        : "text-emerald-600 dark:text-emerald-400";
-  const pendingCancel = sale.status === "completed" && !!sale.cancellation_requested_at;
-  const canCancel = sale.status === "completed" && !sale.cancellation_requested_at;
+    sale.payment_pending && sale.status === "completed"
+      ? "text-amber-600 dark:text-amber-400"
+      : getStatusClass(sale.status);
+  const pendingCancel = (sale.status === "completed" || sale.status === "delivered") && !!sale.cancellation_requested_at;
+  const canCancel = (sale.status === "completed" || sale.status === "delivered") && !sale.cancellation_requested_at;
+  const canChangeOrderStatus = salesMode === "orders" && !["cancelled", "completed", "delivered"].includes(sale.status);
   const itemsSubtotal = items.reduce((sum, it) => sum + lineSubtotal(it), 0);
   const totalDiscount = items.reduce(
     (sum, it) => sum + (it.quantity * it.unit_price - lineSubtotal(it)),
@@ -466,7 +479,7 @@ export default function SaleDetailPage() {
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6 print:shadow-none print:ring-0">
         <Breadcrumb
           items={[
-            { label: "Ventas", href: "/ventas" },
+            { label: copy.sectionTitle, href: "/ventas" },
             { label: `Factura ${displayInvoiceNumber(sale.invoice_number)}` },
           ]}
         />
@@ -498,7 +511,7 @@ export default function SaleDetailPage() {
             <Link
               href="/ventas"
               className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              title="Volver a ventas"
+              title={`Volver a ${copy.sectionTitle.toLowerCase()}`}
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -522,9 +535,22 @@ export default function SaleDetailPage() {
             </div>
             <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Estado</p>
-              <p className={`mt-0.5 text-lg font-semibold sm:text-xl ${statusClass}`}>
-                {statusLabel}
-              </p>
+              {canChangeOrderStatus ? (
+                <select
+                  value={sale.status}
+                  onChange={(e) => handleOrderStatusChange(e.target.value)}
+                  disabled={updatingStatus}
+                  className={`mt-0.5 block w-full max-w-[180px] rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[14px] font-semibold outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 ${statusClass}`}
+                >
+                  {ORDER_STATUS_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className={`mt-0.5 text-lg font-semibold sm:text-xl ${statusClass}`}>
+                  {statusLabel}
+                </p>
+              )}
             </div>
             <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Fecha y hora</p>

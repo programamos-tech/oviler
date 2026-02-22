@@ -4,10 +4,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import Breadcrumb from "@/app/components/Breadcrumb";
-
 const IVA_RATE = 0.19;
 const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 300;
+
+/** Escapa el término de búsqueda para el filtro .or(ilike) de Supabase (evita romper la query con % _ \ o coma). */
+function escapeSearchForFilter(s: string): string {
+  return s
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_")
+    .replace(/,/g, " "); // la coma en .or() separa condiciones; reemplazamos para no romper la query
+}
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -39,6 +47,7 @@ export default function InventoryPage() {
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [effectiveSearchQuery, setEffectiveSearchQuery] = useState("");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -50,6 +59,8 @@ export default function InventoryPage() {
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const hasFocusedList = useRef(false);
   const loadingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevFetchDepsRef = useRef({ refreshKey: 0, page: 1, categoryFilter: "" });
+  const isFirstFetchRef = useRef(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -97,58 +108,81 @@ export default function InventoryPage() {
   }, [refreshKey]);
 
   useEffect(() => {
+    const t = setTimeout(() => setEffectiveSearchQuery(searchQuery), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
-    setLoading(true);
+    const prev = prevFetchDepsRef.current;
+    const searchOnly =
+      !isFirstFetchRef.current &&
+      prev.refreshKey === refreshKey && prev.page === page && prev.categoryFilter === categoryFilter;
+    isFirstFetchRef.current = false;
+    prevFetchDepsRef.current = { refreshKey, page, categoryFilter };
+    if (!searchOnly) setLoading(true);
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
-      const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
-      if (!userRow?.organization_id || cancelled) return;
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) return;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+        const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
+        if (!userRow?.organization_id || cancelled) return;
+        const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+        if (!ub?.branch_id || cancelled) return;
 
-      const from = (page - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      let q = supabase
-        .from("products")
-        .select("id, name, sku, category_id, base_price, base_cost, apply_iva, description", { count: "exact" })
-        .eq("organization_id", userRow.organization_id)
-        .order("name", { ascending: true })
-        .range(from, to);
-      const qTrim = searchQuery.trim();
-      if (qTrim) q = q.or(`name.ilike.%${qTrim}%,sku.ilike.%${qTrim}%`);
-      if (categoryFilter) q = q.eq("category_id", categoryFilter);
-
-      const { data: productsData, count } = await q;
-      if (cancelled) return;
-      setProducts(productsData ?? []);
-      setTotalCount(count ?? 0);
-
-      const productIds = (productsData ?? []).map((p) => p.id);
-      if (productIds.length === 0) {
-        setStockByProduct({});
-        setLoading(false);
-        return;
-      }
-
-      const { data: invData } = await supabase
-        .from("inventory")
-        .select("product_id, quantity")
-        .eq("branch_id", ub.branch_id)
-        .in("product_id", productIds);
-
-      const byProduct: Record<string, number> = {};
-      if (invData) {
-        for (const row of invData) {
-          byProduct[row.product_id] = (byProduct[row.product_id] ?? 0) + (row.quantity ?? 0);
+        const from = (page - 1) * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        let q = supabase
+          .from("products")
+          .select("id, name, sku, category_id, base_price, base_cost, apply_iva, description", { count: "exact" })
+          .eq("organization_id", userRow.organization_id)
+          .order("name", { ascending: true })
+          .range(from, to);
+        const qTrim = effectiveSearchQuery.trim();
+        if (qTrim) {
+          const escaped = escapeSearchForFilter(qTrim);
+          q = q.or(`name.ilike.%${escaped}%,sku.ilike.%${escaped}%`);
         }
+        if (categoryFilter) q = q.eq("category_id", categoryFilter);
+
+        const { data: productsData, count } = await q;
+        if (cancelled) return;
+        setProducts(productsData ?? []);
+        setTotalCount(count ?? 0);
+
+        const productIds = (productsData ?? []).map((p) => p.id);
+        if (productIds.length === 0) {
+          setStockByProduct({});
+          setLoading(false);
+          return;
+        }
+
+        const { data: invData } = await supabase
+          .from("inventory")
+          .select("product_id, quantity")
+          .eq("branch_id", ub.branch_id)
+          .in("product_id", productIds);
+
+        const byProduct: Record<string, number> = {};
+        if (invData) {
+          for (const row of invData) {
+            byProduct[row.product_id] = (byProduct[row.product_id] ?? 0) + (row.quantity ?? 0);
+          }
+        }
+        if (!cancelled) setStockByProduct(byProduct);
+      } catch (_) {
+        if (!cancelled) {
+          setProducts([]);
+          setTotalCount(0);
+          setStockByProduct({});
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      if (!cancelled) setStockByProduct(byProduct);
-      setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [refreshKey, page, searchQuery, categoryFilter]);
+  }, [refreshKey, page, effectiveSearchQuery, categoryFilter]);
 
   const filteredProducts = products.filter((p) => {
     const stock = stockByProduct[p.id] ?? 0;
@@ -198,7 +232,7 @@ export default function InventoryPage() {
   }, [loading, filteredProducts.length]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const showPagination = !loading && totalCount > 0;
+  const showPagination = !loading && totalCount > PAGE_SIZE;
   const pageNumbers = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     const around = 2;
@@ -211,63 +245,9 @@ export default function InventoryPage() {
     return nums;
   })();
 
-  const paginationBar = showPagination && (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-      <p className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
-        {totalCount} {totalCount === 1 ? "producto" : "productos"}
-        {totalPages > 1 && <> · Página {page} de {totalPages}</>}
-      </p>
-      {totalPages > 1 && (
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page <= 1}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-          aria-label="Página anterior"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        {pageNumbers.map((n, i) =>
-          n === "…" ? (
-            <span key={`ellipsis-${i}`} className="px-2 text-slate-400">…</span>
-          ) : (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setPage(n)}
-              className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg border px-2 text-[13px] font-medium ${
-                page === n
-                  ? "border-ov-pink bg-ov-pink text-white dark:bg-ov-pink dark:text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              }`}
-            >
-              {n}
-            </button>
-          )
-        )}
-        <button
-          type="button"
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={page >= totalPages}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-          aria-label="Página siguiente"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
-      )}
-    </div>
-  );
-
   return (
     <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
       <header className="space-y-2 min-w-0">
-        <Breadcrumb items={[{ label: "Inventario" }]} />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
               <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
@@ -314,7 +294,8 @@ export default function InventoryPage() {
               type="search"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              placeholder="Buscar por nombre o código..."
+              placeholder="Nombre o código (ej. Coca-Cola, REST-BB-04)"
+              aria-label="Buscar producto por nombre o por código"
               className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-[14px] text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
             />
           </div>
@@ -378,151 +359,189 @@ export default function InventoryPage() {
             </Link>
           </div>
         ) : (
-          filteredProducts.map((p, index) => {
-            const stock = stockByProduct[p.id] ?? 0;
-            const price = salePrice(p);
-            const stockStatus =
-              stock === 0
-                ? { label: "Sin stock", class: "text-red-600 dark:text-red-400" }
-                : stock <= 10
-                  ? { label: "Stock bajo", class: "text-orange-600 dark:text-orange-400" }
-                  : { label: "Con stock", class: "text-green-600 dark:text-green-400" };
-            const isSelected = index === selectedIndex;
-            return (
+          <>
+            {/* Contenedor único: encabezado + filas con el mismo grid para alinear columnas (desktop) */}
+            <div className="hidden overflow-hidden rounded-xl ring-1 ring-slate-200 bg-white dark:ring-slate-800 dark:bg-slate-900 sm:block">
+              {/* Títulos de columna */}
               <div
-                key={p.id}
-                ref={(el) => { cardRefs.current[index] = el; }}
-                role="button"
-                tabIndex={-1}
-                onClick={() => router.push(`/inventario/${p.id}`)}
-                className={`rounded-xl shadow-sm ring-1 cursor-pointer transition-all ${
-                  isSelected
-                    ? "bg-slate-100 ring-slate-300 dark:bg-slate-800 dark:ring-slate-600"
-                    : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
-                }`}
+                className="grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(70px,0.7fr)_minmax(72px,0.7fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800"
+                aria-hidden
               >
-                {/* Mobile: layout apilado con etiquetas */}
-                <div className="flex flex-col gap-2 px-4 py-3 sm:hidden">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Producto</span>
-                    <p className="truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{p.name}</p>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Producto</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Código</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Categoría</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Stock</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Estado</div>
+                <div className="min-w-0 w-full text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Precio</div>
+                <div className="min-w-0 pl-4 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Acciones</div>
+              </div>
+              {filteredProducts.map((p, index) => {
+                const stock = stockByProduct[p.id] ?? 0;
+                const price = salePrice(p);
+                const stockStatus =
+                  stock === 0
+                    ? { label: "Sin stock", class: "text-red-600 dark:text-red-400" }
+                    : stock <= 10
+                      ? { label: "Stock bajo", class: "text-orange-600 dark:text-orange-400" }
+                      : { label: "Con stock", class: "text-green-600 dark:text-green-400" };
+                const isSelected = index === selectedIndex;
+                const isLast = index === filteredProducts.length - 1;
+                return (
+                  <div
+                    key={p.id}
+                    ref={(el) => { cardRefs.current[index] = el; }}
+                    role="button"
+                    tabIndex={-1}
+                    onClick={() => router.push(`/inventario/${p.id}`)}
+                    className={`grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(70px,0.7fr)_minmax(72px,0.7fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-4 cursor-pointer transition-colors border-b border-slate-100 dark:border-slate-800 ${
+                      isLast ? "border-b-0" : ""
+                    } ${
+                      isSelected
+                        ? "bg-slate-100 dark:bg-slate-800"
+                        : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    }`}
+                  >
+                  <div className="min-w-0">
+                    <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">{p.name}</p>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Código</span>
-                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{p.sku || "—"}</p>
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{p.sku || "—"}</p>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Categoría</span>
-                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p>
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock</span>
+                  <div className="min-w-0">
                     <p className="text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{stock} {stock === 1 ? "unidad" : "unidades"}</p>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Estado</span>
+                  <div className="min-w-0">
                     <p className={`text-[14px] font-bold ${stockStatus.class}`}>{stockStatus.label}</p>
                   </div>
-                  <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Precio</span>
-                    <p className="text-base font-bold tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(price)}</p>
+                  <div className="min-w-0 w-full flex items-center justify-end">
+                    <span className="text-[14px] sm:text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">$ {formatMoney(price)}</span>
                   </div>
-                  <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-                    <span className="inline-flex items-center gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}>
-                      <Link href={`/inventario/${p.id}`} className="hover:underline">Ver detalle</Link>
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  <div className="min-w-0 pl-6 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                    <span className="relative inline-flex group/tooltip">
+                      <Link href={`/inventario/${p.id}`} className="inline-flex p-1 text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink dark:hover:text-ov-pink-hover" aria-label="Ver detalle">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      </Link>
+                      <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Ver detalle del producto</span>
                     </span>
-                    <span onClick={(e) => e.stopPropagation()}>
-                      <Link href={`/inventario/actualizar-stock?productId=${p.id}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline">Ajustar stock</Link>
+                    <span className="relative inline-flex group/tooltip">
+                      <Link href={`/inventario/${p.id}/editar`} className="inline-flex p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Editar">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" /></svg>
+                      </Link>
+                      <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Editar nombre, precio, categoría y más</span>
                     </span>
-                    <span onClick={(e) => e.stopPropagation()}>
-                      <Link href={`/inventario/transferir?productId=${p.id}`} className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline">Transferir</Link>
+                    <span className="relative inline-flex group/tooltip">
+                      <Link href={`/inventario/actualizar-stock?productId=${p.id}`} className="inline-flex p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Ajustar stock">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                      </Link>
+                      <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Ajustar o contar el stock de este producto</span>
+                    </span>
+                    <span className="relative inline-flex group/tooltip">
+                      <Link href={`/inventario/transferir?productId=${p.id}`} className="inline-flex p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Transferir">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
+                      </Link>
+                      <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Transferir stock a otra sucursal</span>
                     </span>
                   </div>
                 </div>
-                {/* Desktop: grid */}
-                <div className="hidden grid-cols-[1.5fr_1fr_1fr_0.8fr_1fr_1.2fr_auto] gap-x-4 items-center px-5 py-4 sm:grid">
-                  <div className="min-w-0">
-                    <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">
-                      {p.name}
-                    </p>
+              );
+            })}
+            </div>
+
+            {/* Mobile: tarjetas apiladas (misma lista, otra vista) */}
+            <div className="space-y-3 sm:hidden">
+              {filteredProducts.map((p, index) => {
+                const stock = stockByProduct[p.id] ?? 0;
+                const price = salePrice(p);
+                const stockStatus = stock === 0 ? { label: "Sin stock", class: "text-red-600 dark:text-red-400" } : stock <= 10 ? { label: "Stock bajo", class: "text-orange-600 dark:text-orange-400" } : { label: "Con stock", class: "text-green-600 dark:text-green-400" };
+                const isSelected = index === selectedIndex;
+                return (
+                  <div
+                    key={p.id}
+                    ref={(el) => { cardRefs.current[index] = el; }}
+                    role="button"
+                    tabIndex={-1}
+                    onClick={() => router.push(`/inventario/${p.id}`)}
+                    className={`rounded-xl shadow-sm ring-1 cursor-pointer transition-all px-4 py-3 ${
+                      isSelected ? "bg-slate-100 ring-slate-300 dark:bg-slate-800 dark:ring-slate-600" : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Producto</span><p className="truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{p.name}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Código</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{p.sku || "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Categoría</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock</span><p className="text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{stock} {stock === 1 ? "unidad" : "unidades"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Estado</span><p className={`text-[14px] font-bold ${stockStatus.class}`}>{stockStatus.label}</p></div>
+                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Precio</span><p className="text-base font-bold tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(price)}</p></div>
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                        <span className="inline-flex gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}><Link href={`/inventario/${p.id}`} className="hover:underline" title="Ver detalle del producto">Ver detalle</Link><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
+                        <span onClick={(e) => e.stopPropagation()}><Link href={`/inventario/${p.id}/editar`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Editar nombre, precio, categoría y más">Editar</Link></span>
+                        <span onClick={(e) => e.stopPropagation()}><Link href={`/inventario/actualizar-stock?productId=${p.id}`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Ajustar o contar el stock de este producto">Ajustar stock</Link></span>
+                        <span onClick={(e) => e.stopPropagation()}><Link href={`/inventario/transferir?productId=${p.id}`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Transferir stock a otra sucursal">Transferir</Link></span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">
-                      {p.sku || "—"}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">
-                      {categories.find((c) => c.id === p.category_id)?.name ?? "—"}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">
-                      {stock} {stock === 1 ? "unidad" : "unidades"}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className={`text-[14px] font-bold ${stockStatus.class}`}>
-                      {stockStatus.label}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-end gap-2 sm:gap-3">
-                    <span className="text-[14px] sm:text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums shrink-0">
-                      $ {formatMoney(price)}
-                    </span>
-                    <span className="group relative inline-flex" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/inventario/${p.id}`}
-                        className="inline-flex shrink-0 items-center justify-center p-1 text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink dark:hover:text-ov-pink-hover"
-                        aria-label="Ver detalle"
-                      >
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </Link>
-                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:bg-slate-700">
-                        Ver detalle
-                      </span>
-                    </span>
-                    <span className="group relative inline-flex" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/inventario/actualizar-stock?productId=${p.id}`}
-                        className="inline-flex shrink-0 items-center justify-center p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                        aria-label="Ajustar stock"
-                      >
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                        </svg>
-                      </Link>
-                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:bg-slate-700">
-                        Ajustar stock
-                      </span>
-                    </span>
-                    <span className="group relative inline-flex" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/inventario/transferir?productId=${p.id}`}
-                        className="inline-flex shrink-0 items-center justify-center p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                        aria-label="Transferir"
-                      >
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                        </svg>
-                      </Link>
-                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:bg-slate-700">
-                        Transferir
-                      </span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })
+                );
+              })}
+            </div>
+          </>
         )}
       </section>
 
-      {paginationBar}
+      {showPagination && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
+            {totalCount} {totalCount === 1 ? "producto" : "productos"}
+            {totalPages > 1 && <> · Página {page} de {totalPages}</>}
+          </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                aria-label="Página anterior"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              {pageNumbers.map((n, i) =>
+                n === "…" ? (
+                  <span key={`ellipsis-${i}`} className="px-2 text-slate-400">…</span>
+                ) : (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setPage(n)}
+                    className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg border px-2 text-[13px] font-medium ${
+                      page === n
+                        ? "border-ov-pink bg-ov-pink text-white dark:bg-ov-pink dark:text-white"
+                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                )
+              )}
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                aria-label="Página siguiente"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -17,10 +17,8 @@ export default function AuthLayout({
                 href="/"
                 className="flex items-center gap-1 font-logo text-lg font-bold text-slate-800 dark:text-slate-200"
               >
-                <svg className="h-5 w-5 shrink-0 text-ov-pink" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-                <span>NOU Inventarios</span>
+                <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[24px] text-ov-pink" aria-hidden>storefront</span>
+                <span>NOU back office</span>
               </Link>
               <p className="max-w-xs text-[12px] font-sans text-slate-500 dark:text-slate-400">
                 por NOU Technology
@@ -70,7 +68,7 @@ export default function AuthLayout({
           </div>
           <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
             <p className="text-[12px] text-slate-500 dark:text-slate-400">
-              © {new Date().getFullYear()} NOU Technology. NOU Inventarios. Todos los derechos reservados.
+              © {new Date().getFullYear()} NOU Technology. NOU back office. Todos los derechos reservados.
             </p>
           </div>
         </div>

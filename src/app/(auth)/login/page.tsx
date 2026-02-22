@@ -85,11 +85,9 @@ export default function LoginPage() {
     <div className="flex flex-1 flex-col lg:flex-row lg:items-stretch">
       {/* Izquierda: logo y descripción */}
       <div className="flex flex-col justify-center px-6 py-10 lg:w-1/2 lg:max-w-xl lg:pl-16 xl:pl-24">
-        <Link href="/" className="flex items-center gap-1.5 font-logo text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
-          <svg className="h-8 w-8 shrink-0 text-slate-900 dark:text-slate-50 sm:h-10 sm:w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-          </svg>
-          <span>NOU Inventarios</span>
+        <Link href="/" className="flex items-center gap-1 font-logo text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
+          <span className="material-symbols-outlined h-9 w-9 shrink-0 text-[36px] text-ov-pink sm:h-10 sm:w-10 sm:text-[40px]" aria-hidden>storefront</span>
+          <span>NOU back office</span>
         </Link>
         <p className="mt-4 max-w-md text-[15px] leading-relaxed text-slate-600 dark:text-slate-400">
           Por NOU Technology. SaaS premium: implementación, capacitación y licencia anual. Si tienes problemas con el inventario, nosotros vamos.
