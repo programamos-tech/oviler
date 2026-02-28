@@ -21,9 +21,9 @@ const youngSerif = Young_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "NOU back office | NOU Technology",
+  title: "NOU Bodegas | Gestión de inventarios y almacenes",
   description:
-    "SaaS premium de inventarios. Implementación, configuración, capacitación y licencia anual. Si tienes problemas con el inventario, nosotros vamos.",
+    "Sistema de gestión para bodegas e inventarios. Control de ubicaciones, stock y ventas. Implementación, capacitación y soporte.",
 };
 
 export default function RootLayout({

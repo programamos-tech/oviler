@@ -38,7 +38,7 @@ export default function OnboardingPage() {
         .single();
 
       if (userError || !userData) {
-        router.push("/registro");
+        router.push("/login?error=no_organization");
         return;
       }
 

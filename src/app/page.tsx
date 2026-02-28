@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const COMPANY = "NOU Technology";
-const PRODUCT = "NOU back office";
+const PRODUCT = "NOU Bodegas";
 
 export default function LandingPage() {
   return (
@@ -11,8 +11,8 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="relative sticky top-0 z-50 border-b border-white/10 bg-platform-dark/85 backdrop-blur-sm">
         <div className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex shrink-0 items-center gap-1">
-            <span className="material-symbols-outlined h-7 w-7 shrink-0 text-[28px] text-white" aria-hidden>storefront</span>
+          <Link href="/" className="flex shrink-0 items-center gap-0.5">
+            <span className="material-symbols-outlined h-7 w-7 shrink-0 text-[28px] text-white" aria-hidden>inventory_2</span>
             <div className="flex flex-col">
               <span className="font-logo text-xl font-bold tracking-tight text-white leading-none">
                 {PRODUCT}
@@ -113,7 +113,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
             <div className="col-span-2 sm:col-span-3 lg:col-span-2">
               <Link href="/" className="mb-4 flex items-center gap-1">
-                <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[24px] text-ov-pink" aria-hidden>storefront</span>
+                <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[24px] text-ov-pink" aria-hidden>inventory_2</span>
                 <div className="flex flex-col">
                   <span className="font-logo text-lg font-bold tracking-tight text-white leading-none">
                     {PRODUCT}

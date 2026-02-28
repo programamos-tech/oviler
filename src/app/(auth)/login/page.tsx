@@ -1,17 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
   "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:ring-slate-500";
 const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
 
-export default function LoginPage() {
+function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const err = searchParams.get("error");
+    if (err === "no_organization") {
+      setError(
+        "Tu cuenta no está vinculada a ninguna organización. Si ya tenías una cuenta, pide al administrador que en Supabase (tabla users) asigne tu organization_id. Si prefieres crear una cuenta nueva, usa «Crear cuenta»."
+      );
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -58,21 +69,43 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        const { data: userData } = await supabase
+        const { data: userData, error: userError } = await supabase
           .from("users")
           .select("organization_id")
           .eq("id", data.user.id)
           .single();
 
-        let path = "/onboarding";
-        if (userData?.organization_id) {
-          const { data: branches } = await supabase
-            .from("branches")
-            .select("id")
-            .eq("organization_id", userData.organization_id)
-            .limit(1);
-          if (branches?.length) path = "/dashboard";
+        if (userError) {
+          await supabase.auth.signOut();
+          const hint =
+            userError.code === "PGRST116"
+              ? " No hay fila en la tabla users con tu id de Auth. En Supabase verifica que auth.users (Authentication → Users) tenga el mismo id que la fila en Table Editor → users para tu correo."
+              : ` Detalle: ${userError.message}`;
+          setError(
+            "Tu cuenta no está vinculada a ninguna organización." + hint +
+            " Si prefieres crear una cuenta nueva, usa «Crear cuenta»."
+          );
+          setLoading(false);
+          return;
         }
+
+        if (!userData?.organization_id) {
+          await supabase.auth.signOut();
+          setError(
+            "Tu cuenta no está vinculada a ninguna organización (organization_id vacío en la tabla users). " +
+            "En Supabase asigna tu organization_id en la tabla users. Si prefieres crear una cuenta nueva, usa «Crear cuenta»."
+          );
+          setLoading(false);
+          return;
+        }
+
+        const { data: branches } = await supabase
+          .from("branches")
+          .select("id")
+          .eq("organization_id", userData.organization_id)
+          .limit(1);
+
+        const path = branches?.length ? "/dashboard" : "/onboarding";
         window.location.href = path;
       }
     } catch (err) {
@@ -85,12 +118,12 @@ export default function LoginPage() {
     <div className="flex flex-1 flex-col lg:flex-row lg:items-stretch">
       {/* Izquierda: logo y descripción */}
       <div className="flex flex-col justify-center px-6 py-10 lg:w-1/2 lg:max-w-xl lg:pl-16 xl:pl-24">
-        <Link href="/" className="flex items-center gap-1 font-logo text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
-          <span className="material-symbols-outlined h-9 w-9 shrink-0 text-[36px] text-ov-pink sm:h-10 sm:w-10 sm:text-[40px]" aria-hidden>storefront</span>
-          <span>NOU back office</span>
+        <Link href="/" className="flex items-center gap-0.5 font-logo text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
+          <span className="material-symbols-outlined h-8 w-8 shrink-0 text-[32px] text-ov-pink sm:h-9 sm:w-9 sm:text-[36px]" aria-hidden>inventory_2</span>
+          <span>NOU Bodegas</span>
         </Link>
         <p className="mt-4 max-w-md text-[15px] leading-relaxed text-slate-600 dark:text-slate-400">
-          Por NOU Technology. SaaS premium: implementación, capacitación y licencia anual. Si tienes problemas con el inventario, nosotros vamos.
+          Por NOU Technology. Sistema de gestión para bodegas e inventarios: implementación, capacitación y soporte.
         </p>
       </div>
 
@@ -158,5 +191,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center text-slate-500">Cargando…</div>}>
+      <LoginContent />
+    </Suspense>
   );
 }

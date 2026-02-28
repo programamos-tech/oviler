@@ -9,12 +9,12 @@
   --ov-surface-strong: 255 255 255;
 
   --ov-primary: 30 58 138; /* azul oscuro para botones principales */
-  --ov-accent: 221 77 143; /* #dd4d8f rosa de marca */
-  --ov-accent-light: 236 72 153; /* rosado más claro */
+  --ov-accent: 255 127 80; /* #ff7f50 coral */
+  --ov-accent-light: 255 160 122; /* coral más claro */
   --ov-muted: 100 116 139; /* slate medio */
-  --ov-pink: #dd4d8f;
-  --ov-pink-hover: #c94582;
-  --ov-pink-muted: #e88ab0; /* para fondos suaves / dark */
+  --ov-pink: #ff7f50;
+  --ov-pink-hover: #e86f40;
+  --ov-pink-muted: #ffa07a; /* para fondos suaves / dark */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -27,8 +27,8 @@
     --ov-surface-strong: 32 32 38;
 
     --ov-primary: 59 130 246;
-    --ov-accent: 221 77 143; /* #dd4d8f */
-    --ov-accent-light: 249 168 212;
+    --ov-accent: 255 127 80; /* #ff7f50 coral */
+    --ov-accent-light: 255 180 150;
     --ov-muted: 148 163 184;
   }
 }
@@ -44,7 +44,7 @@
   --color-ov-pink-muted: var(--ov-pink-muted);
 }
 
-/* Asegurar que los botones y acentos rosa usen la variable (Tailwind puede no generar ov-pink con guión) */
+/* Asegurar que los botones y acentos coral usen la variable (Tailwind puede no generar ov-pink con guión) */
 @layer utilities {
   .bg-ov-pink { background-color: var(--ov-pink) !important; }
   .hover\:bg-ov-pink-hover:hover { background-color: var(--ov-pink-hover) !important; }
@@ -106,7 +106,7 @@ body {
   background-color: rgb(26 26 34 / 0.7);
 }
 
-/* Google Material Symbols Outlined - NOU back office */
+/* Google Material Symbols Outlined - NOU Bodegas */
 .material-symbols-outlined {
   font-family: "Material Symbols Outlined", sans-serif;
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;

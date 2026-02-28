@@ -6,8 +6,15 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import LocationPathWithIcons from "@/app/components/LocationPathWithIcons";
 
 type Category = { id: string; name: string };
+type Warehouse = { id: string; name: string };
+type Floor = { id: string; warehouse_id: string };
+type Zone = { id: string; name: string; floor_id: string };
+type Aisle = { id: string; name: string; zone_id: string };
+type Stand = { id: string; name: string; code: string | null; aisle_id?: string; aisleId?: string };
+type LocationItem = { id: string; name: string; code: string | null; stand_id: string; level: number };
 
 const IVA_RATE = 0.19;
 
@@ -28,6 +35,18 @@ export default function NewProductPage() {
   const [categoria, setCategoria] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [stockInicial, setStockInicial] = useState(0);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [floors, setFloors] = useState<Floor[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [aisles, setAisles] = useState<Aisle[]>([]);
+  const [stands, setStands] = useState<Stand[]>([]);
+  const [locations, setLocations] = useState<LocationItem[]>([]);
+  const [sinUbicacion, setSinUbicacion] = useState(true);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState("");
+  const [selectedZoneId, setSelectedZoneId] = useState("");
+  const [selectedAisleId, setSelectedAisleId] = useState("");
+  const [selectedStandId, setSelectedStandId] = useState("");
+  const [selectedLocationId, setSelectedLocationId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,11 +76,130 @@ export default function NewProductPage() {
       if (!user || cancelled) return;
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
       if (!ub?.branch_id || cancelled) return;
+      const { data: wh } = await supabase.from("warehouses").select("id, name").eq("branch_id", ub.branch_id).order("name");
+      if (cancelled || !wh?.length) {
+        setWarehouses(wh ?? []);
+        setFloors([]);
+        setZones([]);
+        setAisles([]);
+        setStands([]);
+        setLocations([]);
+        return;
+      }
+      const warehouseIds = (wh as Warehouse[]).map((w) => w.id);
+      setWarehouses(wh as Warehouse[]);
+      const { data: fl } = await supabase.from("floors").select("id, warehouse_id").in("warehouse_id", warehouseIds);
+      if (cancelled || !fl?.length) {
+        setFloors(fl ?? []);
+        setZones([]);
+        setAisles([]);
+        setStands([]);
+        setLocations([]);
+        return;
+      }
+      setFloors((fl ?? []) as Floor[]);
+      const floorIds = (fl ?? []).map((f: { id: string }) => f.id);
+      const { data: zData } = await supabase.from("zones").select("id, name, floor_id").in("floor_id", floorIds).order("name");
+      if (cancelled) return;
+      setZones((zData ?? []) as Zone[]);
+      if (!zData?.length) {
+        setAisles([]);
+        setStands([]);
+        setLocations([]);
+        return;
+      }
+      const zoneIds = (zData as Zone[]).map((z) => z.id);
+      const { data: aData } = await supabase.from("aisles").select("id, name, zone_id").in("zone_id", zoneIds).order("name");
+      if (cancelled) return;
+      setAisles((aData ?? []) as Aisle[]);
+      if (!aData?.length) {
+        setStands([]);
+        setLocations([]);
+        return;
+      }
+      const aisleIds = (aData as Aisle[]).map((a) => a.id);
+      let standsRaw: (Stand & { aisleId?: string })[] = [];
+      const AISLE_CHUNK = 50;
+      for (let i = 0; i < aisleIds.length; i += AISLE_CHUNK) {
+        if (cancelled) break;
+        const chunk = aisleIds.slice(i, i + AISLE_CHUNK);
+        const { data: sd } = await supabase.from("stands").select("id, name, code, aisle_id").in("aisle_id", chunk).order("name");
+        standsRaw = standsRaw.concat((sd ?? []) as (Stand & { aisleId?: string })[]);
+      }
+      if (cancelled) return;
+      const standsList: Stand[] = standsRaw.map((s) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code,
+        aisle_id: s.aisle_id ?? s.aisleId ?? "",
+      }));
+      setStands(standsList);
+      if (!standsList.length) {
+        setLocations([]);
+        return;
+      }
+      const standIds = standsList.map((s) => s.id);
+      const STAND_CHUNK = 100;
+      let allLocs: LocationItem[] = [];
+      for (let i = 0; i < standIds.length; i += STAND_CHUNK) {
+        if (cancelled) break;
+        const chunk = standIds.slice(i, i + STAND_CHUNK);
+        const PAGE = 1000;
+        let offset = 0;
+        while (true) {
+          const { data: locPage } = await supabase
+            .from("locations")
+            .select("id, name, code, stand_id, level")
+            .in("stand_id", chunk)
+            .order("stand_id")
+            .order("level")
+            .range(offset, offset + PAGE - 1);
+          const rows = (locPage ?? []) as (LocationItem & { standId?: string })[];
+          const normalized = rows.map((row) => ({
+            id: row.id,
+            name: row.name,
+            code: row.code,
+            stand_id: row.stand_id ?? row.standId ?? "",
+            level: Number(row.level ?? 1),
+          }));
+          allLocs = allLocs.concat(normalized);
+          if (rows.length < PAGE) break;
+          offset += PAGE;
+        }
+      }
+      if (!cancelled) setLocations(allLocs);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+      if (!ub?.branch_id || cancelled) return;
       const { data: branch } = await supabase.from("branches").select("responsable_iva").eq("id", ub.branch_id).single();
       if (!cancelled) setResponsableIva(!!branch?.responsable_iva);
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const floorIdsForWarehouse = selectedWarehouseId ? floors.filter((f) => f.warehouse_id === selectedWarehouseId).map((f) => f.id) : [];
+  const zonesForWarehouse = zones.filter((z) => floorIdsForWarehouse.includes(z.floor_id));
+  const aislesForZone = selectedZoneId ? aisles.filter((a) => a.zone_id === selectedZoneId) : [];
+  const standsForAisle = selectedAisleId ? stands.filter((s) => (s.aisle_id ?? (s as { aisleId?: string }).aisleId) === selectedAisleId) : [];
+  const standIdsForAisle = standsForAisle.map((s) => s.id);
+  const locationsForStand = selectedStandId ? locations.filter((l) => l.stand_id === selectedStandId) : [];
+  const locationsForAisle = selectedAisleId ? locations.filter((l) => standIdsForAisle.includes(l.stand_id)) : [];
+
+  const selectedLocation = selectedLocationId ? locations.find((l) => l.id === selectedLocationId) : null;
+  const selectedStand = selectedStandId ? stands.find((s) => s.id === selectedStandId) : null;
+  const selectedAisle = selectedAisleId ? aisles.find((a) => a.id === selectedAisleId) : null;
+  const selectedZone = selectedZoneId ? zones.find((z) => z.id === selectedZoneId) : null;
+  const selectedWarehouse = selectedWarehouseId ? warehouses.find((w) => w.id === selectedWarehouseId) : null;
+  const locationPath = [selectedWarehouse?.name, selectedZone?.name, selectedAisle?.name, selectedStand?.name, selectedLocation ? `Nivel ${selectedLocation.level}` : null].filter(Boolean).join(" → ");
 
   const numBaseCosto = Number(String(baseCosto).replace(/\D/g, "")) || 0;
   const numBasePrecio = Number(String(basePrecio).replace(/\D/g, "")) || 0;
@@ -101,7 +239,10 @@ export default function NewProductPage() {
     }
     const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
     if (!userRow?.organization_id) {
-      setError("No se encontró tu organización.");
+      setError(
+        "No se encontró tu organización. Si te registraste por correo, asegúrate de haber completado el registro en esta app. " +
+        "Si un administrador te dio acceso, pide que verifique en Supabase que tu usuario tenga organization_id en la tabla users."
+      );
       setSaving(false);
       return;
     }
@@ -135,12 +276,23 @@ export default function NewProductPage() {
     }
 
     const qty = Math.max(0, Number(stockInicial) || 0);
-    if (qty > 0) {
+    const locationIdToUse = sinUbicacion ? "" : selectedLocationId;
+    if (locationIdToUse) {
+      const { error: locErr } = await supabase.from("inventory_locations").insert({
+        product_id: product.id,
+        location_id: locationIdToUse,
+        quantity: qty,
+      });
+      if (locErr) {
+        setError(locErr.message || "Producto creado pero falló asignar ubicación.");
+        setSaving(false);
+        return;
+      }
+    } else if (qty > 0) {
       const { error: invError } = await supabase.from("inventory").insert({
         product_id: product.id,
         branch_id: ub.branch_id,
         quantity: qty,
-        location: "local",
       });
       if (invError) {
         setError(invError.message || "Producto creado pero falló el stock inicial.");
@@ -295,6 +447,158 @@ export default function NewProductPage() {
               Control de stock
             </p>
             <label className="mt-3 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
+              Ubicación en bodega (opcional)
+            </label>
+            <label className="mt-2 flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={sinUbicacion}
+                onChange={(e) => {
+                  setSinUbicacion(e.target.checked);
+                  if (e.target.checked) {
+                    setSelectedWarehouseId("");
+                    setSelectedZoneId("");
+                    setSelectedAisleId("");
+                    setSelectedStandId("");
+                    setSelectedLocationId("");
+                  }
+                }}
+                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+              />
+              <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Sin ubicación específica</span>
+            </label>
+            {!sinUbicacion && warehouses.length > 0 ? (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Bodega</label>
+                  <select
+                    className={inputClass}
+                    value={selectedWarehouseId}
+                    onChange={(e) => {
+                      setSelectedWarehouseId(e.target.value);
+                      setSelectedZoneId("");
+                      setSelectedAisleId("");
+                      setSelectedStandId("");
+                      setSelectedLocationId("");
+                    }}
+                  >
+                    <option value="">Elegir bodega…</option>
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {selectedWarehouseId && (
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Zona</label>
+                    <select
+                      className={inputClass}
+                      value={selectedZoneId}
+                      onChange={(e) => {
+                        setSelectedZoneId(e.target.value);
+                        setSelectedAisleId("");
+                        setSelectedStandId("");
+                        setSelectedLocationId("");
+                      }}
+                    >
+                      <option value="">Elegir zona…</option>
+                      {zonesForWarehouse.map((z) => (
+                        <option key={z.id} value={z.id}>{z.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {selectedZoneId && (
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Pasillo</label>
+                    <select
+                      className={inputClass}
+                      value={selectedAisleId}
+                      onChange={(e) => {
+                        setSelectedAisleId(e.target.value);
+                        setSelectedStandId("");
+                        setSelectedLocationId("");
+                      }}
+                    >
+                      <option value="">Elegir pasillo…</option>
+                      {aislesForZone.map((a) => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {selectedAisleId && (
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Estante</label>
+                    <select
+                      className={inputClass}
+                      value={selectedStandId}
+                      onChange={(e) => {
+                        setSelectedStandId(e.target.value);
+                        setSelectedLocationId("");
+                      }}
+                    >
+                      <option value="">Elegir estante…</option>
+                      {standsForAisle.map((st) => (
+                        <option key={st.id} value={st.id}>
+                          {st.name}{st.code ? ` (${st.code})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {standsForAisle.length === 0 && (
+                      <p className="mt-1.5 text-[12px] text-amber-600 dark:text-amber-400">
+                        No hay estantes en este pasillo.{" "}
+                        <Link href="/inventario/ubicaciones" className="font-medium underline hover:no-underline">
+                          Crea estantes y niveles en Ubicaciones
+                        </Link>
+                        .
+                      </p>
+                    )}
+                  </div>
+                )}
+                {selectedStandId && (
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Nivel</label>
+                    <select
+                      className={inputClass}
+                      value={selectedLocationId}
+                      onChange={(e) => setSelectedLocationId(e.target.value)}
+                      aria-invalid={!sinUbicacion && !selectedLocationId ? true : undefined}
+                    >
+                      <option value="">Elegir nivel…</option>
+                      {locationsForStand.map((loc) => (
+                        <option key={loc.id} value={loc.id}>
+                          Nivel {loc.level}{loc.name ? ` — ${loc.name}` : ""}{loc.code ? ` (${loc.code})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {locationsForStand.length === 0 && (
+                      <p className="mt-1.5 text-[12px] text-amber-600 dark:text-amber-400">
+                        No hay niveles en este estante.{" "}
+                        <Link href="/inventario/ubicaciones" className="font-medium underline hover:no-underline">
+                          Configura los niveles en Ubicaciones
+                        </Link>
+                        .
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
+            {selectedLocationId && locationPath && (
+              <p className="mt-3 flex flex-wrap items-center gap-1 rounded-lg bg-slate-50 py-2 px-3 text-[13px] dark:bg-slate-800/50">
+                <LocationPathWithIcons path={locationPath} iconClass="text-[13px]" />
+              </p>
+            )}
+            {warehouses.length === 0 && (
+              <p className="mt-3 text-[12px] text-slate-500 dark:text-slate-400">
+                <Link href="/inventario/ubicaciones" className="font-medium text-ov-pink hover:underline">
+                  Crea bodegas y ubicaciones
+                </Link>{" "}
+                para asignar el producto a un estante o celda al crearlo.
+              </p>
+            )}
+            <label className="mt-4 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
               Cantidad en inventario
             </label>
             <div className="mt-2">
@@ -405,6 +709,12 @@ export default function NewProductPage() {
                   <p><span className="font-medium text-slate-700 dark:text-slate-300">Nombre:</span> {nombre.trim() || "—"}</p>
                   <p><span className="font-medium text-slate-700 dark:text-slate-300">Referencia:</span> {referencia.trim() || "—"}</p>
                   {categoria && <p><span className="font-medium text-slate-700 dark:text-slate-300">Categoría:</span> {categories.find((c) => c.id === categoria)?.name ?? "—"}</p>}
+                  {selectedLocationId && locationPath && (
+                    <p className="flex flex-col gap-0.5">
+                      <span className="font-medium text-slate-700 dark:text-slate-300">Ubicación:</span>
+                      <LocationPathWithIcons path={locationPath} iconClass="text-[13px]" />
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">

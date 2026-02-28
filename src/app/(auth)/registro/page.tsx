@@ -113,12 +113,12 @@ export default function RegistroPage() {
     <div className="flex flex-1 flex-col lg:flex-row lg:items-stretch">
       {/* Izquierda: logo y descripción */}
       <div className="flex flex-col justify-center px-6 py-10 lg:w-1/2 lg:max-w-xl lg:pl-16 xl:pl-24">
-        <Link href="/" className="flex items-center gap-1 font-logo text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
-          <span className="material-symbols-outlined h-9 w-9 shrink-0 text-[36px] text-ov-pink sm:h-10 sm:w-10 sm:text-[40px]" aria-hidden>storefront</span>
-          <span>NOU back office</span>
+        <Link href="/" className="flex items-center gap-0.5 font-logo text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
+          <span className="material-symbols-outlined h-8 w-8 shrink-0 text-[32px] text-ov-pink sm:h-9 sm:w-9 sm:text-[36px]" aria-hidden>inventory_2</span>
+          <span>NOU Bodegas</span>
         </Link>
         <p className="mt-4 max-w-md text-[15px] leading-relaxed text-slate-600 dark:text-slate-400">
-          Por NOU Technology. SaaS premium: implementación, capacitación y licencia anual. Si tienes problemas con el inventario, nosotros vamos.
+          Por NOU Technology. Sistema de gestión para bodegas e inventarios: implementación, capacitación y soporte.
         </p>
       </div>
 

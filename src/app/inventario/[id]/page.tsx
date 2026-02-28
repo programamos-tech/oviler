@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
+import LocationPathWithIcons from "@/app/components/LocationPathWithIcons";
 
 const IVA_RATE = 0.19;
 
@@ -37,6 +38,8 @@ export default function ProductDetailPage() {
   const id = params?.id as string | undefined;
   const [product, setProduct] = useState<Product | null>(null);
   const [stock, setStock] = useState<number>(0);
+  const [branchId, setBranchId] = useState<string | null>(null);
+  const [locationRows, setLocationRows] = useState<{ quantity: number; path: string; locationId: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -78,6 +81,74 @@ export default function ProductDetailPage() {
 
       const total = (inv ?? []).reduce((s, r) => s + (r.quantity ?? 0), 0);
       if (!cancelled) setStock(total);
+
+      if (!cancelled && ub.branch_id) setBranchId(ub.branch_id);
+
+      const { data: ilData } = await supabase
+        .from("inventory_locations")
+        .select("location_id, quantity")
+        .eq("product_id", id);
+      if (cancelled) return;
+      const locIds = (ilData ?? []).map((r) => r.location_id).filter(Boolean);
+      if (locIds.length > 0) {
+        const { data: locs } = await supabase
+          .from("locations")
+          .select(`
+            id,
+            name,
+            code,
+            branch_id,
+            level,
+            stands (
+              name,
+              aisles (
+                name,
+                zones (
+                  name,
+                  floors (
+                    name,
+                    level,
+                    warehouses (
+                      name
+                    )
+                  )
+                )
+              )
+            )
+          `)
+          .in("id", locIds)
+          .eq("branch_id", ub.branch_id);
+        if (!cancelled && locs) {
+          const rows: { quantity: number; path: string; locationId: string }[] = [];
+          for (const il of ilData ?? []) {
+            const loc = locs.find((l: { id: string }) => l.id === il.location_id) as {
+              id: string;
+              name: string;
+              level?: number;
+              stands?: {
+                name: string;
+                aisles?: {
+                  name: string;
+                  zones?: {
+                    name: string;
+                    floors?: { name: string; level?: number; warehouses?: { name: string } };
+                  };
+                };
+              };
+            } | undefined;
+            const stand = loc?.stands;
+            if (!stand?.aisles) continue;
+            const a = stand.aisles;
+            const z = a.zones;
+            const f = z?.floors;
+            const w = f?.warehouses;
+            const path = [w?.name, z?.name, a?.name, stand?.name, loc?.level != null ? `Nivel ${loc.level}` : loc?.name].filter(Boolean).join(" → ");
+            rows.push({ quantity: il.quantity, path, locationId: loc!.id });
+          }
+          setLocationRows(rows);
+        }
+      }
+
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -245,6 +316,16 @@ export default function ProductDetailPage() {
               <div className="flex justify-between gap-2"><dt className="text-slate-500 dark:text-slate-400">Código</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{product.sku || "—"}</dd></div>
               <div className="flex justify-between gap-2"><dt className="text-slate-500 dark:text-slate-400">Categoría</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{product.category_name ?? "—"}</dd></div>
               {product.brand && <div className="flex justify-between gap-2"><dt className="text-slate-500 dark:text-slate-400">Marca</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{product.brand}</dd></div>}
+              <div className="flex flex-col gap-1">
+                <dt className="text-slate-500 dark:text-slate-400">Ubicación</dt>
+                <dd className="font-medium text-slate-800 dark:text-slate-100">
+                  {locationRows.length > 0 ? (
+                    <LocationPathWithIcons path={locationRows.map((r) => r.path).join("; ")} iconClass="text-[13px]" />
+                  ) : (
+                    <span className="text-slate-500 dark:text-slate-400">Sin ubicación específica</span>
+                  )}
+                </dd>
+              </div>
             </dl>
           </div>
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -254,6 +335,37 @@ export default function ProductDetailPage() {
             <p className="mt-3 text-[14px] text-slate-600 dark:text-slate-400">
               {product.description?.trim() ? product.description : "Sin descripción."}
             </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              Ubicación en bodega
+            </h2>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+              Dónde está el producto en esta sucursal.
+            </p>
+            {locationRows.length > 0 ? (
+              <>
+                <ul className="mt-3 space-y-2">
+                  {locationRows.map((row, i) => (
+                    <li key={i} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 py-2 px-3 text-[13px] dark:bg-slate-800/50">
+                      <span className="min-w-0 flex-1">
+                        <LocationPathWithIcons path={row.path} iconClass="text-[13px]" />
+                      </span>
+                      <span className="shrink-0 font-semibold text-slate-700 dark:text-slate-300">{row.quantity} und</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/inventario/ubicaciones" className="mt-3 inline-block text-[13px] font-medium text-ov-pink hover:underline">
+                  Gestionar ubicaciones
+                </Link>
+              </>
+            ) : (
+              <p className="mt-3 text-[13px] text-slate-500 dark:text-slate-400">
+                Sin ubicación específica. El stock ({stock} und) está en inventario general. Puedes asignar una ubicación al actualizar el stock o desde{" "}
+                <Link href="/inventario/ubicaciones" className="font-medium text-ov-pink hover:underline">Ubicaciones bodega</Link>.
+              </p>
+            )}
           </div>
         </div>
 

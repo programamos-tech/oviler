@@ -27,7 +27,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-[1600px] items-center justify-center gap-2 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
             <span className="tracking-wide">Powered by</span>
-            <span className="flex items-center gap-1 font-logo font-bold tracking-tight text-slate-700 dark:text-slate-300">
+            <span className="flex items-center gap-0.5 font-logo font-bold tracking-tight text-slate-700 dark:text-slate-300">
               <span className="material-symbols-outlined text-[14px]" aria-hidden>code</span>
               NOU desarrollos
             </span>

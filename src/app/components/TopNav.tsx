@@ -116,6 +116,14 @@ function IconTransfer() {
     </svg>
   );
 }
+function IconLocation() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
 function IconSettings() {
   return (
     <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -177,6 +185,7 @@ const navItems: NavItem[] = [
       { label: "Listado de productos", href: "/inventario", icon: <IconList />, description: "Ver todos los productos" },
       { label: "Nuevo producto", href: "/inventario/nuevo", icon: <IconPlus />, description: "Agregar producto al inventario" },
       { label: "Categorías", href: "/inventario/categorias", icon: <IconCategory />, description: "Gestionar categorías" },
+      { label: "Ubicaciones bodega", href: "/inventario/ubicaciones", icon: <IconLocation />, description: "Bodega, pisos, zonas y ubicaciones" },
       { label: "Actualizar stock", href: "/inventario/actualizar-stock", icon: <IconStock />, description: "Ajustar cantidades de productos" },
       { label: "Transferir stock", href: "/inventario/transferir", icon: <IconTransfer />, description: "Mover productos entre sucursales" },
     ],
@@ -212,7 +221,7 @@ const navItems: NavItem[] = [
   { label: "Actividades", href: "/actividades", icon: <NavIconClipboard /> },
 ];
 
-const FALLBACK_APP_NAME = "NOU back office";
+const FALLBACK_APP_NAME = "NOU Bodegas";
 
 export default function TopNav() {
   const pathname = usePathname();
@@ -297,9 +306,9 @@ export default function TopNav() {
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
       <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Marca NOU: logo + nombre de la plataforma */}
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-1 font-logo pt-1" title="NOU">
-          <div className="mt-1 flex shrink-0 items-center justify-center">
-            <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[26px] text-ov-pink dark:text-ov-pink-muted sm:h-7 sm:w-7 sm:text-[28px]" aria-hidden>storefront</span>
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-0.5 font-logo pt-1" title="NOU Bodegas">
+          <div className="mt-1 flex shrink-0 items-center justify-center -mr-0.5">
+            <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[26px] text-ov-pink dark:text-ov-pink-muted sm:h-7 sm:w-7 sm:text-[28px]" aria-hidden>inventory_2</span>
           </div>
           <div className="hidden sm:flex flex-col justify-center leading-tight">
             <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
@@ -334,9 +343,10 @@ export default function TopNav() {
                 onMouseLeave={(e) => {
                   // Solo cerrar si el mouse realmente salió del contenedor y no entró al modal
                   if (hasDropdown) {
-                    const relatedTarget = e.relatedTarget as HTMLElement;
+                    const relatedTarget = e.relatedTarget;
                     const dropdownEl = dropdownRefs.current[item.label];
-                    if (dropdownEl && !dropdownEl.contains(relatedTarget)) {
+                    const leftToNonNode = relatedTarget != null && !(relatedTarget instanceof Node);
+                    if (dropdownEl && (!relatedTarget || leftToNonNode || !dropdownEl.contains(relatedTarget as Node))) {
                       setOpenDropdown(null);
                     }
                   }

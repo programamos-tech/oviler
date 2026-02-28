@@ -3,18 +3,22 @@
 -- Antes de aplicar, crear secretos en Vault (SQL Editor o Dashboard → Vault):
 --   select vault.create_secret('https://TU_PROJECT_REF.supabase.co', 'project_url');
 --   select vault.create_secret('TU_ANON_KEY', 'anon_key');
+-- En local (sin pg_cron) se omite sin error.
 
-select cron.schedule(
-  'purge-activities-90-days',
-  '0 3 * * *',  -- todos los días a las 03:00 UTC
-  $$
-  select net.http_post(
-    url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url') || '/functions/v1/purge-activities',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'anon_key')
-    ),
-    body := '{}'::jsonb
-  ) as request_id;
-  $$
-);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'cron') THEN
+    PERFORM cron.schedule(
+      'purge-activities-90-days',
+      '0 3 * * *',  -- todos los días a las 03:00 UTC
+      'select net.http_post(
+        url := (select decrypted_secret from vault.decrypted_secrets where name = ''project_url'') || ''/functions/v1/purge-activities'',
+        headers := jsonb_build_object(''Content-Type'', ''application/json'', ''Authorization'', ''Bearer '' || (select decrypted_secret from vault.decrypted_secrets where name = ''anon_key'')),
+        body := ''{}''::jsonb
+      ) as request_id'
+    );
+  END IF;
+EXCEPTION
+  WHEN OTHERS THEN
+    NULL;  -- sin pg_cron/pg_net en local, omitir
+END $$;

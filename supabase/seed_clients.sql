@@ -5,7 +5,7 @@
 -- Cómo ejecutar: Supabase Studio → SQL Editor, pegar y ejecutar.
 -- Requisitos: organización con al menos una sucursal, un usuario y productos (ej. seed_restaurant.sql).
 
-DO $$
+DO $seed$
 DECLARE
   v_org_id UUID;
   v_branch_id UUID;
@@ -27,8 +27,6 @@ DECLARE
   v_quantity INT;
   v_unit_price DECIMAL(10,2);
   v_payment TEXT;
-  v_is_delivery BOOLEAN;
-  v_delivery_fee DECIMAL(10,2);
   v_label TEXT;
   v_address TEXT;
   v_ref TEXT;
@@ -131,7 +129,7 @@ BEGIN
   END LOOP;
 
   -- ========== VENTAS (PEDIDOS) POR CLIENTE ==========
-  -- Por cada cliente con cedula SEED-*, crear entre 1 y 8 ventas; algunas con domicilio
+  -- Por cada cliente con cedula SEED-*, crear entre 1 y 8 ventas
   FOR v_customer_id IN
     SELECT id FROM customers WHERE organization_id = v_org_id AND cedula LIKE 'SEED-%'
   LOOP
@@ -139,24 +137,15 @@ BEGIN
     FOR k IN 1..num_sales LOOP
       v_invoice_seq := v_invoice_seq + 1;
       v_invoice_num := 'FV-SEED-' || TO_CHAR(NOW() - (k * INTERVAL '2 days'), 'YYYYMMDD') || '-' || LPAD(v_invoice_seq::TEXT, 4, '0');
-      v_payment := CASE (k % 3) WHEN 0 THEN 'cash' WHEN 1 THEN 'transfer' ELSE 'mixed' END;
-      v_is_delivery := (k % 4) = 0;
-      v_delivery_fee := CASE WHEN v_is_delivery THEN 3000 + (k % 5) * 1000 ELSE NULL END;
+      v_payment := CASE (k % 2) WHEN 0 THEN 'cash' ELSE 'transfer' END;
 
-      SELECT id INTO v_addr_id
-      FROM customer_addresses
-      WHERE customer_id = v_customer_id
-      ORDER BY display_order
-      LIMIT 1;
-
-      INSERT INTO sales (branch_id, user_id, customer_id, invoice_number, total, payment_method, status, is_delivery, delivery_address_id, delivery_fee)
+      INSERT INTO sales (branch_id, user_id, customer_id, invoice_number, total, payment_method, status)
       VALUES (
-        v_branch_id, v_user_id, v_customer_id, v_invoice_num, 0, v_payment, 'completed',
-        v_is_delivery, CASE WHEN v_is_delivery THEN v_addr_id ELSE NULL END, v_delivery_fee
+        v_branch_id, v_user_id, v_customer_id, v_invoice_num, 0, v_payment, 'completed'
       )
       RETURNING id INTO v_sale_id;
 
-      v_total := COALESCE(v_delivery_fee, 0);
+      v_total := 0;
       num_items := 1 + (k % 4);
       FOR j IN 1..num_items LOOP
         i := 1 + (abs(hashtext(v_sale_id::TEXT || j::TEXT)) % array_length(product_ids, 1));
@@ -173,4 +162,4 @@ BEGIN
   END LOOP;
 
   RAISE NOTICE 'Seed clientes completado. Org: %. Clientes SEED-* con direcciones y pedidos creados.', v_org_id;
-END $$;
+END $seed$;
