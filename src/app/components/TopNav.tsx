@@ -132,6 +132,13 @@ function IconSettings() {
     </svg>
   );
 }
+function IconChart() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+  );
+}
 function IconCash() {
   return (
     <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,15 +157,16 @@ function IconEgresos() {
 const navItems: NavItem[] = [
   {
     label: "Dashboard",
-    href: "/dashboard",
+    href: "/inventario/ubicaciones",
     icon: <NavIconHome />,
     items: [
+      { label: "Mapa de bodega", href: "/inventario/ubicaciones", icon: <IconLocation />, description: "Zonas, pasillos y estantes" },
       { label: "Ver cierres", href: "/cierre-caja", icon: <IconList />, description: "Historial de cierres de caja" },
       { label: "Nuevo cierre", href: "/cierre-caja/nuevo", icon: <IconPlus />, description: "Realizar cierre de caja del día" },
     ],
   },
   {
-    label: "Ventas",
+    label: "Pedidos",
     href: "/ventas",
     icon: <NavIconCart />,
     items: [
@@ -214,6 +222,7 @@ const navItems: NavItem[] = [
     icon: <NavIconBuilding />,
     items: [
       { label: "Ver sucursales", href: "/sucursales", icon: <IconList />, description: "Lista de sucursales" },
+      { label: "Reportes", href: "/sucursales/reportes", icon: <IconChart />, description: "Ventas e ingresos de la sucursal" },
       { label: "Configurar sucursal", href: "/sucursales/configurar", icon: <IconSettings />, description: "Ajustes y configuración" },
       { label: "Nueva sucursal", href: "/sucursales/nueva", icon: <IconPlus />, description: "Crear nueva sucursal" },
     ],
@@ -296,7 +305,7 @@ export default function TopNav() {
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
-    if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
+    if (href === "/inventario/ubicaciones") return pathname === "/inventario/ubicaciones" || pathname.startsWith("/inventario/ubicaciones");
     return pathname.startsWith(href);
   };
 
@@ -306,9 +315,9 @@ export default function TopNav() {
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
       <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Marca NOU: logo + nombre de la plataforma */}
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-0.5 font-logo pt-1" title="NOU Bodegas">
+        <Link href="/inventario/ubicaciones" className="flex shrink-0 items-center gap-0.5 font-logo pt-1" title="NOU Bodegas">
           <div className="mt-1 flex shrink-0 items-center justify-center -mr-0.5">
-            <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[26px] text-ov-pink dark:text-ov-pink-muted sm:h-7 sm:w-7 sm:text-[28px]" aria-hidden>inventory_2</span>
+            <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[26px] text-ov-pink dark:text-ov-pink-muted sm:h-7 sm:w-7 sm:text-[28px]" style={{ fontVariationSettings: '"FILL" 1' }} aria-hidden>inventory_2</span>
           </div>
           <div className="hidden sm:flex flex-col justify-center leading-tight">
             <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
@@ -326,7 +335,7 @@ export default function TopNav() {
             const hasDropdown = item.items && item.items.length > 0;
             const isItemActive = isActive(item.href);
             const isOpen = openDropdown === item.label;
-            const navLabel = item.label === "Ventas" && branch?.sales_mode === "orders" ? "Pedidos" : item.label;
+            const navLabel = item.label;
 
             return (
               <div
@@ -393,7 +402,7 @@ export default function TopNav() {
                         <div className="space-y-1">
                           {item.items?.map((subItem) => {
                             const isSubItemActive = pathname === subItem.href;
-                            const salesCopy = item.label === "Ventas" && branch?.sales_mode ? getCopy(branch.sales_mode as "sales" | "orders") : null;
+                            const salesCopy = item.label === "Pedidos" && branch?.sales_mode ? getCopy(branch.sales_mode as "sales" | "orders") : null;
                             const subLabel = salesCopy && subItem.href === "/ventas" ? `Ver ${salesCopy.sectionTitle}` : salesCopy && subItem.href === "/ventas/nueva" ? salesCopy.newButton : subItem.label;
                             const subDescription = salesCopy && subItem.href === "/ventas" ? (branch?.sales_mode === "orders" ? "Lista de todos los pedidos" : "Lista de todas las ventas") : salesCopy && subItem.href === "/ventas/nueva" ? (branch?.sales_mode === "orders" ? "Registrar nuevo pedido" : "Registrar nueva venta") : subItem.description;
                             return (

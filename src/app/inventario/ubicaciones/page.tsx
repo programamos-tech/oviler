@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
@@ -52,6 +52,7 @@ export default function UbicacionesPage() {
   const [standDetailOpen, setStandDetailOpen] = useState<{ stand: MapStand; aisleName: string; zoneName: string } | null>(null);
   const [zoneConfigOpen, setZoneConfigOpen] = useState<string | null>(null);
   const [creatingLevelsForStandId, setCreatingLevelsForStandId] = useState<string | null>(null);
+  const hasAutoSelectedMainWarehouse = useRef(false);
 
   const supabase = createClient();
 
@@ -346,6 +347,14 @@ export default function UbicacionesPage() {
     if (!branchId) return;
     loadWarehouses();
   }, [branchId, loadWarehouses]);
+
+  // Mostrar la bodega principal por defecto (dashboard de bodega); si el usuario quiere otra, usa "Volver" para ver la lista
+  useEffect(() => {
+    if (warehouses.length > 0 && !selectedWarehouse && !hasAutoSelectedMainWarehouse.current) {
+      hasAutoSelectedMainWarehouse.current = true;
+      setSelectedWarehouse(warehouses[0]);
+    }
+  }, [warehouses, selectedWarehouse]);
 
   useEffect(() => {
     loadWarehouseStats();
@@ -666,7 +675,8 @@ export default function UbicacionesPage() {
     <button
       type="button"
       onClick={onClick}
-      aria-label="Volver a bodegas"
+      aria-label="Ver todas las bodegas"
+      title="Ver todas las bodegas"
       className="inline-flex items-center justify-center rounded-lg p-2 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-ov-pink dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-ov-pink-muted"
     >
       <span className="material-symbols-outlined text-[22px]">arrow_back</span>
@@ -680,16 +690,12 @@ export default function UbicacionesPage() {
           <Breadcrumb items={breadcrumbItems} />
           <h1 className="mt-2 flex items-center gap-2 text-xl font-bold text-slate-900 dark:text-slate-50">
             <span className="material-symbols-outlined text-ov-pink dark:text-ov-pink-muted">warehouse</span>
-            Ubicaciones bodega
+            {selectedWarehouse ? `Mapa de ${selectedWarehouse.name}` : "Ubicaciones bodega"}
           </h1>
-          {selectedWarehouse && (
-            <p className="mt-0.5 text-[14px] font-medium text-slate-600 dark:text-slate-400">
-              Mapa de {selectedWarehouse.name}
-            </p>
-          )}
-          <p className="mt-1 text-[14px] text-slate-600 dark:text-slate-400">
-            {branchName && <span>Sucursal: {branchName}. </span>}
-            Entra a una bodega para ver el mapa de zonas, pasillos y estantes. Asigna productos a cada ubicación.
+          <p className="mt-0.5 text-[14px] text-slate-600 dark:text-slate-400">
+            {selectedWarehouse
+              ? (branchName ? `Zonas, pasillos y estantes de ${branchName}. Asigna productos a cada nivel.` : "Zonas, pasillos y estantes. Asigna productos a cada nivel.")
+              : (branchName ? `Elige una bodega de ${branchName} para ver su mapa.` : "Elige una bodega para ver su mapa.")}
           </p>
         </div>
         {selectedWarehouse && (
@@ -798,12 +804,18 @@ export default function UbicacionesPage() {
                     ) : (
                       <div className="space-y-4">
                         {zone.aisles.map((aisle) => (
-                          <div key={aisle.id} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <div className="flex w-28 shrink-0 items-center gap-1.5 text-[12px] font-semibold text-slate-600 dark:text-slate-400">
-                              <span className="material-symbols-outlined text-[16px]">view_agenda</span>
-                              {aisle.name}
+                          <div key={aisle.id} className="flex gap-3">
+                            <div className="flex w-12 shrink-0 flex-col items-center justify-start self-stretch rounded-lg border border-slate-200 bg-slate-50/70 py-2 dark:border-slate-700 dark:bg-slate-800/50 sm:w-14">
+                              <span className="material-symbols-outlined shrink-0 text-[14px] text-slate-500 dark:text-slate-400">view_agenda</span>
+                              <span
+                                className="mt-2 flex flex-1 items-center justify-center px-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide text-slate-500 dark:text-slate-400 [writing-mode:vertical-rl] [text-orientation:mixed]"
+                                title={aisle.name}
+                              >
+                                {aisle.name}
+                                {aisle.code ? ` (${aisle.code})` : ""}
+                              </span>
                             </div>
-                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                            <div className="flex min-w-0 flex-1 flex-wrap items-stretch gap-2">
                               {aisle.stands.map((stand) => {
                                 const standLocKeys = stand.locations.map((l) => String(l.id).toLowerCase());
                                 const allItems = standLocKeys.flatMap((key) => locationStock[key] ?? []);
@@ -815,22 +827,19 @@ export default function UbicacionesPage() {
                                 const occupancyLabel = occupancyStatus === "full" ? "Lleno" : occupancyStatus === "space" ? "Hay espacio" : "Libre";
                                 const occupancyColor = occupancyStatus === "full" ? "bg-red-500" : occupancyStatus === "space" ? "bg-amber-500" : "bg-emerald-500";
                                 return (
-                                <div key={stand.id} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/50 p-1 dark:border-slate-700 dark:bg-slate-800/30">
+                                <div key={stand.id} className="flex min-w-0 flex-nowrap items-stretch gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/50 p-1.5 dark:border-slate-700 dark:bg-slate-800/30">
                                   <button
                                     type="button"
                                     onClick={() => setStandDetailOpen({ stand, aisleName: aisle.name, zoneName: zone.name })}
-                                    className="flex shrink-0 items-start gap-1 rounded px-1.5 py-1 text-left transition-colors hover:bg-ov-pink/10 dark:hover:bg-ov-pink/20"
-                                    title={`${occupancyLabel} · Ver ${stand.name} · ${stand.level_count} niveles${totalUnits > 0 ? ` · ${refCount} ref · ${totalUnits} und` : ""}`}
+                                    className="flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-left transition-colors hover:bg-ov-pink/10 dark:hover:bg-ov-pink/20"
+                                    title={`${occupancyLabel} · Ver ${stand.name} · ${stand.level_count} niveles`}
                                   >
-                                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${occupancyColor} ring-1 ring-white dark:ring-slate-800`} title={occupancyLabel} aria-hidden />
-                                    <span className="material-symbols-outlined mt-0.5 shrink-0 text-[14px] text-slate-500 dark:text-slate-400 sm:text-[16px]">shelves</span>
-                                    <span className="flex flex-col">
+                                    <span className={`h-2 w-2 shrink-0 rounded-full ${occupancyColor} ring-1 ring-white dark:ring-slate-800`} title={occupancyLabel} aria-hidden />
+                                    <span className="material-symbols-outlined shrink-0 text-[14px] text-slate-500 dark:text-slate-400 sm:text-[16px]">shelves</span>
+                                    <span className="flex flex-col justify-center">
                                       <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400 sm:text-[11px]">{stand.name}</span>
                                       <span className="text-[9px] leading-tight text-slate-500 dark:text-slate-500 sm:text-[10px]">
                                         {stand.level_count} nivel{stand.level_count !== 1 ? "es" : ""}
-                                        {totalUnits > 0 && (
-                                          <> · {refCount} ref · <span className="font-semibold text-ov-pink dark:text-ov-pink-muted">{totalUnits} und</span></>
-                                        )}
                                       </span>
                                     </span>
                                   </button>
@@ -850,18 +859,21 @@ export default function UbicacionesPage() {
                                         tabIndex={0}
                                         onClick={() => setLocationDetailOpen({ locationId: locKey, locationName: loc.name, aisleName: aisle.name, zoneName: zone.name })}
                                         onKeyDown={(e) => e.key === "Enter" && setLocationDetailOpen({ locationId: locKey, locationName: loc.name, aisleName: aisle.name, zoneName: zone.name })}
-                                        className="group relative flex min-h-[72px] w-24 shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-slate-200 bg-slate-50/80 px-1 py-1.5 text-center shadow-sm transition-all hover:border-ov-pink/50 hover:bg-ov-pink/10 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-ov-pink/50 dark:hover:bg-ov-pink/10"
+                                        className="group relative flex h-[72px] min-h-[72px] max-h-[72px] w-24 shrink-0 cursor-pointer flex-col rounded-lg border border-slate-200 bg-slate-50/80 text-center shadow-sm transition-colors hover:border-ov-pink/50 hover:bg-ov-pink/10 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-ov-pink/50 dark:hover:bg-ov-pink/10"
+                                        style={{ height: 72, boxSizing: "border-box" }}
                                         title={stockHere.length ? `${loc.name}: ${stockHere.map((p) => `${p.product_name} (${p.quantity})`).join(", ")}` : loc.name}
                                       >
-                                        <span className="truncate w-full text-[11px] font-medium text-slate-800 dark:text-slate-200">N{loc.level}</span>
-                                        {productLabel !== null && (
-                                          <span className="mt-0.5 min-h-0 max-w-full truncate text-[10px] leading-tight text-slate-600 dark:text-slate-400" title={productLabel}>
-                                            {productLabel}
-                                          </span>
-                                        )}
-                                        {totalUnits > 0 && (
-                                          <span className="mt-0.5 text-[10px] font-semibold text-ov-pink dark:text-ov-pink-muted">{totalUnits} und</span>
-                                        )}
+                                        <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-1 py-1.5">
+                                          <span className="truncate w-full shrink-0 text-[11px] font-medium text-slate-800 dark:text-slate-200">N{loc.level}</span>
+                                          {productLabel !== null && (
+                                            <span className="mt-0.5 line-clamp-1 min-w-0 max-w-full text-[10px] leading-tight text-slate-600 dark:text-slate-400" title={productLabel}>
+                                              {productLabel}
+                                            </span>
+                                          )}
+                                          {totalUnits > 0 && (
+                                            <span className="mt-0.5 shrink-0 text-[10px] font-semibold text-ov-pink dark:text-ov-pink-muted">{totalUnits} und</span>
+                                          )}
+                                        </div>
                                       </div>
                                     );
                                   })}
@@ -1283,7 +1295,7 @@ export default function UbicacionesPage() {
                     </button>
                   </div>
                 )}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {(stand.locations.length === 0 ? Array.from({ length: stand.level_count }, (_, i) => ({ id: `placeholder-${stand.id}-${i}`, level: i + 1 })) : stand.locations).map((loc: Location | { id: string; level: number }) => {
                     const locId = "id" in loc && typeof loc.id === "string" ? loc.id : "";
                     const isPlaceholder = locId.startsWith("placeholder-");

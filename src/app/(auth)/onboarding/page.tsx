@@ -51,8 +51,8 @@ export default function OnboardingPage() {
         .eq("organization_id", userData.organization_id);
 
       if (!branchesError && branches && branches.length > 0) {
-        // Ya tiene sucursales, redirigir a dashboard
-        router.push("/dashboard");
+        // Ya tiene sucursales, redirigir a bodega (mapa de ubicaciones)
+        router.push("/inventario/ubicaciones");
       }
     }
 
@@ -141,8 +141,8 @@ export default function OnboardingPage() {
         return;
       }
 
-      // Redirigir a dashboard
-      router.push("/dashboard");
+      // Redirigir a bodega (mapa de ubicaciones)
+      router.push("/inventario/ubicaciones");
       router.refresh();
     } catch (err) {
       setError("Error inesperado. Por favor intenta de nuevo.");

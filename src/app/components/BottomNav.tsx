@@ -109,8 +109,8 @@ const masItems = [
 ];
 
 const tabs = [
-  { label: "Inicio", href: "/dashboard", icon: HomeIcon },
-  { label: "Ventas", href: "/ventas", icon: CartIcon },
+  { label: "Inicio", href: "/inventario/ubicaciones", icon: HomeIcon },
+  { label: "Pedidos", href: "/ventas", icon: CartIcon },
   { label: "Clientes", href: "/clientes", icon: UsersIcon },
   { label: "Inventario", href: "/inventario", icon: BoxIcon },
   { label: "Más", href: "#", icon: MoreIcon, isMore: true },
@@ -188,7 +188,7 @@ export default function BottomNav() {
   }, [masOpen]);
 
   const isActive = (href: string) => {
-    if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
+    if (href === "/inventario/ubicaciones") return pathname === "/inventario/ubicaciones" || pathname.startsWith("/inventario/ubicaciones") || pathname === "/";
     return href !== "#" && pathname.startsWith(href);
   };
 
@@ -200,7 +200,7 @@ export default function BottomNav() {
       >
         {tabs.map((tab) => {
           const active = isActive(tab.href);
-          const tabLabel = tab.label === "Ventas" && salesMode === "orders" ? "Pedidos" : tab.label;
+          const tabLabel = tab.label;
           if (tab.isMore) {
             return (
               <button

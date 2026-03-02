@@ -38,6 +38,7 @@ export default function ProductDetailPage() {
   const id = params?.id as string | undefined;
   const [product, setProduct] = useState<Product | null>(null);
   const [stock, setStock] = useState<number>(0);
+  const [stockReserved, setStockReserved] = useState<number>(0);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [locationRows, setLocationRows] = useState<{ quantity: number; path: string; locationId: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +84,19 @@ export default function ProductDetailPage() {
       if (!cancelled) setStock(total);
 
       if (!cancelled && ub.branch_id) setBranchId(ub.branch_id);
+
+      // Stock reservado: suma de cantidades en pedidos/ventas no cancelados de esta sucursal
+      const { data: reservedRows } = await supabase
+        .from("sale_items")
+        .select("quantity, sales!inner(branch_id, status)")
+        .eq("product_id", id);
+      const reserved = (reservedRows ?? []).reduce((sum, row) => {
+        const raw = row as { quantity: number; sales: { branch_id: string; status: string } | { branch_id: string; status: string }[] | null };
+        const s = Array.isArray(raw.sales) ? raw.sales[0] ?? null : raw.sales;
+        if (!s || s.branch_id !== ub?.branch_id || s.status === "cancelled") return sum;
+        return sum + (Number(raw.quantity) || 0);
+      }, 0);
+      if (!cancelled) setStockReserved(reserved);
 
       const { data: ilData } = await supabase
         .from("inventory_locations")
@@ -236,6 +250,13 @@ export default function ProductDetailPage() {
               <p className={`mt-0.5 text-lg font-bold sm:text-xl ${stockColorClass}`}>
                 {stock} unidades
               </p>
+            </div>
+            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Stock reservado</p>
+              <p className="mt-0.5 text-lg font-bold text-amber-700 dark:text-amber-400 sm:text-xl">
+                {stockReserved} unidades
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Pedidos no cancelados</p>
             </div>
             <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Costo</p>

@@ -241,7 +241,7 @@ export default function CashClosingDetailPage() {
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
           <Breadcrumb
             items={[
-              { label: "Dashboard", href: "/dashboard" },
+              { label: "Dashboard", href: "/inventario/ubicaciones" },
               { label: "Cierres de caja", href: "/cierre-caja" },
               { label: "Detalle", href: "#" },
             ]}
@@ -273,7 +273,7 @@ export default function CashClosingDetailPage() {
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
         <Breadcrumb
           items={[
-            { label: "Dashboard", href: "/dashboard" },
+            { label: "Dashboard", href: "/inventario/ubicaciones" },
             { label: "Cierres de caja", href: "/cierre-caja" },
             { label: `Cierre ${formatDate(closing.closing_date)}` },
           ]}
@@ -568,7 +568,7 @@ export default function CashClosingDetailPage() {
                   {totalDeliveryFees > 0 && (
                     <tr>
                       <td colSpan={3} className="py-1.5 pr-2 text-right text-[13px] text-slate-500 dark:text-slate-500">
-                        Domicilios (excluido)
+                        Envíos (excluido)
                       </td>
                       <td className="py-1.5 text-right tabular-nums text-[13px] text-slate-500 dark:text-slate-500 line-through">
                         $ {formatMoney(totalDeliveryFees)}

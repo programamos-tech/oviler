@@ -98,7 +98,7 @@ export default function NewSalePage() {
   const customerItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [productHighlightIndex, setProductHighlightIndex] = useState(0);
   const [stockByProductId, setStockByProductId] = useState<Record<string, number>>({});
-  const [salesMode, setSalesMode] = useState<SalesMode>("sales");
+  const [salesMode, setSalesMode] = useState<SalesMode>("orders");
   const productListRef = useRef<HTMLUListElement>(null);
   const productItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -135,7 +135,7 @@ export default function NewSalePage() {
     return () => { cancelled = true; };
   }, [branchId]);
 
-  // Al cambiar cliente: cargar direcciones y resetear venta a domicilio
+  // Al cambiar cliente: cargar direcciones y resetear envío
   useEffect(() => {
     if (!selectedCustomer) {
       setCustomerAddresses([]);
@@ -507,7 +507,7 @@ export default function NewSalePage() {
       return;
     }
     if (isDelivery && deliveryFee.trim() === "") {
-      setError("El valor del domicilio es obligatorio (puede ser 0 si es gratis).");
+      setError("El valor del envío es obligatorio (puede ser 0 si es gratis).");
       return;
     }
     const payPending = isDelivery && paymentPending;
@@ -536,7 +536,7 @@ export default function NewSalePage() {
         invoice_number: invoiceNumber,
         total,
         payment_method: paymentMethod,
-        status: salesMode === "orders" ? "pending" : "completed",
+        status: "pending",
       };
       if (paymentMethod === "cash" && amountReceived.trim() !== "") {
         payload.amount_received = parseFormattedPrice(amountReceived) || null;
@@ -564,7 +564,7 @@ export default function NewSalePage() {
         .single();
 
       if (saleError) throw saleError;
-      if (!sale?.id) throw new Error("No se creó la venta");
+      if (!sale?.id) throw new Error("No se creó el pedido");
 
       const items = cart.map((item) => ({
         sale_id: sale.id,
@@ -579,7 +579,7 @@ export default function NewSalePage() {
 
       router.push(`/ventas/${sale.id}`);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error al crear la venta");
+      setError(e instanceof Error ? e.message : "Error al crear el pedido");
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -611,7 +611,7 @@ export default function NewSalePage() {
           <Link
             href="/ventas"
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-            title="Volver a ventas"
+            title="Volver a pedidos"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -950,7 +950,7 @@ export default function NewSalePage() {
             )}
           </div>
 
-          {/* Venta a domicilio */}
+          {/* Envío */}
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <label className={`flex items-center gap-2 ${selectedCustomer ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
               <input
@@ -973,11 +973,11 @@ export default function NewSalePage() {
               <svg className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h.01" />
               </svg>
-              <span className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Venta a domicilio</span>
+              <span className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Envío</span>
             </label>
             {!selectedCustomer && (
               <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
-                Selecciona un cliente para habilitar la venta a domicilio
+                Selecciona un cliente para habilitar el envío
               </p>
             )}
             {isDelivery && selectedCustomer && (
@@ -1045,7 +1045,7 @@ export default function NewSalePage() {
                   )}
                   <div>
                     <label className="block text-[12px] font-medium text-slate-500 dark:text-slate-400">
-                      Valor del domicilio <span className="text-ov-pink">*</span>
+                      Valor del envío <span className="text-ov-pink">*</span>
                     </label>
                     <input
                       type="text"
@@ -1217,7 +1217,7 @@ export default function NewSalePage() {
               )}
               {isDelivery && (
                 <div className="flex items-center justify-between text-[14px]">
-                  <span className="text-slate-600 dark:text-slate-400">Domicilio</span>
+                  <span className="text-slate-600 dark:text-slate-400">Envío</span>
                   <span className="font-medium text-slate-900 dark:text-slate-50">
                     {deliveryFeeAmount > 0 ? `$ ${formatMoney(deliveryFeeAmount)}` : "—"}
                   </span>
@@ -1241,7 +1241,7 @@ export default function NewSalePage() {
               aria-busy={submitting}
               aria-disabled={submitting}
             >
-              {submitting ? "Guardando…" : "Confirmar venta"}
+              {submitting ? "Guardando…" : getCopy(salesMode).confirmButton}
             </button>
             {error && (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-medium text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200" role="alert">

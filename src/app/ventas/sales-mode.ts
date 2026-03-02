@@ -1,5 +1,5 @@
 /**
- * Modo de la sucursal: ventas (retail) o pedidos (restaurante/domicilios).
+ * Modo de la sucursal: ventas (retail) o pedidos (restaurante/envíos).
  * Define copy y etiquetas de estado en la UI.
  */
 
@@ -10,17 +10,20 @@ const LABELS_SALES: Record<string, string> = {
   cancelled: "Anulada",
   pending: "Pendiente",
   preparing: "En preparación",
+  packing: "Empacando",
   on_the_way: "En camino",
   delivered: "Entregado",
 };
 
+/** Estados del pedido: Creado → En alistamiento (picking+packing) → Alistado → Despachado → Finalizado. Cancelado = anulación. */
 const LABELS_ORDERS: Record<string, string> = {
-  pending: "Pendiente",
-  preparing: "En preparación",
-  on_the_way: "En camino",
+  pending: "Creado",
+  preparing: "En alistamiento",
+  packing: "Alistado",
+  on_the_way: "Despachado",
   delivered: "Entregado",
-  completed: "Completada",
-  cancelled: "Anulada",
+  completed: "Finalizado",
+  cancelled: "Cancelado",
 };
 
 export function getStatusLabel(status: string, mode: SalesMode): string {
@@ -31,15 +34,17 @@ export function getStatusLabel(status: string, mode: SalesMode): string {
 export function getStatusClass(status: string): string {
   if (status === "cancelled") return "text-red-600 dark:text-red-400";
   if (status === "completed" || status === "delivered") return "text-emerald-600 dark:text-emerald-400";
-  if (["pending", "preparing", "on_the_way"].includes(status)) return "text-amber-600 dark:text-amber-400";
+  if (status === "pending") return "text-sky-600 dark:text-sky-400 font-semibold";
+  if (["preparing", "packing", "on_the_way"].includes(status)) return "text-amber-600 dark:text-amber-400";
   return "text-slate-600 dark:text-slate-400";
 }
 
 export const COPY = {
   sales: {
-    sectionTitle: "Ventas",
-    newButton: "Nueva venta",
-    emptyTitle: "Aún no hay ventas",
+    sectionTitle: "Pedidos",
+    newButton: "Nuevo pedido",
+    confirmButton: "Confirmar pedido",
+    emptyTitle: "Aún no hay pedidos",
     filterAll: "Todas",
     statusCompleted: "Completada",
     statusCancelled: "Anulada",
@@ -47,10 +52,11 @@ export const COPY = {
   orders: {
     sectionTitle: "Pedidos",
     newButton: "Nuevo pedido",
+    confirmButton: "Confirmar pedido",
     emptyTitle: "Aún no hay pedidos",
     filterAll: "Todos",
-    statusCompleted: "Completada",
-    statusCancelled: "Anulada",
+    statusCompleted: "Finalizado",
+    statusCancelled: "Cancelado",
   },
 } as const;
 
@@ -61,12 +67,12 @@ export function getCopy(mode: SalesMode) {
 /** Valores de estado para filtro en modo pedidos */
 export const ORDER_STATUS_FILTERS = [
   { value: "all", label: "Todos" },
-  { value: "pending", label: "Pendiente" },
-  { value: "preparing", label: "En preparación" },
-  { value: "on_the_way", label: "En camino" },
-  { value: "delivered", label: "Entregado" },
-  { value: "completed", label: "Completada" },
-  { value: "cancelled", label: "Anulada" },
+  { value: "pending", label: "Creado" },
+  { value: "preparing", label: "En alistamiento" },
+  { value: "packing", label: "Alistado" },
+  { value: "on_the_way", label: "Despachado" },
+  { value: "completed", label: "Finalizado" },
+  { value: "cancelled", label: "Cancelado" },
 ] as const;
 
 /** Valores de estado para filtro en modo ventas */

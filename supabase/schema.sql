@@ -261,6 +261,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
   unit_price DECIMAL(10,2) NOT NULL,
   discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
   discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+  quantity_picked INT CHECK (quantity_picked IS NULL OR (quantity_picked >= 0 AND quantity_picked <= quantity)),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
@@ -524,6 +525,11 @@ CREATE POLICY "Users see sale_items of their branches"
 DROP POLICY IF EXISTS "Users insert sale_items for sales in their branches" ON sale_items;
 CREATE POLICY "Users insert sale_items for sales in their branches"
   ON sale_items FOR INSERT
+  WITH CHECK (sale_id IN (SELECT id FROM sales WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())));
+DROP POLICY IF EXISTS "Users update sale_items of their branches" ON sale_items;
+CREATE POLICY "Users update sale_items of their branches"
+  ON sale_items FOR UPDATE
+  USING (sale_id IN (SELECT id FROM sales WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())))
   WITH CHECK (sale_id IN (SELECT id FROM sales WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid())));
 DROP POLICY IF EXISTS "Users delete sale_items of their branches" ON sale_items;
 CREATE POLICY "Users delete sale_items of their branches"

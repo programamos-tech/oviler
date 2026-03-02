@@ -76,7 +76,7 @@ export async function middleware(request: NextRequest) {
         return redirectWithCookies(url, cookiesFromSetAll)
       } else {
         const url = request.nextUrl.clone()
-        url.pathname = '/dashboard'
+        url.pathname = '/inventario/ubicaciones'
         return redirectWithCookies(url, cookiesFromSetAll)
       }
     }

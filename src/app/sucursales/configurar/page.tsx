@@ -323,7 +323,7 @@ export default function ConfigurarSucursalPage() {
               Modo de operación
             </p>
             <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-              Define si en esta sucursal manejas ventas (retail) o pedidos (restaurante/domicilios). Cambia los textos y estados en la app.
+              Define si en esta sucursal manejas ventas (retail) o pedidos (restaurante/envíos). Cambia los textos y estados en la app.
             </p>
             <div className="mt-3 space-y-2">
               <label className="flex cursor-pointer items-center gap-2">
@@ -336,11 +336,11 @@ export default function ConfigurarSucursalPage() {
                   className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
                 />
                 <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  Ventas (tienda / retail)
+                  Pedidos (tienda / retail)
                 </span>
               </label>
               <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
-                Verás &quot;Ventas&quot;, &quot;Nueva venta&quot;. Estados: Completada, Anulada.
+                Verás &quot;Pedidos&quot;, &quot;Nueva venta&quot;. Estados: Completada, Anulada.
               </p>
               <label className="mt-2 flex cursor-pointer items-center gap-2">
                 <input
@@ -352,7 +352,7 @@ export default function ConfigurarSucursalPage() {
                   className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
                 />
                 <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  Pedidos (restaurante / domicilios)
+                  Pedidos (restaurante / envíos)
                 </span>
               </label>
               <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">

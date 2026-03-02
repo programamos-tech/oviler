@@ -188,85 +188,14 @@ export default function SalesPage() {
     }
   }, [loading, filteredSales.length]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const showPagination = !loading && totalCount > 0;
-  const pageNumbers = (() => {
-    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
-    const around = 2;
-    const start = Math.max(1, page - around);
-    const end = Math.min(totalPages, page + around);
-    const nums: (number | "…")[] = [];
-    if (start > 1) { nums.push(1); if (start > 2) nums.push("…"); }
-    for (let i = start; i <= end; i++) nums.push(i);
-    if (end < totalPages) { if (end < totalPages - 1) nums.push("…"); nums.push(totalPages); }
-    return nums;
-  })();
-
   const copy = getCopy(salesMode);
   const paymentLabel = (p: SaleRow) =>
     p.payment_method === "cash" ? "Efectivo" : p.payment_method === "mixed" ? "Mixto" : "Transferencia";
-  const statusLabel = (s: SaleRow) => {
-    if (s.payment_pending && s.status === "completed") return "Pago pendiente";
-    return getStatusLabel(s.status, salesMode);
-  };
-  const statusClass = (s: SaleRow) => {
-    if (s.payment_pending && s.status === "completed") return "text-amber-600 dark:text-amber-400";
-    return getStatusClass(s.status);
-  };
+  const paymentColorClass = (p: SaleRow) =>
+    p.payment_method === "cash" ? "font-semibold text-emerald-600 dark:text-emerald-400" : p.payment_method === "mixed" ? "font-semibold text-violet-600 dark:text-violet-400" : "font-semibold text-blue-600 dark:text-blue-400";
+  const statusLabel = (s: SaleRow) => getStatusLabel(s.status, salesMode);
+  const statusClass = (s: SaleRow) => getStatusClass(s.status);
   const statusFilterOptions = salesMode === "orders" ? ORDER_STATUS_FILTERS : SALES_STATUS_FILTERS;
-
-  const paginationBar = showPagination && (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-      <p className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
-        {totalCount} {totalCount === 1 ? (salesMode === "orders" ? "pedido" : "venta") : (salesMode === "orders" ? "pedidos" : "ventas")}
-        {totalPages > 1 && <> · Página {page} de {totalPages}</>}
-      </p>
-      {totalPages > 1 && (
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            aria-label="Página anterior"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          {pageNumbers.map((n, i) =>
-            n === "…" ? (
-              <span key={`ellipsis-${i}`} className="px-2 text-slate-400">…</span>
-            ) : (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setPage(n)}
-                className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg border px-2 text-[13px] font-medium ${
-                  page === n
-                    ? "border-ov-pink bg-ov-pink text-white dark:bg-ov-pink dark:text-white"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                }`}
-              >
-                {n}
-              </button>
-            )
-          )}
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            aria-label="Página siguiente"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
@@ -278,8 +207,8 @@ export default function SalesPage() {
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               {salesMode === "orders"
-                ? "Lista de pedidos de la sucursal. Busca por factura o cliente y filtra por estado o forma de pago."
-                : "Lista de ventas de la sucursal. Busca por factura o cliente y filtra por estado o forma de pago."}
+                ? "Lista de pedidos de la sucursal. Busca por pedido o cliente y filtra por estado o forma de pago."
+                : "Lista de pedidos de la sucursal. Busca por pedido o cliente y filtra por estado o forma de pago."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -318,8 +247,8 @@ export default function SalesPage() {
               type="search"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              placeholder="Buscar por factura o cliente..."
-              aria-label="Buscar por factura o cliente"
+              placeholder="Buscar por pedido o cliente..."
+              aria-label="Buscar por pedido o cliente"
               className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-[14px] text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
             />
           </div>
@@ -406,7 +335,7 @@ export default function SalesPage() {
                 className="grid grid-cols-[minmax(100px,1fr)_1fr_minmax(100px,1.2fr)_minmax(70px,0.8fr)_minmax(90px,0.9fr)_minmax(72px,0.7fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800"
                 aria-hidden
               >
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Factura</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pedido</div>
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Fecha</div>
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cliente</div>
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pago</div>
@@ -450,7 +379,7 @@ export default function SalesPage() {
                             ) : s.delivery_fee && s.delivery_fee > 0 && s.delivery_paid ? (
                               <><MdCheckCircle className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" aria-hidden /><span className="flex flex-col leading-tight"><span>El envío</span><span>está pagado</span></span></>
                             ) : (
-                              <span>A domicilio</span>
+                              <span>Envío</span>
                             )}
                           </span>
                         </span>
@@ -466,7 +395,7 @@ export default function SalesPage() {
                       <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">{customerName}</p>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{paymentLabel(s)}</p>
+                      <p className={`text-[14px] ${paymentColorClass(s)}`}>{paymentLabel(s)}</p>
                     </div>
                     <div className="min-w-0">
                       <p className={`text-[14px] font-bold ${statusClass(s)}`}>{statusLabel(s)}</p>
@@ -505,7 +434,7 @@ export default function SalesPage() {
                   >
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Factura</span>
+                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Pedido</span>
                         <div className="flex min-w-0 items-center gap-2">
                           {s.is_delivery ? <MdLocalShipping className="h-4 w-4 shrink-0 text-slate-500" /> : <MdStore className="h-4 w-4 shrink-0 text-slate-500" />}
                           <span className="truncate font-bold tabular-nums text-slate-900 dark:text-slate-50">{displayInvoiceNumber(s.invoice_number)}</span>
@@ -521,7 +450,7 @@ export default function SalesPage() {
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Pago · Estado</span>
-                        <span className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{paymentLabel(s)} · <span className={statusClass(s)}>{statusLabel(s)}</span></span>
+                        <span className="text-[14px]"><span className={paymentColorClass(s)}>{paymentLabel(s)}</span> · <span className={statusClass(s)}>{statusLabel(s)}</span></span>
                       </div>
                       <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800">
                         <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Total</span>
@@ -541,8 +470,6 @@ export default function SalesPage() {
           </>
         )}
       </section>
-
-      {paginationBar}
     </div>
   );
 }

@@ -105,7 +105,7 @@ function LoginContent() {
           .eq("organization_id", userData.organization_id)
           .limit(1);
 
-        const path = branches?.length ? "/dashboard" : "/onboarding";
+        const path = branches?.length ? "/inventario/ubicaciones" : "/onboarding";
         window.location.href = path;
       }
     } catch (err) {

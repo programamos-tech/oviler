@@ -359,7 +359,7 @@ export default function NewCustomerPage() {
                 )}
               </div>
               <p className="text-slate-600 dark:text-slate-400">
-                En cada venta a domicilio podrás elegir a qué dirección enviar.
+                En cada pedido con envío podrás elegir a qué dirección enviar.
               </p>
             </div>
 

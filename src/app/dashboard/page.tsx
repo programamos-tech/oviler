@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import DatePickerCard from "@/app/components/DatePickerCard";
 
@@ -70,7 +70,22 @@ function salePriceFromProduct(basePrice: number | null, applyIva: boolean): numb
 
 export default function DashboardPage() {
   const router = useRouter();
+  const pathname = usePathname();
   type DateFilterMode = "today" | "range";
+
+  useEffect(() => {
+    if (pathname === "/dashboard") {
+      router.replace("/inventario/ubicaciones");
+    }
+  }, [pathname, router]);
+
+  if (pathname === "/dashboard") {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <p className="text-[14px] text-slate-500 dark:text-slate-400">Redirigiendo al Dashboard…</p>
+      </div>
+    );
+  }
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>("today");
   const [selectedDay, setSelectedDay] = useState<Date>(() => {
     const t = new Date();
@@ -575,7 +590,7 @@ export default function DashboardPage() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
-            Dashboard
+            Reportes
           </h1>
           <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-300 sm:text-[13px]">
             Resumen de ventas e ingresos de tu sucursal. Elige el rango de fechas (desde / hasta) para ver las métricas.
@@ -761,7 +776,7 @@ export default function DashboardPage() {
             <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                  Domicilios
+                  Envíos
                 </p>
                 <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
                   +{formatSensitiveValue(data.totalDeliveryFees)}
@@ -895,7 +910,7 @@ export default function DashboardPage() {
         <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div className="mb-3">
             <h2 className="text-base font-bold text-slate-900 dark:text-slate-50">
-              Ventas últimos 7 días
+              Pedidos últimos 7 días
             </h2>
             <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-300">
               Ingresos por día
