@@ -785,9 +785,20 @@ export default function SaleDetailPage() {
     }
     return fulfillmentQuantity(it);
   }
-  const itemsSubtotalLive = items.reduce((sum, it) => sum + lineSubtotalForQty(it, getEffectiveQty(it)), 0);
+  /** En "En alistamiento": para el total solo cuentan las líneas con cantidad definida; si no has tocado la línea, cuenta 0. */
+  function getQtyForTotal(it: SaleItemRow): number {
+    if (!canAlistarGlobal) return getEffectiveQty(it);
+    const hasSet = it.quantity_picked !== null && it.quantity_picked !== undefined || (partialPickedInputs[it.id] !== undefined && partialPickedInputs[it.id] !== "");
+    return hasSet ? getEffectiveQty(it) : 0;
+  }
+  const itemsSubtotalLive = items.reduce((sum, it) => sum + lineSubtotalForQty(it, getQtyForTotal(it)), 0);
   const totalLive = itemsSubtotalLive + deliveryFee;
   const invoicePrintType = sale.branches?.invoice_print_type ?? "block";
+  /** Todas las líneas tienen cantidad a despachar = cantidad pedida y fue definida explícitamente (no "sin tocar") → sugerir "Marcar como Alistado" */
+  const allLinesAlisted = canAlistarGlobal && items.length > 0 && items.every((it) => {
+    const hasSet = it.quantity_picked !== null && it.quantity_picked !== undefined || (partialPickedInputs[it.id] !== undefined && partialPickedInputs[it.id] !== "");
+    return hasSet && getEffectiveQty(it) === it.quantity && it.quantity > 0;
+  });
 
   return (
     <div
@@ -796,6 +807,13 @@ export default function SaleDetailPage() {
       <style
         dangerouslySetInnerHTML={{
           __html: `
+            @keyframes estado-listo-brillo {
+              0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.2); }
+              50% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); }
+            }
+            .estado-listo-animar {
+              animation: estado-listo-brillo 3s ease-in-out infinite;
+            }
             @media print {
               .print-invoice-tirilla {
                 max-width: 80mm !important;
@@ -914,7 +932,7 @@ export default function SaleDetailPage() {
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total</p>
               <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
-                $ {formatMoney(canAlistarGlobal ? totalLive : calculatedTotal)}
+                $ {formatMoney(initialOrderTotal)}
               </p>
             </div>
             <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
@@ -1020,9 +1038,11 @@ export default function SaleDetailPage() {
                 type="button"
                 onClick={() => canOpenStatusDropdown && setStatusDropdownOpen((v) => !v)}
                 disabled={updatingStatus || !canOpenStatusDropdown}
-                className={`mt-0.5 inline-flex min-h-[1.75rem] min-w-[120px] items-center justify-between gap-1.5 rounded-lg border px-3 py-1.5 text-left text-[13px] font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ov-pink/30 disabled:cursor-default disabled:opacity-80 ${
+                className={`mt-0.5 inline-flex min-h-[1.75rem] min-w-[120px] items-center justify-between gap-1.5 rounded-lg border px-3 py-1.5 text-left text-[13px] font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ov-pink/30 disabled:cursor-default disabled:opacity-80 ${allLinesAlisted ? "estado-listo-animar " : ""}${
                   canOpenStatusDropdown
-                    ? "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    ? allLinesAlisted
+                      ? "border-emerald-400 bg-emerald-50/50 text-slate-800 hover:bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-slate-200 dark:hover:bg-emerald-950/50"
+                      : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                     : `border-transparent ${statusClass} bg-slate-100 dark:bg-slate-800`
                 }`}
                 aria-expanded={statusDropdownOpen}
@@ -1041,7 +1061,7 @@ export default function SaleDetailPage() {
                   className="absolute left-0 top-full z-20 mt-1 max-h-64 w-40 list-none overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
                   role="listbox"
                 >
-                  {ORDER_STATUS_OPTIONS.map((opt) => (
+                  {(sale.is_delivery ? ORDER_STATUS_OPTIONS : ORDER_STATUS_OPTIONS.filter((o) => o.value !== "on_the_way" && o.value !== "delivered")).map((opt) => (
                     <li key={opt.value} role="option">
                       <button
                         type="button"
@@ -1222,7 +1242,7 @@ export default function SaleDetailPage() {
                   const effectiveIsFull = hasDefinedQty && effectiveQty === it.quantity;
                   const effectiveIsNone = hasDefinedQty && effectiveQty === 0;
                   const effectiveIsPartial = hasDefinedQty && effectiveQty > 0 && effectiveQty < it.quantity;
-                  const displaySubtotal = canAlistarGlobal ? lineSubtotalForQty(it, effectiveQty) : lineSubtotalFulfillment(it);
+                  const displaySubtotal = canAlistarGlobal ? lineSubtotalForQty(it, getQtyForTotal(it)) : lineSubtotalFulfillment(it);
                   const qtyDespachar = fulfillmentQuantity(it);
                   const inputVal = partialVal !== undefined && partialVal !== "" ? partialVal : (it.quantity_picked !== null && it.quantity_picked !== undefined ? String(it.quantity_picked) : "");
                   const showAlistedFeedback = alistedFeedbackId === it.id;
@@ -1269,9 +1289,9 @@ export default function SaleDetailPage() {
                           )}
                         </td>
                       )}
-                      <td className="py-2.5 px-3 text-right">
+                      <td className="py-2.5 px-3 text-left">
                         {canAlistar ? (
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-start gap-2">
                             <label htmlFor={"partial-" + it.id} className="sr-only">Cantidad a despachar</label>
                             <input
                               id={"partial-" + it.id}
@@ -1302,7 +1322,7 @@ export default function SaleDetailPage() {
                           <span className="tabular-nums text-slate-700 dark:text-slate-200">{qtyDespachar}</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-right tabular-nums font-medium text-slate-800 dark:text-slate-100">$ {formatMoney(displaySubtotal)}</td>
+                      <td className="py-2.5 px-3 text-left tabular-nums font-medium text-slate-800 dark:text-slate-100">$ {formatMoney(displaySubtotal)}</td>
                     </tr>
                   );
                 })}
