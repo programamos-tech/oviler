@@ -24,7 +24,7 @@ function UpdateStockContent() {
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const searchDropdownRef = useRef<HTMLDivElement>(null);
   const [currentStock, setCurrentStock] = useState<number | null>(null);
-  const [movementType, setMovementType] = useState<"entrada" | "ajuste">("entrada");
+  const [movementType, setMovementType] = useState<"entrada" | "ajuste">("ajuste");
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
   const [loadingProduct, setLoadingProduct] = useState(!!productIdFromUrl);
@@ -360,6 +360,18 @@ function UpdateStockContent() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
+                  onClick={() => setMovementType("ajuste")}
+                  className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-medium transition-colors ${
+                    movementType === "ajuste"
+                      ? "border-2 border-ov-pink bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20"
+                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                  title="El valor que ingresas es el nuevo stock total (reemplaza)"
+                >
+                  Reemplazar stock
+                </button>
+                <button
+                  type="button"
                   onClick={() => setMovementType("entrada")}
                   className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-medium transition-colors ${
                     movementType === "entrada"
@@ -368,23 +380,11 @@ function UpdateStockContent() {
                   }`}
                   title="Compré o me llegó mercancía"
                 >
-                  Entrada de stock
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMovementType("ajuste")}
-                  className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-medium transition-colors ${
-                    movementType === "ajuste"
-                      ? "border-2 border-ov-pink bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20"
-                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-                  }`}
-                  title="Conté y tengo más o menos de lo que dice el sistema"
-                >
-                  Ajuste por conteo
+                  Entrada (sumar)
                 </button>
               </div>
               <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
-                Entrada: compraste o te llegó producto. Ajuste: corriges cantidad después de un conteo físico (+ o -).
+                Reemplazar: el valor que ingresas es el nuevo stock total. Entrada: sumas esa cantidad al stock actual.
               </p>
             </div>
 
@@ -464,7 +464,7 @@ function UpdateStockContent() {
               </div>
               <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
                 <p className="font-bold text-slate-800 dark:text-slate-100">Tipo</p>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">{movementType === "entrada" ? "Entrada de stock" : "Ajuste por conteo"}</p>
+                <p className="mt-1 text-slate-600 dark:text-slate-400">{movementType === "entrada" ? "Entrada (sumar)" : "Reemplazar stock"}</p>
               </div>
               {hasBodega && (
                 <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">

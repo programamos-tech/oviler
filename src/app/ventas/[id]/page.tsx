@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/lib/activities";
 import { MdLocalShipping, MdStore, MdCancel, MdCheck, MdSchedule, MdPerson, MdBusiness, MdBadge } from "react-icons/md";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
@@ -39,7 +40,7 @@ const PAYMENT_COLOR_CLASS: Record<string, string> = {
   mixed: "font-semibold text-violet-600 dark:text-violet-400",
 };
 
-/** Opciones de estado: Creado → En alistamiento (picking+packing) → Alistado → Despachado → Finalizado + Cancelado */
+/** Opciones de estado con envío: flujo completo con alistamiento */
 const ORDER_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "pending", label: "Creado" },
   { value: "preparing", label: "En alistamiento" },
@@ -48,6 +49,9 @@ const ORDER_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "completed", label: "Finalizado" },
   { value: "cancelled", label: "Cancelado" },
 ];
+
+/** Venta sin envío: solo Pendiente → Completada / Anulada (sin alistamiento) */
+const STORE_SALE_STATUS_VALUES = ["pending", "completed", "cancelled"] as const;
 
 type SaleDetail = {
   id: string;
@@ -474,8 +478,28 @@ export default function SaleDetailPage() {
     if (!sale?.id) return;
     setUpdatingStatus(true);
     const supabase = createClient();
+    const previousStatus = sale.status;
     await supabase.from("sales").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", sale.id);
     setSale((prev) => (prev ? { ...prev, status: newStatus } : null));
+    if (branchOrgId && sale.branch_id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        try {
+          await logActivity(supabase, {
+            organizationId: branchOrgId,
+            branchId: sale.branch_id,
+            userId: user.id,
+            action: "sale_status_updated",
+            entityType: "sale",
+            entityId: sale.id,
+            summary: `Cambió estado de venta ${sale.invoice_number ?? sale.id} a ${newStatus}`,
+            metadata: { invoice_number: sale.invoice_number, previousStatus, newStatus },
+          });
+        } catch {
+          // No bloquear
+        }
+      }
+    }
     setUpdatingStatus(false);
   }
 
@@ -527,6 +551,25 @@ export default function SaleDetailPage() {
         .update({ status: "cancelled", cancellation_reason: cancelReason.trim() || null })
         .eq("id", sale.id);
       setSale((prev) => (prev ? { ...prev, status: "cancelled" as const } : null));
+      if (branchOrgId && sale.branch_id) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          try {
+            await logActivity(supabase, {
+              organizationId: branchOrgId,
+              branchId: sale.branch_id,
+              userId: user.id,
+              action: "sale_cancelled",
+              entityType: "sale",
+              entityId: sale.id,
+              summary: `Anuló la venta ${sale.invoice_number ?? sale.id}`,
+              metadata: { invoice_number: sale.invoice_number, reason: cancelReason.trim() || null },
+            });
+          } catch {
+            // No bloquear
+          }
+        }
+      }
     }
     setCancelling(false);
     setCancelOpen(false);
@@ -552,6 +595,25 @@ export default function SaleDetailPage() {
         ? { ...prev, status: "cancelled" as const, cancellation_requested_at: null, cancellation_requested_by: null }
         : null
     );
+    if (branchOrgId && sale.branch_id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        try {
+          await logActivity(supabase, {
+            organizationId: branchOrgId,
+            branchId: sale.branch_id,
+            userId: user.id,
+            action: "sale_cancelled",
+            entityType: "sale",
+            entityId: sale.id,
+            summary: `Aprobó anulación de venta ${sale.invoice_number ?? sale.id}`,
+            metadata: { invoice_number: sale.invoice_number },
+          });
+        } catch {
+          // No bloquear
+        }
+      }
+    }
     setApproving(false);
   }
 
@@ -682,7 +744,7 @@ export default function SaleDetailPage() {
 </head>
 <body>
   <div class="nou-header">
-    <span class="nou-logo">NOU Bodegas</span>
+    <span class="nou-logo">NOU Tiendas</span>
     <span class="nou-doc">Factura de venta</span>
   </div>
   <h1>Factura de venta No. ${esc(invoiceNum)}</h1>
@@ -718,7 +780,7 @@ export default function SaleDetailPage() {
     </tfoot>
   </table>
   <div class="legal">
-    Documento generado por NOU Bodegas. Consérvese como soporte de la operación.
+    Documento generado por NOU Tiendas. Consérvese como soporte de la operación.
   </div>
 </body>
 </html>`;
@@ -755,17 +817,21 @@ export default function SaleDetailPage() {
   const userName = sale.users?.name ?? "—";
   const copy = getCopy(salesMode);
   const paymentLabel = PAYMENT_LABELS[sale.payment_method] ?? sale.payment_method;
-  // Estado del pedido: siempre usar etiquetas de pedidos (Iniciado, Alistado, etc.) para diferenciar del estado del pago
+  // Con envío: etiquetas de pedido (Creado, Alistado, etc.). Sin envío: venta normal (Pendiente, Completada, Anulada).
   const orderStatusLabels = ["pending", "preparing", "packing", "on_the_way", "delivered", "completed", "cancelled"];
-  const statusLabel = orderStatusLabels.includes(sale.status)
-    ? getStatusLabel(sale.status, "orders")
-    : getStatusLabel(sale.status, salesMode);
+  const statusLabel = sale.is_delivery
+    ? (orderStatusLabels.includes(sale.status) ? getStatusLabel(sale.status, "orders") : getStatusLabel(sale.status, salesMode))
+    : getStatusLabel(sale.status, "sales");
   const statusClass = getStatusClass(sale.status);
   const pendingCancel = (sale.status === "completed" || sale.status === "delivered") && !!sale.cancellation_requested_at;
   const canCancel = (sale.status === "completed" || sale.status === "delivered") && !sale.cancellation_requested_at;
   const isOrderWorkflow = orderStatusLabels.includes(sale.status);
-  const canChangeOrderStatus = (salesMode === "orders" || isOrderWorkflow) && sale.status !== "cancelled" && sale.status !== "completed";
-  const canOpenStatusDropdown = (salesMode === "orders" || isOrderWorkflow) && sale.status !== "cancelled";
+  const canChangeOrderStatus = sale.is_delivery
+    ? (salesMode === "orders" || isOrderWorkflow) && sale.status !== "cancelled" && sale.status !== "completed"
+    : sale.status !== "cancelled" && sale.status !== "completed";
+  const canOpenStatusDropdown = sale.is_delivery
+    ? (salesMode === "orders" || isOrderWorkflow) && sale.status !== "cancelled"
+    : sale.status !== "cancelled";
   const itemsSubtotal = items.reduce((sum, it) => sum + lineSubtotalFulfillment(it), 0);
   const totalDiscount = items.reduce(
     (sum, it) => sum + (fulfillmentQuantity(it) * it.unit_price - lineSubtotalFulfillment(it)),
@@ -774,8 +840,8 @@ export default function SaleDetailPage() {
   const hasAnyDiscount = totalDiscount > 0;
   const deliveryFee = Number(sale.delivery_fee) || 0;
   const calculatedTotal = itemsSubtotal + deliveryFee;
-  /** Solo en "En alistamiento" se puede agregar productos y editar cantidades. Iniciado = creado (solo lectura); Alistado = ya listo. */
-  const canAlistarGlobal = sale.status === "preparing";
+  /** Solo ventas con envío pasan por alistamiento; en "En alistamiento" se puede agregar productos y editar cantidades. */
+  const canAlistarGlobal = sale.is_delivery && sale.status === "preparing";
   const initialOrderSubtotal = items.reduce((sum, it) => sum + lineSubtotal(it), 0);
   const initialOrderTotal = initialOrderSubtotal + deliveryFee;
   function getEffectiveQty(it: SaleItemRow): number {
@@ -1033,7 +1099,7 @@ export default function SaleDetailPage() {
             </div>
           <div className="flex flex-wrap items-center gap-2 print:hidden sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700" ref={statusDropdownRef}>
             <div className="relative flex flex-col">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Estado del pedido</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{sale.is_delivery ? "Estado del pedido" : "Estado de la venta"}</p>
               <button
                 type="button"
                 onClick={() => canOpenStatusDropdown && setStatusDropdownOpen((v) => !v)}
@@ -1047,7 +1113,7 @@ export default function SaleDetailPage() {
                 }`}
                 aria-expanded={statusDropdownOpen}
                 aria-haspopup="listbox"
-                aria-label="Estado del pedido"
+                aria-label={sale.is_delivery ? "Estado del pedido" : "Estado de la venta"}
               >
                 <span>{statusLabel}</span>
                 {canOpenStatusDropdown && (
@@ -1061,7 +1127,10 @@ export default function SaleDetailPage() {
                   className="absolute left-0 top-full z-20 mt-1 max-h-64 w-40 list-none overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
                   role="listbox"
                 >
-                  {(sale.is_delivery ? ORDER_STATUS_OPTIONS : ORDER_STATUS_OPTIONS.filter((o) => o.value !== "on_the_way" && o.value !== "delivered")).map((opt) => (
+                  {(sale.is_delivery
+                    ? ORDER_STATUS_OPTIONS
+                    : STORE_SALE_STATUS_VALUES.map((value) => ({ value, label: getStatusLabel(value, "sales") }))
+                  ).map((opt) => (
                     <li key={opt.value} role="option">
                       <button
                         type="button"

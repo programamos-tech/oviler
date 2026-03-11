@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 const ROLES = [
   { id: "owner", name: "Dueño" },
@@ -34,10 +35,12 @@ export default function NewEmployeePage() {
   const [nombre, setNombre] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [rol, setRol] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleNombreChange = (fullName: string) => {
     setNombre(fullName);
@@ -55,6 +58,89 @@ export default function NewEmployeePage() {
     }
   };
 
+  async function handleCreate() {
+    const nameTrim = nombre.trim();
+    if (!nameTrim) {
+      setError("El nombre es obligatorio.");
+      return;
+    }
+    if (!email.trim()) {
+      setError("El correo es obligatorio.");
+      return;
+    }
+    if (!password || password.length < 6) {
+      setError("La contraseña inicial debe tener al menos 6 caracteres.");
+      return;
+    }
+    const roleToUse = rol && ROLES.some((r) => r.id === rol) ? rol : "cashier";
+    setError(null);
+    setUploading(true);
+    const supabase = createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      setUploading(false);
+      setError("Sesión expirada. Vuelve a iniciar sesión.");
+      return;
+    }
+    const { data: me } = await supabase.from("users").select("organization_id").eq("id", authUser.id).single();
+    if (!me?.organization_id) {
+      setUploading(false);
+      setError("No se pudo obtener la organización.");
+      return;
+    }
+    try {
+      const createRes = await fetch("/api/admin/create-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+          name: nameTrim,
+          organization_id: me.organization_id,
+        }),
+      });
+      const createData = await createRes.json().catch(() => ({}));
+      if (!createRes.ok) {
+        setError(createData.error || "No se pudo crear el colaborador.");
+        setUploading(false);
+        return;
+      }
+      const newUserId = createData.user_id;
+      if (!newUserId) {
+        setError("Error al crear. No se recibió el id.");
+        setUploading(false);
+        return;
+      }
+      let avatarUrl: string | null = null;
+      if (photoFile) {
+        const maxSize = 5 * 1024 * 1024;
+        if (photoFile.size > maxSize) {
+          setError("La foto no debe superar 5 MB.");
+          setUploading(false);
+          return;
+        }
+        const ext = photoFile.name.split(".").pop()?.toLowerCase() || "jpg";
+        const filePath = `${authUser.id}/${newUserId}_${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, photoFile, { upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
+          avatarUrl = urlData.publicUrl;
+        }
+      }
+      const updatePayload: { role: string; avatar_url?: string | null } = { role: roleToUse };
+      if (avatarUrl != null) updatePayload.avatar_url = avatarUrl;
+      await supabase.from("users").update(updatePayload).eq("id", newUserId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado");
+      setUploading(false);
+      return;
+    }
+    setUploading(false);
+    window.location.href = "/roles";
+  }
+
   const inputClass =
     "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
   const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
@@ -65,10 +151,10 @@ export default function NewEmployeePage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
-              Nuevo empleado
+              Nuevo colaborador
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Registra un empleado: foto, nombre y usuario corto para acceso al sistema.
+              Registra un colaborador: foto, nombre y usuario corto para acceso al sistema.
             </p>
           </div>
           <Link
@@ -87,8 +173,13 @@ export default function NewEmployeePage() {
         <div className="space-y-4">
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Datos del empleado
+              Datos del colaborador
             </p>
+            {error && (
+              <div className="mt-3 rounded-lg bg-red-50 p-3 text-[13px] text-red-700 dark:bg-red-900/20 dark:text-red-400">
+                {error}
+              </div>
+            )}
             <div className="mt-3 space-y-3">
               <div>
                 <label className={labelClass}>Foto (opcional)</label>
@@ -107,9 +198,6 @@ export default function NewEmployeePage() {
                       onChange={handlePhotoChange}
                       className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200"
                     />
-                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-                      Se subirá al bucket al guardar.
-                    </p>
                   </div>
                 </div>
               </div>
@@ -145,6 +233,21 @@ export default function NewEmployeePage() {
                 />
               </div>
               <div>
+                <label className={labelClass}>Contraseña inicial <span className="text-ov-pink">*</span></label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className={inputClass}
+                  minLength={6}
+                  autoComplete="new-password"
+                />
+                <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                  El colaborador podrá cambiarla al iniciar sesión.
+                </p>
+              </div>
+              <div>
                 <label className={labelClass}>Rol</label>
                 <select value={rol} onChange={(e) => setRol(e.target.value)} className={inputClass}>
                   <option value="">Seleccionar rol</option>
@@ -164,7 +267,7 @@ export default function NewEmployeePage() {
             </p>
             <div className="mt-3 space-y-3 text-[13px]">
               <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Empleado</p>
+                <p className="font-bold text-slate-800 dark:text-slate-100">Colaborador</p>
                 <p className="mt-1 text-slate-600 dark:text-slate-400">{nombre || "—"}</p>
               </div>
               <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
@@ -185,15 +288,16 @@ export default function NewEmployeePage() {
               <div className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
                 <p className="font-bold text-slate-700 dark:text-slate-100">Paso final</p>
                 <p className="mt-1">
-                  Al confirmar se creará el empleado y, si subiste foto, se guardará en el bucket.
+                  Al confirmar se creará el colaborador.
                 </p>
               </div>
               <button
                 type="button"
+                onClick={handleCreate}
                 disabled={uploading}
                 className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-900 dark:hover:bg-slate-800"
               >
-                {uploading ? "Guardando…" : "Crear empleado"}
+                {uploading ? "Guardando…" : "Crear colaborador"}
               </button>
             </div>
           </div>

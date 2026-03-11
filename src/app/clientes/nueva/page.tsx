@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
 
 const LABEL_OPTIONS = [
@@ -120,6 +121,36 @@ export default function NewCustomerPage() {
           return;
         }
       }
+    }
+
+    const addressLabels = validAddresses.map((a) => (a.label === "Otro" ? (a.labelCustom.trim() || "Otro") : a.label));
+    const addressesSummary =
+      addressLabels.length === 0
+        ? null
+        : addressLabels.length === 1
+          ? `1 dirección: ${addressLabels[0]}`
+          : `${addressLabels.length} direcciones: ${addressLabels.join(", ")}`;
+
+    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+    try {
+      await logActivity(supabase, {
+        organizationId: userRow.organization_id,
+        branchId: ub?.branch_id ?? null,
+        userId: user.id,
+        action: "customer_created",
+        entityType: "customer",
+        entityId: customer?.id ?? null,
+        summary: `Creó el cliente ${nameTrim}`,
+        metadata: {
+          name: nameTrim,
+          email: email.trim() || null,
+          phone: phone.trim() || null,
+          cedula: cedula.trim() || null,
+          addressesSummary: addressesSummary ?? null,
+        },
+      });
+    } catch {
+      // No bloquear el flujo si falla el registro de actividad
     }
 
     router.push("/clientes");

@@ -241,7 +241,7 @@ export default function CashClosingDetailPage() {
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
           <Breadcrumb
             items={[
-              { label: "Dashboard", href: "/inventario/ubicaciones" },
+              { label: "Inicio", href: "/dashboard" },
               { label: "Cierres de caja", href: "/cierre-caja" },
               { label: "Detalle", href: "#" },
             ]}
@@ -273,7 +273,7 @@ export default function CashClosingDetailPage() {
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
         <Breadcrumb
           items={[
-            { label: "Dashboard", href: "/inventario/ubicaciones" },
+            { label: "Inicio", href: "/dashboard" },
             { label: "Cierres de caja", href: "/cierre-caja" },
             { label: `Cierre ${formatDate(closing.closing_date)}` },
           ]}

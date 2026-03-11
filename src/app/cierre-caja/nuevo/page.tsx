@@ -669,7 +669,7 @@ function NewCashClosingContent() {
       <header className="space-y-2">
         <Breadcrumb
           items={[
-            { label: "Dashboard", href: "/inventario/ubicaciones" },
+            { label: "Inicio", href: "/dashboard" },
             { label: "Cierres de caja", href: "/cierre-caja" },
             { label: "Nuevo cierre", href: "#" },
           ]}

@@ -20,7 +20,7 @@ const navItems = [
   },
   {
     href: "/ventas",
-    label: "Pedidos",
+    label: "Ventas",
     icon: (
       <svg className="h-full w-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path

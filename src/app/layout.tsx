@@ -21,9 +21,9 @@ const youngSerif = Young_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "NOU Bodegas | Gestión de inventarios y almacenes",
+  title: "NOU Tiendas | Gestión para comercios",
   description:
-    "Sistema de gestión para bodegas e inventarios. Control de ubicaciones, stock y ventas. Implementación, capacitación y soporte.",
+    "Sistema de gestión para tiendas. Ventas, inventario, clientes y reportes. Implementación, capacitación y soporte.",
 };
 
 export default function RootLayout({

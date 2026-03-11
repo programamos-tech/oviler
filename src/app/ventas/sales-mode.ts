@@ -41,19 +41,19 @@ export function getStatusClass(status: string): string {
 
 export const COPY = {
   sales: {
-    sectionTitle: "Pedidos",
-    newButton: "Nuevo pedido",
-    confirmButton: "Confirmar pedido",
-    emptyTitle: "Aún no hay pedidos",
+    sectionTitle: "Ventas",
+    newButton: "Nueva factura",
+    confirmButton: "Confirmar factura",
+    emptyTitle: "Aún no hay ventas",
     filterAll: "Todas",
     statusCompleted: "Completada",
     statusCancelled: "Anulada",
   },
   orders: {
-    sectionTitle: "Pedidos",
-    newButton: "Nuevo pedido",
-    confirmButton: "Confirmar pedido",
-    emptyTitle: "Aún no hay pedidos",
+    sectionTitle: "Ventas",
+    newButton: "Nueva factura",
+    confirmButton: "Confirmar factura",
+    emptyTitle: "Aún no hay ventas",
     filterAll: "Todos",
     statusCompleted: "Finalizado",
     statusCancelled: "Cancelado",

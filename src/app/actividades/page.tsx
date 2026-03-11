@@ -15,7 +15,7 @@ type Activity = {
   summary: string;
   metadata: Record<string, unknown>;
   created_at: string;
-  users: { name: string } | null;
+  users: { name: string; avatar_url?: string | null } | null;
 };
 
 type BranchOption = { id: string; name: string };
@@ -26,7 +26,7 @@ type ActivityComment = {
   user_id: string;
   body: string;
   created_at: string;
-  users: { name: string } | null;
+  users: { name: string; avatar_url?: string | null } | null;
 };
 
 function timeAgo(dateStr: string): string {
@@ -55,6 +55,25 @@ function initial(name: string | null): string {
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2);
   return name.slice(0, 2).toUpperCase();
 }
+
+function getActivityTypeIcon(activity: { entity_type: string; action: string }): { icon: string; label: string } {
+  if (activity.entity_type === "customer") return { icon: "person", label: "Cliente" };
+  if (activity.entity_type === "category") return { icon: "category", label: "Categoría" };
+  if (activity.entity_type === "product") {
+    return { icon: "inventory_2", label: activity.action === "stock_adjusted" ? "Inventario" : "Producto" };
+  }
+  if (activity.entity_type === "sale") return { icon: "shopping_cart", label: "Venta" };
+  return { icon: "info", label: "Actividad" };
+}
+
+const SALE_STATUS_LABELS: Record<string, string> = {
+  pending: "Pendiente",
+  preparing: "En alistamiento",
+  packing: "Alistado",
+  on_the_way: "Despachado",
+  completed: "Completada",
+  cancelled: "Anulada",
+};
 
 export default function ActivityFeedPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -93,7 +112,7 @@ export default function ActivityFeedPage() {
 
     let q = supabase
       .from("activities")
-      .select("id, organization_id, branch_id, user_id, actor_type, action, entity_type, entity_id, summary, metadata, created_at, users!user_id(name)")
+      .select("id, organization_id, branch_id, user_id, actor_type, action, entity_type, entity_id, summary, metadata, created_at, users!user_id(name, avatar_url)")
       .eq("organization_id", userRow.organization_id)
       .order("created_at", { ascending: false })
       .limit(80);
@@ -121,7 +140,7 @@ export default function ActivityFeedPage() {
       summary: string;
       metadata: Record<string, unknown>;
       created_at: string;
-      users: { name: string }[] | { name: string } | null;
+      users: { name: string; avatar_url?: string | null }[] | { name: string; avatar_url?: string | null } | null;
     }>).map((a) => ({
       ...a,
       users: Array.isArray(a.users) ? (a.users[0] || null) : a.users,
@@ -139,7 +158,7 @@ export default function ActivityFeedPage() {
     const [commentsRes, likesRes] = await Promise.all([
       supabase
         .from("activity_comments")
-        .select("id, activity_id, user_id, body, created_at, users!user_id(name)")
+        .select("id, activity_id, user_id, body, created_at, users!user_id(name, avatar_url)")
         .in("activity_id", ids)
         .order("created_at", { ascending: true }),
       supabase.from("activity_likes").select("activity_id, user_id").in("activity_id", ids),
@@ -151,7 +170,7 @@ export default function ActivityFeedPage() {
       user_id: string;
       body: string;
       created_at: string;
-      users: { name: string }[] | { name: string } | null;
+      users: { name: string; avatar_url?: string | null }[] | { name: string; avatar_url?: string | null } | null;
     }>).map((c) => ({
       ...c,
       users: Array.isArray(c.users) ? (c.users[0] || null) : c.users,
@@ -202,7 +221,7 @@ export default function ActivityFeedPage() {
     const { data: newComment } = await supabase
       .from("activity_comments")
       .insert({ activity_id: activityId, user_id: currentUserId, body })
-      .select("id, activity_id, user_id, body, created_at, users!user_id(name)")
+      .select("id, activity_id, user_id, body, created_at, users!user_id(name, avatar_url)")
       .single();
     setSubmittingComment(null);
     setCommentDraft((prev) => ({ ...prev, [activityId]: "" }));
@@ -266,6 +285,7 @@ export default function ActivityFeedPage() {
             const likesNum = likesCount[a.id] ?? 0;
             const liked = !!likedByMe[a.id];
             const expanded = expandedComments[a.id] ?? false;
+            const typeIcon = getActivityTypeIcon(a);
             return (
               <div
                 key={a.id}
@@ -273,7 +293,7 @@ export default function ActivityFeedPage() {
               >
                 <div className="flex gap-3">
                   <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white ${
+                    className={`relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[12px] font-bold text-white ${
                       isSystem(a) ? "bg-orange-500" : "bg-slate-900 dark:bg-slate-700"
                     }`}
                   >
@@ -281,8 +301,23 @@ export default function ActivityFeedPage() {
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                    ) : (
-                      initial(actorName(a))
+                    ) : a.users?.avatar_url ? (
+                      <img
+                        src={a.users.avatar_url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (fallback) fallback.style.display = "flex";
+                        }}
+                      />
+                    ) : null}
+                    {!isSystem(a) && (
+                      <span className={a.users?.avatar_url ? "hidden absolute inset-0 items-center justify-center" : ""} style={a.users?.avatar_url ? { display: "none" } : undefined}>
+                        {initial(actorName(a))}
+                      </span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -294,8 +329,18 @@ export default function ActivityFeedPage() {
                         {formatTime(a.created_at)} · {timeAgo(a.created_at)}
                       </span>
                     </div>
+                    <div className="mt-1 flex items-start gap-2">
+                      <span
+                        className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-500"
+                        title={typeIcon.label}
+                      >
+                        <span className="material-symbols-outlined text-[14px]" aria-hidden>
+                          {typeIcon.icon}
+                        </span>
+                      </span>
+                      <div className="min-w-0 flex-1">
                     {a.action === "stock_adjusted" && a.metadata && typeof a.metadata.productName === "string" ? (
-                      <p className="mt-1 text-[14px] text-slate-700 dark:text-slate-300">
+                      <p className="text-[14px] text-slate-700 dark:text-slate-300">
                         {a.metadata.movementType === "entrada" ? "Registró entrada:" : "Ajustó stock:"}{" "}
                         <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.productName)}</span>
                         {(() => {
@@ -315,7 +360,7 @@ export default function ActivityFeedPage() {
                         <span className="font-bold">{Number(a.metadata.delta) >= 0 ? `(+${Number(a.metadata.delta)})` : `(${Number(a.metadata.delta)})`}</span>
                       </p>
                     ) : (a.action === "product_updated" || a.action === "product_created") && a.metadata && typeof a.metadata.name === "string" ? (
-                      <p className="mt-1 text-[14px] text-slate-700 dark:text-slate-300">
+                      <p className="text-[14px] text-slate-700 dark:text-slate-300">
                         {a.action === "product_created"
                           ? <>Creó el producto <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.name)}</span></>
                           : (() => {
@@ -326,12 +371,96 @@ export default function ActivityFeedPage() {
                             })()}
                       </p>
                     ) : a.action === "category_created" && a.metadata && typeof a.metadata.name === "string" ? (
-                      <p className="mt-1 text-[14px] text-slate-700 dark:text-slate-300">
+                      <p className="text-[14px] text-slate-700 dark:text-slate-300">
                         Creó la categoría <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.name)}</span>
                       </p>
+                    ) : a.action === "customer_created" && a.metadata && typeof a.metadata.name === "string" ? (
+                      <div className="space-y-1">
+                        <p className="text-[14px] text-slate-700 dark:text-slate-300">
+                          Creó el cliente <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.name)}</span>
+                        </p>
+                        {(a.metadata.email || a.metadata.phone || a.metadata.cedula || a.metadata.addressesSummary) ? (
+                          <p className="text-[12px] text-slate-500 dark:text-slate-400">
+                            {[
+                              a.metadata.email && `Correo: ${String(a.metadata.email)}`,
+                              a.metadata.phone && `Tel: ${String(a.metadata.phone)}`,
+                              a.metadata.cedula && `Cédula: ${String(a.metadata.cedula)}`,
+                              a.metadata.addressesSummary && String(a.metadata.addressesSummary),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : a.action === "customer_updated" && a.metadata && typeof a.metadata.name === "string" ? (
+                      <div className="space-y-1">
+                        <p className="text-[14px] text-slate-700 dark:text-slate-300">
+                          Editó el cliente <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.name)}</span>
+                        </p>
+                        {Array.isArray(a.metadata.changes) && (a.metadata.changes as { label?: string; from?: string; to?: string }[]).length > 0 ? (
+                          <ul className="list-inside list-disc space-y-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                            {(a.metadata.changes as { label?: string; from?: string; to?: string }[]).map((c, i) => (
+                              <li key={i}>
+                                <span className="font-medium text-slate-600 dark:text-slate-300">{c.label ?? "Campo"}:</span>{" "}
+                                <span className="line-through">{c.from || "—"}</span>
+                                {" → "}
+                                <span className="font-medium text-slate-800 dark:text-slate-200">{c.to || "—"}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : a.metadata.changesSummary ? (
+                          <p className="text-[12px] text-slate-500 dark:text-slate-400">Cambió: {String(a.metadata.changesSummary)}</p>
+                        ) : null}
+                      </div>
+                    ) : a.action === "sale_created" && a.metadata && typeof a.metadata.invoice_number === "string" ? (
+                      <div className="space-y-1">
+                        <p className="text-[14px] text-slate-700 dark:text-slate-300">
+                          Creó la venta <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.invoice_number)}</span>
+                          {a.metadata.customer_name ? (
+                            <span className="text-slate-600 dark:text-slate-400"> — {String(a.metadata.customer_name)}</span>
+                          ) : null}
+                          {typeof a.metadata.total === "number" ? (
+                            <span className="text-[12px] text-slate-500 dark:text-slate-400"> · ${Number(a.metadata.total).toLocaleString("es-CO")}</span>
+                          ) : null}
+                        </p>
+                        {Array.isArray(a.metadata.items) && (a.metadata.items as { name?: string; quantity?: number; reference?: string | null }[]).length > 0 ? (
+                          <ul className="space-y-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                            {(a.metadata.items as { name?: string; quantity?: number; reference?: string | null }[]).map((it, idx) => (
+                              <li key={idx}>
+                                <span className="font-medium text-slate-600 dark:text-slate-300">{it.name ?? "Producto"}</span>
+                                {it.reference ? (
+                                  <span className="text-slate-500 dark:text-slate-500"> ({it.reference})</span>
+                                ) : null}
+                                {" · "}
+                                <span className="font-medium text-slate-700 dark:text-slate-300">{Number(it.quantity) || 0} und</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </div>
+                    ) : a.action === "sale_status_updated" && a.metadata && typeof a.metadata.invoice_number === "string" ? (
+                      <p className="text-[14px] text-slate-700 dark:text-slate-300">
+                        Cambió estado: <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.invoice_number)}</span>
+                        {" → "}
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {SALE_STATUS_LABELS[String(a.metadata.newStatus)] ?? String(a.metadata.newStatus)}
+                        </span>
+                      </p>
+                    ) : a.action === "sale_cancelled" && a.metadata && typeof a.metadata.invoice_number === "string" ? (
+                      <p className="text-[14px] text-slate-700 dark:text-slate-300">
+                        {a.summary.includes(String(a.metadata.invoice_number))
+                          ? a.summary.replace(String(a.metadata.invoice_number), "")
+                          : a.summary}
+                        <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.invoice_number)}</span>
+                        {a.metadata.reason ? (
+                          <span className="text-[12px] text-slate-500 dark:text-slate-400"> — {String(a.metadata.reason)}</span>
+                        ) : null}
+                      </p>
                     ) : (
-                      <p className="mt-1 text-[14px] text-slate-700 dark:text-slate-300">{a.summary}</p>
+                      <p className="text-[14px] text-slate-700 dark:text-slate-300">{a.summary}</p>
                     )}
+                      </div>
+                    </div>
                     <div className="mt-2 flex items-center gap-4">
                       <button
                         type="button"
@@ -375,8 +504,27 @@ export default function ActivityFeedPage() {
                       <div className="mt-3 space-y-2 border-t border-slate-200 pt-3 dark:border-slate-800">
                         {comments.map((c) => (
                           <div key={c.id} className="flex gap-2">
-                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-300 text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
-                              {initial(c.users?.name ?? null)}
+                            <div className="relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-300 text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                              {c.users?.avatar_url ? (
+                                <>
+                                  <img
+                                    src={c.users.avatar_url}
+                                    alt=""
+                                    className="h-full w-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = "none";
+                                      const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                      if (fallback) fallback.style.display = "flex";
+                                    }}
+                                  />
+                                  <span className="absolute inset-0 hidden items-center justify-center" style={{ display: "none" }}>
+                                    {initial(c.users?.name ?? null)}
+                                  </span>
+                                </>
+                              ) : (
+                                <span>{initial(c.users?.name ?? null)}</span>
+                              )}
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-1.5">

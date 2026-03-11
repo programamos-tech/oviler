@@ -52,7 +52,7 @@ export default function OnboardingPage() {
 
       if (!branchesError && branches && branches.length > 0) {
         // Ya tiene sucursales, redirigir a bodega (mapa de ubicaciones)
-        router.push("/inventario/ubicaciones");
+        router.push("/dashboard");
       }
     }
 
@@ -142,7 +142,7 @@ export default function OnboardingPage() {
       }
 
       // Redirigir a bodega (mapa de ubicaciones)
-      router.push("/inventario/ubicaciones");
+      router.push("/dashboard");
       router.refresh();
     } catch (err) {
       setError("Error inesperado. Por favor intenta de nuevo.");

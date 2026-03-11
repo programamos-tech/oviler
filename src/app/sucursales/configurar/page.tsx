@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
@@ -35,7 +36,10 @@ const DEFAULT_EXPENSE_CONCEPTS = [
   "Pago a proveedores",
 ];
 
-export default function ConfigurarSucursalPage() {
+function ConfigurarSucursalContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const branchIdFromUrl = searchParams.get("branchId");
   const [branchId, setBranchId] = useState<string | null>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [branchName, setBranchName] = useState("");
@@ -43,6 +47,8 @@ export default function ConfigurarSucursalPage() {
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [hasBodega, setHasBodega] = useState(false);
   const [responsableIva, setResponsableIva] = useState(false);
   const [invoicePrintType, setInvoicePrintType] = useState<"tirilla" | "block">("block");
@@ -74,10 +80,24 @@ export default function ConfigurarSucursalPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) return;
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) return;
-      setBranchId(ub.branch_id);
-      const { data: branch } = await supabase.from("branches").select("organization_id, name, nit, address, phone, logo_url, has_bodega, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, warranty_by_sale, warranty_requires_approval, show_expenses, sales_mode").eq("id", ub.branch_id).single();
+      let targetBranchId: string | null = null;
+      if (branchIdFromUrl) {
+        const { data: userData } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
+        if (userData?.organization_id) {
+          const { data: branch } = await supabase.from("branches").select("id").eq("id", branchIdFromUrl).eq("organization_id", userData.organization_id).maybeSingle();
+          if (branch) targetBranchId = branch.id;
+        }
+      }
+      if (!targetBranchId && !cancelled) {
+        const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+        targetBranchId = ub?.branch_id ?? null;
+      }
+      if (!targetBranchId || cancelled) {
+        setLoading(false);
+        return;
+      }
+      setBranchId(targetBranchId);
+      const { data: branch } = await supabase.from("branches").select("organization_id, name, nit, address, phone, logo_url, has_bodega, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, warranty_by_sale, warranty_requires_approval, show_expenses, sales_mode").eq("id", targetBranchId).single();
       if (branch && !cancelled) {
         setOrganizationId((branch as { organization_id?: string }).organization_id ?? null);
         setBranchName((branch as { name?: string }).name ?? "");
@@ -109,7 +129,7 @@ export default function ConfigurarSucursalPage() {
       const { data: persons } = await supabase
         .from("delivery_persons")
         .select("id, name, code, phone, active")
-        .eq("branch_id", ub.branch_id)
+        .eq("branch_id", targetBranchId)
         .order("code", { ascending: true });
       if (!cancelled && persons) {
         setDeliveryPersons(persons as DeliveryPerson[]);
@@ -118,7 +138,7 @@ export default function ConfigurarSucursalPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [branchIdFromUrl]);
 
   async function handleSave() {
     if (!branchId) return;
@@ -129,7 +149,47 @@ export default function ConfigurarSucursalPage() {
     }
     setSaving(true);
     const supabase = createClient();
-    const { error } = await supabase.from("branches").update({
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSaving(false);
+      return;
+    }
+
+    let newLogoUrl: string | null = logoUrl;
+    if (logoFile && logoFile.size > 0) {
+      const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+      if (!allowedTypes.includes(logoFile.type)) {
+        alert("Formato de imagen no permitido. Usa JPEG, PNG, WebP o GIF.");
+        setSaving(false);
+        return;
+      }
+      const maxSize = 5 * 1024 * 1024; // 5 MB
+      if (logoFile.size > maxSize) {
+        alert("El logo no debe superar 5 MB.");
+        setSaving(false);
+        return;
+      }
+      const fileExt = logoFile.name.split(".").pop()?.toLowerCase() || "jpg";
+      const filePath = `branches/${user.id}/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from("logos")
+        .upload(filePath, logoFile, { upsert: false });
+      if (uploadError) {
+        alert("Error al subir el logo: " + (uploadError.message || "Revisa que el bucket 'logos' exista."));
+        setSaving(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from("logos").getPublicUrl(filePath);
+      newLogoUrl = urlData.publicUrl;
+      setLogoUrl(newLogoUrl);
+      setLogoFile(null);
+      if (logoPreview) {
+        URL.revokeObjectURL(logoPreview);
+        setLogoPreview(null);
+      }
+    }
+
+    const updatePayload: Record<string, unknown> = {
       name: nameTrim,
       nit: nit.trim() || null,
       address: address.trim() || null,
@@ -143,14 +203,16 @@ export default function ConfigurarSucursalPage() {
       show_expenses: showExpenses,
       sales_mode: salesMode,
       updated_at: new Date().toISOString(),
-    }).eq("id", branchId);
+    };
+    if (newLogoUrl !== undefined) updatePayload.logo_url = newLogoUrl;
+
+    const { error } = await supabase.from("branches").update(updatePayload).eq("id", branchId);
     setSaving(false);
     if (error) {
       alert("No se pudieron guardar los cambios: " + (error.message || "Error desconocido.") + (error.message?.includes("sales_mode") || error.message?.includes("column") ? " ¿Ejecutaste las migraciones de Supabase (branches.sales_mode)?" : ""));
       return;
     }
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    router.push("/sucursales");
   }
 
   return (
@@ -185,7 +247,9 @@ export default function ConfigurarSucursalPage() {
             </p>
             <div className="mt-3 flex items-center gap-4">
               <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
-                {logoUrl ? (
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Vista previa logo" className="h-full w-full object-cover" />
+                ) : logoUrl ? (
                   <img src={logoUrl} alt="Logo sucursal" className="h-full w-full object-cover" />
                 ) : (
                   <span className="text-[12px] font-medium text-slate-400">Sin logo</span>
@@ -194,11 +258,23 @@ export default function ConfigurarSucursalPage() {
               <div>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
                   className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (logoPreview) URL.revokeObjectURL(logoPreview);
+                    if (file) {
+                      setLogoFile(file);
+                      setLogoPreview(URL.createObjectURL(file));
+                    } else {
+                      setLogoFile(null);
+                      setLogoPreview(null);
+                    }
+                    e.target.value = "";
+                  }}
                 />
                 <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-                  Logo de la sucursal para facturas y reportes.
+                  Logo de la sucursal para facturas y reportes. Elige una imagen y guarda los cambios.
                 </p>
               </div>
             </div>
@@ -840,5 +916,17 @@ export default function ConfigurarSucursalPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function ConfigurarSucursalPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-[200px] items-center justify-center p-8">
+        <p className="text-[14px] text-slate-500 dark:text-slate-400">Cargando…</p>
+      </div>
+    }>
+      <ConfigurarSucursalContent />
+    </Suspense>
   );
 }

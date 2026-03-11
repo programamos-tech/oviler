@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import DatePickerCard from "@/app/components/DatePickerCard";
 
@@ -31,6 +31,8 @@ type DashboardData = {
   defectiveStockInvestment: number;
   expectedProfit: number;
   grossProfit: number;
+  netProfit: number;
+  warrantiesCount: number;
   lastExpense: { amount: number; concept: string } | null;
   lastCashSale: { total: number; invoice_number: string } | null;
   lastTransferSale: { total: number; invoice_number: string } | null;
@@ -70,22 +72,8 @@ function salePriceFromProduct(basePrice: number | null, applyIva: boolean): numb
 
 export default function DashboardPage() {
   const router = useRouter();
-  const pathname = usePathname();
   type DateFilterMode = "today" | "range";
 
-  useEffect(() => {
-    if (pathname === "/dashboard") {
-      router.replace("/inventario/ubicaciones");
-    }
-  }, [pathname, router]);
-
-  if (pathname === "/dashboard") {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-[14px] text-slate-500 dark:text-slate-400">Redirigiendo al Dashboard…</p>
-      </div>
-    );
-  }
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>("today");
   const [selectedDay, setSelectedDay] = useState<Date>(() => {
     const t = new Date();
@@ -472,6 +460,20 @@ export default function DashboardPage() {
         return sum;
       }, 0);
 
+      const totalExpensesDay = totalExpensesCash + totalExpensesTransfer;
+      const netProfit = grossProfit - totalExpensesDay;
+
+      // Garantías gestionadas en el período
+      let warrantiesCount = 0;
+      const { data: warrantiesInPeriod } = await supabase
+        .from("warranties")
+        .select("id")
+        .eq("branch_id", branchId)
+        .gte("created_at", start)
+        .lte("created_at", end);
+      if (cancelled) return;
+      warrantiesCount = (warrantiesInPeriod ?? []).length;
+
       setDashboardData({
         totalIncome,
         totalDeliveryFees,
@@ -497,6 +499,8 @@ export default function DashboardPage() {
         defectiveStockInvestment,
         expectedProfit,
         grossProfit,
+        netProfit,
+        warrantiesCount,
         lastExpense,
         lastCashSale: lastCashSaleDisplay,
         lastTransferSale: lastTransferSaleDisplay,
@@ -570,6 +574,8 @@ export default function DashboardPage() {
     defectiveStockInvestment: 0,
     expectedProfit: 0,
     grossProfit: 0,
+    netProfit: 0,
+    warrantiesCount: 0,
     lastExpense: null,
     lastCashSale: null,
     lastTransferSale: null,
@@ -745,172 +751,68 @@ export default function DashboardPage() {
         <p className="text-[13px] font-medium text-slate-500 dark:text-slate-300">Cargando métricas…</p>
       )}
 
-      {/* Métricas principales - Primera fila (4 cards) */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Ingreso total */}
-        <div className="min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                Ingreso total
-              </p>
-              <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {formatSensitiveValue(data.totalIncome)}
-              </p>
-            </div>
-            <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+      {/* Métricas del manifiesto: 5 + 5 cards */}
+      <section className="space-y-4">
+        {/* Fila 1: Total, Egresos, Efectivo, Transferencia, Facturas anuladas */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Total</p>
+            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.totalIncome)}</p>
           </div>
-          {data.totalDeliveryFees > 0 && (
-            <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
-              <div className="flex items-center justify-between">
-                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                  Envíos
-                </p>
-                <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  +{formatSensitiveValue(data.totalDeliveryFees)}
-                </p>
-              </div>
-            </div>
-          )}
+          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Egresos</p>
+            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(totalExpensesDay)}</p>
+          </div>
+          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Efectivo</p>
+            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.cash)}</p>
+          </div>
+          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Transferencia</p>
+            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.transfer)}</p>
+          </div>
+          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Facturas anuladas</p>
+            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">
+              {data.cancelledInvoices > 0 ? `${data.cancelledInvoices} (${formatSensitiveValue(data.cancelledTotal)})` : "0"}
+            </p>
+          </div>
         </div>
-
-        {/* Egresos */}
-        <div className="min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                Egresos
-              </p>
-              <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {formatSensitiveValue(totalExpensesDay)}
-              </p>
-            </div>
-            <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 14l-7 7m0 0l-7-7m7 7V3"
-              />
-            </svg>
+        {/* Fila 2: Créditos (placeholder), Garantías, Stock total, Ganancia bruta, Ganancia neta */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Créditos</p>
+            <p className="mt-2 text-xl font-bold text-slate-400 dark:text-slate-500 sm:text-2xl">—</p>
+            <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">Próximamente</p>
           </div>
-          {data.lastExpense && (
-            <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
-              <div className="flex items-center justify-between gap-2">
-                <p className="min-w-0 truncate text-[12px] font-medium text-slate-600 dark:text-slate-300" title={data.lastExpense.concept}>
-                  Último: {data.lastExpense.concept || "Egreso"}
-                </p>
-                <p className="shrink-0 text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  -{formatSensitiveValue(data.lastExpense.amount)}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Efectivo */}
-        <div className="min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                Efectivo
-              </p>
-              <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {formatSensitiveValue(data.cash)}
-              </p>
-            </div>
-            <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
-              />
-            </svg>
+          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Garantías</p>
+            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.warrantiesCount, "number")}</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">gestionadas en el período</p>
           </div>
-          {data.lastCashSale && (
-            <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
-              <div className="flex items-center justify-between">
-                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                  Último: Fact #{data.lastCashSale.invoice_number}
-                </p>
-                <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  +{formatSensitiveValue(data.lastCashSale.total)}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Transferencia */}
-        <div className="min-w-0 rounded-xl bg-white p-4 text-[15px] shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-                Transferencia
-              </p>
-              <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">
-                {formatSensitiveValue(data.transfer)}
-              </p>
-            </div>
-            <svg
-              className="ml-3 h-5 w-5 text-slate-400 dark:text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-              />
-            </svg>
+          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Stock total</p>
+            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.totalStockInvestment)}</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">valorizado (costo)</p>
           </div>
-          {data.lastTransferSale && (
-            <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
-              <div className="flex items-center justify-between">
-                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
-                  Último: Fact #{data.lastTransferSale.invoice_number}
-                </p>
-                <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  +{formatSensitiveValue(data.lastTransferSale.total)}
-                </p>
-              </div>
-            </div>
-          )}
+          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Ganancia bruta</p>
+            <p className="mt-2 text-xl font-bold text-emerald-600 dark:text-emerald-400 sm:text-2xl">{formatSensitiveValue(data.grossProfit)}</p>
+          </div>
+          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Ganancia neta</p>
+            <p className="mt-2 text-xl font-bold text-emerald-600 dark:text-emerald-400 sm:text-2xl">{formatSensitiveValue(data.netProfit)}</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">bruta − egresos</p>
+          </div>
         </div>
       </section>
 
-      {/* Gráfica y productos - lado a lado */}
-      <div className="grid gap-3 lg:grid-cols-2">
-        {/* Gráfica de ventas últimos 7 días */}
+      {/* Gráfica de ventas últimos 7 días */}
+      <div>
         <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div className="mb-3">
             <h2 className="text-base font-bold text-slate-900 dark:text-slate-50">
-              Pedidos últimos 7 días
+              Ventas últimos 7 días
             </h2>
             <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-300">
               Ingresos por día
@@ -1005,63 +907,6 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
-        </section>
-
-        {/* Top productos vendidos */}
-        <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <div className="mb-4">
-            <h2 className="text-base font-bold text-[#334155] dark:text-slate-50">
-              Productos más vendidos
-            </h2>
-            <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-300">
-              {periodLabel}
-            </p>
-          </div>
-          {data.topProducts.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-10 text-center text-[13px] font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-400">
-              Aún no hay productos más vendidos. Las ventas aparecerán aquí.
-            </p>
-          ) : (
-            <div className="space-y-5">
-              {(() => {
-                const maxTotal = Math.max(...data.topProducts.map((p) => p.total), 1);
-                const colors = [
-                  "bg-ov-pink dark:bg-ov-pink-muted",
-                  "bg-slate-500 dark:bg-slate-500",
-                  "bg-slate-400 dark:bg-slate-600",
-                  "bg-slate-300 dark:bg-slate-600",
-                  "bg-slate-200 dark:bg-slate-700",
-                ];
-                return data.topProducts.map((product, index) => (
-                  <div key={index} className="group">
-                    <div className="mb-1 flex items-baseline justify-between gap-2">
-                      <span className="min-w-0 truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">
-                        {index + 1}. {product.name}
-                      </span>
-                      <span className="shrink-0 text-[13px] font-bold tabular-nums text-slate-900 dark:text-slate-50">
-                        {formatSensitiveValue(product.total)}
-                      </span>
-                    </div>
-                    <div className="relative h-7 w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
-                      <div
-                        className={`h-full rounded-lg transition-all duration-500 ease-out ${colors[index] ?? "bg-slate-300"}`}
-                        style={{
-                          width: `${Math.max((product.total / maxTotal) * 100, 4)}%`,
-                          minWidth: "2px",
-                        }}
-                        title={hideSensitiveInfo ? undefined : `${product.units} unidades`}
-                      />
-                    </div>
-                    {!hideSensitiveInfo && (
-                      <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                        {product.units} {product.units === 1 ? "unidad" : "unidades"}
-                      </p>
-                    )}
-                  </div>
-                ));
-              })()}
-            </div>
-          )}
         </section>
       </div>
     </div>

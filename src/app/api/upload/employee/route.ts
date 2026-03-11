@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Subida de foto de empleado a bucket (S3, Cloudflare R2, etc.).
+ * Subida de foto de colaborador a bucket (S3, Cloudflare R2, etc.).
  * Por ahora devuelve una URL mock. Para producción:
  * 1. Configurar credenciales del bucket en env (ej. AWS_ACCESS_KEY_ID, BUCKET_NAME).
  * 2. Usar @aws-sdk/client-s3 o similar para putObject con el file recibido.

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/lib/activities";
 import { getCopy, type SalesMode } from "../sales-mode";
 
 const IVA_RATE = 0.19;
@@ -577,6 +578,28 @@ export default function NewSalePage() {
       const { error: itemsError } = await supabase.from("sale_items").insert(items);
       if (itemsError) throw itemsError;
 
+      if (orgId && userId && branchId) {
+        try {
+          await logActivity(supabase, {
+            organizationId: orgId,
+            branchId,
+            userId,
+            action: "sale_created",
+            entityType: "sale",
+            entityId: sale.id,
+            summary: `Creó la venta ${invoiceNumber}${selectedCustomer?.name ? ` — ${selectedCustomer.name}` : ""}`,
+            metadata: {
+              invoice_number: invoiceNumber,
+              total,
+              customer_name: selectedCustomer?.name ?? null,
+              items: cart.map((i) => ({ name: i.name, quantity: i.quantity, reference: i.reference || null })),
+            },
+          });
+        } catch {
+          // No bloquear el flujo
+        }
+      }
+
       router.push(`/ventas/${sale.id}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Error al crear el pedido");
@@ -611,7 +634,7 @@ export default function NewSalePage() {
           <Link
             href="/ventas"
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-            title="Volver a pedidos"
+            title="Volver a ventas"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />

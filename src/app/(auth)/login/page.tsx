@@ -105,7 +105,7 @@ function LoginContent() {
           .eq("organization_id", userData.organization_id)
           .limit(1);
 
-        const path = branches?.length ? "/inventario/ubicaciones" : "/onboarding";
+        const path = branches?.length ? "/dashboard" : "/onboarding";
         window.location.href = path;
       }
     } catch (err) {
@@ -119,11 +119,11 @@ function LoginContent() {
       {/* Izquierda: logo y descripción */}
       <div className="flex flex-col justify-center px-6 py-10 lg:w-1/2 lg:max-w-xl lg:pl-16 xl:pl-24">
         <Link href="/" className="flex items-center gap-0.5 font-logo text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
-          <span className="material-symbols-outlined h-8 w-8 shrink-0 text-[32px] text-ov-pink sm:h-9 sm:w-9 sm:text-[36px]" aria-hidden>inventory_2</span>
-          <span>NOU Bodegas</span>
+          <span className="material-symbols-outlined h-8 w-8 shrink-0 text-[32px] text-ov-pink sm:h-9 sm:w-9 sm:text-[36px]" aria-hidden>storefront</span>
+          <span>NOU Tiendas</span>
         </Link>
         <p className="mt-4 max-w-md text-[15px] leading-relaxed text-slate-600 dark:text-slate-400">
-          Por NOU Technology. Sistema de gestión para bodegas e inventarios: implementación, capacitación y soporte.
+          Por NOU Technology. Sistema de gestión para tiendas: implementación, capacitación y soporte.
         </p>
       </div>
 

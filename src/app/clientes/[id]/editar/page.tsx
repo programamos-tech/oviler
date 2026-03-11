@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
 
 const LABEL_OPTIONS = [
@@ -53,6 +54,7 @@ export default function EditCustomerPage() {
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initialDataRef = useRef<{ name: string; cedula: string; email: string; phone: string; addressesCount: number } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -90,6 +92,13 @@ export default function EditCustomerPage() {
           }))
         );
       }
+      initialDataRef.current = {
+        name: data.name ?? "",
+        cedula: data.cedula ?? "",
+        email: data.email ?? "",
+        phone: data.phone ?? "",
+        addressesCount: sorted.length,
+      };
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -161,6 +170,68 @@ export default function EditCustomerPage() {
         setSaving(false);
         return;
       }
+    }
+
+    const initial = initialDataRef.current;
+    const changes: { field: string; label: string; from: string; to: string }[] = [];
+    if (initial) {
+      const prevName = (initial.name ?? "").trim();
+      if (prevName !== nameTrim) {
+        changes.push({ field: "name", label: "Nombre", from: prevName || "—", to: nameTrim });
+      }
+      const prevCedula = (initial.cedula ?? "").trim();
+      const newCedula = cedula.trim();
+      if (prevCedula !== newCedula) {
+        changes.push({ field: "cedula", label: "Cédula", from: prevCedula || "—", to: newCedula || "—" });
+      }
+      const prevEmail = (initial.email ?? "").trim();
+      const newEmail = email.trim();
+      if (prevEmail !== newEmail) {
+        changes.push({ field: "email", label: "Correo", from: prevEmail || "—", to: newEmail || "—" });
+      }
+      const prevPhone = (initial.phone ?? "").trim();
+      const newPhone = phone.trim();
+      if (prevPhone !== newPhone) {
+        changes.push({ field: "phone", label: "Teléfono", from: prevPhone || "—", to: newPhone || "—" });
+      }
+      if (initial.addressesCount !== validAddresses.length) {
+        changes.push({
+          field: "addresses",
+          label: "Direcciones",
+          from: initial.addressesCount === 0 ? "ninguna" : `${initial.addressesCount} dirección${initial.addressesCount !== 1 ? "es" : ""}`,
+          to: validAddresses.length === 0 ? "ninguna" : `${validAddresses.length} dirección${validAddresses.length !== 1 ? "es" : ""}`,
+        });
+      }
+    }
+    const changesSummary =
+      changes.length === 0
+        ? "datos"
+        : changes.length === 1
+          ? changes[0]!.label.toLowerCase()
+          : changes.map((c) => c.label.toLowerCase()).slice(0, -1).join(", ") + " y " + changes[changes.length - 1]!.label.toLowerCase();
+
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const { data: userRow } = authUser ? await supabase.from("users").select("organization_id").eq("id", authUser.id).single() : { data: null };
+    const { data: ub } = authUser ? await supabase.from("user_branches").select("branch_id").eq("user_id", authUser.id).limit(1).single() : { data: null };
+    try {
+      if (userRow?.organization_id && authUser) {
+        await logActivity(supabase, {
+          organizationId: userRow.organization_id,
+          branchId: ub?.branch_id ?? null,
+          userId: authUser.id,
+          action: "customer_updated",
+          entityType: "customer",
+          entityId: id,
+          summary: `Editó el cliente ${nameTrim}`,
+          metadata: {
+            name: nameTrim,
+            changesSummary,
+            changes: changes.map((c) => ({ field: c.field, label: c.label, from: c.from, to: c.to })),
+          },
+        });
+      }
+    } catch {
+      // No bloquear el flujo si falla el registro de actividad
     }
 
     router.push(`/clientes/${id}`);

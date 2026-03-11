@@ -85,7 +85,9 @@ export default function ProductDetailPage() {
 
       if (!cancelled && ub.branch_id) setBranchId(ub.branch_id);
 
-      // Stock reservado: suma de cantidades en pedidos/ventas no cancelados de esta sucursal
+      // Stock reservado: solo ventas que aún no han descontado stock (pendientes, en alistamiento, alistadas).
+      // Completadas y despachadas ya descontaron, no cuentan como reservado.
+      const STATUSES_THAT_RESERVE = ["pending", "preparing", "packing"];
       const { data: reservedRows } = await supabase
         .from("sale_items")
         .select("quantity, sales!inner(branch_id, status)")
@@ -94,6 +96,7 @@ export default function ProductDetailPage() {
         const raw = row as { quantity: number; sales: { branch_id: string; status: string } | { branch_id: string; status: string }[] | null };
         const s = Array.isArray(raw.sales) ? raw.sales[0] ?? null : raw.sales;
         if (!s || s.branch_id !== ub?.branch_id || s.status === "cancelled") return sum;
+        if (!STATUSES_THAT_RESERVE.includes(s.status)) return sum; // ya pagado/despachado = ya descontado
         return sum + (Number(raw.quantity) || 0);
       }, 0);
       if (!cancelled) setStockReserved(reserved);
@@ -256,7 +259,7 @@ export default function ProductDetailPage() {
               <p className="mt-0.5 text-lg font-bold text-amber-700 dark:text-amber-400 sm:text-xl">
                 {stockReserved} unidades
               </p>
-              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Pedidos no cancelados</p>
+              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">En ventas no despachadas ni completadas</p>
             </div>
             <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Costo</p>
@@ -325,14 +328,12 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      {/* Contenido en dos columnas */}
-      <section className="grid min-w-0 gap-5 lg:grid-cols-[1fr_1fr]">
-        {/* Datos del producto */}
-        <div className="min-w-0 space-y-4">
-          <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Identificación
-            </h2>
+      {/* Datos del producto: tres cards en grid simétrico */}
+      <section className="grid min-w-0 gap-5 sm:grid-cols-1 lg:grid-cols-3">
+        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+            Identificación
+          </h2>
             <dl className="mt-3 space-y-2 text-[14px]">
               <div className="flex justify-between gap-2"><dt className="text-slate-500 dark:text-slate-400">Código</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{product.sku || "—"}</dd></div>
               <div className="flex justify-between gap-2"><dt className="text-slate-500 dark:text-slate-400">Categoría</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{product.category_name ?? "—"}</dd></div>
@@ -348,20 +349,21 @@ export default function ProductDetailPage() {
                 </dd>
               </div>
             </dl>
-          </div>
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Descripción
-            </h2>
-            <p className="mt-3 text-[14px] text-slate-600 dark:text-slate-400">
-              {product.description?.trim() ? product.description : "Sin descripción."}
-            </p>
-          </div>
+        </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Ubicación en bodega
-            </h2>
+        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+            Descripción
+          </h2>
+          <p className="mt-3 text-[14px] text-slate-600 dark:text-slate-400">
+            {product.description?.trim() ? product.description : "Sin descripción."}
+          </p>
+        </div>
+
+        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+            Ubicación en bodega
+          </h2>
             <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
               Dónde está el producto en esta sucursal.
             </p>
@@ -387,23 +389,6 @@ export default function ProductDetailPage() {
                 <Link href="/inventario/ubicaciones" className="font-medium text-ov-pink hover:underline">Ubicaciones bodega</Link>.
               </p>
             )}
-          </div>
-        </div>
-
-        {/* Ventas de este producto */}
-        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-            Ventas de este producto
-          </h2>
-          <div className="mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-10 dark:border-slate-700">
-            <svg className="h-10 w-10 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            <p className="mt-3 text-[14px] font-medium text-slate-600 dark:text-slate-400">Aún no hay ventas registradas</p>
-            <p className="mt-1 max-w-[260px] text-center text-[13px] text-slate-500 dark:text-slate-500">
-              Cuando las ventas incluyan ítems por producto, aquí verás el detalle.
-            </p>
-          </div>
         </div>
       </section>
 

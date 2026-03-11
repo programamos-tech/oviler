@@ -93,7 +93,7 @@ const masItems = [
     icon: IconRoles,
     items: [
       { label: "Ver roles", href: "/roles", icon: IconList },
-      { label: "Nuevo empleado", href: "/roles/nuevo", icon: IconUserPlus },
+      { label: "Nuevo colaborador", href: "/roles/nuevo", icon: IconUserPlus },
     ],
   },
   {
@@ -109,8 +109,8 @@ const masItems = [
 ];
 
 const tabs = [
-  { label: "Inicio", href: "/inventario/ubicaciones", icon: HomeIcon },
-  { label: "Pedidos", href: "/ventas", icon: CartIcon },
+  { label: "Inicio", href: "/dashboard", icon: HomeIcon },
+  { label: "Ventas", href: "/ventas", icon: CartIcon },
   { label: "Clientes", href: "/clientes", icon: UsersIcon },
   { label: "Inventario", href: "/inventario", icon: BoxIcon },
   { label: "Más", href: "#", icon: MoreIcon, isMore: true },
@@ -188,7 +188,7 @@ export default function BottomNav() {
   }, [masOpen]);
 
   const isActive = (href: string) => {
-    if (href === "/inventario/ubicaciones") return pathname === "/inventario/ubicaciones" || pathname.startsWith("/inventario/ubicaciones") || pathname === "/";
+    if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/sucursales/reportes" || pathname === "/";
     return href !== "#" && pathname.startsWith(href);
   };
 
