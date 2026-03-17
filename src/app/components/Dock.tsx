@@ -20,7 +20,7 @@ const navItems = [
   },
   {
     href: "/ventas",
-    label: "Ventas",
+    label: "Ingresos",
     icon: (
       <svg className="h-full w-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
@@ -34,7 +34,7 @@ const navItems = [
   },
   {
     href: "/clientes",
-    label: "Clientes",
+    label: "Miembros",
     icon: (
       <svg className="h-full w-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path

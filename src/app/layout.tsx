@@ -21,9 +21,9 @@ const youngSerif = Young_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "NOU Tiendas | Gestión para comercios",
-  description:
-    "Sistema de gestión para tiendas. Ventas, inventario, clientes y reportes. Implementación, capacitación y soporte.",
+title: "NOU Iglesias | Gestión para iglesias",
+    description:
+      "Sistema de gestión para iglesias. Ingresos, miembros, inventario y reportes. Implementación, capacitación y soporte.",
 };
 
 export default function RootLayout({

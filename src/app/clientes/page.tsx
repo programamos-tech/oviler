@@ -7,15 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 
 const PAGE_SIZE = 20;
 
-type CustomerAddress = {
-  id: string;
-  label: string;
-  address: string;
-  reference_point: string | null;
-  is_default: boolean;
-  display_order: number;
-};
-
 type CustomerRow = {
   id: string;
   organization_id: string;
@@ -23,9 +14,54 @@ type CustomerRow = {
   cedula: string | null;
   email: string | null;
   phone: string | null;
+  life_stage: string | null;
+  occupation_status: string | null;
+  marital_status: string | null;
+  faith_origin: string | null;
+  is_baptized: boolean | null;
   created_at: string;
-  customer_addresses: CustomerAddress[] | null;
 };
+
+const LIFE_STAGE_LABELS: Record<string, string> = {
+  niño: "Niño/a",
+  adolescente: "Adolescente",
+  joven: "Joven",
+  joven_adulto: "Joven adulto",
+  adulto: "Adulto",
+  adulto_mayor: "Adulto mayor",
+};
+const OCCUPATION_LABELS: Record<string, string> = {
+  empleado: "Empleado",
+  emprendedor: "Emprendedor",
+  estudiante: "Estudiante",
+  sin_trabajo: "Sin trabajo",
+  jubilado: "Jubilado",
+  otro: "Otro",
+};
+const MARITAL_LABELS: Record<string, string> = {
+  soltero: "Soltero/a",
+  casado: "Casado/a",
+  divorciado: "Divorciado/a",
+  viudo: "Viudo/a",
+  union_libre: "Unión libre",
+  otro: "Otro",
+};
+const FAITH_ORIGIN_LABELS: Record<string, string> = {
+  nuevo_en_la_fe: "Nuevo en la fe",
+  viene_de_otra_iglesia: "Otra iglesia",
+  otro: "Otro",
+};
+
+function ageFromBirthDate(birthDate: string | null): number | null {
+  if (!birthDate) return null;
+  const d = new Date(birthDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+  return age >= 0 ? age : null;
+}
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
@@ -69,7 +105,7 @@ export default function CustomersPage() {
       const to = from + PAGE_SIZE - 1;
       let q = supabase
         .from("customers")
-        .select("id, organization_id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)", { count: "exact" })
+        .select("id, organization_id, name, cedula, email, phone, life_stage, occupation_status, marital_status, faith_origin, is_baptized, created_at", { count: "exact" })
         .eq("organization_id", userRow.organization_id)
         .eq("active", true)
         .order("name", { ascending: true })
@@ -86,7 +122,7 @@ export default function CustomersPage() {
       if (error) {
         const q2 = supabase
           .from("customers")
-          .select("id, organization_id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)", { count: "exact" })
+          .select("id, organization_id, name, cedula, email, phone, life_stage, occupation_status, marital_status, faith_origin, is_baptized, created_at", { count: "exact" })
           .eq("organization_id", userRow.organization_id)
           .order("name", { ascending: true })
           .range(from, to);
@@ -169,7 +205,7 @@ export default function CustomersPage() {
   const paginationBar = showPagination && (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
       <p className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
-        {totalCount} {totalCount === 1 ? "cliente" : "clientes"}
+        {totalCount} {totalCount === 1 ? "miembro" : "miembros"}
         {totalPages > 1 && <> · Página {page} de {totalPages}</>}
       </p>
       {totalPages > 1 && (
@@ -225,10 +261,10 @@ export default function CustomersPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
-              Clientes
+              Miembros
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Lista de clientes de tu organización. Busca por nombre, email o teléfono.
+              Lista de miembros de tu organización. Busca por nombre, email o teléfono.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -249,7 +285,7 @@ export default function CustomersPage() {
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Nuevo cliente
+              Nuevo miembro
             </Link>
           </div>
         </div>
@@ -279,7 +315,7 @@ export default function CustomersPage() {
         tabIndex={0}
         onKeyDown={handleKeyDown}
         className="space-y-3 outline-none"
-        aria-label="Lista de clientes. Usa flechas arriba y abajo para moverte, Enter para abrir."
+        aria-label="Lista de miembros. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
         {loading && showLoadingUI ? (
           <div className="flex min-h-[200px] items-center justify-center pt-48 pb-12">
@@ -292,16 +328,16 @@ export default function CustomersPage() {
         ) : filteredCustomers.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[15px] font-medium text-slate-700 dark:text-slate-300">
-              {totalCount === 0 ? "Aún no tienes clientes" : "Ningún cliente coincide con la búsqueda en esta página"}
+              {totalCount === 0 ? "Aún no tienes miembros" : "Ningún miembro coincide con la búsqueda en esta página"}
             </p>
             <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-              {totalCount === 0 ? "Registra tu primer cliente para verlo aquí." : "Prueba con otro término de búsqueda."}
+              {totalCount === 0 ? "Registra tu primer miembro para verlo aquí." : "Prueba con otro término de búsqueda."}
             </p>
             <Link
               href="/clientes/nueva"
               className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover"
             >
-              Nuevo cliente
+              Nuevo miembro
             </Link>
           </div>
         ) : (
@@ -309,22 +345,20 @@ export default function CustomersPage() {
             {/* Desktop: tabla con mismos encabezados y grid que inventario */}
             <div className="hidden overflow-hidden rounded-xl ring-1 ring-slate-200 bg-white dark:ring-slate-800 dark:bg-slate-900 sm:block">
               <div
-                className="grid grid-cols-[minmax(120px,1.5fr)_minmax(80px,0.8fr)_1fr_minmax(90px,0.9fr)_minmax(140px,1.5fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800"
+                className="grid grid-cols-[minmax(120px,1.5fr)_minmax(90px,0.9fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(110px,1fr)_minmax(70px,auto)_minmax(100px,auto)] gap-x-4 items-center px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800"
                 aria-hidden
               >
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cliente</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cédula</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Email</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Miembro</div>
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Teléfono</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Dirección</div>
-                <div className="min-w-0 pl-4 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Acciones</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Situación laboral</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Estado civil</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Origen en la fe</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Bautizado/a</div>
+                <div className="min-w-0 pl-2 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Acciones</div>
               </div>
               {filteredCustomers.map((c, index) => {
                 const isSelected = index === selectedIndex;
                 const isLast = index === filteredCustomers.length - 1;
-                const addrs = c.customer_addresses ?? [];
-                const sortedAddrs = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
-                const firstAddr = sortedAddrs[0];
                 return (
                   <div
                     key={c.id}
@@ -332,7 +366,7 @@ export default function CustomersPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/clientes/${c.id}`)}
-                    className={`grid grid-cols-[minmax(120px,1.5fr)_minmax(80px,0.8fr)_1fr_minmax(90px,0.9fr)_minmax(140px,1.5fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-4 cursor-pointer transition-colors border-b border-slate-100 dark:border-slate-800 ${
+                    className={`grid grid-cols-[minmax(120px,1.5fr)_minmax(90px,0.9fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(110px,1fr)_minmax(70px,auto)_minmax(100px,auto)] gap-x-4 items-center px-5 py-4 cursor-pointer transition-colors border-b border-slate-100 dark:border-slate-800 ${
                       isLast ? "border-b-0" : ""
                     } ${
                       isSelected ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
@@ -340,39 +374,33 @@ export default function CustomersPage() {
                   >
                     <div className="min-w-0">
                       <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">{c.name}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.cedula ? `CC ${c.cedula}` : "—"}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.email || "—"}</p>
+                      {c.life_stage && (
+                        <span className="mt-0.5 inline-block rounded bg-ov-pink/15 px-1.5 py-0.5 text-[10px] font-medium text-ov-pink dark:bg-ov-pink/20">
+                          {LIFE_STAGE_LABELS[c.life_stage] ?? c.life_stage}
+                        </span>
+                      )}
                     </div>
                     <div className="min-w-0">
                       <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.phone || "—"}</p>
                     </div>
                     <div className="min-w-0">
-                      {firstAddr ? (
-                        <>
-                          <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate" title={firstAddr.address}>
-                            {addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address}
-                          </p>
-                          {firstAddr.reference_point && (
-                            <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400 truncate" title={firstAddr.reference_point}>Ref: {firstAddr.reference_point}</p>
-                          )}
-                          {addrs.length > 1 && (
-                            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">+{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}</p>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400">—</p>
-                      )}
+                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.occupation_status ? (OCCUPATION_LABELS[c.occupation_status] ?? c.occupation_status) : "—"}</p>
                     </div>
-                    <div className="min-w-0 pl-6 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.marital_status ? (MARITAL_LABELS[c.marital_status] ?? c.marital_status) : "—"}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.faith_origin ? (FAITH_ORIGIN_LABELS[c.faith_origin] ?? c.faith_origin) : "—"}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.is_baptized ? "Sí" : "—"}</p>
+                    </div>
+                    <div className="min-w-0 pl-4 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       <span className="relative inline-flex group/tooltip">
                         <Link href={`/clientes/${c.id}`} className="inline-flex p-1 text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink dark:hover:text-ov-pink-hover" aria-label="Ver detalle">
                           <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         </Link>
-                        <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Ver detalle del cliente</span>
+                        <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Ver detalle del miembro</span>
                       </span>
                       <span className="relative inline-flex group/tooltip">
                         <Link href={`/clientes/${c.id}/editar`} className="inline-flex p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Editar">
@@ -386,13 +414,10 @@ export default function CustomersPage() {
               })}
             </div>
 
-            {/* Mobile: tarjetas apiladas (igual estilo que inventario) */}
+            {/* Mobile: tarjetas apiladas */}
             <div className="space-y-3 sm:hidden">
               {filteredCustomers.map((c, index) => {
                 const isSelected = index === selectedIndex;
-                const addrs = c.customer_addresses ?? [];
-                const sortedAddrs = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
-                const firstAddr = sortedAddrs[0];
                 return (
                   <div
                     key={c.id}
@@ -405,13 +430,14 @@ export default function CustomersPage() {
                     }`}
                   >
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cliente</span><p className="truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{c.name}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cédula</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.cedula ? `CC ${c.cedula}` : "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Email</span><p className="truncate text-right text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Miembro</span><div className="flex min-w-0 flex-1 items-center justify-end gap-1.5"><p className="truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{c.name}</p>{c.life_stage && <span className="shrink-0 rounded bg-ov-pink/15 px-1.5 py-0.5 text-[10px] font-medium text-ov-pink dark:bg-ov-pink/20">{LIFE_STAGE_LABELS[c.life_stage] ?? c.life_stage}</span>}</div></div>
                       <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Teléfono</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.phone || "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Dirección</span><div className="min-w-0 text-right"><p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 truncate" title={firstAddr?.address}>{firstAddr ? (addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address) : "—"}</p>{addrs.length > 1 && <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">+{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}</p>}</div></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Situación laboral</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.occupation_status ? (OCCUPATION_LABELS[c.occupation_status] ?? c.occupation_status) : "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Estado civil</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.marital_status ? (MARITAL_LABELS[c.marital_status] ?? c.marital_status) : "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Origen en la fe</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.faith_origin ? (FAITH_ORIGIN_LABELS[c.faith_origin] ?? c.faith_origin) : "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Bautizado/a</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.is_baptized ? "Sí" : "—"}</p></div>
                       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-                        <span className="inline-flex gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}><Link href={`/clientes/${c.id}`} className="hover:underline" title="Ver detalle del cliente">Ver detalle</Link><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
+                        <span className="inline-flex gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}><Link href={`/clientes/${c.id}`} className="hover:underline" title="Ver detalle del miembro">Ver detalle</Link><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
                         <span onClick={(e) => e.stopPropagation()}><Link href={`/clientes/${c.id}/editar`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Editar nombre, cédula, contacto y direcciones">Editar</Link></span>
                       </div>
                     </div>

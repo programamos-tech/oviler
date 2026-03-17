@@ -5,10 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
-import { MdLocalShipping, MdStore, MdCancel, MdCheck, MdSchedule, MdPerson, MdBusiness, MdBadge } from "react-icons/md";
+import { MdLocalShipping, MdStore, MdCancel, MdCheck, MdSchedule, MdPerson, MdBusiness, MdBadge, MdPrint } from "react-icons/md";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
-import { getCopy, getStatusLabel, getStatusClass, type SalesMode } from "../sales-mode";
+import { getCopy, type SalesMode } from "../sales-mode";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -64,11 +64,17 @@ type SaleDetail = {
   status: string;
   payment_pending?: boolean;
   is_delivery: boolean;
+  income_type_id: string | null;
+  income_types: { name: string } | null;
+  income_context: string | null;
+  church_service_id: string | null;
+  church_services: { name: string } | null;
   delivery_address_id: string | null;
   delivery_fee: number | null;
   delivery_person_id: string | null;
   delivery_paid: boolean;
   created_at: string;
+  sale_date: string | null;
   cancellation_requested_at?: string | null;
   cancellation_requested_by?: string | null;
   customers: { name: string; phone: string | null; cedula: string | null } | null;
@@ -187,8 +193,6 @@ export default function SaleDetailPage() {
   const [addingProduct, setAddingProduct] = useState(false);
   const [addProductError, setAddProductError] = useState<string | null>(null);
   const [branchOrgId, setBranchOrgId] = useState<string | null>(null);
-  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
-  const statusDropdownRef = useRef<HTMLDivElement>(null);
   const addProductSearchRef = useRef<HTMLDivElement>(null);
   const [updatingPickingItemId, setUpdatingPickingItemId] = useState<string | null>(null);
   const [partialPickedInputs, setPartialPickedInputs] = useState<Record<string, string>>({});
@@ -205,7 +209,7 @@ export default function SaleDetailPage() {
       const { data: saleData, error: saleError } = await supabase
         .from("sales")
         .select(
-          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_address_id, delivery_fee, delivery_person_id, delivery_paid, created_at, customers(name, phone, cedula), users!user_id(name), delivery_persons(name, code)"
+          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, income_type_id, income_context, church_service_id, delivery_address_id, delivery_fee, delivery_person_id, delivery_paid, created_at, sale_date, customers(name, phone, cedula), users!user_id(name), delivery_persons(name, code), income_types(name), church_services(name)"
         )
         .eq("id", id)
         .single();
@@ -216,11 +220,14 @@ export default function SaleDetailPage() {
         setLoading(false);
         return;
       }
+      const raw = saleData as Record<string, unknown>;
       const transformedSale = {
         ...saleData,
-        customers: Array.isArray(saleData.customers) ? (saleData.customers[0] || null) : saleData.customers,
-        users: Array.isArray(saleData.users) ? (saleData.users[0] || null) : saleData.users,
-        delivery_persons: Array.isArray(saleData.delivery_persons) ? (saleData.delivery_persons[0] || null) : saleData.delivery_persons,
+        customers: Array.isArray(raw.customers) ? (raw.customers[0] || null) : raw.customers,
+        users: Array.isArray(raw.users) ? (raw.users[0] || null) : raw.users,
+        delivery_persons: Array.isArray(raw.delivery_persons) ? (raw.delivery_persons[0] || null) : raw.delivery_persons,
+        income_types: Array.isArray(raw.income_types) ? (raw.income_types[0] || null) : raw.income_types,
+        church_services: Array.isArray(raw.church_services) ? (raw.church_services[0] || null) : raw.church_services,
         branches: null, // Se asignará después
       } as SaleDetail & { branch_id: string };
       const s = transformedSale;
@@ -443,18 +450,6 @@ export default function SaleDetailPage() {
     setAddProductError(null);
     setAddingProduct(false);
   }, [sale?.id, sale?.branch_id, selectedProductAdd, addQty, addUnitPrice, items]);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) {
-        setStatusDropdownOpen(false);
-      }
-    }
-    if (statusDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [statusDropdownOpen]);
 
   useEffect(() => {
     if (!alistedFeedbackId) return;
@@ -695,7 +690,7 @@ export default function SaleDetailPage() {
     const branchPhone = sale?.branches?.phone ?? "";
     const responsableIva = sale?.branches?.responsable_iva ?? false;
     const regimeText = responsableIva ? "Responsable de IVA" : "No responsable de IVA";
-    const saleDate = sale?.created_at ? formatDate(sale.created_at) : "—";
+    const saleDate = sale?.sale_date ? formatDate(sale.sale_date) : (sale?.created_at ? formatDate(sale.created_at) : "—");
     const paymentLabel = PAYMENT_LABELS[sale?.payment_method ?? ""] ?? sale?.payment_method ?? "—";
     const deliveryFee = Number(sale?.delivery_fee) || 0;
 
@@ -744,7 +739,7 @@ export default function SaleDetailPage() {
 </head>
 <body>
   <div class="nou-header">
-    <span class="nou-logo">NOU Tiendas</span>
+    <span class="nou-logo">NOU Iglesias</span>
     <span class="nou-doc">Factura de venta</span>
   </div>
   <h1>Factura de venta No. ${esc(invoiceNum)}</h1>
@@ -780,7 +775,7 @@ export default function SaleDetailPage() {
     </tfoot>
   </table>
   <div class="legal">
-    Documento generado por NOU Tiendas. Consérvese como soporte de la operación.
+    Documento generado por NOU Iglesias. Consérvese como soporte de la operación.
   </div>
 </body>
 </html>`;
@@ -812,26 +807,21 @@ export default function SaleDetailPage() {
     );
   }
 
-  const customerName = sale.customers?.name ?? "Cliente ocasional";
+  const reunionOrEventLabel = sale.church_services?.name ?? sale.income_context ?? null;
+  const customerName = sale.customers?.name ?? (salesMode === "sales" && reunionOrEventLabel ? reunionOrEventLabel : (salesMode === "sales" ? "Sin miembro" : "Cliente ocasional"));
   const branchName = sale.branches?.name ?? "—";
   const userName = sale.users?.name ?? "—";
   const copy = getCopy(salesMode);
   const paymentLabel = PAYMENT_LABELS[sale.payment_method] ?? sale.payment_method;
+  const incomeTypeName = sale.income_types?.name ?? null;
   // Con envío: etiquetas de pedido (Creado, Alistado, etc.). Sin envío: venta normal (Pendiente, Completada, Anulada).
   const orderStatusLabels = ["pending", "preparing", "packing", "on_the_way", "delivered", "completed", "cancelled"];
-  const statusLabel = sale.is_delivery
-    ? (orderStatusLabels.includes(sale.status) ? getStatusLabel(sale.status, "orders") : getStatusLabel(sale.status, salesMode))
-    : getStatusLabel(sale.status, "sales");
-  const statusClass = getStatusClass(sale.status);
   const pendingCancel = (sale.status === "completed" || sale.status === "delivered") && !!sale.cancellation_requested_at;
   const canCancel = (sale.status === "completed" || sale.status === "delivered") && !sale.cancellation_requested_at;
   const isOrderWorkflow = orderStatusLabels.includes(sale.status);
   const canChangeOrderStatus = sale.is_delivery
     ? (salesMode === "orders" || isOrderWorkflow) && sale.status !== "cancelled" && sale.status !== "completed"
     : sale.status !== "cancelled" && sale.status !== "completed";
-  const canOpenStatusDropdown = sale.is_delivery
-    ? (salesMode === "orders" || isOrderWorkflow) && sale.status !== "cancelled"
-    : sale.status !== "cancelled";
   const itemsSubtotal = items.reduce((sum, it) => sum + lineSubtotalFulfillment(it), 0);
   const totalDiscount = items.reduce(
     (sum, it) => sum + (fulfillmentQuantity(it) * it.unit_price - lineSubtotalFulfillment(it)),
@@ -861,10 +851,7 @@ export default function SaleDetailPage() {
   const totalLive = itemsSubtotalLive + deliveryFee;
   const invoicePrintType = sale.branches?.invoice_print_type ?? "block";
   /** Todas las líneas tienen cantidad a despachar = cantidad pedida y fue definida explícitamente (no "sin tocar") → sugerir "Marcar como Alistado" */
-  const allLinesAlisted = canAlistarGlobal && items.length > 0 && items.every((it) => {
-    const hasSet = it.quantity_picked !== null && it.quantity_picked !== undefined || (partialPickedInputs[it.id] !== undefined && partialPickedInputs[it.id] !== "");
-    return hasSet && getEffectiveQty(it) === it.quantity && it.quantity > 0;
-  });
+  const displayTotal = items.length === 0 ? sale.total : (canAlistarGlobal ? totalLive : calculatedTotal);
 
   return (
     <div
@@ -928,7 +915,7 @@ export default function SaleDetailPage() {
           </p>
         </div>
         <p className="print:mt-3 print:text-center print:font-bold print:uppercase print:text-base print:text-black">
-          Pedido #{displayInvoiceNumber(sale.invoice_number)}
+          {copy.detailTitle} #{displayInvoiceNumber(sale.invoice_number)}
         </p>
       </div>
 
@@ -937,23 +924,29 @@ export default function SaleDetailPage() {
         <Breadcrumb
           items={[
             { label: copy.sectionTitle, href: "/ventas" },
-            { label: `Pedido ${displayInvoiceNumber(sale.invoice_number)}` },
+            { label: `${copy.detailTitle} ${displayInvoiceNumber(sale.invoice_number)}` },
           ]}
         />
         <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
-              Pedido #{displayInvoiceNumber(sale.invoice_number)}
+              {copy.detailTitle} #{displayInvoiceNumber(sale.invoice_number)}
             </h1>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               <span className="inline-flex items-center gap-1">
                 <MdSchedule className="h-4 w-4 shrink-0" aria-hidden />
-                {formatDate(sale.created_at)} · {formatTime(sale.created_at)}
+                {sale.sale_date ? (
+                  <>Corresponde a {formatDate(sale.sale_date)} · Registrado {formatDate(sale.created_at)} · {formatTime(sale.created_at)}</>
+                ) : (
+                  <>{formatDate(sale.created_at)} · {formatTime(sale.created_at)}</>
+                )}
               </span>
               <span>·</span>
               <span className="inline-flex items-center gap-1">
                 <MdPerson className="h-4 w-4 shrink-0" aria-hidden />
-                {customerName}
+                {salesMode === "sales" && reunionOrEventLabel && !sale.customers?.name
+                  ? `Reunión/servicio: ${reunionOrEventLabel}`
+                  : (salesMode === "sales" ? "Miembro: " : "") + customerName}
               </span>
               <span>·</span>
               <span className="inline-flex items-center gap-1">
@@ -982,6 +975,26 @@ export default function SaleDetailPage() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2 print:hidden">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              title="Imprimir comprobante de ingreso"
+            >
+              <MdPrint className="h-5 w-5" aria-hidden />
+              Imprimir
+            </button>
+            {sale.status !== "cancelled" && (
+              <button
+                type="button"
+                onClick={() => setCancelOpen(true)}
+                className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/30"
+                title="Anular este ingreso"
+              >
+                <MdCancel className="h-5 w-5" aria-hidden />
+                Anular
+              </button>
+            )}
             <Link
               href="/ventas"
               className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
@@ -998,11 +1011,19 @@ export default function SaleDetailPage() {
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total</p>
               <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
-                $ {formatMoney(initialOrderTotal)}
+                $ {formatMoney(displayTotal)}
               </p>
             </div>
+            {incomeTypeName && (
+              <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tipo de ingreso</p>
+                <p className="mt-0.5 text-lg font-medium text-slate-800 dark:text-slate-200 sm:text-xl">
+                  {incomeTypeName}
+                </p>
+              </div>
+            )}
             <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Método de pago</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{copy.paymentSectionLabel}</p>
               <p className={`mt-0.5 text-lg sm:text-xl ${PAYMENT_COLOR_CLASS[sale.payment_method] ?? "text-slate-700 dark:text-slate-300"}`}>
                 {paymentLabel}
               </p>
@@ -1097,91 +1118,7 @@ export default function SaleDetailPage() {
               </div>
             )}
             </div>
-          <div className="flex flex-wrap items-center gap-2 print:hidden sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700" ref={statusDropdownRef}>
-            <div className="relative flex flex-col">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{sale.is_delivery ? "Estado del pedido" : "Estado de la venta"}</p>
-              <button
-                type="button"
-                onClick={() => canOpenStatusDropdown && setStatusDropdownOpen((v) => !v)}
-                disabled={updatingStatus || !canOpenStatusDropdown}
-                className={`mt-0.5 inline-flex min-h-[1.75rem] min-w-[120px] items-center justify-between gap-1.5 rounded-lg border px-3 py-1.5 text-left text-[13px] font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ov-pink/30 disabled:cursor-default disabled:opacity-80 ${allLinesAlisted ? "estado-listo-animar " : ""}${
-                  canOpenStatusDropdown
-                    ? allLinesAlisted
-                      ? "border-emerald-400 bg-emerald-50/50 text-slate-800 hover:bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-slate-200 dark:hover:bg-emerald-950/50"
-                      : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                    : `border-transparent ${statusClass} bg-slate-100 dark:bg-slate-800`
-                }`}
-                aria-expanded={statusDropdownOpen}
-                aria-haspopup="listbox"
-                aria-label={sale.is_delivery ? "Estado del pedido" : "Estado de la venta"}
-              >
-                <span>{statusLabel}</span>
-                {canOpenStatusDropdown && (
-                  <svg className="h-4 w-4 shrink-0 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                )}
-              </button>
-              {statusDropdownOpen && canOpenStatusDropdown && (
-                <ul
-                  className="absolute left-0 top-full z-20 mt-1 max-h-64 w-40 list-none overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
-                  role="listbox"
-                >
-                  {(sale.is_delivery
-                    ? ORDER_STATUS_OPTIONS
-                    : STORE_SALE_STATUS_VALUES.map((value) => ({ value, label: getStatusLabel(value, "sales") }))
-                  ).map((opt) => (
-                    <li key={opt.value} role="option">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (opt.value === "cancelled") {
-                            setStatusDropdownOpen(false);
-                            setCancelOpen(true);
-                          } else {
-                            handleOrderStatusChange(opt.value);
-                            setStatusDropdownOpen(false);
-                          }
-                        }}
-                        className={`block w-full px-4 py-2 text-left text-[13px] font-medium ${
-                          opt.value === sale.status
-                            ? "bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20 dark:text-ov-pink-muted"
-                            : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                        } ${opt.value === "cancelled" ? "text-red-600 dark:text-red-400" : ""}`}
-                      >
-                        {opt.label}
-                      </button>
-                    </li>
-                  ))}
-                  {sale.status === "completed" && (
-                    <>
-                      <li className="my-1 border-t border-slate-200 dark:border-slate-700" role="separator" />
-                      <li>
-                        <button
-                          type="button"
-                          onClick={() => { handlePrint(); setStatusDropdownOpen(false); }}
-                          className="block w-full px-4 py-2 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                        >
-                          Imprimir comprobante final
-                        </button>
-                      </li>
-                      {sale.payment_pending && (
-                        <li>
-                          <button
-                            type="button"
-                            onClick={() => { handleMarkAsPaid(); setStatusDropdownOpen(false); }}
-                            disabled={markingPaid}
-                            className="block w-full px-4 py-2 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700"
-                          >
-                            {markingPaid ? "Guardando…" : "Marcar como pagado"}
-                          </button>
-                        </li>
-                      )}
-                    </>
-                  )}
-                </ul>
-              )}
-            </div>
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
             {pendingCancel && (
               <>
                 <span className="inline-flex h-9 items-center rounded-lg bg-amber-100 px-3 text-[13px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
@@ -1213,11 +1150,11 @@ export default function SaleDetailPage() {
         </div>
       </div>
 
-      {/* Productos del pedido: misma tabla siempre. Alistar = definir cantidad a despachar; el total se actualiza. */}
+      {/* Productos del pedido / Detalle del aporte */}
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 print:shadow-none print:ring-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-            Productos del pedido
+            {copy.productsSectionTitle}
           </h2>
           <div className="flex flex-wrap items-center gap-2 print:hidden">
             {canAlistarGlobal && sale.status !== "cancelled" && branchOrgId && (
@@ -1272,7 +1209,14 @@ export default function SaleDetailPage() {
 
         {items.length === 0 ? (
           <div className="mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-10 dark:border-slate-700">
-            <p className="text-[14px] font-medium text-slate-600 dark:text-slate-400">Sin productos en este pedido</p>
+            <p className="text-[14px] font-medium text-slate-600 dark:text-slate-400">{copy.noProductsMessage}</p>
+            {salesMode === "sales" && (incomeTypeName || sale.total > 0) && (
+              <p className="mt-2 text-[13px] text-slate-500 dark:text-slate-400">
+                {incomeTypeName && <span>Tipo: {incomeTypeName}</span>}
+                {incomeTypeName && sale.total > 0 && " · "}
+                {sale.total > 0 && <span>Monto: $ {formatMoney(sale.total)}</span>}
+              </p>
+            )}
             {canAlistarGlobal && sale.status !== "cancelled" && (
               <button
                 type="button"
@@ -1530,16 +1474,16 @@ export default function SaleDetailPage() {
       <ConfirmDeleteModal
         isOpen={cancelOpen}
         onClose={() => { setCancelOpen(false); setCancelReason(""); }}
-        title="Anular pedido"
+        title={`Anular ${copy.detailTitle.toLowerCase()}`}
         message={
           sale.branches?.invoice_cancel_requires_approval
-            ? `La anulación del pedido #${displayInvoiceNumber(sale.invoice_number)} requerirá aprobación de un administrador. Escribe el motivo de la solicitud.`
-            : `¿Anular el pedido #${displayInvoiceNumber(sale.invoice_number)}? El pedido quedará en estado "Cancelado" y no se podrá revertir desde esta pantalla.`
+            ? `La anulación del ${copy.detailTitle.toLowerCase()} #${displayInvoiceNumber(sale.invoice_number)} requerirá aprobación de un administrador. Escribe el motivo de la solicitud.`
+            : `¿Anular el ${copy.detailTitle.toLowerCase()} #${displayInvoiceNumber(sale.invoice_number)}? Quedará en estado "Cancelado" y no se podrá revertir desde esta pantalla.`
         }
         confirmLabel={sale.branches?.invoice_cancel_requires_approval ? "Enviar solicitud" : "Anular"}
         onConfirm={handleCancel}
         loading={cancelling}
-        ariaTitle={`Anular pedido ${displayInvoiceNumber(sale.invoice_number)}`}
+        ariaTitle={`Anular ${copy.detailTitle.toLowerCase()} ${displayInvoiceNumber(sale.invoice_number)}`}
         icon={<MdCancel className="h-5 w-5" aria-hidden />}
         reasonLabel="Motivo de anulación"
         reasonValue={cancelReason}

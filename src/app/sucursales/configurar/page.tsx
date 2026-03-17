@@ -144,7 +144,7 @@ function ConfigurarSucursalContent() {
     if (!branchId) return;
     const nameTrim = branchName.trim();
     if (!nameTrim) {
-      alert("El nombre de la sucursal es obligatorio.");
+      alert("El nombre de la sede es obligatorio.");
       return;
     }
     setSaving(true);
@@ -221,7 +221,7 @@ function ConfigurarSucursalContent() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
-              Configurar sucursal
+              Configurar sede
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Logo, NIT, nombre, dirección, teléfono, tipo de factura e impuestos.
@@ -230,7 +230,7 @@ function ConfigurarSucursalContent() {
           <Link
             href="/sucursales"
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            title="Volver a sucursales"
+            title="Volver a sedes"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -250,7 +250,7 @@ function ConfigurarSucursalContent() {
                 {logoPreview ? (
                   <img src={logoPreview} alt="Vista previa logo" className="h-full w-full object-cover" />
                 ) : logoUrl ? (
-                  <img src={logoUrl} alt="Logo sucursal" className="h-full w-full object-cover" />
+                  <img src={logoUrl} alt="Logo sede" className="h-full w-full object-cover" />
                 ) : (
                   <span className="text-[12px] font-medium text-slate-400">Sin logo</span>
                 )}
@@ -274,7 +274,7 @@ function ConfigurarSucursalContent() {
                   }}
                 />
                 <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-                  Logo de la sucursal para facturas y reportes. Elige una imagen y guarda los cambios.
+                  Logo de la sede para facturas y reportes. Elige una imagen y guarda los cambios.
                 </p>
               </div>
             </div>
@@ -282,15 +282,15 @@ function ConfigurarSucursalContent() {
 
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Datos de la sucursal
+              Datos de la sede
             </p>
             <div className="mt-3 space-y-3">
               <div>
-                <label className={labelClass}>Nombre de la sucursal <span className="text-ov-pink">*</span></label>
+                <label className={labelClass}>Nombre de la sede <span className="text-ov-pink">*</span></label>
                 <input
                   value={branchName}
                   onChange={(e) => setBranchName(e.target.value)}
-                  placeholder="Ej. Sucursal Principal"
+                  placeholder="Ej. Sede Principal"
                   className={inputClass}
                   disabled={loading}
                 />
@@ -399,7 +399,7 @@ function ConfigurarSucursalContent() {
               Modo de operación
             </p>
             <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-              Define si en esta sucursal manejas ventas (retail) o pedidos (restaurante/envíos). Cambia los textos y estados en la app.
+              Define si en esta sede manejas ingresos (ofrendas/donaciones) o pedidos (eventos/envíos). Cambia los textos y estados en la app.
             </p>
             <div className="mt-3 space-y-2">
               <label className="flex cursor-pointer items-center gap-2">
@@ -412,11 +412,11 @@ function ConfigurarSucursalContent() {
                   className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
                 />
                 <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  Pedidos (tienda / retail)
+                  Ingresos (ofrendas / donaciones)
                 </span>
               </label>
               <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
-                Verás &quot;Pedidos&quot;, &quot;Nueva venta&quot;. Estados: Completada, Anulada.
+                Verás &quot;Ingresos&quot;, &quot;Nuevo registro&quot;. Estados: Completado, Anulado.
               </p>
               <label className="mt-2 flex cursor-pointer items-center gap-2">
                 <input
@@ -532,7 +532,7 @@ function ConfigurarSucursalContent() {
                 className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
               />
               <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                Esta sucursal tiene bodega
+                Esta sede tiene bodega
               </span>
             </label>
             <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
@@ -565,7 +565,7 @@ function ConfigurarSucursalContent() {
               )}
             </div>
             <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-              Gestiona los domiciliarios de esta sucursal. Si hay 1 o 2 domiciliarios, se seleccionará automáticamente el primero al crear una venta con envío.
+              Gestiona los domiciliarios de esta sede. Si hay 1 o 2 domiciliarios, se seleccionará automáticamente el primero al crear un registro con envío.
             </p>
 
             {/* Formulario de agregar/editar */}
@@ -895,7 +895,7 @@ function ConfigurarSucursalContent() {
               Resumen
             </p>
             <p className="mt-3 text-[13px] text-slate-600 dark:text-slate-400">
-              Los cambios se aplican solo a esta sucursal. Ventas, inventario y numeración son independientes por sucursal.
+              Los cambios se aplican solo a esta sede. Ingresos, inventario y numeración son independientes por sede.
             </p>
             <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
               <button

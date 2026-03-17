@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const COMPANY = "NOU Technology";
-const PRODUCT = "NOU Tiendas";
+const PRODUCT = "NOU Iglesias";
 
 export default function LandingPage() {
   return (

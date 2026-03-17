@@ -220,6 +220,16 @@ CREATE TABLE IF NOT EXISTS customers (
   cedula TEXT,
   email TEXT,
   phone TEXT,
+  birth_date DATE,
+  life_stage TEXT,
+  occupation_status TEXT,
+  marital_status TEXT,
+  faith_origin TEXT,
+  is_baptized BOOLEAN NOT NULL DEFAULT false,
+  is_married BOOLEAN NOT NULL DEFAULT false,
+  is_working BOOLEAN,
+  is_university_student BOOLEAN,
+  notes TEXT,
   active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -239,12 +249,25 @@ CREATE TABLE IF NOT EXISTS customer_addresses (
 
 CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer_id ON customer_addresses(customer_id);
 
+-- 7c. INCOME_TYPES (Tipos de ingreso por organización: diezmo, ofrenda, eventos, etc.)
+CREATE TABLE IF NOT EXISTS income_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  display_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(organization_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_income_types_organization_id ON income_types(organization_id);
+
 -- 8. SALES (Pertenecen a una sucursal específica)
 CREATE TABLE IF NOT EXISTS sales (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+  income_type_id UUID REFERENCES income_types(id) ON DELETE SET NULL,
   invoice_number TEXT NOT NULL,
   total DECIMAL(10,2) NOT NULL,
   payment_method TEXT NOT NULL CHECK (payment_method IN ('cash', 'transfer')),

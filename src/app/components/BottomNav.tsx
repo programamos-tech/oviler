@@ -97,21 +97,21 @@ const masItems = [
     ],
   },
   {
-    label: "Sucursales",
+    label: "Sedes",
     href: "/sucursales",
     icon: IconSucursales,
     items: [
-      { label: "Ver sucursales", href: "/sucursales", icon: IconList },
-      { label: "Configurar sucursal", href: "/sucursales/configurar", icon: IconCog },
-      { label: "Nueva sucursal", href: "/sucursales/nueva", icon: IconPlus },
+      { label: "Ver sedes", href: "/sucursales", icon: IconList },
+      { label: "Configurar sede", href: "/sucursales/configurar", icon: IconCog },
+      { label: "Nueva sede", href: "/sucursales/nueva", icon: IconPlus },
     ],
   },
 ];
 
 const tabs = [
   { label: "Inicio", href: "/dashboard", icon: HomeIcon },
-  { label: "Ventas", href: "/ventas", icon: CartIcon },
-  { label: "Clientes", href: "/clientes", icon: UsersIcon },
+  { label: "Ingresos", href: "/ventas", icon: CartIcon },
+  { label: "Miembros", href: "/clientes", icon: UsersIcon },
   { label: "Inventario", href: "/inventario", icon: BoxIcon },
   { label: "Más", href: "#", icon: MoreIcon, isMore: true },
 ];

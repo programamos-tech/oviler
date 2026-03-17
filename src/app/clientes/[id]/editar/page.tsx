@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import DatePickerCard from "@/app/components/DatePickerCard";
 
 const LABEL_OPTIONS = [
   { value: "Casa", label: "Casa" },
@@ -31,6 +32,63 @@ function newAddressEntry(): AddressEntry {
   };
 }
 
+function ageFromBirthDate(birthDate: string | null): number | null {
+  if (!birthDate) return null;
+  const d = new Date(birthDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+  return age >= 0 ? age : null;
+}
+
+function lifeStageFromAge(age: number): string {
+  if (age <= 12) return "niño";
+  if (age <= 17) return "adolescente";
+  if (age <= 25) return "joven";
+  if (age <= 39) return "joven_adulto";
+  if (age <= 59) return "adulto";
+  return "adulto_mayor";
+}
+
+const LIFE_STAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "No especificado" },
+  { value: "niño", label: "Niño/a (0-12)" },
+  { value: "adolescente", label: "Adolescente (13-17)" },
+  { value: "joven", label: "Joven (18-25)" },
+  { value: "joven_adulto", label: "Joven adulto (26-39)" },
+  { value: "adulto", label: "Adulto (40-59)" },
+  { value: "adulto_mayor", label: "Adulto mayor (60+)" },
+];
+
+const OCCUPATION_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "No especificado" },
+  { value: "empleado", label: "Empleado" },
+  { value: "emprendedor", label: "Emprendedor" },
+  { value: "estudiante", label: "Estudiante" },
+  { value: "sin_trabajo", label: "Sin trabajo" },
+  { value: "jubilado", label: "Jubilado / pensionado" },
+  { value: "otro", label: "Otro" },
+];
+
+const MARITAL_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "No especificado" },
+  { value: "soltero", label: "Soltero/a" },
+  { value: "casado", label: "Casado/a" },
+  { value: "divorciado", label: "Divorciado/a" },
+  { value: "viudo", label: "Viudo/a" },
+  { value: "union_libre", label: "Unión libre" },
+  { value: "otro", label: "Otro" },
+];
+
+const FAITH_ORIGIN_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "No especificado" },
+  { value: "nuevo_en_la_fe", label: "Nuevo en la fe" },
+  { value: "viene_de_otra_iglesia", label: "Viene de otra iglesia" },
+  { value: "otro", label: "Otro" },
+];
+
 type CustomerAddressRow = {
   id: string;
   label: string;
@@ -49,6 +107,13 @@ export default function EditCustomerPage() {
   const [cedula, setCedula] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [lifeStage, setLifeStage] = useState("");
+  const [occupationStatus, setOccupationStatus] = useState("");
+  const [maritalStatus, setMaritalStatus] = useState("");
+  const [faithOrigin, setFaithOrigin] = useState("");
+  const [isBaptized, setIsBaptized] = useState(false);
+  const [notes, setNotes] = useState("");
   const [addresses, setAddresses] = useState<AddressEntry[]>([newAddressEntry()]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -63,7 +128,7 @@ export default function EditCustomerPage() {
     (async () => {
       const { data, error: fetchError } = await supabase
         .from("customers")
-        .select("id, name, cedula, email, phone, customer_addresses(id, label, address, reference_point, is_default, display_order)")
+        .select("id, name, cedula, email, phone, birth_date, life_stage, occupation_status, marital_status, faith_origin, is_baptized, notes, customer_addresses(id, label, address, reference_point, is_default, display_order)")
         .eq("id", id)
         .single();
 
@@ -77,6 +142,13 @@ export default function EditCustomerPage() {
       setCedula(data.cedula ?? "");
       setEmail(data.email ?? "");
       setPhone(data.phone ?? "");
+      setBirthDate(data.birth_date ? String(data.birth_date).slice(0, 10) : "");
+      setLifeStage(data.life_stage ?? "");
+      setOccupationStatus(data.occupation_status ?? "");
+      setMaritalStatus(data.marital_status ?? (data.is_married ? "casado" : ""));
+      setFaithOrigin(data.faith_origin ?? "");
+      setIsBaptized(!!data.is_baptized);
+      setNotes(data.notes ?? "");
       const addrs = (data.customer_addresses ?? []) as CustomerAddressRow[];
       const sorted = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
       if (sorted.length === 0) {
@@ -142,12 +214,19 @@ export default function EditCustomerPage() {
         cedula: cedula.trim() || null,
         email: email.trim() || null,
         phone: phone.trim() || null,
+        birth_date: birthDate.trim() ? birthDate.trim() : null,
+        life_stage: lifeStage.trim() || null,
+        occupation_status: occupationStatus.trim() || null,
+        marital_status: maritalStatus.trim() || null,
+        faith_origin: faithOrigin.trim() || null,
+        is_baptized: isBaptized,
+        notes: notes.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
 
     if (updateError) {
-      setError(updateError.message || "No se pudo actualizar el cliente.");
+      setError(updateError.message || "No se pudo actualizar el miembro.");
       setSaving(false);
       return;
     }
@@ -222,7 +301,7 @@ export default function EditCustomerPage() {
           action: "customer_updated",
           entityType: "customer",
           entityId: id,
-          summary: `Editó el cliente ${nameTrim}`,
+          summary: `Editó el miembro ${nameTrim}`,
           metadata: {
             name: nameTrim,
             changesSummary,
@@ -250,8 +329,8 @@ export default function EditCustomerPage() {
   if (notFound) {
     return (
       <div className="space-y-4">
-        <p className="text-[14px] text-slate-600 dark:text-slate-400">Cliente no encontrado.</p>
-        <Link href="/clientes" className="text-[14px] font-medium text-ov-pink hover:underline">Volver a clientes</Link>
+        <p className="text-[14px] text-slate-600 dark:text-slate-400">Miembro no encontrado.</p>
+        <Link href="/clientes" className="text-[14px] font-medium text-ov-pink hover:underline">Volver a miembros</Link>
       </div>
     );
   }
@@ -261,15 +340,15 @@ export default function EditCustomerPage() {
       <header className="space-y-2">
         <Breadcrumb
           items={[
-            { label: "Clientes", href: "/clientes" },
-            { label: name || "Cliente", href: id ? `/clientes/${id}` : undefined },
+            { label: "Miembros", href: "/clientes" },
+            { label: name || "Miembro", href: id ? `/clientes/${id}` : undefined },
             { label: "Editar" },
           ]}
         />
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">Editar cliente</h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">Modifica los datos y direcciones del cliente.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">Editar miembro</h1>
+            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">Modifica los datos y direcciones del miembro.</p>
           </div>
           <Link
             href={`/clientes/${id}`}
@@ -308,10 +387,78 @@ export default function EditCustomerPage() {
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Estado personal</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Edad, estado civil y situación laboral o estudiantil.</p>
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="customer-birthdate" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">Fecha de nacimiento</label>
+<DatePickerCard
+                  id="customer-birthdate"
+                  value={birthDate ? new Date(birthDate + "T12:00:00") : null}
+                  onChange={(d) => {
+                    const v = d ? d.toISOString().slice(0, 10) : "";
+                    setBirthDate(v);
+                    const age = v ? ageFromBirthDate(v) : null;
+                    if (age != null) setLifeStage(lifeStageFromAge(age));
+                  }}
+                  max={new Date()}
+                  placeholder="dd/mm/aaaa"
+                  allowClear={true}
+                  aria-label="Fecha de nacimiento"
+                  triggerClassName="h-10 w-full min-w-0"
+                  className="w-full"
+                />
+                  {birthDate && ageFromBirthDate(birthDate) != null && <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Edad: {ageFromBirthDate(birthDate)} años</p>}
+                </div>
+                <div>
+                  <label htmlFor="customer-life-stage" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">Etapa de vida</label>
+                  <select id="customer-life-stage" value={lifeStage} onChange={(e) => setLifeStage(e.target.value)} className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                    {LIFE_STAGE_OPTIONS.map((opt) => (<option key={opt.value || "none"} value={opt.value}>{opt.label}</option>))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Para organizar ministerios (niños, jóvenes, etc.).</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="customer-occupation" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">Situación laboral</label>
+                  <select id="customer-occupation" value={occupationStatus} onChange={(e) => setOccupationStatus(e.target.value)} className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                    {OCCUPATION_OPTIONS.map((opt) => (<option key={opt.value || "none"} value={opt.value}>{opt.label}</option>))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="customer-marital" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">Estado civil</label>
+                  <select id="customer-marital" value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)} className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                    {MARITAL_STATUS_OPTIONS.map((opt) => (<option key={opt.value || "none"} value={opt.value}>{opt.label}</option>))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="min-w-0 flex-1 max-w-xs">
+                  <label htmlFor="customer-faith-origin" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">Origen en la fe</label>
+                  <select id="customer-faith-origin" value={faithOrigin} onChange={(e) => setFaithOrigin(e.target.value)} className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                    {FAITH_ORIGIN_OPTIONS.map((opt) => (<option key={opt.value || "none"} value={opt.value}>{opt.label}</option>))}
+                  </select>
+                </div>
+                <label className="flex cursor-pointer items-center gap-2 pb-1">
+                  <input type="checkbox" checked={isBaptized} onChange={(e) => setIsBaptized(e.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-ov-pink focus:ring-ov-pink/30" />
+                  <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Bautizado/a</span>
+                </label>
+              </div>
+              <div>
+                <label htmlFor="customer-notes" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">Notas</label>
+                <textarea id="customer-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ej. Ministerio de alabanza, contacto de emergencia…" className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 resize-y min-h-[72px]" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Direcciones</p>
-                <p className="mt-2 text-[13px] font-medium text-slate-600 dark:text-slate-400">Casa, oficina, etc. Dirección completa y punto de referencia.</p>
+                <p className="mt-2 text-[13px] font-medium text-slate-600 dark:text-slate-400">Opcional. Casa, oficina, etc. Útil para visitas o envíos.</p>
               </div>
               <button type="button" onClick={addAddress} className="shrink-0 inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -355,9 +502,7 @@ export default function EditCustomerPage() {
               ))}
             </div>
           </div>
-        </div>
 
-        <div className="space-y-4">
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Guardar</p>
             {error && <p className="mt-3 text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">{error}</p>}

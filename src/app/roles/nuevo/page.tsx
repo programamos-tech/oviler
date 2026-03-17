@@ -228,7 +228,7 @@ export default function NewEmployeePage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Ej. maria@tienda.com"
+                  placeholder="Ej. maria@iglesia.com"
                   className={inputClass}
                 />
               </div>

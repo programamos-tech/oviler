@@ -6,6 +6,7 @@ import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
+import DatePickerCard from "@/app/components/DatePickerCard";
 import { getCopy, type SalesMode } from "../sales-mode";
 
 const IVA_RATE = 0.19;
@@ -67,6 +68,9 @@ type CartItem = {
   discount_value?: number;
 };
 
+type IncomeTypeOption = { id: string; name: string };
+type ChurchServiceOption = { id: string; name: string };
+
 export default function NewSalePage() {
   const router = useRouter();
   const [branchId, setBranchId] = useState<string | null>(null);
@@ -100,7 +104,19 @@ export default function NewSalePage() {
   const [productHighlightIndex, setProductHighlightIndex] = useState(0);
   const [stockByProductId, setStockByProductId] = useState<Record<string, number>>({});
   const [salesMode, setSalesMode] = useState<SalesMode>("orders");
+  const [incomeTypes, setIncomeTypes] = useState<IncomeTypeOption[]>([]);
+  const [selectedIncomeTypeId, setSelectedIncomeTypeId] = useState<string | null>(null);
+  const [incomeTypeDropdownOpen, setIncomeTypeDropdownOpen] = useState(false);
+  const [montoIngreso, setMontoIngreso] = useState("");
+  const [churchServices, setChurchServices] = useState<ChurchServiceOption[]>([]);
+  const [reunionSelect, setReunionSelect] = useState<string>("");
+  const [incomeContext, setIncomeContext] = useState("");
+  const [saleDate, setSaleDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
   const productListRef = useRef<HTMLUListElement>(null);
+  const incomeTypeDropdownRef = useRef<HTMLDivElement>(null);
   const productItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Reset highlight cuando cambian los resultados de clientes
@@ -335,6 +351,53 @@ export default function NewSalePage() {
     return () => clearTimeout(t);
   }, [orgId, productSearch]);
 
+  // Tipos de ingreso (diezmo, ofrenda, eventos, etc.)
+  useEffect(() => {
+    if (!orgId) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("income_types")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .order("display_order", { ascending: true })
+        .order("name", { ascending: true });
+      if (cancelled) return;
+      setIncomeTypes((data ?? []) as IncomeTypeOption[]);
+    })();
+    return () => { cancelled = true; };
+  }, [orgId]);
+
+  // Servicios/reuniones de la iglesia (para asociar ofrendas)
+  useEffect(() => {
+    if (!orgId) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("church_services")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .order("display_order", { ascending: true })
+        .order("name", { ascending: true });
+      if (cancelled) return;
+      setChurchServices((data ?? []) as ChurchServiceOption[]);
+    })();
+    return () => { cancelled = true; };
+  }, [orgId]);
+
+  useEffect(() => {
+    if (!incomeTypeDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (incomeTypeDropdownRef.current && !incomeTypeDropdownRef.current.contains(e.target as Node)) {
+        setIncomeTypeDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [incomeTypeDropdownOpen]);
+
   const handleProductInputFocus = useCallback(() => {
     if (productSearch.trim() === "") fetchInitialProducts();
   }, [productSearch, fetchInitialProducts]);
@@ -492,6 +555,7 @@ export default function NewSalePage() {
   const totalUnits = cart.reduce((s, i) => s + i.quantity, 0);
   const deliveryFeeAmount = isDelivery && deliveryFee.trim() !== "" ? parseFormattedPrice(deliveryFee) : 0;
   const total = subtotal + deliveryFeeAmount;
+  const totalIngreso = salesMode === "sales" ? parseFormattedPrice(montoIngreso) : total;
 
   const confirmSale = async () => {
     if (submittingRef.current) return;
@@ -499,25 +563,52 @@ export default function NewSalePage() {
       setError("Falta sucursal o usuario.");
       return;
     }
-    if (!selectedCustomer) {
+    if (salesMode === "orders" && !selectedCustomer) {
       setError("Debes seleccionar un cliente.");
       return;
     }
-    if (cart.length === 0) {
-      setError("Agrega al menos un producto al carrito.");
-      return;
-    }
-    if (isDelivery && deliveryFee.trim() === "") {
-      setError("El valor del envío es obligatorio (puede ser 0 si es gratis).");
-      return;
-    }
-    const payPending = isDelivery && paymentPending;
-    if (!payPending && paymentMethod === "mixed") {
-      const cash = parseFormattedPrice(amountCash);
-      const trans = parseFormattedPrice(amountTransfer);
-      if (cash + trans !== total) {
-        setError("En pago mixto, la suma de efectivo y transferencia debe ser igual al total.");
+    if (salesMode === "sales") {
+      const hasMember = !!selectedCustomer;
+      const hasService = reunionSelect !== "" && reunionSelect !== "other";
+      const hasOtherContext = reunionSelect === "other" && incomeContext.trim() !== "";
+      if (!hasMember && !hasService && !hasOtherContext) {
+        setError("Indica un miembro o selecciona una reunión/servicio (o escribe otra en el campo de texto).");
         return;
+      }
+      if (!selectedIncomeTypeId) {
+        setError("Selecciona un tipo de ingreso.");
+        return;
+      }
+      const monto = parseFormattedPrice(montoIngreso);
+      if (!monto || monto <= 0) {
+        setError("Indica el monto del aporte.");
+        return;
+      }
+      if (paymentMethod === "mixed") {
+        const cash = parseFormattedPrice(amountCash);
+        const trans = parseFormattedPrice(amountTransfer);
+        if (cash + trans !== monto) {
+          setError("En forma mixta, la suma de efectivo y transferencia debe ser igual al monto.");
+          return;
+        }
+      }
+    } else {
+      if (cart.length === 0) {
+        setError("Agrega al menos un producto al carrito.");
+        return;
+      }
+      if (isDelivery && deliveryFee.trim() === "") {
+        setError("El valor del envío es obligatorio (puede ser 0 si es gratis).");
+        return;
+      }
+      const payPending = isDelivery && paymentPending;
+      if (!payPending && paymentMethod === "mixed") {
+        const cash = parseFormattedPrice(amountCash);
+        const trans = parseFormattedPrice(amountTransfer);
+        if (cash + trans !== total) {
+          setError("En pago mixto, la suma de efectivo y transferencia debe ser igual al total.");
+          return;
+        }
       }
     }
     submittingRef.current = true;
@@ -529,16 +620,23 @@ export default function NewSalePage() {
       const { count } = await supabase.from("sales").select("*", { count: "exact", head: true }).eq("branch_id", branchId);
       const nextNum = (count ?? 0) + 1;
       const invoiceNumber = nextNum >= 1000 ? String(nextNum) : String(nextNum).padStart(3, "0");
+      const totalToUse = salesMode === "sales" ? totalIngreso : total;
 
       const payload: Record<string, unknown> = {
         branch_id: branchId,
         user_id: userId,
-        customer_id: selectedCustomer.id,
+        customer_id: selectedCustomer?.id ?? null,
         invoice_number: invoiceNumber,
-        total,
+        total: totalToUse,
         payment_method: paymentMethod,
         status: "pending",
       };
+      if (selectedIncomeTypeId) payload.income_type_id = selectedIncomeTypeId;
+      if (salesMode === "sales") {
+        if (reunionSelect && reunionSelect !== "other") payload.church_service_id = reunionSelect;
+        else if (reunionSelect === "other" && incomeContext.trim()) payload.income_context = incomeContext.trim();
+        if (saleDate) payload.sale_date = saleDate;
+      }
       if (paymentMethod === "cash" && amountReceived.trim() !== "") {
         payload.amount_received = parseFormattedPrice(amountReceived) || null;
       }
@@ -565,18 +663,20 @@ export default function NewSalePage() {
         .single();
 
       if (saleError) throw saleError;
-      if (!sale?.id) throw new Error("No se creó el pedido");
+      if (!sale?.id) throw new Error("No se creó el registro");
 
-      const items = cart.map((item) => ({
-        sale_id: sale.id,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        discount_percent: item.discount_type === "percent" ? (item.discount_value ?? 0) : 0,
-        discount_amount: item.discount_type === "fixed" ? (item.discount_value ?? 0) : 0,
-      }));
-      const { error: itemsError } = await supabase.from("sale_items").insert(items);
-      if (itemsError) throw itemsError;
+      if (cart.length > 0) {
+        const items = cart.map((item) => ({
+          sale_id: sale.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          discount_percent: item.discount_type === "percent" ? (item.discount_value ?? 0) : 0,
+          discount_amount: item.discount_type === "fixed" ? (item.discount_value ?? 0) : 0,
+        }));
+        const { error: itemsError } = await supabase.from("sale_items").insert(items);
+        if (itemsError) throw itemsError;
+      }
 
       if (orgId && userId && branchId) {
         try {
@@ -587,12 +687,15 @@ export default function NewSalePage() {
             action: "sale_created",
             entityType: "sale",
             entityId: sale.id,
-            summary: `Creó la venta ${invoiceNumber}${selectedCustomer?.name ? ` — ${selectedCustomer.name}` : ""}`,
+            summary: `Creó la venta ${invoiceNumber}${selectedCustomer?.name ? ` — ${selectedCustomer.name}` : reunionSelect === "other" && incomeContext.trim() ? ` — ${incomeContext.trim()}` : reunionSelect && reunionSelect !== "other" ? ` — ${churchServices.find((s) => s.id === reunionSelect)?.name ?? ""}` : ""}`,
             metadata: {
               invoice_number: invoiceNumber,
-              total,
+              total: totalToUse,
               customer_name: selectedCustomer?.name ?? null,
-              items: cart.map((i) => ({ name: i.name, quantity: i.quantity, reference: i.reference || null })),
+              church_service_id: reunionSelect && reunionSelect !== "other" ? reunionSelect : null,
+              income_context: reunionSelect === "other" ? (incomeContext.trim() || null) : null,
+              income_type_id: selectedIncomeTypeId ?? null,
+              items: cart.length > 0 ? cart.map((i) => ({ name: i.name, quantity: i.quantity, reference: i.reference || null })) : null,
             },
           });
         } catch {
@@ -628,13 +731,13 @@ export default function NewSalePage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">{getCopy(salesMode).newButton}</h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Selecciona el cliente, agrega productos al carrito y elige el método de pago.
+              {getCopy(salesMode).subtitle}
             </p>
           </div>
           <Link
             href="/ventas"
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-            title="Volver a ventas"
+            title="Volver a ingresos"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -644,8 +747,242 @@ export default function NewSalePage() {
       </header>
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
-        {/* Columna izquierda: Productos + Carrito (productos seleccionados) */}
+        {/* Columna izquierda: modo iglesia = Tipos de ingreso + Monto; modo pedidos = Productos + Carrito */}
         <div className="space-y-4">
+          {salesMode === "sales" ? (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+                {/* Tipos de ingreso (modo iglesia) — campo clicable que abre lista */}
+              <div className="min-w-0 flex-1 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" ref={incomeTypeDropdownRef}>
+                <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Tipos de ingreso</p>
+                {incomeTypes.length === 0 ? (
+                  <p className="mt-3 text-[13px] text-slate-500 dark:text-slate-400">
+                    Configura tipos en <Link href="/ventas/tipos" className="font-medium text-ov-pink hover:underline">Ingresos → Tipos de ingresos</Link>.
+                  </p>
+                ) : (
+                  <div className="relative mt-3">
+                    <button
+                      type="button"
+                      onClick={() => setIncomeTypeDropdownOpen((open) => !open)}
+                      className="flex h-11 w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-4 text-left text-[14px] font-medium text-slate-800 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-600/50"
+                      aria-expanded={incomeTypeDropdownOpen}
+                      aria-haspopup="listbox"
+                    >
+                      <span className={selectedIncomeTypeId ? "text-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}>
+                        {selectedIncomeTypeId ? incomeTypes.find((t) => t.id === selectedIncomeTypeId)?.name : "Seleccionar tipo de ingreso"}
+                      </span>
+                      <svg className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${incomeTypeDropdownOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {incomeTypeDropdownOpen && (
+                      <ul
+                        role="listbox"
+                        className="absolute top-full left-0 right-0 z-10 mt-1 max-h-60 overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-track]:bg-slate-800 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600"
+                      >
+                        {incomeTypes.map((t) => (
+                          <li key={t.id} role="option" aria-selected={selectedIncomeTypeId === t.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedIncomeTypeId(t.id);
+                                setIncomeTypeDropdownOpen(false);
+                              }}
+                              className={`flex w-full items-center px-4 py-2.5 text-left text-[14px] font-medium transition-colors ${
+                                selectedIncomeTypeId === t.id
+                                  ? "bg-ov-pink/15 text-ov-pink dark:bg-ov-pink/20"
+                                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                              }`}
+                            >
+                              {t.name}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Monto (modo iglesia) */}
+              <div className="min-w-0 flex-1 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+                <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Monto</p>
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    className="h-11 w-full rounded-lg border border-slate-300 bg-white px-4 text-[16px] font-semibold text-slate-800 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-600/50"
+                    value={montoIngreso}
+                    onChange={(e) => setMontoIngreso(e.target.value.replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, "."))}
+                  />
+                </div>
+              </div>
+              </div>
+              {/* Fecha del ingreso + Reunión o servicio (misma fila que Tipos de ingreso + Monto) */}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+                <div className="min-w-0 flex-1 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+                  <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                    ¿De qué día es este ingreso?
+                  </p>
+                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                    El día del servicio o reunión en que se recogió (ej. Miércoles de Gloria 19 mar).
+                  </p>
+                  <div className="mt-3">
+                    <DatePickerCard
+                      id="sale-date"
+                      value={saleDate ? new Date(saleDate + "T12:00:00") : new Date()}
+                      onChange={(d) => setSaleDate(d ? d.toISOString().slice(0, 10) : "")}
+                      placeholder="dd/mm/aaaa"
+                      allowClear={false}
+                      aria-label="Día del servicio o reunión"
+                      triggerClassName="h-10 w-full min-w-0"
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+                  <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                    Reunión o servicio <span className="font-normal normal-case text-slate-400">(opcional)</span>
+                  </p>
+                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                    Si el ingreso es de una ofrenda colectiva, selecciona el servicio o reunión. Puedes configurar más en{" "}
+                    <Link href="/iglesia/servicios" className="font-medium text-ov-pink hover:underline">Iglesia → Servicios</Link>.
+                  </p>
+                  <select
+                    value={reunionSelect}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setReunionSelect(v);
+                      if (v !== "other") setIncomeContext("");
+                      if (v !== "") {
+                        setSelectedCustomer(null);
+                        setCustomerSearch("");
+                        setCustomerResults([]);
+                      }
+                    }}
+                    className="mt-3 h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <option value="">— Ninguna —</option>
+                    {churchServices.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                    <option value="other">Otra (especificar abajo)</option>
+                  </select>
+                  {reunionSelect === "other" && (
+                    <input
+                      type="text"
+                      value={incomeContext}
+                      onChange={(e) => setIncomeContext(e.target.value)}
+                      placeholder="Ej. Culto dominical, Reunión de jóvenes, Evento especial"
+                      className="mt-3 h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+                    />
+                  )}
+                </div>
+              </div>
+              {/* Miembro (opcional; se deshabilita si eligió reunión/servicio) */}
+              {(() => {
+                const memberDisabled = reunionSelect !== "";
+                return (
+              <div className={`rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 ${memberDisabled ? "opacity-60" : ""}`}>
+                <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  {getCopy(salesMode).clientLabel}{" "}
+                  {memberDisabled ? (
+                    <span className="font-normal normal-case text-slate-400">(deshabilitado: elegiste reunión/servicio)</span>
+                  ) : (
+                    <span className="font-normal normal-case text-slate-400">(opcional si es ofrenda de reunión/evento)</span>
+                  )}
+                </p>
+                <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={selectedCustomer ? selectedCustomer.name : customerSearch}
+                      onChange={(e) => {
+                        setSelectedCustomer(null);
+                        setCustomerSearch(e.target.value);
+                      }}
+                      onFocus={handleCustomerInputFocus}
+                      onKeyDown={handleCustomerKeyDown}
+                      placeholder={getCopy(salesMode).clientSearchPlaceholder}
+                      disabled={memberDisabled}
+                      className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:disabled:bg-slate-800/70 dark:disabled:text-slate-500"
+                      aria-autocomplete="list"
+                      aria-expanded={customerResults.length > 0 && !selectedCustomer && !memberDisabled}
+                      aria-controls="customer-results-list"
+                      aria-activedescendant={customerResults.length > 0 ? `customer-option-${customerHighlightIndex}` : undefined}
+                    />
+                    {selectedCustomer && !memberDisabled && (
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedCustomer(null); setCustomerSearch(""); }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-ov-pink hover:underline"
+                      >
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+                  {memberDisabled ? (
+                    <span
+                      className="inline-flex h-10 shrink-0 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-4 text-[13px] font-medium text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500"
+                      aria-disabled="true"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      {getCopy(salesMode).newClientLabel}
+                    </span>
+                  ) : (
+                  <Link
+                    href="/clientes/nueva"
+                    className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    {getCopy(salesMode).newClientLabel}
+                  </Link>
+                  )}
+                </div>
+                {customerResults.length > 0 && !selectedCustomer && !memberDisabled && (
+                  <ul
+                    ref={customerListRef}
+                    id="customer-results-list"
+                    role="listbox"
+                    className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:hover:bg-slate-400 dark:[&::-webkit-scrollbar-track]:bg-slate-800 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 dark:[&::-webkit-scrollbar-thumb]:hover:bg-slate-500"
+                  >
+                    {customerResults.map((c, index) => (
+                      <li key={c.id} role="option" aria-selected={index === customerHighlightIndex}>
+                        <button
+                          ref={(el) => { customerItemRefs.current[index] = el; }}
+                          type="button"
+                          id={`customer-option-${index}`}
+                          onClick={() => {
+                            setSelectedCustomer(c);
+                            setCustomerSearch("");
+                            setCustomerResults([]);
+                          }}
+                          className={`w-full px-4 py-2 text-left text-[14px] text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700 ${
+                            index === customerHighlightIndex ? "bg-slate-100 dark:bg-slate-700" : ""
+                          }`}
+                        >
+                          <span className="font-bold">{c.name}</span>
+                          {(c.cedula ?? c.phone) && (
+                            <span className="font-normal text-slate-600 dark:text-slate-400">
+                              {" · "}
+                              {c.cedula ?? c.phone}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+                );
+              })()}
+            </div>
+          ) : (
+            <>
           {/* Productos */}
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Productos</p>
@@ -890,14 +1227,17 @@ export default function NewSalePage() {
               </div>
             )}
           </div>
+            </>
+          )}
         </div>
 
-        {/* Columna derecha: Cliente + Método de pago + Resumen */}
+        {/* Columna derecha: Cliente (solo pedidos) + (opcional Tipo/Envío) + Forma de pago + Resumen */}
         <div className="space-y-4">
-          {/* Cliente (obligatorio) */}
+          {/* Cliente (solo modo pedidos; en modo iglesia Miembro va en la columna izquierda) */}
+          {salesMode === "orders" && (
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Cliente <span className="text-ov-pink">*</span>
+              {getCopy(salesMode).clientLabel} <span className="text-ov-pink">*</span>
             </p>
             <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
               <div className="relative flex-1">
@@ -910,7 +1250,7 @@ export default function NewSalePage() {
                   }}
                   onFocus={handleCustomerInputFocus}
                   onKeyDown={handleCustomerKeyDown}
-                  placeholder="Buscar por nombre, cédula, email o teléfono"
+                  placeholder={getCopy(salesMode).clientSearchPlaceholder}
                   className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   aria-autocomplete="list"
                   aria-expanded={customerResults.length > 0 && !selectedCustomer}
@@ -934,7 +1274,7 @@ export default function NewSalePage() {
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Nuevo cliente
+                {getCopy(salesMode).newClientLabel}
               </Link>
             </div>
             {customerResults.length > 0 && !selectedCustomer && (
@@ -972,8 +1312,29 @@ export default function NewSalePage() {
               </ul>
             )}
           </div>
+          )}
 
-          {/* Envío */}
+          {/* Tipo de ingreso (solo modo pedidos; en modo iglesia va en la columna izquierda) */}
+          {salesMode === "orders" && incomeTypes.length > 0 && (
+            <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                Tipo de ingreso
+              </p>
+              <select
+                value={selectedIncomeTypeId ?? ""}
+                onChange={(e) => setSelectedIncomeTypeId(e.target.value.trim() || null)}
+                className="mt-3 h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              >
+                <option value="">Sin tipo</option>
+                {incomeTypes.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Envío (solo modo pedidos) */}
+          {salesMode === "orders" && (
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <label className={`flex items-center gap-2 ${selectedCustomer ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
               <input
@@ -1093,9 +1454,10 @@ export default function NewSalePage() {
                 </div>
               )}
           </div>
+          )}
 
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Método de pago</p>
+            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">{getCopy(salesMode).paymentSectionLabel}</p>
             <div className="mt-3 flex gap-1 rounded-lg bg-slate-100/80 p-1 dark:bg-slate-800/50">
               <button
                 type="button"
@@ -1158,7 +1520,7 @@ export default function NewSalePage() {
                     <label className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cuánto regreso</label>
                     <div className="flex h-9 items-center text-[14px] font-semibold text-slate-800 dark:text-slate-100">
                       {amountReceived.trim() !== "" ? (
-                        <span className="text-emerald-600 dark:text-emerald-400">$ {formatMoney(Math.max(0, parseFormattedPrice(amountReceived) - total))}</span>
+                        <span className="text-emerald-600 dark:text-emerald-400">$ {formatMoney(Math.max(0, parseFormattedPrice(amountReceived) - (salesMode === "sales" ? totalIngreso : total)))}</span>
                       ) : (
                         <span className="text-slate-400 dark:text-slate-500">—</span>
                       )}
@@ -1169,7 +1531,7 @@ export default function NewSalePage() {
             )}
             {paymentMethod === "mixed" && (
               <div className="mt-4 space-y-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
-                <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Total a cobrar: $ {formatMoney(total)}</p>
+                <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Total a cobrar: $ {formatMoney(salesMode === "sales" ? totalIngreso : total)}</p>
                 <div className="flex flex-wrap gap-4 sm:gap-6">
                   <div className="min-w-0 flex-1">
                     <label className="block text-[12px] font-medium text-slate-500 dark:text-slate-400">Cuánto a efectivo</label>
@@ -1198,8 +1560,9 @@ export default function NewSalePage() {
                   const cash = parseFormattedPrice(amountCash);
                   const trans = parseFormattedPrice(amountTransfer);
                   const sum = cash + trans;
-                  if (sum > 0 && sum !== total) {
-                    const missing = total - sum;
+                  const totalForCompare = salesMode === "sales" ? totalIngreso : total;
+                  if (sum > 0 && sum !== totalForCompare) {
+                    const missing = totalForCompare - sum;
                     return (
                       <p className="text-[12px] font-medium text-amber-600 dark:text-amber-400">
                         {missing > 0 ? (
@@ -1220,7 +1583,7 @@ export default function NewSalePage() {
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Resumen</p>
             <div className="mt-3 space-y-2">
-              {cart.length > 0 && (
+              {salesMode === "orders" && cart.length > 0 && (
                 <div className="flex items-center justify-between text-[14px]">
                   <span className="text-slate-600 dark:text-slate-400">Referencias</span>
                   <span className="font-medium text-slate-900 dark:text-slate-50">
@@ -1228,17 +1591,19 @@ export default function NewSalePage() {
                   </span>
                 </div>
               )}
-              <div className="flex items-center justify-between text-[14px]">
-                <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
-                <span className="font-medium text-slate-900 dark:text-slate-50">$ {formatMoney(subtotal)}</span>
-              </div>
-              {totalDiscount > 0 && (
+              {salesMode === "orders" && (
+                <div className="flex items-center justify-between text-[14px]">
+                  <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-50">$ {formatMoney(subtotal)}</span>
+                </div>
+              )}
+              {salesMode === "orders" && totalDiscount > 0 && (
                 <div className="flex items-center justify-between text-[14px]">
                   <span className="text-slate-600 dark:text-slate-400">Descuentos</span>
                   <span className="font-medium text-emerald-600 dark:text-emerald-400">−$ {formatMoney(totalDiscount)}</span>
                 </div>
               )}
-              {isDelivery && (
+              {salesMode === "orders" && isDelivery && (
                 <div className="flex items-center justify-between text-[14px]">
                   <span className="text-slate-600 dark:text-slate-400">Envío</span>
                   <span className="font-medium text-slate-900 dark:text-slate-50">
@@ -1248,17 +1613,18 @@ export default function NewSalePage() {
               )}
               <div className="flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-800">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total</span>
-                <span className="text-base font-bold text-slate-900 dark:text-slate-50">$ {formatMoney(total)}</span>
+                <span className="text-base font-bold text-slate-900 dark:text-slate-50">$ {formatMoney(salesMode === "sales" ? totalIngreso : total)}</span>
               </div>
             </div>
             <button
               type="button"
               onClick={confirmSale}
               disabled={
-                !selectedCustomer ||
-                cart.length === 0 ||
+                (salesMode === "sales"
+                  ? (!selectedCustomer && !reunionSelect) || (reunionSelect === "other" && !incomeContext.trim()) || !selectedIncomeTypeId || totalIngreso <= 0
+                  : !selectedCustomer || cart.length === 0) ||
                 submitting ||
-                (paymentMethod === "mixed" && parseFormattedPrice(amountCash) + parseFormattedPrice(amountTransfer) !== total)
+                (paymentMethod === "mixed" && parseFormattedPrice(amountCash) + parseFormattedPrice(amountTransfer) !== (salesMode === "sales" ? totalIngreso : total))
               }
               className="mt-4 w-full rounded-lg bg-ov-pink py-3 text-[15px] font-bold text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 disabled:pointer-events-none dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
               aria-busy={submitting}

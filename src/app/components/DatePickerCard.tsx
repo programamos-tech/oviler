@@ -58,6 +58,10 @@ type DatePickerCardProps = {
   placeholder?: string;
   allowClear?: boolean;
   "aria-label"?: string;
+  /** Clases extra para el botón disparador (ej. h-10 w-full en formularios) */
+  triggerClassName?: string;
+  /** Clases para el contenedor (ej. w-full para igualar ancho a otros campos) */
+  className?: string;
 };
 
 export default function DatePickerCard({
@@ -69,6 +73,8 @@ export default function DatePickerCard({
   placeholder = "Elegir fecha",
   allowClear = true,
   "aria-label": ariaLabel,
+  triggerClassName,
+  className,
 }: DatePickerCardProps) {
   const [open, setOpen] = useState(false);
   const [viewMonth, setViewMonth] = useState<Date>(() => value || new Date());
@@ -122,6 +128,10 @@ export default function DatePickerCard({
   const today = new Date();
   const todayStr = toYMD(today);
 
+  const minYear = min ? min.getFullYear() : today.getFullYear() - 120;
+  const maxYear = max ? max.getFullYear() : today.getFullYear() + 1;
+  const years = Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i).reverse();
+
   const canPrev = min
     ? new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 0) >= min
     : true;
@@ -132,7 +142,7 @@ export default function DatePickerCard({
   const grid = getCalendarGrid(viewMonth);
 
   return (
-    <div ref={wrapperRef} className="relative inline-block">
+    <div ref={wrapperRef} className={`relative inline-block ${className ?? ""}`.trim()}>
       <button
         ref={buttonRef}
         type="button"
@@ -141,7 +151,7 @@ export default function DatePickerCard({
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-8 min-w-[140px] cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-2 pr-2 text-[12px] text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+        className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 text-[13px] text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 ${triggerClassName || "h-8 min-w-[140px]"}`}
       >
         <span className={displayValue ? "font-medium" : "text-slate-400 dark:text-slate-500"}>
           {displayValue || placeholder}
@@ -171,34 +181,61 @@ export default function DatePickerCard({
             role="dialog"
             aria-modal="true"
             aria-label="Calendario"
-            className="fixed w-[280px] rounded-xl border border-slate-200 bg-white p-4 shadow-xl ring-1 ring-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-700 z-[9999]"
+            className="fixed w-[280px] rounded-xl border border-slate-200 bg-white p-4 shadow-xl ring-2 ring-ov-pink/20 dark:border-slate-700 dark:bg-slate-900 dark:ring-ov-pink/30 z-[9999]"
             style={{ top: position.top, left: position.left }}
           >
-          {/* Mes / año y flechas */}
-          <div className="mb-3 flex items-center justify-between">
+          {/* Mes, año (selectores) y flechas */}
+          <div className="mb-3 flex items-center justify-between gap-1">
             <button
               type="button"
               disabled={!canPrev}
               onClick={() =>
                 setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1))
               }
-              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              className="shrink-0 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-ov-pink/10 hover:text-ov-pink disabled:opacity-40 dark:text-slate-400 dark:hover:bg-ov-pink/20 dark:hover:text-ov-pink-muted"
               aria-label="Mes anterior"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <span className="text-[14px] font-semibold capitalize text-slate-800 dark:text-slate-100">
-              {MONTHS[viewMonth.getMonth()]} de {viewMonth.getFullYear()}
-            </span>
+            <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
+              <select
+                value={viewMonth.getMonth()}
+                onChange={(e) =>
+                  setViewMonth(new Date(viewMonth.getFullYear(), Number(e.target.value), 1))
+                }
+                className="w-full min-w-0 max-w-[110px] cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-[13px] font-medium text-slate-800 focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                aria-label="Seleccionar mes"
+              >
+                {MONTHS.map((m, i) => (
+                  <option key={m} value={i}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={viewMonth.getFullYear()}
+                onChange={(e) =>
+                  setViewMonth(new Date(Number(e.target.value), viewMonth.getMonth(), 1))
+                }
+                className="w-full min-w-0 max-w-[72px] cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-[13px] font-medium text-slate-800 focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                aria-label="Seleccionar año"
+              >
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               type="button"
               disabled={!canNext}
               onClick={() =>
                 setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1))
               }
-              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              className="shrink-0 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-ov-pink/10 hover:text-ov-pink disabled:opacity-40 dark:text-slate-400 dark:hover:bg-ov-pink/20 dark:hover:text-ov-pink-muted"
               aria-label="Mes siguiente"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -250,7 +287,7 @@ export default function DatePickerCard({
                           ? "bg-ov-pink text-white hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
                           : isToday
                             ? "font-bold text-ov-pink ring-2 ring-ov-pink/50 hover:bg-ov-pink/10 dark:text-ov-pink-muted dark:ring-ov-pink-muted/50 dark:hover:bg-ov-pink/20"
-                            : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                            : "text-slate-700 hover:bg-ov-pink/10 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-ov-pink/20 dark:hover:text-slate-100"
                   }`}
                 >
                   {d.getDate()}

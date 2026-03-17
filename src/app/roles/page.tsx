@@ -127,7 +127,7 @@ export default function RolesPage() {
               Usuarios y roles
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Gestiona colaboradores, roles y permisos. Define quién puede hacer qué en NOU Tiendas.
+              Gestiona colaboradores, roles y permisos. Define quién puede hacer qué en NOU Iglesias.
             </p>
           </div>
           <div className="flex gap-2">

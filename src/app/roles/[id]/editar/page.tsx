@@ -271,7 +271,7 @@ export default function EditEmployeePage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Ej. maria@tienda.com"
+                  placeholder="Ej. maria@iglesia.com"
                   className={inputClass}
                   disabled={loading}
                 />

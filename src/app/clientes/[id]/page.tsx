@@ -19,6 +19,17 @@ function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
 }
 
+function ageFromBirthDate(birthDate: string | null): number | null {
+  if (!birthDate) return null;
+  const d = new Date(birthDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+  return age >= 0 ? age : null;
+}
+
 type CustomerAddress = {
   id: string;
   label: string;
@@ -28,12 +39,49 @@ type CustomerAddress = {
   display_order: number;
 };
 
+const LIFE_STAGE_LABELS: Record<string, string> = {
+  niño: "Niño/a",
+  adolescente: "Adolescente",
+  joven: "Joven",
+  joven_adulto: "Joven adulto",
+  adulto: "Adulto",
+  adulto_mayor: "Adulto mayor",
+};
+const OCCUPATION_LABELS: Record<string, string> = {
+  empleado: "Empleado",
+  emprendedor: "Emprendedor",
+  estudiante: "Estudiante",
+  sin_trabajo: "Sin trabajo",
+  jubilado: "Jubilado / pensionado",
+  otro: "Otro",
+};
+const MARITAL_LABELS: Record<string, string> = {
+  soltero: "Soltero/a",
+  casado: "Casado/a",
+  divorciado: "Divorciado/a",
+  viudo: "Viudo/a",
+  union_libre: "Unión libre",
+  otro: "Otro",
+};
+const FAITH_ORIGIN_LABELS: Record<string, string> = {
+  nuevo_en_la_fe: "Nuevo en la fe",
+  viene_de_otra_iglesia: "Viene de otra iglesia",
+  otro: "Otro",
+};
+
 type Customer = {
   id: string;
   name: string;
   cedula: string | null;
   email: string | null;
   phone: string | null;
+  birth_date: string | null;
+  life_stage: string | null;
+  occupation_status: string | null;
+  marital_status: string | null;
+  faith_origin: string | null;
+  is_baptized: boolean | null;
+  notes: string | null;
   created_at: string;
   customer_addresses: CustomerAddress[] | null;
 };
@@ -44,17 +92,8 @@ type SaleRow = {
   total: number;
   status: string;
   created_at: string;
-};
-
-type SaleItemRow = {
-  product_id: string;
-  quantity: number;
-};
-
-type TopProduct = {
-  product_id: string;
-  product_name: string;
-  total_quantity: number;
+  income_type_id: string | null;
+  income_types: { name: string }[] | { name: string } | null;
 };
 
 export default function CustomerDetailPage() {
@@ -64,7 +103,6 @@ export default function CustomerDetailPage() {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [sales, setSales] = useState<SaleRow[]>([]);
-  const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -77,7 +115,7 @@ export default function CustomerDetailPage() {
     (async () => {
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
-        .select("id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)")
+        .select("id, name, cedula, email, phone, birth_date, life_stage, occupation_status, marital_status, faith_origin, is_baptized, notes, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)")
         .eq("id", id)
         .single();
 
@@ -91,51 +129,16 @@ export default function CustomerDetailPage() {
 
       const { data: salesData } = await supabase
         .from("sales")
-        .select("id, invoice_number, total, status, created_at")
+        .select("id, invoice_number, total, status, created_at, income_type_id, income_types(name)")
         .eq("customer_id", id)
         .order("created_at", { ascending: false });
 
       if (cancelled) return;
-      setSales((salesData ?? []) as SaleRow[]);
-
-      const saleIds = (salesData ?? []).map((s: { id: string }) => s.id);
-      if (saleIds.length > 0) {
-        try {
-          const { data: itemsData } = await supabase
-            .from("sale_items")
-            .select("product_id, quantity")
-            .in("sale_id", saleIds);
-
-          if (!cancelled && itemsData && itemsData.length > 0) {
-            const byProduct: Record<string, number> = {};
-            for (const row of itemsData as SaleItemRow[]) {
-              byProduct[row.product_id] = (byProduct[row.product_id] ?? 0) + (row.quantity ?? 0);
-            }
-            const sorted = Object.entries(byProduct)
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 10)
-              .map(([product_id, total_quantity]) => ({ product_id, total_quantity }));
-            const productIds = sorted.map((p) => p.product_id);
-            const { data: productsData } = await supabase
-              .from("products")
-              .select("id, name")
-              .in("id", productIds);
-            const nameById: Record<string, string> = {};
-            (productsData ?? []).forEach((p: { id: string; name: string }) => {
-              nameById[p.id] = p.name ?? "—";
-            });
-            setTopProducts(
-              sorted.map(({ product_id, total_quantity }) => ({
-                product_id,
-                product_name: nameById[product_id] ?? "—",
-                total_quantity,
-              }))
-            );
-          }
-        } catch {
-          // sale_items puede no existir aún; top productos queda vacío
-        }
-      }
+      const rows = (salesData ?? []) as Array<SaleRow & { income_types?: { name: string }[] | { name: string } | null }>;
+      setSales(rows.map((s) => ({
+        ...s,
+        income_types: Array.isArray(s.income_types) ? (s.income_types[0] || null) : s.income_types ?? null,
+      })));
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -170,9 +173,9 @@ export default function CustomerDetailPage() {
   if (notFound || !customer) {
     return (
       <div className="space-y-4">
-        <p className="text-[14px] text-slate-600 dark:text-slate-400">Cliente no encontrado.</p>
+        <p className="text-[14px] text-slate-600 dark:text-slate-400">Miembro no encontrado.</p>
         <Link href="/clientes" className="text-[14px] font-medium text-ov-pink hover:underline">
-          Volver a clientes
+          Volver a miembros
         </Link>
       </div>
     );
@@ -184,19 +187,13 @@ export default function CustomerDetailPage() {
   const subtitleParts = [customer.cedula ? `CC ${customer.cedula}` : null, customer.phone || null, customer.email ? customer.email : null].filter(Boolean);
   const subtitle = subtitleParts.length > 0 ? subtitleParts.join(" · ") : "Sin datos de contacto";
 
-  const completedSales = sales.filter((s) => s.status === "completed");
-  const ticketPromedio = completedSales.length > 0
-    ? completedSales.reduce((sum, s) => sum + Number(s.total), 0) / completedSales.length
-    : 0;
-  const totalVentas = completedSales.reduce((sum, s) => sum + Number(s.total), 0);
-
   return (
     <div className="min-w-0 space-y-6">
       {/* Card: nombre + resumen y acciones */}
       <div className="min-w-0 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
         <Breadcrumb
           items={[
-            { label: "Clientes", href: "/clientes" },
+            { label: "Miembros", href: "/clientes" },
             { label: customer.name },
           ]}
         />
@@ -209,64 +206,7 @@ export default function CustomerDetailPage() {
               {subtitle}
             </p>
           </div>
-          <Link
-            href="/clientes"
-            className="shrink-0 rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            title="Volver a clientes"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </Link>
-        </div>
-        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Ticket promedio</p>
-              <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
-                {completedSales.length > 0 ? `$ ${formatMoney(ticketPromedio)}` : "—"}
-              </p>
-              <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
-                {completedSales.length} {completedSales.length === 1 ? "venta" : "ventas"}
-              </p>
-            </div>
-            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total comprado</p>
-              <p className="mt-0.5 text-lg font-bold text-emerald-700 dark:text-emerald-300 sm:text-xl">
-                {completedSales.length > 0 ? `$ ${formatMoney(totalVentas)}` : "—"}
-              </p>
-            </div>
-            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700 min-w-0 flex-1 sm:min-w-[280px]">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Direcciones</p>
-              {addresses.length === 0 ? (
-                <p className="mt-0.5 text-lg font-bold text-slate-500 dark:text-slate-400 sm:text-xl">—</p>
-              ) : (
-                <ul className="mt-2 flex gap-2">
-                  {addresses.map((addr) => (
-                    <li key={addr.id} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50/50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/30">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">{addr.label}</span>
-                        {addr.is_default && (
-                          <span className="rounded bg-ov-pink/15 px-1.5 py-0.5 text-[10px] font-bold text-ov-pink dark:bg-ov-pink/20 shrink-0">
-                            Principal
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 text-[12px] font-medium text-slate-600 dark:text-slate-400 break-words line-clamp-2" title={addr.address}>
-                        {addr.address}
-                      </p>
-                      {addr.reference_point && (
-                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500 truncate" title={addr.reference_point}>
-                          Ref: {addr.reference_point}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 print:hidden">
+          <div className="flex shrink-0 items-center gap-2 print:hidden">
             <Link
               href={`/clientes/${customer.id}/editar`}
               className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
@@ -280,95 +220,113 @@ export default function CustomerDetailPage() {
             >
               {sales.length === 0 ? "Eliminar" : "Desactivar"}
             </button>
+            <Link
+              href="/clientes"
+              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              title="Volver a miembros"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </Link>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-col gap-6">
+          {/* Datos del miembro: toda la info agregada al crearlo */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Datos del miembro</p>
+            <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              <div><dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Cédula</dt><dd className="mt-0.5 text-[13px] font-medium text-slate-800 dark:text-slate-200">{customer.cedula ? `CC ${customer.cedula}` : "—"}</dd></div>
+              <div><dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Email</dt><dd className="mt-0.5 truncate text-[13px] font-medium text-slate-800 dark:text-slate-200" title={customer.email ?? undefined}>{customer.email || "—"}</dd></div>
+              <div><dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Teléfono</dt><dd className="mt-0.5 text-[13px] font-medium text-slate-800 dark:text-slate-200">{customer.phone || "—"}</dd></div>
+              <div><dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Fecha de nacimiento</dt><dd className="mt-0.5 text-[13px] font-medium text-slate-800 dark:text-slate-200">{customer.birth_date ? `${formatDate(customer.birth_date)}${ageFromBirthDate(customer.birth_date) != null ? ` (${ageFromBirthDate(customer.birth_date)} años)` : ""}` : "—"}</dd></div>
+              <div><dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Etapa de vida</dt><dd className="mt-0.5 text-[13px] font-medium text-slate-800 dark:text-slate-200">{customer.life_stage ? (LIFE_STAGE_LABELS[customer.life_stage] ?? customer.life_stage) : "—"}</dd></div>
+              <div><dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Situación laboral</dt><dd className="mt-0.5 text-[13px] font-medium text-slate-800 dark:text-slate-200">{customer.occupation_status ? (OCCUPATION_LABELS[customer.occupation_status] ?? customer.occupation_status) : "—"}</dd></div>
+              <div><dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Estado civil</dt><dd className="mt-0.5 text-[13px] font-medium text-slate-800 dark:text-slate-200">{customer.marital_status ? (MARITAL_LABELS[customer.marital_status] ?? customer.marital_status) : "—"}</dd></div>
+              <div><dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Origen en la fe</dt><dd className="mt-0.5 text-[13px] font-medium text-slate-800 dark:text-slate-200">{customer.faith_origin ? (FAITH_ORIGIN_LABELS[customer.faith_origin] ?? customer.faith_origin) : "—"}</dd></div>
+              <div><dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Bautizado/a</dt><dd className="mt-0.5 text-[13px] font-medium text-slate-800 dark:text-slate-200">{customer.is_baptized ? "Sí" : "No"}</dd></div>
+            </dl>
+            {customer.notes && customer.notes.trim() && (
+              <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+                <dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Notas</dt>
+                <dd className="mt-0.5 text-[13px] font-medium text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{customer.notes.trim()}</dd>
+              </div>
+            )}
+            {addresses.length > 0 && (
+              <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+                <dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Direcciones</dt>
+                <dd className="mt-2 flex flex-wrap gap-2">
+                  {addresses.map((addr) => (
+                    <div key={addr.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800/50">
+                      <span className="text-[12px] font-bold text-slate-800 dark:text-slate-100">{addr.label}</span>
+                      {addr.is_default && <span className="ml-1.5 rounded bg-ov-pink/15 px-1 py-0.5 text-[10px] font-medium text-ov-pink dark:bg-ov-pink/20">Principal</span>}
+                      <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-300">{addr.address}</p>
+                      {addr.reference_point && <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Ref: {addr.reference_point}</p>}
+                    </div>
+                  ))}
+                </dd>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Ventas y top productos, uno al lado del otro */}
-      <section className="grid min-w-0 gap-5 lg:grid-cols-2">
-        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Ventas de este cliente
-            </h2>
-            {sales.length === 0 ? (
-              <div className="mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-10 dark:border-slate-700 min-h-[200px]">
-                <svg className="h-10 w-10 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                <p className="mt-3 text-[14px] font-medium text-slate-600 dark:text-slate-400">Aún no hay ventas registradas</p>
-                <p className="mt-1 max-w-[260px] text-center text-[13px] text-slate-500 dark:text-slate-500">
-                  Cuando registres ventas con este cliente, aquí verás el detalle.
-                </p>
-              </div>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {sales.map((sale) => (
-                  <li
-                    key={sale.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/30"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold text-slate-800 dark:text-slate-100 truncate">{sale.invoice_number}</p>
-                      <p className="text-[12px] text-slate-500 dark:text-slate-400">
-                        {formatDate(sale.created_at)} · {formatTime(sale.created_at)}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-[14px] font-bold text-slate-900 dark:text-slate-50">$ {formatMoney(Number(sale.total))}</p>
-                      <p className={`text-[11px] font-medium ${sale.status === "completed" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                        {sale.status === "completed" ? "Completada" : "Anulada"}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-        </div>
-
-        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+      <section className="min-w-0">
+        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-            Top productos comprados
+            Registro de donaciones
           </h2>
-            {topProducts.length === 0 ? (
-              <div className="mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-10 dark:border-slate-700 min-h-[200px]">
-                <p className="text-[14px] font-medium text-slate-600 dark:text-slate-400">Sin datos aún</p>
-                <p className="mt-1 max-w-[260px] text-center text-[13px] text-slate-500 dark:text-slate-500">
-                  Cuando las ventas incluyan ítems por producto, aquí verás el top de productos que ha comprado.
-                </p>
-              </div>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {topProducts.map((p, index) => (
-                  <li
-                    key={p.product_id}
-                    className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-ov-pink/20 text-[11px] font-bold text-ov-pink">
-                        {index + 1}
-                      </span>
-                      <span className="text-[13px] font-medium text-slate-800 dark:text-slate-100 truncate">{p.product_name}</span>
-                    </div>
-                    <span className="text-[13px] font-bold text-slate-700 dark:text-slate-200 shrink-0">
-                      {p.total_quantity} {p.total_quantity === 1 ? "vez" : "veces"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+          {sales.length === 0 ? (
+            <div className="mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-10 dark:border-slate-700 min-h-[200px]">
+              <svg className="h-10 w-10 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <p className="mt-3 text-[14px] font-medium text-slate-600 dark:text-slate-400">Aún no hay donaciones registradas</p>
+              <p className="mt-1 max-w-[280px] text-center text-[13px] text-slate-500 dark:text-slate-500">
+                Cuando registres donaciones o diezmos de este miembro, aquí verás el detalle.
+              </p>
+            </div>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {sales.map((sale) => (
+                <li
+                  key={sale.id}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/30"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-slate-800 dark:text-slate-100 truncate">{sale.invoice_number}</p>
+                    <p className="text-[12px] text-slate-500 dark:text-slate-400">
+                      {formatDate(sale.created_at)} · {formatTime(sale.created_at)}
+                      {sale.income_types?.name && (
+                        <span className="ml-1.5 rounded bg-slate-200/80 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-600 dark:text-slate-200">
+                          {sale.income_types.name}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[14px] font-bold text-slate-900 dark:text-slate-50">$ {formatMoney(Number(sale.total))}</p>
+                    <p className={`text-[11px] font-medium ${sale.status === "completed" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                      {sale.status === "completed" ? "Completada" : "Anulada"}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
 
       <ConfirmDeleteModal
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        title={sales.length === 0 ? "Eliminar cliente" : "Desactivar cliente"}
+        title={sales.length === 0 ? "Eliminar miembro" : "Desactivar miembro"}
         message={sales.length === 0
           ? `¿Estás seguro de que quieres eliminar a "${customer.name}"? Se borrarán también sus direcciones.`
-          : `Este cliente tiene ${sales.length} ${sales.length === 1 ? "venta" : "ventas"}. No se puede eliminar para no perder el historial. Se desactivará y dejará de aparecer en la lista de clientes.`}
+          : `Este miembro tiene ${sales.length} ${sales.length === 1 ? "donación registrada" : "donaciones registradas"}. No se puede eliminar para no perder el historial. Se desactivará y dejará de aparecer en la lista de miembros.`}
         onConfirm={handleDelete}
         loading={deleting}
-        ariaTitle={sales.length === 0 ? `Eliminar cliente ${customer.name}` : `Desactivar cliente ${customer.name}`}
+        ariaTitle={sales.length === 0 ? `Eliminar miembro ${customer.name}` : `Desactivar miembro ${customer.name}`}
       />
     </div>
   );

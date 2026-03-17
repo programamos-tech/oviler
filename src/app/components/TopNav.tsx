@@ -153,6 +153,13 @@ function IconEgresos() {
     </svg>
   );
 }
+function IconChurch() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+    </svg>
+  );
+}
 
 const navItems: NavItem[] = [
   {
@@ -160,43 +167,37 @@ const navItems: NavItem[] = [
     href: "/dashboard",
     icon: <NavIconHome />,
     items: [
-      { label: "Reportes", href: "/dashboard", icon: <IconChart />, description: "Ventas, ingresos e indicadores" },
+      { label: "Reportes", href: "/dashboard", icon: <IconChart />, description: "Ingresos e indicadores" },
       { label: "Ver cierres", href: "/cierre-caja", icon: <IconList />, description: "Historial de cierres de caja" },
       { label: "Nuevo cierre", href: "/cierre-caja/nuevo", icon: <IconPlus />, description: "Realizar cierre de caja del día" },
       { label: "Mapa de bodega", href: "/inventario/ubicaciones", icon: <IconLocation />, description: "Zonas, pasillos y estantes" },
     ],
   },
   {
-    label: "Ventas",
+    label: "Ingresos",
     href: "/ventas",
     icon: <NavIconCart />,
     items: [
-      { label: "Ver ventas", href: "/ventas", icon: <IconList />, description: "Lista de todas las ventas" },
-      { label: "Nueva factura", href: "/ventas/nueva", icon: <IconPlus />, description: "Registrar nueva factura" },
-      { label: "Ver garantías", href: "/garantias", icon: <NavIconShield />, description: "Lista de garantías gestionadas" },
-      { label: "Nueva garantía", href: "/garantias/nueva", icon: <IconPlus />, description: "Registrar nueva garantía" },
+      { label: "Ver ingresos", href: "/ventas", icon: <IconList />, description: "Lista de ingresos por tipo" },
+      { label: "Nuevo registro", href: "/ventas/nueva", icon: <IconPlus />, description: "Registrar nuevo ingreso" },
+      { label: "Tipos de ingresos", href: "/ventas/tipos", icon: <IconCategory />, description: "Gestionar tipos (diezmo, ofrenda, eventos, etc.)" },
     ],
   },
   {
-    label: "Clientes",
+    label: "Iglesia",
+    href: "/iglesia/servicios",
+    icon: <IconChurch />,
+    items: [
+      { label: "Servicios y reuniones", href: "/iglesia/servicios", icon: <IconList />, description: "Configurar cultos, reuniones y eventos" },
+    ],
+  },
+  {
+    label: "Miembros",
     href: "/clientes",
     icon: <NavIconUsers />,
     items: [
-      { label: "Ver clientes", href: "/clientes", icon: <IconList />, description: "Lista de todos los clientes" },
-      { label: "Nuevo cliente", href: "/clientes/nueva", icon: <IconPlus />, description: "Registrar nuevo cliente" },
-    ],
-  },
-  {
-    label: "Inventario",
-    href: "/inventario",
-    icon: <NavIconBox />,
-    items: [
-      { label: "Listado de productos", href: "/inventario", icon: <IconList />, description: "Ver todos los productos" },
-      { label: "Nuevo producto", href: "/inventario/nuevo", icon: <IconPlus />, description: "Agregar producto al inventario" },
-      { label: "Categorías", href: "/inventario/categorias", icon: <IconCategory />, description: "Gestionar categorías" },
-      { label: "Ubicaciones bodega", href: "/inventario/ubicaciones", icon: <IconLocation />, description: "Bodega, pisos, zonas y ubicaciones" },
-      { label: "Actualizar stock", href: "/inventario/actualizar-stock", icon: <IconStock />, description: "Ajustar cantidades de productos" },
-      { label: "Transferir stock", href: "/inventario/transferir", icon: <IconTransfer />, description: "Mover productos entre sucursales" },
+      { label: "Ver miembros", href: "/clientes", icon: <IconList />, description: "Lista de miembros" },
+      { label: "Nuevo miembro", href: "/clientes/nueva", icon: <IconPlus />, description: "Registrar nuevo miembro" },
     ],
   },
   {
@@ -218,20 +219,20 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: "Sucursales",
+    label: "Sedes",
     href: "/sucursales",
     icon: <NavIconBuilding />,
     items: [
-      { label: "Ver sucursales", href: "/sucursales", icon: <IconList />, description: "Lista de sucursales" },
-      { label: "Reportes", href: "/sucursales/reportes", icon: <IconChart />, description: "Ventas e ingresos de la sucursal" },
-      { label: "Configurar sucursal", href: "/sucursales/configurar", icon: <IconSettings />, description: "Ajustes y configuración" },
-      { label: "Nueva sucursal", href: "/sucursales/nueva", icon: <IconPlus />, description: "Crear nueva sucursal" },
+      { label: "Ver sedes", href: "/sucursales", icon: <IconList />, description: "Lista de sedes" },
+      { label: "Reportes", href: "/sucursales/reportes", icon: <IconChart />, description: "Ingresos y reportes de la sede" },
+      { label: "Configurar sede", href: "/sucursales/configurar", icon: <IconSettings />, description: "Ajustes y configuración" },
+      { label: "Nueva sede", href: "/sucursales/nueva", icon: <IconPlus />, description: "Crear nueva sede" },
     ],
   },
   { label: "Actividades", href: "/actividades", icon: <NavIconClipboard /> },
 ];
 
-const FALLBACK_APP_NAME = "NOU Tiendas";
+const FALLBACK_APP_NAME = "NOU Iglesias";
 
 export default function TopNav() {
   const pathname = usePathname();
@@ -317,17 +318,17 @@ export default function TopNav() {
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
       <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Marca NOU: logo + nombre de la plataforma */}
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-0.5 font-logo pt-1" title="NOU Tiendas">
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-0.5 font-logo pt-1" title="NOU Iglesias">
           <div className="mt-1 flex shrink-0 items-center justify-center -mr-0.5">
-            <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[26px] text-ov-pink dark:text-ov-pink-muted sm:h-7 sm:w-7 sm:text-[28px]" style={{ fontVariationSettings: '"FILL" 1' }} aria-hidden>storefront</span>
+            <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[26px] text-ov-pink dark:text-ov-pink-muted sm:h-7 sm:w-7 sm:text-[28px]" style={{ fontVariationSettings: '"FILL" 1' }} aria-hidden>church</span>
           </div>
           <div className="hidden sm:flex flex-col justify-center leading-tight">
             <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-              NOU Tiendas
+              NOU Iglesias
             </span>
           </div>
           <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:hidden sm:text-xl">
-            NOU Tiendas
+            NOU Iglesias
           </span>
         </Link>
 
@@ -404,7 +405,7 @@ export default function TopNav() {
                         <div className="space-y-1">
                           {item.items?.map((subItem) => {
                             const isSubItemActive = pathname === subItem.href;
-                            const salesCopy = item.label === "Ventas" && branch?.sales_mode ? getCopy(branch.sales_mode as "sales" | "orders") : null;
+                            const salesCopy = item.label === "Ingresos" && branch?.sales_mode ? getCopy(branch.sales_mode as "sales" | "orders") : null;
                             const subLabel = salesCopy && subItem.href === "/ventas" ? `Ver ${salesCopy.sectionTitle}` : salesCopy && subItem.href === "/ventas/nueva" ? salesCopy.newButton : subItem.label;
                             const subDescription = salesCopy && subItem.href === "/ventas" ? (branch?.sales_mode === "orders" ? "Lista de todos los pedidos" : "Lista de todas las ventas") : salesCopy && subItem.href === "/ventas/nueva" ? (branch?.sales_mode === "orders" ? "Registrar nuevo pedido" : "Registrar nueva venta") : subItem.description;
                             return (

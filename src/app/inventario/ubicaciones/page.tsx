@@ -555,7 +555,7 @@ export default function UbicacionesPage() {
   if (!branchId) {
     return (
       <div className="space-y-4">
-        <p className="text-[14px] text-slate-600 dark:text-slate-400">No tienes una sucursal asignada. Asigna una desde Roles o Sucursales.</p>
+        <p className="text-[14px] text-slate-600 dark:text-slate-400">No tienes una sede asignada. Asigna una desde Roles o Sedes.</p>
       </div>
     );
   }

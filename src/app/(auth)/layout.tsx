@@ -18,7 +18,7 @@ export default function AuthLayout({
                 className="flex items-center gap-0.5 font-logo text-lg font-bold text-slate-800 dark:text-slate-200"
               >
                 <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[24px] text-ov-pink" aria-hidden>storefront</span>
-                <span>NOU Tiendas</span>
+                <span>NOU Iglesias</span>
               </Link>
               <p className="max-w-xs text-[12px] font-sans text-slate-500 dark:text-slate-400">
                 por NOU Technology
@@ -68,7 +68,7 @@ export default function AuthLayout({
           </div>
           <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
             <p className="text-[12px] text-slate-500 dark:text-slate-400">
-              © {new Date().getFullYear()} NOU Technology. NOU Tiendas. Todos los derechos reservados.
+              © {new Date().getFullYear()} NOU Technology. NOU Iglesias. Todos los derechos reservados.
             </p>
           </div>
         </div>

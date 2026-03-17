@@ -599,7 +599,7 @@ export default function DashboardPage() {
             Reportes
           </h1>
           <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-300 sm:text-[13px]">
-            Resumen de ventas e ingresos de tu sucursal. Elige el rango de fechas (desde / hasta) para ver las métricas.
+            Resumen de ingresos de tu sede. Elige el rango de fechas (desde / hasta) para ver las métricas.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
@@ -812,7 +812,7 @@ export default function DashboardPage() {
         <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div className="mb-3">
             <h2 className="text-base font-bold text-slate-900 dark:text-slate-50">
-              Ventas últimos 7 días
+              Ingresos últimos 7 días
             </h2>
             <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-300">
               Ingresos por día
