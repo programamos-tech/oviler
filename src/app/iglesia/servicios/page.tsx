@@ -102,7 +102,7 @@ export default function ChurchServicesPage() {
   const [newMeetingDay, setNewMeetingDay] = useState(1);
   const [newMeetingStart, setNewMeetingStart] = useState("10:00");
   const [newMeetingEnd, setNewMeetingEnd] = useState("");
-  const [newMeetingColor, setNewMeetingColor] = useState(PRESET_COLORS[0]);
+  const [newMeetingColor, setNewMeetingColor] = useState<(typeof PRESET_COLORS)[number]>(PRESET_COLORS[0]);
   const [newMeetingSaving, setNewMeetingSaving] = useState(false);
 
   const [showAddTimeForm, setShowAddTimeForm] = useState(false);

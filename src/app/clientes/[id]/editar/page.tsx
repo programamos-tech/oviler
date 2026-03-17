@@ -145,7 +145,7 @@ export default function EditCustomerPage() {
       setBirthDate(data.birth_date ? String(data.birth_date).slice(0, 10) : "");
       setLifeStage(data.life_stage ?? "");
       setOccupationStatus(data.occupation_status ?? "");
-      setMaritalStatus(data.marital_status ?? (data.is_married ? "casado" : ""));
+      setMaritalStatus(data.marital_status ?? "");
       setFaithOrigin(data.faith_origin ?? "");
       setIsBaptized(!!data.is_baptized);
       setNotes(data.notes ?? "");

@@ -50,7 +50,7 @@ type SaleRow = {
   customers: { name: string } | null;
   church_services: { name: string } | null;
   users: { name: string } | null;
-  income_types: { name: string }[] | { name: string } | null;
+  income_types: { name: string } | null;
 };
 
 type StatusFilter = "all" | "completed" | "cancelled" | "pending" | "preparing" | "on_the_way" | "delivered";
@@ -126,32 +126,34 @@ export default function SalesPage() {
         setTotalCount(0);
       } else {
         setLoadError(null);
-        setSales(((salesData ?? []) as Array<{
-          id: string;
-          branch_id: string;
-          user_id: string;
-          customer_id: string | null;
-          invoice_number: string;
-          total: number;
-          payment_method: string;
-          status: string;
-          payment_pending?: boolean;
-          is_delivery: boolean;
-          delivery_paid: boolean;
-          delivery_fee: number | null;
-          created_at: string;
-          sale_date: string | null;
-          customers: { name: string }[] | { name: string } | null;
-          church_services: { name: string }[] | { name: string } | null;
-          users: { name: string }[] | { name: string } | null;
-          income_types: { name: string }[] | { name: string } | null;
-        }>).map((s) => ({
-          ...s,
-          customers: Array.isArray(s.customers) ? (s.customers[0] || null) : s.customers,
-          church_services: Array.isArray(s.church_services) ? (s.church_services[0] || null) : s.church_services,
-          users: Array.isArray(s.users) ? (s.users[0] || null) : s.users,
-          income_types: Array.isArray(s.income_types) ? (s.income_types[0] || null) : s.income_types,
-        })) as SaleRow[]);
+        setSales(
+          ((salesData ?? []) as Array<{
+            id: string;
+            branch_id: string;
+            user_id: string;
+            customer_id: string | null;
+            invoice_number: string;
+            total: number;
+            payment_method: string;
+            status: string;
+            payment_pending?: boolean;
+            is_delivery: boolean;
+            delivery_paid: boolean;
+            delivery_fee: number | null;
+            created_at: string;
+            sale_date: string | null;
+            customers: { name: string }[] | { name: string } | null;
+            church_services: { name: string }[] | { name: string } | null;
+            users: { name: string }[] | { name: string } | null;
+            income_types: { name: string }[] | { name: string } | null;
+          }>).map((s) => ({
+            ...s,
+            customers: Array.isArray(s.customers) ? (s.customers[0] || null) : s.customers,
+            church_services: Array.isArray(s.church_services) ? (s.church_services[0] || null) : s.church_services,
+            users: Array.isArray(s.users) ? (s.users[0] || null) : s.users,
+            income_types: Array.isArray(s.income_types) ? (s.income_types[0] || null) : s.income_types,
+          })) as SaleRow[]
+        );
         setTotalCount(count ?? 0);
       }
       setLoading(false);

@@ -297,9 +297,9 @@ export default function CustomerDetailPage() {
                     <p className="text-[13px] font-bold text-slate-800 dark:text-slate-100 truncate">{sale.invoice_number}</p>
                     <p className="text-[12px] text-slate-500 dark:text-slate-400">
                       {formatDate(sale.created_at)} · {formatTime(sale.created_at)}
-                      {sale.income_types?.name && (
+                      {(Array.isArray(sale.income_types) ? sale.income_types[0]?.name : sale.income_types?.name) && (
                         <span className="ml-1.5 rounded bg-slate-200/80 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-600 dark:text-slate-200">
-                          {sale.income_types.name}
+                          {Array.isArray(sale.income_types) ? sale.income_types[0]?.name : sale.income_types?.name}
                         </span>
                       )}
                     </p>
