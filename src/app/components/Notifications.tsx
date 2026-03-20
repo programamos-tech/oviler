@@ -341,7 +341,7 @@ export default function Notifications() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-12 z-50 w-80 rounded-lg border-2 border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="fixed left-2 right-2 top-16 z-50 rounded-lg border-2 border-slate-200 bg-white shadow-2xl sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-80 dark:border-slate-800 dark:bg-slate-900">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-200 p-4 dark:border-slate-800">
             <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
@@ -350,7 +350,7 @@ export default function Notifications() {
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-[12px] font-medium text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink-muted"
+                className="whitespace-nowrap text-[11px] font-medium text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink-muted"
               >
                 Marcar todas como leídas
               </button>
@@ -358,7 +358,7 @@ export default function Notifications() {
           </div>
 
           {/* Notifications list */}
-          <div className="max-h-[30rem] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="max-h-[70vh] overflow-y-auto [scrollbar-width:none] sm:max-h-[30rem] [&::-webkit-scrollbar]:hidden">
             {notifications.length === 0 ? (
               <div className="p-8 text-center">
                 <svg

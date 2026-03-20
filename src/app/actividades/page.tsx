@@ -419,8 +419,8 @@ export default function ActivityFeedPage() {
                         <div className="rounded-full">
                           <Avatar
                             size={30}
-                            name={`${actorName(a)}-${getAvatarVariant(a.users.avatar_url)}`}
-                            variant={getAvatarVariant(a.users.avatar_url)}
+                            name={`${actorName(a)}-${getAvatarVariant(a.users?.avatar_url)}`}
+                            variant={getAvatarVariant(a.users?.avatar_url)}
                             colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
                           />
                         </div>
@@ -637,8 +637,8 @@ export default function ActivityFeedPage() {
                                 <div className="rounded-full">
                                   <Avatar
                                     size={22}
-                                    name={`${c.users?.name ?? "usuario"}-${getAvatarVariant(c.users.avatar_url)}`}
-                                    variant={getAvatarVariant(c.users.avatar_url)}
+                                    name={`${c.users?.name ?? "usuario"}-${getAvatarVariant(c.users?.avatar_url)}`}
+                                    variant={getAvatarVariant(c.users?.avatar_url)}
                                     colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
                                   />
                                 </div>
