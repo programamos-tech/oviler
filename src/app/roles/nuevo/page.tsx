@@ -10,8 +10,14 @@ const ROLES = [
   { id: "owner", name: "Dueño" },
   { id: "admin", name: "Administrador" },
   { id: "cashier", name: "Cajero" },
-  { id: "delivery", name: "Repartidor" },
+  { id: "delivery", name: "Inventario" },
 ];
+
+const REQUIRED_PERMISSION = "activities.view";
+
+function withRequiredPermissions(perms: string[]): string[] {
+  return Array.from(new Set([...perms, REQUIRED_PERMISSION]));
+}
 
 function normalizeForUsername(s: string): string {
   return s
@@ -39,7 +45,7 @@ export default function NewEmployeePage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rol, setRol] = useState("");
-  const [permissions, setPermissions] = useState<string[]>([...ROLE_DEFAULT_PERMISSIONS.cashier]);
+  const [permissions, setPermissions] = useState<string[]>(withRequiredPermissions([...(ROLE_DEFAULT_PERMISSIONS.cashier ?? [])]));
   const [avatarVariant, setAvatarVariant] = useState<"beam" | "marble" | "pixel">("beam");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +85,17 @@ export default function NewEmployeePage() {
       setError("No se pudo obtener la organización.");
       return;
     }
+    const { data: myBranch } = await supabase
+      .from("user_branches")
+      .select("branch_id")
+      .eq("user_id", authUser.id)
+      .limit(1)
+      .single();
+    if (!myBranch?.branch_id) {
+      setUploading(false);
+      setError("No tienes una sucursal activa asignada para crear colaboradores.");
+      return;
+    }
     try {
       const createRes = await fetch("/api/admin/create-user", {
         method: "POST",
@@ -105,9 +122,13 @@ export default function NewEmployeePage() {
       const updatePayload: { role: string; avatar_url: string; permissions: string[] } = {
         role: roleToUse,
         avatar_url: `avatar:${avatarVariant}`,
-        permissions,
+        permissions: withRequiredPermissions(permissions),
       };
       await supabase.from("users").update(updatePayload).eq("id", newUserId);
+      await supabase.from("user_branches").upsert(
+        { user_id: newUserId, branch_id: myBranch.branch_id },
+        { onConflict: "user_id,branch_id" }
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
       setUploading(false);
@@ -160,10 +181,7 @@ export default function NewEmployeePage() {
               <div>
                 <label className={labelClass}>Avatar</label>
                 <div className="flex items-center gap-4">
-                  <div
-                    className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed bg-slate-50 dark:bg-slate-800"
-                    style={{ borderColor: "var(--ov-pink)" }}
-                  >
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-50 dark:bg-slate-800">
                     <Avatar
                       size={76}
                       name={`${nombre.trim() || email.trim() || "nuevo-colaborador"}-${avatarVariant}`}
@@ -241,7 +259,7 @@ export default function NewEmployeePage() {
                     const nextRole = e.target.value;
                     setRol(nextRole);
                     const roleKey = nextRole && ROLES.some((r) => r.id === nextRole) ? nextRole : "cashier";
-                    setPermissions([...(ROLE_DEFAULT_PERMISSIONS[roleKey] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]);
+                    setPermissions(withRequiredPermissions([...(ROLE_DEFAULT_PERMISSIONS[roleKey] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]));
                   }}
                   className={inputClass}
                 >
@@ -258,7 +276,7 @@ export default function NewEmployeePage() {
                     type="button"
                     onClick={() => {
                       const roleKey = rol && ROLES.some((r) => r.id === rol) ? rol : "cashier";
-                      setPermissions([...(ROLE_DEFAULT_PERMISSIONS[roleKey] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]);
+                      setPermissions(withRequiredPermissions([...(ROLE_DEFAULT_PERMISSIONS[roleKey] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]));
                     }}
                     className="text-[12px] font-medium text-ov-pink hover:underline"
                   >
@@ -278,12 +296,16 @@ export default function NewEmployeePage() {
                                 type="checkbox"
                                 checked={checked}
                                 onChange={(e) => {
-                                  setPermissions((prev) =>
-                                    e.target.checked
-                                      ? Array.from(new Set([...prev, perm.key]))
-                                      : prev.filter((k) => k !== perm.key)
-                                  );
+                                  setPermissions((prev) => {
+                                    if (perm.key === REQUIRED_PERMISSION && !e.target.checked) return prev;
+                                    return withRequiredPermissions(
+                                      e.target.checked
+                                        ? Array.from(new Set([...prev, perm.key]))
+                                        : prev.filter((k) => k !== perm.key)
+                                    );
+                                  });
                                 }}
+                                disabled={perm.key === REQUIRED_PERMISSION}
                                 className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30 dark:border-slate-600"
                               />
                               <span>{perm.label}</span>
@@ -334,7 +356,7 @@ export default function NewEmployeePage() {
                 type="button"
                 onClick={handleCreate}
                 disabled={uploading}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-900 dark:hover:bg-slate-800"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
               >
                 {uploading ? "Guardando…" : "Crear colaborador"}
               </button>

@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS locations (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS aisle_id UUID;
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS branch_id UUID;
 CREATE INDEX IF NOT EXISTS idx_locations_aisle_id ON locations(aisle_id);
 CREATE INDEX IF NOT EXISTS idx_locations_branch_id ON locations(branch_id);
 

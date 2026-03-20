@@ -89,6 +89,7 @@ export async function POST(request: Request) {
         organization_id,
         email: emailNorm,
         name,
+        avatar_url: 'avatar:beam',
         role: 'cashier', // Rol por defecto, puede cambiarse después
         status: 'active',
       })

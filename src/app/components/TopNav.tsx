@@ -329,7 +329,8 @@ export default function TopNav() {
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
       <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Marca NOU + logo sucursal */}
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-2 font-logo" title="NOU">
+        <div className="flex shrink-0 items-center gap-3">
+          <Link href="/dashboard" className="flex shrink-0 items-center gap-2 font-logo" title="NOU">
           <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
             NOU
           </span>
@@ -350,7 +351,8 @@ export default function TopNav() {
               </span>
             )}
           </div>
-        </Link>
+          </Link>
+        </div>
 
         {/* Tablet (md–lg): menú arriba solo con iconos, separados. Desktop (lg+): solo texto, sin iconos */}
         <div className="hidden items-center gap-2 md:flex md:gap-3 lg:gap-1 xl:gap-2">
@@ -495,18 +497,21 @@ export default function TopNav() {
               aria-label="Perfil"
               aria-expanded={userMenuOpen}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border" style={{ borderColor: "var(--ov-pink)" }}>
-                {user?.avatar_url?.startsWith("avatar:") ? (
-                  <Avatar
-                    size={30}
-                    name={`${user?.name || user?.email || "usuario"}-${getAvatarVariant(user.avatar_url)}`}
-                    variant={getAvatarVariant(user.avatar_url)}
-                    colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
+                {user?.avatar_url && !user.avatar_url.startsWith("avatar:") ? (
+                  <img
+                    src={user.avatar_url}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <svg className="h-4 w-4 text-slate-700 dark:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
+                  <Avatar
+                    size={30}
+                    name={`${user?.name || user?.email || "usuario"}-${getAvatarVariant(user?.avatar_url)}`}
+                    variant={getAvatarVariant(user?.avatar_url)}
+                    colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                  />
                 )}
               </div>
               <span className="max-w-[120px] truncate text-[13px] font-medium sm:max-w-[140px] lg:max-w-none">

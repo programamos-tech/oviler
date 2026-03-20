@@ -49,10 +49,19 @@ const roles: Role[] = [
   },
   {
     id: "delivery",
-    name: "Repartidor",
-    description: "Ve solo los pedidos asignados y actualiza su estado",
+    name: "Inventario",
+    description: "Gestiona el inventario, productos, categorías, stock y ubicaciones",
     color: "purple",
-    permissions: ["warranties.view", "dashboard.view"],
+    permissions: [
+      "inventory.view",
+      "inventory.create",
+      "inventory.edit",
+      "inventory.categories",
+      "inventory.stock_update",
+      "inventory.transfer",
+      "inventory.locations",
+      "inventory.waste",
+    ],
   },
   {
     id: "admin",
@@ -193,10 +202,7 @@ export default function RolesPage() {
                             </span>
                           </>
                         ) : (
-                          <div
-                            className="flex h-24 w-24 items-center justify-center rounded-full border-2"
-                            style={{ borderColor: "var(--ov-pink)" }}
-                          >
+                          <div className="flex h-24 w-24 items-center justify-center rounded-full">
                             <Avatar
                               size={92}
                               name={`${user.name || user.email || user.id}-${getAvatarVariant(user.avatar_url)}`}

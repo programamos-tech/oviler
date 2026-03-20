@@ -113,6 +113,7 @@ export default function DashboardPage() {
     return new Date(t.getFullYear(), t.getMonth(), t.getDate());
   });
   const [hideSensitiveInfo, setHideSensitiveInfo] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [existingClosingId, setExistingClosingId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -554,7 +555,7 @@ export default function DashboardPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [branchId, dateFilterMode, selectedDay, dateFrom, dateTo]);
+  }, [branchId, dateFilterMode, selectedDay, dateFrom, dateTo, refreshKey]);
 
   useEffect(() => {
     if (!branchId) {
@@ -578,7 +579,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [branchId, dateFilterMode, selectedDay, dateTo]);
+  }, [branchId, dateFilterMode, selectedDay, dateTo, refreshKey]);
 
   const formatDate = (date: Date) => {
     const today = new Date();
@@ -663,113 +664,40 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-4 min-w-0">
-      <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
-            Reportes
-          </h1>
-          <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-300 sm:text-[13px]">
-            Resumen de ventas e ingresos de tu sucursal. Elige el rango de fechas (desde / hasta) para ver las métricas.
-          </p>
-        </div>
-        <div className="flex w-full flex-col gap-2 lg:w-auto lg:items-end">
-            <div className="flex w-full items-center gap-2 sm:w-auto">
-            {/* Botón Cerrar caja */}
-            <button
-              onClick={() => {
-                const endDate = dateFilterMode === "today" ? selectedDay : dateTo;
-                if (existingClosingId) {
-                  router.push(`/cierre-caja/${existingClosingId}`);
-                  return;
-                }
-                router.push(`/cierre-caja/nuevo?fecha=${endDate.toISOString().split("T")[0]}`);
-              }}
-              className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:flex-none dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                {existingClosingId ? (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                ) : (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                )}
-                {existingClosingId && (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                  />
-                )}
-              </svg>
-              {existingClosingId ? "Ver caja cerrada hoy" : "Cerrar caja"}
-            </button>
-            {/* Botón para ocultar información sensible */}
-            <button
-              onClick={() => setHideSensitiveInfo(!hideSensitiveInfo)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-              title={hideSensitiveInfo ? "Mostrar información" : "Ocultar información sensible"}
-            >
-              {hideSensitiveInfo ? (
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                  />
+    <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
+      <header className="space-y-2 min-w-0">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+              <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
+                Reportes
+              </h1>
+              <span className="hidden items-center gap-0.5 whitespace-nowrap text-[11px] font-normal tracking-tight text-slate-700 lg:inline-flex dark:text-slate-200">
+                <svg className="h-3 w-3 text-ov-pink dark:text-ov-pink-muted" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+                  <path d="M11.3 1.046a1 1 0 00-1.78-.14l-5 8A1 1 0 005.36 10H9l-1.3 7.954a1 1 0 001.78.14l5-8A1 1 0 0013.64 9H10l1.3-7.954z" />
                 </svg>
-              ) : (
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                powered by{" "}
+                <a
+                  href="https://wa.me/573002061711?text=Hola%20programamos%2C%20te%20escribo%20desde%20NOU..."
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-bold text-ov-pink hover:text-ov-pink-hover hover:underline dark:text-ov-pink-muted dark:hover:text-ov-pink"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                  />
-                </svg>
-              )}
-            </button>
+                  programamos.st
+                </a>
+              </span>
             </div>
-
-            {/* Filtro: Hoy o Rango */}
-            <div className="flex w-full flex-col gap-2 rounded-xl border border-slate-200/70 p-2 dark:border-slate-800 lg:min-w-[320px]">
-              <div className="flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
+            <p className="mt-0.5 text-[13px] font-medium text-slate-500 md:whitespace-nowrap dark:text-slate-400">
+              Resumen de ventas e ingresos de tu sucursal.
+            </p>
+          </div>
+          <div className="w-full">
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              <div className="grid w-full grid-cols-2 rounded-lg bg-slate-100 p-0.5 sm:w-auto dark:bg-slate-800">
                 <button
                   type="button"
                   onClick={() => setDateFilterMode("today")}
-                  className={`rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                  className={`rounded-md px-3 py-1.5 text-center text-[12px] font-semibold transition-colors ${
                     dateFilterMode === "today"
                       ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
@@ -780,7 +708,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setDateFilterMode("range")}
-                  className={`rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                  className={`rounded-md px-3 py-1.5 text-center text-[12px] font-semibold transition-colors ${
                     dateFilterMode === "range"
                       ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
@@ -789,58 +717,99 @@ export default function DashboardPage() {
                   Rango
                 </button>
               </div>
-
               {dateFilterMode === "today" ? (
-                <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div className="w-full sm:w-[220px]">
                   <DatePickerCard
-                    id="dashboard-date-today"
+                    id="dashboard-date-today-header"
                     value={selectedDay}
                     onChange={(d) => d && setSelectedDay(d)}
                     max={today}
                     allowClear={false}
+                    size="md"
                     fullWidth
                     aria-label="Seleccionar día"
                   />
-                  {selectedDay.getTime() !== today.getTime() && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDay(new Date(today.getFullYear(), today.getMonth(), today.getDate()))}
-                      className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                    >
-                      Ir a hoy
-                    </button>
-                  )}
                 </div>
               ) : (
-                <div className="grid w-full grid-cols-2 gap-2">
-                  <label className="flex w-full flex-col items-start gap-1 text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                    <span className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Desde</span>
+                <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
+                  <div className="w-full sm:w-[220px]">
                     <DatePickerCard
-                      id="dashboard-date-from"
+                      id="dashboard-date-from-header"
                       value={dateFrom}
                       onChange={(d) => d && setDateFrom(d)}
                       max={dateTo}
                       allowClear={false}
+                      size="md"
                       fullWidth
                       aria-label="Fecha desde"
                     />
-                  </label>
-                  <label className="flex w-full flex-col items-start gap-1 text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                    <span className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Hasta</span>
+                  </div>
+                  <div className="w-full sm:w-[220px]">
                     <DatePickerCard
-                      id="dashboard-date-to"
+                      id="dashboard-date-to-header"
                       value={dateTo}
                       onChange={(d) => d && setDateTo(d)}
                       min={dateFrom}
                       max={today}
                       allowClear={false}
+                      size="md"
                       fullWidth
                       aria-label="Fecha hasta"
                     />
-                  </label>
+                  </div>
                 </div>
               )}
+              <button
+                type="button"
+                onClick={() => setRefreshKey((k) => k + 1)}
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Actualizar
+              </button>
+              <button
+                onClick={() => {
+                  const endDate = dateFilterMode === "today" ? selectedDay : dateTo;
+                  if (existingClosingId) {
+                    router.push(`/cierre-caja/${existingClosingId}`);
+                    return;
+                  }
+                  router.push(`/cierre-caja/nuevo?fecha=${endDate.toISOString().split("T")[0]}`);
+                }}
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:w-auto dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+              >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {existingClosingId ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                )}
+                {existingClosingId && (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                )}
+              </svg>
+              {existingClosingId ? "Ver caja cerrada hoy" : "Cerrar caja"}
+              </button>
+              <button
+                onClick={() => setHideSensitiveInfo(!hideSensitiveInfo)}
+                className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition-colors hover:bg-slate-50 sm:w-9 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                title={hideSensitiveInfo ? "Mostrar información" : "Ocultar información sensible"}
+              >
+              {hideSensitiveInfo ? (
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
+              ) : (
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              )}
+              </button>
             </div>
+          </div>
         </div>
       </header>
 

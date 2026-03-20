@@ -58,6 +58,7 @@ type DatePickerCardProps = {
   placeholder?: string;
   allowClear?: boolean;
   fullWidth?: boolean;
+  size?: "sm" | "md";
   "aria-label"?: string;
 };
 
@@ -70,6 +71,7 @@ export default function DatePickerCard({
   placeholder = "Elegir fecha",
   allowClear = true,
   fullWidth = false,
+  size = "sm",
   "aria-label": ariaLabel,
 }: DatePickerCardProps) {
   const [open, setOpen] = useState(false);
@@ -143,7 +145,9 @@ export default function DatePickerCard({
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((o) => !o)}
-        className={`flex h-8 cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-2 pr-2 text-[12px] text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 ${fullWidth ? "w-full min-w-0" : "min-w-[140px]"}`}
+        className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 ${
+          size === "md" ? "h-10 px-3 text-[13px]" : "h-8 px-2 text-[12px]"
+        } ${fullWidth ? "w-full min-w-0" : "min-w-[140px]"}`}
       >
         <span className={displayValue ? "font-medium" : "text-slate-400 dark:text-slate-500"}>
           {displayValue || placeholder}

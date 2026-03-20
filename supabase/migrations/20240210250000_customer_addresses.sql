@@ -68,12 +68,19 @@ DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'address'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'reference_point'
   ) THEN
     INSERT INTO customer_addresses (customer_id, label, address, reference_point, is_default, display_order)
     SELECT id, 'Principal', COALESCE(TRIM(address), ''), NULLIF(TRIM(reference_point), ''), true, 0
     FROM customers
-    WHERE TRIM(COALESCE(address, '')) <> '' OR TRIM(COALESCE(reference_point, '')) <> '';
+    WHERE (TRIM(COALESCE(address, '')) <> '' OR TRIM(COALESCE(reference_point, '')) <> '')
+      AND NOT EXISTS (
+        SELECT 1 FROM customer_addresses ca
+        WHERE ca.customer_id = customers.id AND ca.is_default = true
+      );
   ELSIF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'address'
@@ -81,7 +88,11 @@ BEGIN
     INSERT INTO customer_addresses (customer_id, label, address, reference_point, is_default, display_order)
     SELECT id, 'Principal', COALESCE(TRIM(address), ''), NULL, true, 0
     FROM customers
-    WHERE TRIM(COALESCE(address, '')) <> '';
+    WHERE TRIM(COALESCE(address, '')) <> ''
+      AND NOT EXISTS (
+        SELECT 1 FROM customer_addresses ca
+        WHERE ca.customer_id = customers.id AND ca.is_default = true
+      );
   END IF;
 END $$;
 

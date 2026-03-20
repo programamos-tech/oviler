@@ -77,8 +77,12 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionKey[]> = {
     "expenses.view",
     "expenses.create",
     "inventory.view",
+    "activities.view",
   ],
-  delivery: ["sales.view", "customers.view"],
+  delivery: PERMISSION_OPTIONS
+    .filter((p) => p.group === "Inventario")
+    .map((p) => p.key)
+    .concat("activities.view"),
 };
 
 function normalizePath(pathname: string): string {
@@ -91,8 +95,8 @@ function resolvePermissions(
   customPermissions?: string[] | null
 ): Set<string> {
   const fromCustom = (customPermissions ?? []).filter(Boolean);
-  if (fromCustom.length > 0) return new Set(fromCustom);
-  return new Set(ROLE_DEFAULT_PERMISSIONS[role ?? ""] ?? PERMISSION_OPTIONS.map((p) => p.key));
+  if (fromCustom.length > 0) return new Set([...fromCustom, "activities.view"]);
+  return new Set([...(ROLE_DEFAULT_PERMISSIONS[role ?? ""] ?? PERMISSION_OPTIONS.map((p) => p.key)), "activities.view"]);
 }
 
 function hasPathPrefix(path: string, prefix: string): boolean {

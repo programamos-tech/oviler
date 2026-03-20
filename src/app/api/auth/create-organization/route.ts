@@ -93,6 +93,7 @@ export async function POST(request: Request) {
       organization_id: orgData.id,
       email,
       name,
+      avatar_url: 'avatar:beam',
       role: 'owner',
       status: 'active',
     })

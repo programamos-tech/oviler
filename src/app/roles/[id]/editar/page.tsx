@@ -11,8 +11,14 @@ const ROLES = [
   { id: "owner", name: "Dueño" },
   { id: "admin", name: "Administrador" },
   { id: "cashier", name: "Cajero" },
-  { id: "delivery", name: "Repartidor" },
+  { id: "delivery", name: "Inventario" },
 ];
+
+const REQUIRED_PERMISSION = "activities.view";
+
+function withRequiredPermissions(perms: string[]): string[] {
+  return Array.from(new Set([...perms, REQUIRED_PERMISSION]));
+}
 
 function normalizeForUsername(s: string): string {
   return s
@@ -83,7 +89,7 @@ export default function EditEmployeePage() {
       setEmail(u.email ?? "");
       setUsername(suggestUsername(u.name ?? ""));
       setRol(u.role && ROLES.some((r) => r.id === u.role) ? u.role : "cashier");
-      setPermissions((u.permissions ?? ROLE_DEFAULT_PERMISSIONS[u.role] ?? ROLE_DEFAULT_PERMISSIONS.cashier) as string[]);
+      setPermissions(withRequiredPermissions((u.permissions ?? ROLE_DEFAULT_PERMISSIONS[u.role] ?? ROLE_DEFAULT_PERMISSIONS.cashier) as string[]));
       setStatus((u.status === "inactive" ? "inactive" : "active") as "active" | "inactive");
       if (u.avatar_url?.startsWith("avatar:")) {
         const parsed = u.avatar_url.replace("avatar:", "");
@@ -126,7 +132,7 @@ export default function EditEmployeePage() {
       status,
       updated_at: new Date().toISOString(),
       avatar_url: `avatar:${avatarVariant}`,
-      permissions,
+      permissions: withRequiredPermissions(permissions),
     };
 
     const { data: updated, error } = await supabase
@@ -198,10 +204,7 @@ export default function EditEmployeePage() {
               <div>
                 <label className={labelClass}>Avatar</label>
                 <div className="flex items-center gap-4">
-                  <div
-                    className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed bg-slate-50 dark:bg-slate-800"
-                    style={{ borderColor: "var(--ov-pink)" }}
-                  >
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-50 dark:bg-slate-800">
                     <Avatar
                       size={76}
                       name={`${nombre.trim() || email.trim() || id || "colaborador"}-${avatarVariant}`}
@@ -270,7 +273,7 @@ export default function EditEmployeePage() {
                   <label className={labelClass.replace("mb-2", "mb-0")}>Permisos</label>
                   <button
                     type="button"
-                    onClick={() => setPermissions([...(ROLE_DEFAULT_PERMISSIONS[rol] ?? ROLE_DEFAULT_PERMISSIONS.cashier)])}
+                    onClick={() => setPermissions(withRequiredPermissions([...(ROLE_DEFAULT_PERMISSIONS[rol] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]))}
                     className="text-[12px] font-medium text-ov-pink hover:underline"
                   >
                     Restaurar por rol
@@ -289,12 +292,16 @@ export default function EditEmployeePage() {
                                 type="checkbox"
                                 checked={checked}
                                 onChange={(e) => {
-                                  setPermissions((prev) =>
-                                    e.target.checked
-                                      ? Array.from(new Set([...prev, perm.key]))
-                                      : prev.filter((k) => k !== perm.key)
-                                  );
+                                  setPermissions((prev) => {
+                                    if (perm.key === REQUIRED_PERMISSION && !e.target.checked) return prev;
+                                    return withRequiredPermissions(
+                                      e.target.checked
+                                        ? Array.from(new Set([...prev, perm.key]))
+                                        : prev.filter((k) => k !== perm.key)
+                                    );
+                                  });
                                 }}
+                                disabled={perm.key === REQUIRED_PERMISSION}
                                 className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30 dark:border-slate-600"
                               />
                               <span>{perm.label}</span>

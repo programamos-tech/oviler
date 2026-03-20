@@ -349,10 +349,10 @@ export default function ActivityFeedPage() {
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto">
       <header className="mx-auto max-w-3xl px-4 py-3 text-center">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-50">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
           Qué está pasando hoy
         </h1>
-        <p className="mt-0.5 text-[13px] font-medium text-slate-300">
+        <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-300">
           Actividad reciente de tu sucursal.
         </p>
         {!currentBranch && !loading && (
@@ -415,8 +415,8 @@ export default function ActivityFeedPage() {
                       />
                     ) : null}
                     {!isSystem(a) && (
-                      a.users?.avatar_url?.startsWith("avatar:") ? (
-                        <div className="rounded-full border" style={{ borderColor: "var(--ov-pink)" }}>
+                      a.users?.avatar_url?.startsWith("avatar:") || !a.users?.avatar_url ? (
+                        <div className="rounded-full">
                           <Avatar
                             size={30}
                             name={`${actorName(a)}-${getAvatarVariant(a.users.avatar_url)}`}
@@ -633,8 +633,8 @@ export default function ActivityFeedPage() {
                                     {initial(c.users?.name ?? null)}
                                   </span>
                                 </>
-                              ) : c.users?.avatar_url?.startsWith("avatar:") ? (
-                                <div className="rounded-full border" style={{ borderColor: "var(--ov-pink)" }}>
+                              ) : c.users?.avatar_url?.startsWith("avatar:") || !c.users?.avatar_url ? (
+                                <div className="rounded-full">
                                   <Avatar
                                     size={22}
                                     name={`${c.users?.name ?? "usuario"}-${getAvatarVariant(c.users.avatar_url)}`}

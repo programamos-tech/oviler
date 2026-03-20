@@ -78,4 +78,5 @@ CREATE POLICY "Users manage stands in their branches"
   WITH CHECK (aisle_id IN (SELECT id FROM aisles WHERE zone_id IN (SELECT id FROM zones WHERE floor_id IN (SELECT id FROM floors WHERE warehouse_id IN (SELECT id FROM warehouses WHERE branch_id IN (SELECT branch_id FROM user_branches WHERE user_id = auth.uid()))))));
 
 -- 7. updated_at para stands
+DROP TRIGGER IF EXISTS update_stands_updated_at ON stands;
 CREATE TRIGGER update_stands_updated_at BEFORE UPDATE ON stands FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

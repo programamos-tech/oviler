@@ -1069,26 +1069,26 @@ export default function SaleDetailPage() {
         </div>
         <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
           <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
-            <div className="min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0">
+            <div className="min-w-0 p-0">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total</p>
               <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
                 $ {formatMoney(initialOrderTotal)}
               </p>
             </div>
-            <div className="min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Método de pago</p>
               <p className={`mt-0.5 text-lg sm:text-xl ${PAYMENT_COLOR_CLASS[sale.payment_method] ?? "text-slate-700 dark:text-slate-300"}`}>
                 {paymentLabel}
               </p>
             </div>
-            <div className="min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Estado del pago</p>
               <p className={`mt-0.5 text-lg font-medium sm:text-xl ${paymentStatusClass}`}>
                 {paymentStatusLabel}
               </p>
             </div>
             {sale.is_delivery && (Number(sale.delivery_fee) || 0) > 0 && (
-              <div className="min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+              <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Pago del envío</p>
                 <label className="mt-0.5 flex cursor-pointer items-center gap-3 print:pointer-events-none">
                   {sale.status !== "cancelled" && (
@@ -1124,7 +1124,7 @@ export default function SaleDetailPage() {
               </div>
             )}
             {sale.is_delivery && (
-              <div className="col-span-2 min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:col-span-1 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+              <div className="col-span-2 min-w-0 sm:col-span-1 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Transportador</p>
                 <div className="mt-0.5 flex flex-nowrap items-center gap-2">
                   <select
@@ -1204,7 +1204,7 @@ export default function SaleDetailPage() {
               </div>
             )}
             {!sale.is_delivery && ["packing", "on_the_way", "delivered", "completed"].includes(sale.status) && (
-              <div className="min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+              <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Impresión</p>
                 <div className="mt-0.5">
                   <button
@@ -1222,7 +1222,7 @@ export default function SaleDetailPage() {
             )}
             </div>
           <div className="col-span-2 flex w-full justify-start print:hidden sm:w-auto sm:justify-start sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700" ref={statusDropdownRef}>
-            <div className="relative flex w-full flex-col rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:w-auto sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0">
+            <div className="relative flex w-full flex-col sm:w-auto">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{doc.stateHeading}</p>
               <button
                 type="button"
