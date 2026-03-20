@@ -53,11 +53,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!checkedAccess) {
-    return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="text-[14px] text-slate-500 dark:text-slate-400">Validando permisos...</p>
-      </main>
-    );
+    return <main className="min-h-screen" aria-busy="true" />;
   }
 
   if (!isAllowed) return null;

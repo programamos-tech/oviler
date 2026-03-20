@@ -96,7 +96,21 @@ function resolvePermissions(
 ): Set<string> {
   const fromCustom = (customPermissions ?? []).filter(Boolean);
   if (fromCustom.length > 0) return new Set([...fromCustom, "activities.view"]);
-  return new Set([...(ROLE_DEFAULT_PERMISSIONS[role ?? ""] ?? PERMISSION_OPTIONS.map((p) => p.key)), "activities.view"]);
+
+  const roleKey = role != null && String(role).trim() !== "" ? String(role) : null;
+  if (!roleKey) {
+    // Sin rol resuelto (perfil aún cargando o dato ausente): no asumir acceso.
+    // Antes `ROLE_DEFAULT_PERMISSIONS[""]` era undefined y se concedían todos los permisos (flash en el menú).
+    return new Set();
+  }
+
+  const defaults = ROLE_DEFAULT_PERMISSIONS[roleKey];
+  if (!defaults) {
+    // Rol no reconocido: denegar por defecto (antes también se abrían todos los permisos).
+    return new Set();
+  }
+
+  return new Set([...defaults, "activities.view"]);
 }
 
 function hasPathPrefix(path: string, prefix: string): boolean {
