@@ -244,7 +244,7 @@ export default function CustomerDetailPage() {
         </div>
         <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
           <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
-            <div className="rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0">
+            <div className="p-0">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Ticket promedio</p>
               <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
                 {completedSales.length > 0 ? `$ ${formatMoney(ticketPromedio)}` : "—"}
@@ -253,13 +253,13 @@ export default function CustomerDetailPage() {
                 {completedSales.length} {completedSales.length === 1 ? "venta" : "ventas"}
               </p>
             </div>
-            <div className="rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total comprado</p>
               <p className="mt-0.5 text-lg font-bold text-emerald-700 dark:text-emerald-300 sm:text-xl">
                 {completedSales.length > 0 ? `$ ${formatMoney(totalVentas)}` : "—"}
               </p>
             </div>
-            <div className="rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Garantías</p>
               <p className="mt-0.5 text-lg font-bold text-violet-700 dark:text-violet-300 sm:text-xl">
                 {warrantySummary.total}
@@ -268,7 +268,7 @@ export default function CustomerDetailPage() {
                 Devoluciones procesadas
               </p>
             </div>
-            <div className="min-w-0 flex-1 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:min-w-[280px] sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="min-w-0 flex-1 sm:min-w-[280px] sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Direcciones</p>
               {addresses.length === 0 ? (
                 <p className="mt-0.5 text-lg font-bold text-slate-500 dark:text-slate-400 sm:text-xl">—</p>

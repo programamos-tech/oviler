@@ -115,6 +115,7 @@ export default function DashboardPage() {
   const [hideSensitiveInfo, setHideSensitiveInfo] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [branchId, setBranchId] = useState<string | null>(null);
+  const [branchResolved, setBranchResolved] = useState(false);
   const [existingClosingId, setExistingClosingId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -126,16 +127,26 @@ export default function DashboardPage() {
     let cancelled = false;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
+      if (!user || cancelled) {
+        if (!cancelled) setBranchResolved(true);
+        return;
+      }
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) return;
-      setBranchId(ub.branch_id);
+      if (cancelled) return;
+      setBranchId(ub?.branch_id ?? null);
+      setBranchResolved(true);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!branchId) {
+      if (!branchResolved) {
+        setLoading(true);
+        return;
+      }
       setDashboardData(null);
       setLoading(false);
       return;
@@ -555,7 +566,7 @@ export default function DashboardPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [branchId, dateFilterMode, selectedDay, dateFrom, dateTo, refreshKey]);
+  }, [branchId, branchResolved, dateFilterMode, selectedDay, dateFrom, dateTo, refreshKey]);
 
   useEffect(() => {
     if (!branchId) {
