@@ -37,6 +37,7 @@ const DEFAULT_EXPENSE_CONCEPTS = [
 ];
 
 function ConfigurarSucursalContent() {
+  const featureComingSoon = true;
   const router = useRouter();
   const searchParams = useSearchParams();
   const branchIdFromUrl = searchParams.get("branchId");
@@ -374,31 +375,45 @@ function ConfigurarSucursalContent() {
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Anulaciones de factura
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Anulaciones de factura
+              </p>
+              {featureComingSoon && (
+                <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  Próximamente
+                </span>
+              )}
+            </div>
             <label className="mt-3 flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 checked={invoiceCancelRequiresApproval}
                 onChange={(e) => setInvoiceCancelRequiresApproval(e.target.checked)}
-                disabled={loading}
+                disabled={loading || featureComingSoon}
                 className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
               />
-              <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+              <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                 Las anulaciones de factura requieren aprobación del administrador
               </span>
             </label>
-            <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-[12px] text-slate-400 dark:text-slate-500">
               Si está marcado, al anular una factura la solicitud quedará pendiente hasta que un administrador u owner la apruebe. Si no, la anulación se aplica de inmediato.
             </p>
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Modo de operación
-            </p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Modo de operación
+              </p>
+              {featureComingSoon && (
+                <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  Próximamente
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">
               Define si en esta sucursal manejas ventas (retail) o pedidos (restaurante/envíos). Cambia los textos y estados en la app.
             </p>
             <div className="mt-3 space-y-2">
@@ -408,14 +423,14 @@ function ConfigurarSucursalContent() {
                   name="sales_mode"
                   checked={salesMode === "sales"}
                   onChange={() => setSalesMode("sales")}
-                  disabled={loading}
+                  disabled={loading || featureComingSoon}
                   className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
                 />
-                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                   Pedidos (tienda / retail)
                 </span>
               </label>
-              <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
+              <p className="ml-6 text-[12px] text-slate-400 dark:text-slate-500">
                 Verás &quot;Pedidos&quot;, &quot;Nueva venta&quot;. Estados: Completada, Anulada.
               </p>
               <label className="mt-2 flex cursor-pointer items-center gap-2">
@@ -424,24 +439,31 @@ function ConfigurarSucursalContent() {
                   name="sales_mode"
                   checked={salesMode === "orders"}
                   onChange={() => setSalesMode("orders")}
-                  disabled={loading}
+                  disabled={loading || featureComingSoon}
                   className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
                 />
-                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                   Pedidos (restaurante / envíos)
                 </span>
               </label>
-              <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
+              <p className="ml-6 text-[12px] text-slate-400 dark:text-slate-500">
                 Verás &quot;Pedidos&quot;, &quot;Nuevo pedido&quot;. Estados: Pendiente, En preparación, En camino, Entregado, Anulado.
               </p>
             </div>
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Garantías
-            </p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Garantías
+              </p>
+              {featureComingSoon && (
+                <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  Próximamente
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">
               Define si las garantías se registran por factura (venta) o directamente por producto.
             </p>
             <div className="mt-3 space-y-2">
@@ -451,14 +473,14 @@ function ConfigurarSucursalContent() {
                   name="warranty_by_sale"
                   checked={warrantyBySale === true}
                   onChange={() => setWarrantyBySale(true)}
-                  disabled={loading}
+                  disabled={loading || featureComingSoon}
                   className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
                 />
-                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                   Por venta (factura)
                 </span>
               </label>
-              <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
+              <p className="ml-6 text-[12px] text-slate-400 dark:text-slate-500">
                 Se elige la factura y luego el producto de esa venta. Ideal cuando siempre se pide ticket.
               </p>
               <label className="mt-2 flex cursor-pointer items-center gap-2">
@@ -467,14 +489,14 @@ function ConfigurarSucursalContent() {
                   name="warranty_by_sale"
                   checked={warrantyBySale === false}
                   onChange={() => setWarrantyBySale(false)}
-                  disabled={loading}
+                  disabled={loading || featureComingSoon}
                   className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
                 />
-                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                   Por producto
                 </span>
               </label>
-              <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
+              <p className="ml-6 text-[12px] text-slate-400 dark:text-slate-500">
                 Se elige directamente el producto y el cliente, sin exigir número de factura.
               </p>
             </div>
@@ -483,14 +505,14 @@ function ConfigurarSucursalContent() {
                 type="checkbox"
                 checked={warrantyRequiresApproval}
                 onChange={(e) => setWarrantyRequiresApproval(e.target.checked)}
-                disabled={loading}
+                disabled={loading || featureComingSoon}
                 className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
               />
-              <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+              <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                 Las garantías requieren aprobación antes de procesarse
               </span>
             </label>
-            <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-[12px] text-slate-400 dark:text-slate-500">
               Si está marcado, cada garantía pasará por estado &quot;Pendiente&quot; y un supervisor deberá aprobarla antes de poder procesarla (cambio/devolución/reparación). Si no está marcado, las garantías se podrán procesar directamente.
             </p>
           </div>
@@ -498,44 +520,58 @@ function ConfigurarSucursalContent() {
 
         <div className="space-y-4">
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Impuestos
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Impuestos
+              </p>
+              {featureComingSoon && (
+                <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  Próximamente
+                </span>
+              )}
+            </div>
             <label className="mt-3 flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 checked={responsableIva}
                 onChange={(e) => setResponsableIva(e.target.checked)}
-                disabled={loading}
+                disabled={loading || featureComingSoon}
                 className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
               />
-              <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+              <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                 Es responsable de IVA
               </span>
             </label>
-            <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-[12px] text-slate-400 dark:text-slate-500">
               Si está marcado, al crear productos podrás elegir &quot;Aplicar IVA (19%)&quot;. Por defecto los productos no llevan IVA.
             </p>
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Inventario
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Inventario
+              </p>
+              {featureComingSoon && (
+                <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  Próximamente
+                </span>
+              )}
+            </div>
             <label className="mt-3 flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 name="has_bodega"
                 checked={hasBodega}
                 onChange={(e) => setHasBodega(e.target.checked)}
-                disabled={loading}
+                disabled={loading || featureComingSoon}
                 className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
               />
-              <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+              <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                 Esta sucursal tiene bodega
               </span>
             </label>
-            <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-[12px] text-slate-400 dark:text-slate-500">
               Si activas la bodega, podrás tener stock en local y en bodega por separado y usar &quot;Transferir stock&quot; para mover entre ellos. Si no, todo el stock será en un solo lugar (local).
             </p>
           </div>
@@ -902,7 +938,7 @@ function ConfigurarSucursalContent() {
                 type="button"
                 onClick={handleSave}
                 disabled={loading || saving || !branchId}
-                className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-900 dark:hover:bg-slate-800"
+                className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
               >
                 {saving ? "Guardando…" : "Guardar cambios"}
               </button>

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Avatar from "boring-avatars";
+import { PERMISSION_OPTIONS, ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
 
 const ROLES = [
   { id: "owner", name: "Dueño" },
@@ -37,25 +39,14 @@ export default function NewEmployeePage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rol, setRol] = useState("");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<string[]>([...ROLE_DEFAULT_PERMISSIONS.cashier]);
+  const [avatarVariant, setAvatarVariant] = useState<"beam" | "marble" | "pixel">("beam");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleNombreChange = (fullName: string) => {
     setNombre(fullName);
     setUsername(suggestUsername(fullName));
-  };
-
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhotoFile(file);
-      setPhotoPreview(URL.createObjectURL(file));
-    } else {
-      setPhotoFile(null);
-      setPhotoPreview(null);
-    }
   };
 
   async function handleCreate() {
@@ -111,26 +102,11 @@ export default function NewEmployeePage() {
         setUploading(false);
         return;
       }
-      let avatarUrl: string | null = null;
-      if (photoFile) {
-        const maxSize = 5 * 1024 * 1024;
-        if (photoFile.size > maxSize) {
-          setError("La foto no debe superar 5 MB.");
-          setUploading(false);
-          return;
-        }
-        const ext = photoFile.name.split(".").pop()?.toLowerCase() || "jpg";
-        const filePath = `${authUser.id}/${newUserId}_${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(filePath, photoFile, { upsert: true });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-          avatarUrl = urlData.publicUrl;
-        }
-      }
-      const updatePayload: { role: string; avatar_url?: string | null } = { role: roleToUse };
-      if (avatarUrl != null) updatePayload.avatar_url = avatarUrl;
+      const updatePayload: { role: string; avatar_url: string; permissions: string[] } = {
+        role: roleToUse,
+        avatar_url: `avatar:${avatarVariant}`,
+        permissions,
+      };
       await supabase.from("users").update(updatePayload).eq("id", newUserId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
@@ -182,22 +158,32 @@ export default function NewEmployeePage() {
             )}
             <div className="mt-3 space-y-3">
               <div>
-                <label className={labelClass}>Foto (opcional)</label>
+                <label className={labelClass}>Avatar</label>
                 <div className="flex items-center gap-4">
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
-                    {photoPreview ? (
-                      <img src={photoPreview} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="text-[12px] font-medium text-slate-400">Sin foto</span>
-                    )}
+                  <div
+                    className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed bg-slate-50 dark:bg-slate-800"
+                    style={{ borderColor: "var(--ov-pink)" }}
+                  >
+                    <Avatar
+                      size={76}
+                      name={`${nombre.trim() || email.trim() || "nuevo-colaborador"}-${avatarVariant}`}
+                      variant={avatarVariant}
+                      colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                    />
                   </div>
                   <div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePhotoChange}
-                      className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200"
-                    />
+                    <select
+                      value={avatarVariant}
+                      onChange={(e) => setAvatarVariant(e.target.value as "beam" | "marble" | "pixel")}
+                      className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    >
+                      <option value="beam">NOU Beam</option>
+                      <option value="marble">NOU Marble</option>
+                      <option value="pixel">NOU Pixel</option>
+                    </select>
+                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                      Avatar automático con estilo de marca.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -249,12 +235,65 @@ export default function NewEmployeePage() {
               </div>
               <div>
                 <label className={labelClass}>Rol</label>
-                <select value={rol} onChange={(e) => setRol(e.target.value)} className={inputClass}>
+                <select
+                  value={rol}
+                  onChange={(e) => {
+                    const nextRole = e.target.value;
+                    setRol(nextRole);
+                    const roleKey = nextRole && ROLES.some((r) => r.id === nextRole) ? nextRole : "cashier";
+                    setPermissions([...(ROLE_DEFAULT_PERMISSIONS[roleKey] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]);
+                  }}
+                  className={inputClass}
+                >
                   <option value="">Seleccionar rol</option>
                   {ROLES.map((r) => (
                     <option key={r.id} value={r.id}>{r.name}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <label className={labelClass.replace("mb-2", "mb-0")}>Permisos</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const roleKey = rol && ROLES.some((r) => r.id === rol) ? rol : "cashier";
+                      setPermissions([...(ROLE_DEFAULT_PERMISSIONS[roleKey] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]);
+                    }}
+                    className="text-[12px] font-medium text-ov-pink hover:underline"
+                  >
+                    Restaurar por rol
+                  </button>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  {Array.from(new Set(PERMISSION_OPTIONS.map((p) => p.group))).map((group) => (
+                    <div key={group} className="mb-3 last:mb-0">
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{group}</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {PERMISSION_OPTIONS.filter((p) => p.group === group).map((perm) => {
+                          const checked = permissions.includes(perm.key);
+                          return (
+                            <label key={perm.key} className="flex items-center gap-2 text-[13px] text-slate-700 dark:text-slate-300">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  setPermissions((prev) =>
+                                    e.target.checked
+                                      ? Array.from(new Set([...prev, perm.key]))
+                                      : prev.filter((k) => k !== perm.key)
+                                  );
+                                }}
+                                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30 dark:border-slate-600"
+                              />
+                              <span>{perm.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

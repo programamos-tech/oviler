@@ -43,7 +43,7 @@ type WarrantyRow = {
   updated_at: string;
   customers: { name: string } | null;
   products: { name: string } | null;
-  sales: { invoice_number: string; created_at: string } | null;
+  sales: { invoice_number: string; created_at: string; branch_id?: string | null } | null;
   sale_items: { unit_price: number; quantity: number } | null;
   requested_by_user: { name: string } | null;
   reviewed_by_user: { name: string } | null;
@@ -92,6 +92,18 @@ export default function WarrantiesPage() {
         setLoading(false);
         return;
       }
+      const { data: ub } = await supabase
+        .from("user_branches")
+        .select("branch_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .single();
+      if (!ub?.branch_id || cancelled) {
+        setWarranties([]);
+        setLoading(false);
+        return;
+      }
+      const currentBranchId = ub.branch_id;
 
       let q = supabase
         .from("warranties")
@@ -99,7 +111,7 @@ export default function WarrantiesPage() {
           *,
           customers(name),
           products:products!warranties_product_id_fkey(name),
-          sales(invoice_number, created_at),
+          sales(invoice_number, created_at, branch_id),
           sale_items(unit_price, quantity),
           requested_by_user:users!warranties_requested_by_fkey(name),
           reviewed_by_user:users!warranties_reviewed_by_fkey(name),
@@ -118,7 +130,11 @@ export default function WarrantiesPage() {
         setLoadError(error.message || "Error al cargar garantías");
         setWarranties([]);
       } else {
-        setWarranties((warrantiesData ?? []) as WarrantyRow[]);
+        const scoped = ((warrantiesData ?? []) as WarrantyRow[]).filter((w) => {
+          const saleBranchId = w.sales?.branch_id ?? null;
+          return w.branch_id === currentBranchId || saleBranchId === currentBranchId;
+        });
+        setWarranties(scoped);
       }
       setLoading(false);
     })();

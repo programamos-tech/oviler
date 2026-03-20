@@ -61,10 +61,19 @@ export default function EditCustomerPage() {
     const supabase = createClient();
     let cancelled = false;
     (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+      if (!ub?.branch_id || cancelled) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
       const { data, error: fetchError } = await supabase
         .from("customers")
         .select("id, name, cedula, email, phone, customer_addresses(id, label, address, reference_point, is_default, display_order)")
         .eq("id", id)
+        .eq("branch_id", ub.branch_id)
         .single();
 
       if (cancelled) return;

@@ -57,6 +57,7 @@ type DatePickerCardProps = {
   id?: string;
   placeholder?: string;
   allowClear?: boolean;
+  fullWidth?: boolean;
   "aria-label"?: string;
 };
 
@@ -68,6 +69,7 @@ export default function DatePickerCard({
   id,
   placeholder = "Elegir fecha",
   allowClear = true,
+  fullWidth = false,
   "aria-label": ariaLabel,
 }: DatePickerCardProps) {
   const [open, setOpen] = useState(false);
@@ -132,7 +134,7 @@ export default function DatePickerCard({
   const grid = getCalendarGrid(viewMonth);
 
   return (
-    <div ref={wrapperRef} className="relative inline-block">
+    <div ref={wrapperRef} className={`relative ${fullWidth ? "block w-full" : "inline-block"}`}>
       <button
         ref={buttonRef}
         type="button"
@@ -141,7 +143,7 @@ export default function DatePickerCard({
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-8 min-w-[140px] cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-2 pr-2 text-[12px] text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+        className={`flex h-8 cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-2 pr-2 text-[12px] text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 ${fullWidth ? "w-full min-w-0" : "min-w-[140px]"}`}
       >
         <span className={displayValue ? "font-medium" : "text-slate-400 dark:text-slate-500"}>
           {displayValue || placeholder}

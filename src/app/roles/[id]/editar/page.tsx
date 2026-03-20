@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Avatar from "boring-avatars";
+import { PERMISSION_OPTIONS, ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
 
 const ROLES = [
   { id: "owner", name: "Dueño" },
@@ -40,8 +42,8 @@ export default function EditEmployeePage() {
   const [email, setEmail] = useState("");
   const [rol, setRol] = useState("cashier");
   const [status, setStatus] = useState<"active" | "inactive">("active");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [avatarVariant, setAvatarVariant] = useState<"beam" | "marble" | "pixel">("beam");
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(!!id);
   const [notFound, setNotFound] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -66,7 +68,7 @@ export default function EditEmployeePage() {
       }
       const { data: user, error } = await supabase
         .from("users")
-        .select("id, name, email, role, status, avatar_url")
+        .select("id, name, email, role, status, avatar_url, permissions")
         .eq("id", id)
         .eq("organization_id", me.organization_id)
         .maybeSingle();
@@ -76,13 +78,19 @@ export default function EditEmployeePage() {
         setLoading(false);
         return;
       }
-      const u = user as { name: string; email: string; role: string; status: string | null; avatar_url?: string | null };
+      const u = user as { name: string; email: string; role: string; status: string | null; avatar_url?: string | null; permissions?: string[] | null };
       setNombre(u.name ?? "");
       setEmail(u.email ?? "");
       setUsername(suggestUsername(u.name ?? ""));
       setRol(u.role && ROLES.some((r) => r.id === u.role) ? u.role : "cashier");
+      setPermissions((u.permissions ?? ROLE_DEFAULT_PERMISSIONS[u.role] ?? ROLE_DEFAULT_PERMISSIONS.cashier) as string[]);
       setStatus((u.status === "inactive" ? "inactive" : "active") as "active" | "inactive");
-      if (u.avatar_url) setPhotoPreview(u.avatar_url);
+      if (u.avatar_url?.startsWith("avatar:")) {
+        const parsed = u.avatar_url.replace("avatar:", "");
+        if (parsed === "beam" || parsed === "marble" || parsed === "pixel") {
+          setAvatarVariant(parsed);
+        }
+      }
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -91,17 +99,6 @@ export default function EditEmployeePage() {
   const handleNombreChange = (fullName: string) => {
     setNombre(fullName);
     setUsername(suggestUsername(fullName));
-  };
-
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhotoFile(file);
-      setPhotoPreview(URL.createObjectURL(file));
-    } else {
-      setPhotoFile(null);
-      setPhotoPreview(null);
-    }
   };
 
   const inputClass =
@@ -121,43 +118,16 @@ export default function EditEmployeePage() {
     }
     setUploading(true);
     const supabase = createClient();
-    let avatarUrl: string | null = null;
 
-    if (photoFile) {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) {
-        setUploading(false);
-        alert("Sesión expirada. Vuelve a iniciar sesión.");
-        return;
-      }
-      const maxSize = 5 * 1024 * 1024;
-      if (photoFile.size > maxSize) {
-        setUploading(false);
-        alert("La foto no debe superar 5 MB.");
-        return;
-      }
-      const ext = photoFile.name.split(".").pop()?.toLowerCase() || "jpg";
-      const filePath = `${authUser.id}/${id}_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, photoFile, { upsert: true });
-      if (uploadError) {
-        setUploading(false);
-        alert("Error al subir la foto: " + (uploadError.message ?? ""));
-        return;
-      }
-      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-      avatarUrl = urlData.publicUrl;
-    }
-
-    const updatePayload: { name: string; email: string; role: string; status: string; updated_at: string; avatar_url?: string | null } = {
+    const updatePayload: { name: string; email: string; role: string; status: string; updated_at: string; avatar_url: string; permissions: string[] } = {
       name: nameTrim,
       email: email.trim(),
       role: rol || "cashier",
       status,
       updated_at: new Date().toISOString(),
+      avatar_url: `avatar:${avatarVariant}`,
+      permissions,
     };
-    if (avatarUrl !== undefined) updatePayload.avatar_url = avatarUrl;
 
     const { data: updated, error } = await supabase
       .from("users")
@@ -203,7 +173,7 @@ export default function EditEmployeePage() {
               Editar colaborador
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Actualiza datos, foto o usuario del colaborador.
+              Actualiza datos, avatar o usuario del colaborador.
             </p>
           </div>
           <Link
@@ -226,22 +196,32 @@ export default function EditEmployeePage() {
             </p>
             <div className="mt-3 space-y-3">
               <div>
-                <label className={labelClass}>Foto</label>
+                <label className={labelClass}>Avatar</label>
                 <div className="flex items-center gap-4">
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
-                    {photoPreview ? (
-                      <img src={photoPreview} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="text-[12px] font-medium text-slate-400">Actual</span>
-                    )}
+                  <div
+                    className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed bg-slate-50 dark:bg-slate-800"
+                    style={{ borderColor: "var(--ov-pink)" }}
+                  >
+                    <Avatar
+                      size={76}
+                      name={`${nombre.trim() || email.trim() || id || "colaborador"}-${avatarVariant}`}
+                      variant={avatarVariant}
+                      colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                    />
                   </div>
                   <div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePhotoChange}
-                      className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200"
-                    />
+                    <select
+                      value={avatarVariant}
+                      onChange={(e) => setAvatarVariant(e.target.value as "beam" | "marble" | "pixel")}
+                      className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    >
+                      <option value="beam">NOU Beam</option>
+                      <option value="marble">NOU Marble</option>
+                      <option value="pixel">NOU Pixel</option>
+                    </select>
+                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                      Avatar automático con estilo de marca.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -284,6 +264,47 @@ export default function EditEmployeePage() {
                     <option key={r.id} value={r.id}>{r.name}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <label className={labelClass.replace("mb-2", "mb-0")}>Permisos</label>
+                  <button
+                    type="button"
+                    onClick={() => setPermissions([...(ROLE_DEFAULT_PERMISSIONS[rol] ?? ROLE_DEFAULT_PERMISSIONS.cashier)])}
+                    className="text-[12px] font-medium text-ov-pink hover:underline"
+                  >
+                    Restaurar por rol
+                  </button>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  {Array.from(new Set(PERMISSION_OPTIONS.map((p) => p.group))).map((group) => (
+                    <div key={group} className="mb-3 last:mb-0">
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{group}</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {PERMISSION_OPTIONS.filter((p) => p.group === group).map((perm) => {
+                          const checked = permissions.includes(perm.key);
+                          return (
+                            <label key={perm.key} className="flex items-center gap-2 text-[13px] text-slate-700 dark:text-slate-300">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  setPermissions((prev) =>
+                                    e.target.checked
+                                      ? Array.from(new Set([...prev, perm.key]))
+                                      : prev.filter((k) => k !== perm.key)
+                                  );
+                                }}
+                                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30 dark:border-slate-600"
+                              />
+                              <span>{perm.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className={labelClass}>Estado</label>

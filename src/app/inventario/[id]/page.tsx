@@ -242,41 +242,41 @@ export default function ProductDetailPage() {
           </Link>
         </div>
         <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
-            <div>
+          <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
+            <div className="rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Precio de venta</p>
               <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">$ {formatMoney(price)}</p>
               {product.apply_iva && <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">incl. IVA 19%</p>}
             </div>
-            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Stock en sucursal</p>
               <p className={`mt-0.5 text-lg font-bold sm:text-xl ${stockColorClass}`}>
                 {stock} unidades
               </p>
             </div>
-            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Stock reservado</p>
               <p className="mt-0.5 text-lg font-bold text-amber-700 dark:text-amber-400 sm:text-xl">
                 {stockReserved} unidades
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">En ventas no despachadas ni completadas</p>
             </div>
-            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Costo</p>
               <p className="mt-0.5 text-lg font-bold text-slate-700 dark:text-slate-300 sm:text-xl">$ {formatMoney(cost)}</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 print:hidden">
-            <Link href={`/inventario/${product.id}/editar`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover">
+          <div className="grid grid-cols-2 gap-2 print:hidden sm:flex sm:flex-wrap">
+            <Link href={`/inventario/${product.id}/editar`} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white hover:bg-ov-pink-hover sm:w-auto dark:bg-ov-pink dark:hover:bg-ov-pink-hover">
               Editar
             </Link>
-            <Link href={`/inventario/actualizar-stock?productId=${product.id}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+            <Link href={`/inventario/actualizar-stock?productId=${product.id}`} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 hover:bg-slate-50 sm:w-auto dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
               Ajustar stock
             </Link>
-            <Link href={`/inventario/transferir?productId=${product.id}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+            <Link href={`/inventario/transferir?productId=${product.id}`} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 hover:bg-slate-50 sm:w-auto dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
               Transferir
             </Link>
-            <button type="button" onClick={() => setDeleteOpen(true)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-ov-pink/50 bg-white px-4 text-[13px] font-medium text-ov-pink hover:bg-ov-pink/10 dark:border-ov-pink/50 dark:bg-slate-800 dark:text-ov-pink-muted dark:hover:bg-ov-pink/20">
+            <button type="button" onClick={() => setDeleteOpen(true)} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-ov-pink/50 bg-white px-4 text-[13px] font-medium text-ov-pink hover:bg-ov-pink/10 sm:w-auto dark:border-ov-pink/50 dark:bg-slate-800 dark:text-ov-pink-muted dark:hover:bg-ov-pink/20">
               Eliminar
             </button>
           </div>

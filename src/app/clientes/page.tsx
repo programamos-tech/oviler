@@ -64,6 +64,13 @@ export default function CustomersPage() {
       if (!user || cancelled) return;
       const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
       if (!userRow?.organization_id || cancelled) return;
+      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+      if (!ub?.branch_id || cancelled) {
+        setCustomers([]);
+        setTotalCount(0);
+        setLoading(false);
+        return;
+      }
 
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
@@ -71,6 +78,7 @@ export default function CustomersPage() {
         .from("customers")
         .select("id, organization_id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)", { count: "exact" })
         .eq("organization_id", userRow.organization_id)
+        .eq("branch_id", ub.branch_id)
         .eq("active", true)
         .order("name", { ascending: true })
         .range(from, to);
@@ -88,6 +96,7 @@ export default function CustomersPage() {
           .from("customers")
           .select("id, organization_id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)", { count: "exact" })
           .eq("organization_id", userRow.organization_id)
+          .eq("branch_id", ub.branch_id)
           .order("name", { ascending: true })
           .range(from, to);
         const q2WithSearch = qTrim ? q2.or(`name.ilike.%${qTrim}%,cedula.ilike.%${qTrim}%,email.ilike.%${qTrim}%,phone.ilike.%${qTrim}%`) : q2;
@@ -228,14 +237,14 @@ export default function CustomersPage() {
               Clientes
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Lista de clientes de tu organización. Busca por nombre, email o teléfono.
+              Lista de clientes de esta sucursal. Busca por nombre, email o teléfono.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={() => setRefreshKey((k) => k + 1)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto sm:px-4 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -244,7 +253,7 @@ export default function CustomersPage() {
             </button>
             <Link
               href="/clientes/nueva"
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-3 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:w-auto sm:px-4 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -307,7 +316,7 @@ export default function CustomersPage() {
         ) : (
           <>
             {/* Desktop: tabla con mismos encabezados y grid que inventario */}
-            <div className="hidden overflow-hidden rounded-xl ring-1 ring-slate-200 bg-white dark:ring-slate-800 dark:bg-slate-900 sm:block">
+            <div className="hidden overflow-hidden rounded-xl ring-1 ring-slate-200 bg-white dark:ring-slate-800 dark:bg-slate-900 xl:block">
               <div
                 className="grid grid-cols-[minmax(120px,1.5fr)_minmax(80px,0.8fr)_1fr_minmax(90px,0.9fr)_minmax(140px,1.5fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800"
                 aria-hidden
@@ -387,7 +396,7 @@ export default function CustomersPage() {
             </div>
 
             {/* Mobile: tarjetas apiladas (igual estilo que inventario) */}
-            <div className="space-y-3 sm:hidden">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:hidden">
               {filteredCustomers.map((c, index) => {
                 const isSelected = index === selectedIndex;
                 const addrs = c.customer_addresses ?? [];
@@ -405,11 +414,19 @@ export default function CustomersPage() {
                     }`}
                   >
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cliente</span><p className="truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{c.name}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cliente</span><p className="max-w-[60%] truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{c.name}</p></div>
                       <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cédula</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.cedula ? `CC ${c.cedula}` : "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Email</span><p className="truncate text-right text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Email</span><p className="max-w-[60%] truncate text-right text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p></div>
                       <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Teléfono</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.phone || "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Dirección</span><div className="min-w-0 text-right"><p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 truncate" title={firstAddr?.address}>{firstAddr ? (addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address) : "—"}</p>{addrs.length > 1 && <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">+{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}</p>}</div></div>
+                      <div className="space-y-1 border-t border-slate-100 pt-2 dark:border-slate-800">
+                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Dirección</span>
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 break-words" title={firstAddr?.address}>
+                            {firstAddr ? (addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address) : "—"}
+                          </p>
+                          {addrs.length > 1 && <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">+{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}</p>}
+                        </div>
+                      </div>
                       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                         <span className="inline-flex gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}><Link href={`/clientes/${c.id}`} className="hover:underline" title="Ver detalle del cliente">Ver detalle</Link><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
                         <span onClick={(e) => e.stopPropagation()}><Link href={`/clientes/${c.id}/editar`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Editar nombre, cédula, contacto y direcciones">Editar</Link></span>

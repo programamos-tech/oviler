@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { MdLocalShipping, MdStore, MdWarning, MdCheckCircle } from "react-icons/md";
-import { getCopy, getStatusLabel, getStatusClass, type SalesMode, ORDER_STATUS_FILTERS, SALES_STATUS_FILTERS } from "./sales-mode";
+import { MdLocalShipping, MdStorefront, MdWarning, MdCheckCircle } from "react-icons/md";
+import { getCopy, getStatusLabelForSale, getStatusClass, type SalesMode, ORDER_STATUS_FILTERS, SALES_STATUS_FILTERS } from "./sales-mode";
 
 const PAGE_SIZE = 20;
 
@@ -93,7 +93,9 @@ export default function SalesPage() {
       if (!ub?.branch_id || cancelled) return;
 
       const { data: branchRow } = await supabase.from("branches").select("sales_mode").eq("id", ub.branch_id).single();
-      if (!cancelled && branchRow) setSalesMode((branchRow as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales");
+      const branchSalesMode: SalesMode =
+        branchRow && (branchRow as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales";
+      if (!cancelled && branchRow) setSalesMode(branchSalesMode);
 
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
@@ -109,7 +111,15 @@ export default function SalesPage() {
 
       const qTrim = searchQuery.trim();
       if (qTrim) q = q.ilike("invoice_number", `%${qTrim}%`);
-      if (statusFilter !== "all") q = q.eq("status", statusFilter);
+      if (statusFilter !== "all") {
+        if (branchSalesMode === "orders" && statusFilter === "preparing") {
+          q = q.in("status", ["preparing", "packing"]);
+        } else if (branchSalesMode === "orders" && statusFilter === "completed") {
+          q = q.in("status", ["completed", "delivered"]);
+        } else {
+          q = q.eq("status", statusFilter);
+        }
+      }
       if (paymentFilter !== "all") q = q.eq("payment_method", paymentFilter);
 
       const { data: salesData, error: queryError, count } = await q;
@@ -193,7 +203,7 @@ export default function SalesPage() {
     p.payment_method === "cash" ? "Efectivo" : p.payment_method === "mixed" ? "Mixto" : "Transferencia";
   const paymentColorClass = (p: SaleRow) =>
     p.payment_method === "cash" ? "font-semibold text-emerald-600 dark:text-emerald-400" : p.payment_method === "mixed" ? "font-semibold text-violet-600 dark:text-violet-400" : "font-semibold text-blue-600 dark:text-blue-400";
-  const statusLabel = (s: SaleRow) => getStatusLabel(s.status, salesMode);
+  const statusLabel = (s: SaleRow) => getStatusLabelForSale(s.status, s.is_delivery);
   const statusClass = (s: SaleRow) => getStatusClass(s.status);
   const statusFilterOptions = salesMode === "orders" ? ORDER_STATUS_FILTERS : SALES_STATUS_FILTERS;
 
@@ -206,16 +216,14 @@ export default function SalesPage() {
               {copy.sectionTitle}
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              {salesMode === "orders"
-                ? "Lista de pedidos de la sucursal. Busca por pedido o cliente y filtra por estado o forma de pago."
-                : "Lista de pedidos de la sucursal. Busca por pedido o cliente y filtra por estado o forma de pago."}
+              Facturas de mostrador y pedidos con envío. Busca por número o cliente y filtra por estado o forma de pago.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={() => setRefreshKey((k) => k + 1)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto sm:px-4 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -224,7 +232,7 @@ export default function SalesPage() {
             </button>
             <Link
               href="/ventas/nueva"
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-3 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:w-auto sm:px-4 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -236,8 +244,8 @@ export default function SalesPage() {
       </header>
 
       {!loading && totalCount > 0 && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="relative flex-1 min-w-0 max-w-md">
+        <div className="space-y-3">
+          <div className="relative min-w-0 w-full lg:max-w-md">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -247,33 +255,37 @@ export default function SalesPage() {
               type="search"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              placeholder="Buscar por pedido o cliente..."
-              aria-label="Buscar por pedido o cliente"
+              placeholder="Buscar por número o cliente..."
+              aria-label="Buscar por número o cliente"
               className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-[14px] text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-[13px] font-medium text-slate-600 dark:text-slate-400">Estado:</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
-              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-            >
-              {statusFilterOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <label className="ml-2 text-[13px] font-medium text-slate-600 dark:text-slate-400 sm:ml-0">Pago:</label>
-            <select
-              value={paymentFilter}
-              onChange={(e) => { setPaymentFilter(e.target.value as PaymentFilter); setPage(1); }}
-              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-            >
-              <option value="all">Todas</option>
-              <option value="cash">Efectivo</option>
-              <option value="transfer">Transferencia</option>
-              <option value="mixed">Mixto</option>
-            </select>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:max-w-md">
+            <div className="space-y-1">
+              <label className="block text-[12px] font-medium text-slate-600 dark:text-slate-400">Estado</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
+                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              >
+                {statusFilterOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[12px] font-medium text-slate-600 dark:text-slate-400">Pago</label>
+              <select
+                value={paymentFilter}
+                onChange={(e) => { setPaymentFilter(e.target.value as PaymentFilter); setPage(1); }}
+                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <option value="all">Todas</option>
+                <option value="cash">Efectivo</option>
+                <option value="transfer">Transferencia</option>
+                <option value="mixed">Mixto</option>
+              </select>
+            </div>
           </div>
         </div>
       )}
@@ -283,7 +295,7 @@ export default function SalesPage() {
         tabIndex={0}
         onKeyDown={handleKeyDown}
         className="space-y-3 outline-none"
-        aria-label={salesMode === "orders" ? "Lista de pedidos. Usa flechas arriba y abajo para moverte, Enter para abrir." : "Lista de ventas. Usa flechas arriba y abajo para moverte, Enter para abrir."}
+        aria-label="Lista de facturas y pedidos. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
         {loading && showLoadingUI ? (
           <div className="flex min-h-[200px] items-center justify-center pt-48 pb-12">
@@ -315,10 +327,10 @@ export default function SalesPage() {
         ) : filteredSales.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[15px] font-medium text-slate-700 dark:text-slate-300">
-              {totalCount === 0 ? copy.emptyTitle : (salesMode === "orders" ? "Ningún pedido coincide con los filtros en esta página" : "Ninguna venta coincide con los filtros en esta página")}
+              {totalCount === 0 ? copy.emptyTitle : "Ningún documento coincide con los filtros en esta página"}
             </p>
             <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-              {totalCount === 0 ? (salesMode === "orders" ? "Registra tu primer pedido para verlo aquí." : "Registra tu primera venta para verla aquí.") : "Prueba cambiando la búsqueda, el estado o la forma de pago."}
+              {totalCount === 0 ? "Registra tu primera factura o pedido para verlo aquí." : "Prueba cambiando la búsqueda, el estado o la forma de pago."}
             </p>
             <Link
               href="/ventas/nueva"
@@ -330,12 +342,12 @@ export default function SalesPage() {
         ) : (
           <>
             {/* Desktop: tabla con encabezado y filas alineadas (igual que productos) */}
-            <div className="hidden overflow-hidden rounded-xl ring-1 ring-slate-200 bg-white dark:ring-slate-800 dark:bg-slate-900 sm:block">
+            <div className="hidden overflow-hidden rounded-xl ring-1 ring-slate-200 bg-white dark:ring-slate-800 dark:bg-slate-900 xl:block">
               <div
                 className="grid grid-cols-[minmax(100px,1fr)_1fr_minmax(100px,1.2fr)_minmax(70px,0.8fr)_minmax(90px,0.9fr)_minmax(72px,0.7fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800"
                 aria-hidden
               >
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pedido</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Factura / pedido</div>
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Fecha</div>
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cliente</div>
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pago</div>
@@ -367,9 +379,7 @@ export default function SalesPage() {
                             className={`h-5 w-5 shrink-0 ${
                               s.delivery_fee && s.delivery_fee > 0 && !s.delivery_paid
                                 ? "text-amber-500 dark:text-amber-400"
-                                : s.delivery_fee && s.delivery_fee > 0 && s.delivery_paid
-                                  ? "text-emerald-500 dark:text-emerald-400"
-                                  : "text-slate-600 dark:text-slate-300"
+                                : "text-emerald-600 dark:text-emerald-400"
                             }`}
                             aria-hidden
                           />
@@ -384,7 +394,7 @@ export default function SalesPage() {
                           </span>
                         </span>
                       ) : (
-                        <MdStore className="h-5 w-5 shrink-0 text-slate-600 dark:text-slate-300" title="En tienda" aria-hidden />
+                        <MdStorefront className="h-5 w-5 shrink-0 text-ov-pink dark:text-ov-pink-muted" title="En tienda" aria-hidden />
                       )}
                       <p className="text-[14px] font-bold text-slate-900 dark:text-slate-50 tabular-nums truncate">{displayInvoiceNumber(s.invoice_number)}</p>
                     </div>
@@ -417,7 +427,7 @@ export default function SalesPage() {
             </div>
 
             {/* Mobile: tarjetas apiladas (igual que productos) */}
-            <div className="space-y-3 sm:hidden">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:hidden">
               {filteredSales.map((s, index) => {
                 const isSelected = index === selectedIndex;
                 const customerName = s.customers?.name ?? "Cliente final";
@@ -434,9 +444,20 @@ export default function SalesPage() {
                   >
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Pedido</span>
+                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Número</span>
                         <div className="flex min-w-0 items-center gap-2">
-                          {s.is_delivery ? <MdLocalShipping className="h-4 w-4 shrink-0 text-slate-500" /> : <MdStore className="h-4 w-4 shrink-0 text-slate-500" />}
+                          {s.is_delivery ? (
+                            <MdLocalShipping
+                              className={`h-4 w-4 shrink-0 ${
+                                s.delivery_fee && s.delivery_fee > 0 && !s.delivery_paid
+                                  ? "text-amber-500 dark:text-amber-400"
+                                  : "text-emerald-600 dark:text-emerald-400"
+                              }`}
+                              aria-hidden
+                            />
+                          ) : (
+                            <MdStorefront className="h-4 w-4 shrink-0 text-ov-pink dark:text-ov-pink-muted" title="En tienda" aria-hidden />
+                          )}
                           <span className="truncate font-bold tabular-nums text-slate-900 dark:text-slate-50">{displayInvoiceNumber(s.invoice_number)}</span>
                         </div>
                       </div>

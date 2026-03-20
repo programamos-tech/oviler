@@ -27,6 +27,7 @@ type ExpenseRow = {
   payment_method: "cash" | "transfer";
   concept: string;
   notes: string | null;
+  status: "active" | "cancelled";
   created_at: string;
   updated_at: string;
   users: { name: string } | null;
@@ -38,6 +39,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 type PaymentFilter = "all" | "cash" | "transfer";
+type StatusFilter = "all" | "active" | "cancelled";
 
 export default function ExpensesPage() {
   const router = useRouter();
@@ -46,6 +48,7 @@ export default function ExpensesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   useEffect(() => {
     const supabase = createClient();
@@ -78,6 +81,9 @@ export default function ExpensesPage() {
       if (paymentFilter !== "all") {
         q = q.eq("payment_method", paymentFilter);
       }
+      if (statusFilter !== "all") {
+        q = q.eq("status", statusFilter);
+      }
 
       const { data: expensesData, error } = await q;
       if (cancelled) return;
@@ -93,7 +99,7 @@ export default function ExpensesPage() {
     return () => {
       cancelled = true;
     };
-  }, [paymentFilter]);
+  }, [paymentFilter, statusFilter]);
 
   const filteredExpenses = expenses.filter((e) => {
     const q = searchQuery.trim().toLowerCase();
@@ -121,7 +127,7 @@ export default function ExpensesPage() {
           </div>
           <Link
             href="/egresos/nuevo"
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+            className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:w-auto dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -139,8 +145,8 @@ export default function ExpensesPage() {
       )}
 
       {!loading && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="relative flex-1 min-w-0 max-w-md">
+        <div className="space-y-3">
+          <div className="relative min-w-0 w-full xl:max-w-md">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -154,17 +160,31 @@ export default function ExpensesPage() {
               className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-[14px] text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-[13px] font-medium text-slate-600 dark:text-slate-400">Pago:</label>
-            <select
-              value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value as PaymentFilter)}
-              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-            >
-              <option value="all">Todas</option>
-              <option value="cash">Efectivo</option>
-              <option value="transfer">Transferencia</option>
-            </select>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:max-w-md">
+            <div className="space-y-1">
+              <label className="block text-[12px] font-medium text-slate-600 dark:text-slate-400">Pago</label>
+              <select
+                value={paymentFilter}
+                onChange={(e) => setPaymentFilter(e.target.value as PaymentFilter)}
+                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <option value="all">Todas</option>
+                <option value="cash">Efectivo</option>
+                <option value="transfer">Transferencia</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[12px] font-medium text-slate-600 dark:text-slate-400">Estado</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="cancelled">Anulados</option>
+              </select>
+            </div>
           </div>
         </div>
       )}
@@ -211,7 +231,7 @@ export default function ExpensesPage() {
                 }}
                 className="rounded-xl shadow-sm ring-1 cursor-pointer transition-all bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
               >
-                <div className="grid grid-cols-2 sm:grid-cols-6 gap-x-3 gap-y-2 sm:gap-x-4 sm:gap-y-0 items-center px-4 py-3 sm:px-5 sm:py-4">
+                <div className="hidden items-center gap-x-4 px-5 py-4 xl:grid xl:grid-cols-6">
                   <div className="col-span-2 sm:col-span-1 min-w-0 flex items-center gap-2">
                     <svg className="h-5 w-5 shrink-0 text-red-500 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
@@ -239,6 +259,15 @@ export default function ExpensesPage() {
                     <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">
                       {PAYMENT_LABELS[expense.payment_method]}
                     </p>
+                    <p
+                      className={`mt-0.5 text-[11px] font-semibold ${
+                        expense.status === "cancelled"
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-emerald-600 dark:text-emerald-400"
+                      }`}
+                    >
+                      {expense.status === "cancelled" ? "Anulado" : "Activo"}
+                    </p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-[14px] font-bold text-slate-900 dark:text-slate-50 tabular-nums">
@@ -261,6 +290,51 @@ export default function ExpensesPage() {
                         </svg>
                       </Link>
                     </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2 px-4 py-3 xl:hidden">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <svg className="h-5 w-5 shrink-0 text-red-500 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      </svg>
+                      <p className="text-[14px] font-bold text-slate-900 dark:text-slate-50 tabular-nums truncate">
+                        #{expense.id.slice(0, 8).toUpperCase()}
+                      </p>
+                    </div>
+                    <span className="text-[13px] font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                      {formatTime(expense.created_at)} · {formatDateShort(expense.created_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50 truncate">{expense.concept}</p>
+                      {expense.notes && (
+                        <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400 truncate">{expense.notes}</p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-[14px] font-bold text-slate-900 dark:text-slate-50 tabular-nums">$ {formatMoney(expense.amount)}</p>
+                      <p className={`mt-0.5 text-[11px] font-semibold ${expense.status === "cancelled" ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                        {expense.status === "cancelled" ? "Anulado" : "Activo"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+                    <p className="text-[13px] font-medium text-slate-600 dark:text-slate-300">
+                      {PAYMENT_LABELS[expense.payment_method]}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="max-w-[120px] truncate text-[12px] text-slate-500 dark:text-slate-400">{expense.users?.name ?? "—"}</p>
+                      <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Link href={`/egresos/${expense.id}`} className="inline-flex shrink-0 items-center justify-center p-1 text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink dark:hover:text-ov-pink-hover" aria-label="Ver detalle">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </Link>
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

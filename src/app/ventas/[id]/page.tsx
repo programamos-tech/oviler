@@ -5,10 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
-import { MdLocalShipping, MdStore, MdCancel, MdCheck, MdSchedule, MdPerson, MdBusiness, MdBadge } from "react-icons/md";
+import { MdLocalShipping, MdStorefront, MdCancel, MdCheck, MdSchedule, MdPerson, MdBusiness, MdBadge, MdInfoOutline } from "react-icons/md";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
-import { getCopy, getStatusLabel, getStatusClass, type SalesMode } from "../sales-mode";
+import { getCopy, getStatusLabelForSale, getStatusClass, getDocumentCopy, orderStatusOptionMatchesSale, type SalesMode } from "../sales-mode";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -40,11 +40,10 @@ const PAYMENT_COLOR_CLASS: Record<string, string> = {
   mixed: "font-semibold text-violet-600 dark:text-violet-400",
 };
 
-/** Opciones de estado con envío: flujo completo con alistamiento */
+/** Opciones de estado con envío (sin paso intermedio "Alistado" en menú; `packing` en BD se gestiona como En alistamiento). */
 const ORDER_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "pending", label: "Creado" },
   { value: "preparing", label: "En alistamiento" },
-  { value: "packing", label: "Alistado" },
   { value: "on_the_way", label: "Despachado" },
   { value: "completed", label: "Finalizado" },
   { value: "cancelled", label: "Cancelado" },
@@ -196,6 +195,12 @@ export default function SaleDetailPage() {
   const [locationByProductId, setLocationByProductId] = useState<Record<string, string>>({});
   const [deliveryPersonsList, setDeliveryPersonsList] = useState<{ id: string; name: string; code: string }[]>([]);
   const [updatingDeliveryPerson, setUpdatingDeliveryPerson] = useState(false);
+  /** Intento de pasar a Despachado sin transportador: mostrar aviso y enlace a configuración. */
+  const [dispatchNeedsTransporterHint, setDispatchNeedsTransporterHint] = useState(false);
+  /** Intento de pasar a Finalizado con pago pendiente del pedido. */
+  const [finalizeNeedsOrderPaymentHint, setFinalizeNeedsOrderPaymentHint] = useState(false);
+  const [refundWarrantyProcessedCount, setRefundWarrantyProcessedCount] = useState(0);
+  const [latestRefundWarrantyId, setLatestRefundWarrantyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -228,7 +233,7 @@ export default function SaleDetailPage() {
       if (s.branch_id) {
         const { data: branchRow } = await supabase
           .from("branches")
-          .select("name, nit, address, phone, responsable_iva, sales_mode, organization_id")
+          .select("name, nit, address, phone, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, sales_mode, organization_id")
           .eq("id", s.branch_id)
           .single();
         if (!cancelled && branchRow) {
@@ -273,6 +278,19 @@ export default function SaleDetailPage() {
           products: Array.isArray(item.products) ? (item.products[0] || null) : item.products,
         })) as SaleItemRow[];
         setItems(transformedItems);
+      }
+
+      const { data: warrantiesData } = await supabase
+        .from("warranties")
+        .select("id, created_at")
+        .eq("sale_id", id)
+        .eq("warranty_type", "refund")
+        .eq("status", "processed")
+        .order("created_at", { ascending: false });
+      if (!cancelled) {
+        const list = (warrantiesData ?? []) as Array<{ id: string; created_at: string }>;
+        setRefundWarrantyProcessedCount(list.length);
+        setLatestRefundWarrantyId(list[0]?.id ?? null);
       }
 
       if (s.delivery_address_id) {
@@ -389,7 +407,7 @@ export default function SaleDetailPage() {
     const supabase = createClient();
     const alreadyInOrder = items.some((it) => it.product_id === selectedProductAdd.id);
     if (alreadyInOrder) {
-      setAddProductError("Este producto ya está en el pedido.");
+      setAddProductError(getDocumentCopy(sale?.is_delivery ?? false).errAlreadyIn);
       return;
     }
     const { data: invRow } = await supabase
@@ -442,7 +460,7 @@ export default function SaleDetailPage() {
     setAddUnitPrice("");
     setAddProductError(null);
     setAddingProduct(false);
-  }, [sale?.id, sale?.branch_id, selectedProductAdd, addQty, addUnitPrice, items]);
+  }, [sale?.id, sale?.branch_id, sale?.is_delivery, selectedProductAdd, addQty, addUnitPrice, items]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -476,6 +494,24 @@ export default function SaleDetailPage() {
 
   async function handleOrderStatusChange(newStatus: string) {
     if (!sale?.id) return;
+    if (
+      newStatus === "on_the_way" &&
+      sale.is_delivery &&
+      !sale.delivery_person_id
+    ) {
+      setDispatchNeedsTransporterHint(true);
+      return;
+    }
+    if (
+      newStatus === "completed" &&
+      sale.is_delivery &&
+      !!sale.payment_pending
+    ) {
+      setFinalizeNeedsOrderPaymentHint(true);
+      return;
+    }
+    setDispatchNeedsTransporterHint(false);
+    setFinalizeNeedsOrderPaymentHint(false);
     setUpdatingStatus(true);
     const supabase = createClient();
     const previousStatus = sale.status;
@@ -643,6 +679,7 @@ export default function SaleDetailPage() {
     const supabase = createClient();
     await supabase.from("sales").update({ payment_pending: false }).eq("id", sale.id);
     setSale((prev) => (prev ? { ...prev, payment_pending: false } : null));
+    setFinalizeNeedsOrderPaymentHint(false);
     setMarkingPaid(false);
   }
 
@@ -671,6 +708,7 @@ export default function SaleDetailPage() {
       .eq("id", sale.id);
     const updated = personId && deliveryPersonsList.find((p) => p.id === personId) ? { name: deliveryPersonsList.find((p) => p.id === personId)!.name, code: deliveryPersonsList.find((p) => p.id === personId)!.code } : null;
     setSale((prev) => (prev ? { ...prev, delivery_person_id: personId || null, delivery_persons: updated } : null));
+    if (personId) setDispatchNeedsTransporterHint(false);
     setUpdatingDeliveryPerson(false);
   }
 
@@ -683,6 +721,8 @@ export default function SaleDetailPage() {
   }
 
   function handlePrintDispatch() {
+    const docPrint = getDocumentCopy(!!sale?.is_delivery);
+    const isTirilla = (sale?.branches?.invoice_print_type ?? "block") === "tirilla";
     const invoiceNum = sale?.invoice_number ?? id ?? "—";
     const customerName = sale?.customers?.name ?? "Cliente";
     const customerDoc = (sale?.customers as { cedula?: string | null } | null)?.cedula ?? "";
@@ -717,37 +757,40 @@ export default function SaleDetailPage() {
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Factura de venta ${esc(invoiceNum)}</title>
+  <title>${esc(docPrint.printTitle)} ${esc(invoiceNum)}</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; font-size: 13px; line-height: 1.4; color: #1e293b; padding: 20px; max-width: 720px; margin: 0 auto; }
+    body { font-family: system-ui, -apple-system, sans-serif; font-size: ${isTirilla ? "11px" : "13px"}; line-height: 1.4; color: #1e293b; padding: ${isTirilla ? "10px" : "20px"}; max-width: ${isTirilla ? "80mm" : "720px"}; margin: 0 auto; }
     .nou-header { background: #ff7f50; color: #fff; padding: 16px 20px; margin: -20px -20px 20px -20px; display: flex; align-items: center; justify-content: space-between; }
-    .nou-logo { font-weight: 700; font-size: 20px; letter-spacing: -0.02em; }
+    .nou-logo { font-weight: 700; font-size: ${isTirilla ? "14px" : "20px"}; letter-spacing: -0.02em; }
     .nou-doc { font-size: 11px; opacity: 0.95; text-transform: uppercase; letter-spacing: 0.04em; }
-    h1 { font-size: 16px; font-weight: 700; margin: 0 0 16px 0; color: #0f172a; border-bottom: 2px solid #ff7f50; padding-bottom: 8px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-    .block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
+    h1 { font-size: ${isTirilla ? "13px" : "16px"}; font-weight: 700; margin: 0 0 16px 0; color: #0f172a; border-bottom: 2px solid #ff7f50; padding-bottom: 8px; }
+    .grid { display: grid; grid-template-columns: ${isTirilla ? "1fr" : "1fr 1fr"}; gap: ${isTirilla ? "10px" : "20px"}; margin-bottom: 20px; }
+    .block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: ${isTirilla ? "8px 9px" : "12px 14px"}; }
     .block-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 600; margin-bottom: 6px; }
-    .block p { margin: 2px 0; font-size: 12px; }
+    .block p { margin: 2px 0; font-size: ${isTirilla ? "10px" : "12px"}; }
     table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-    th { text-align: left; padding: 10px 12px; background: #ff7f50; color: #fff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; }
+    th { text-align: left; padding: ${isTirilla ? "6px 7px" : "10px 12px"}; background: #ff7f50; color: #fff; font-size: ${isTirilla ? "9px" : "11px"}; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; }
     th.num { text-align: right; }
-    .cell { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; }
+    .cell { padding: ${isTirilla ? "6px 7px" : "8px 12px"}; border-bottom: 1px solid #e2e8f0; font-size: ${isTirilla ? "10px" : "12px"}; }
     .cell.num { text-align: right; }
     tfoot .cell { font-weight: 700; background: #f1f5f9; border-bottom: none; }
-    tfoot tr:last-child .cell { background: #ff7f50; color: #fff; font-size: 14px; padding: 10px 12px; }
+    tfoot tr:last-child .cell { background: #ff7f50; color: #fff; font-size: ${isTirilla ? "11px" : "14px"}; padding: ${isTirilla ? "7px" : "10px 12px"}; }
     .totals { margin-top: 16px; text-align: right; }
     .totals-row { display: flex; justify-content: flex-end; gap: 80px; padding: 4px 0; font-size: 12px; }
     .totals-row.final { font-weight: 700; font-size: 15px; margin-top: 8px; padding-top: 8px; border-top: 2px solid #ff7f50; }
-    .legal { margin-top: 24px; font-size: 10px; color: #64748b; line-height: 1.5; }
+    .legal { margin-top: 24px; font-size: ${isTirilla ? "9px" : "10px"}; color: #64748b; line-height: 1.5; }
+    @media print {
+      @page { size: ${isTirilla ? "80mm auto" : "auto"}; margin: ${isTirilla ? "0" : "12mm"}; }
+    }
   </style>
 </head>
 <body>
   <div class="nou-header">
     <span class="nou-logo">NOU Tiendas</span>
-    <span class="nou-doc">Factura de venta</span>
+    <span class="nou-doc">${esc(docPrint.printBadge)}</span>
   </div>
-  <h1>Factura de venta No. ${esc(invoiceNum)}</h1>
+  <h1>${esc(docPrint.printH1(invoiceNum))}</h1>
   <div class="grid">
     <div class="block">
       <div class="block-title">Emisor (vendedor)</div>
@@ -767,7 +810,7 @@ export default function SaleDetailPage() {
   </div>
   <div class="block" style="margin-bottom: 16px;">
     <div class="block-title">Datos del comprobante</div>
-    <p><strong>Nº Factura:</strong> ${esc(invoiceNum)} &nbsp;|&nbsp; <strong>Fecha de expedición:</strong> ${esc(saleDate)} &nbsp;|&nbsp; <strong>Forma de pago:</strong> ${esc(paymentLabel)}</p>
+    <p><strong>${esc(docPrint.printNumberLabel)}:</strong> ${esc(invoiceNum)} &nbsp;|&nbsp; <strong>Fecha de expedición:</strong> ${esc(saleDate)} &nbsp;|&nbsp; <strong>Forma de pago:</strong> ${esc(paymentLabel)}</p>
     ${sale?.is_delivery ? `<p><strong>Transportador:</strong> ${esc(transporterLine)}</p>` : ""}
   </div>
   <table>
@@ -796,7 +839,7 @@ export default function SaleDetailPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <p className="text-[14px] text-slate-500 dark:text-slate-400">Cargando pedido…</p>
+        <p className="text-[14px] text-slate-500 dark:text-slate-400">Cargando…</p>
       </div>
     );
   }
@@ -804,7 +847,7 @@ export default function SaleDetailPage() {
   if (notFound || !sale) {
     return (
       <div className="space-y-4">
-        <p className="text-[14px] text-slate-600 dark:text-slate-400">Pedido no encontrado.</p>
+        <p className="text-[14px] text-slate-600 dark:text-slate-400">No encontramos este documento.</p>
         <Link href="/ventas" className="text-[14px] font-medium text-ov-pink hover:underline">
           Volver al listado
         </Link>
@@ -816,12 +859,27 @@ export default function SaleDetailPage() {
   const branchName = sale.branches?.name ?? "—";
   const userName = sale.users?.name ?? "—";
   const copy = getCopy(salesMode);
+  const doc = getDocumentCopy(sale.is_delivery);
   const paymentLabel = PAYMENT_LABELS[sale.payment_method] ?? sale.payment_method;
-  // Con envío: etiquetas de pedido (Creado, Alistado, etc.). Sin envío: venta normal (Pendiente, Completada, Anulada).
+  const paymentStatusLabel =
+    sale.status === "cancelled" ? "Anulada" : sale.payment_pending ? "Pendiente" : "Pagado";
+  const paymentStatusClass =
+    sale.status === "cancelled"
+      ? "text-red-600 dark:text-red-400"
+      : sale.payment_pending
+        ? "text-amber-600 dark:text-amber-400"
+        : "font-bold text-emerald-600 dark:text-emerald-400";
+  const deliveryPaymentStatusLabel =
+    sale.status === "cancelled" ? "Cancelado" : sale.delivery_paid ? "Pagado" : "Pendiente";
+  const deliveryPaymentStatusClass =
+    sale.status === "cancelled"
+      ? "text-red-600 dark:text-red-400"
+      : sale.delivery_paid
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-amber-600 dark:text-amber-400";
+  const canMarkDeliveryPaid = sale.status !== "cancelled" && !sale.delivery_paid && !markingDeliveryPaid;
   const orderStatusLabels = ["pending", "preparing", "packing", "on_the_way", "delivered", "completed", "cancelled"];
-  const statusLabel = sale.is_delivery
-    ? (orderStatusLabels.includes(sale.status) ? getStatusLabel(sale.status, "orders") : getStatusLabel(sale.status, salesMode))
-    : getStatusLabel(sale.status, "sales");
+  const statusLabel = getStatusLabelForSale(sale.status, sale.is_delivery);
   const statusClass = getStatusClass(sale.status);
   const pendingCancel = (sale.status === "completed" || sale.status === "delivered") && !!sale.cancellation_requested_at;
   const canCancel = (sale.status === "completed" || sale.status === "delivered") && !sale.cancellation_requested_at;
@@ -928,7 +986,7 @@ export default function SaleDetailPage() {
           </p>
         </div>
         <p className="print:mt-3 print:text-center print:font-bold print:uppercase print:text-base print:text-black">
-          Pedido #{displayInvoiceNumber(sale.invoice_number)}
+          {doc.hashTitle(displayInvoiceNumber(sale.invoice_number))}
         </p>
       </div>
 
@@ -937,49 +995,65 @@ export default function SaleDetailPage() {
         <Breadcrumb
           items={[
             { label: copy.sectionTitle, href: "/ventas" },
-            { label: `Pedido ${displayInvoiceNumber(sale.invoice_number)}` },
+            { label: doc.hashTitle(displayInvoiceNumber(sale.invoice_number)) },
           ]}
         />
         <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
-              Pedido #{displayInvoiceNumber(sale.invoice_number)}
+              {doc.hashTitle(displayInvoiceNumber(sale.invoice_number))}
             </h1>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-slate-500 dark:text-slate-400 sm:text-[13px]">
               <span className="inline-flex items-center gap-1">
                 <MdSchedule className="h-4 w-4 shrink-0" aria-hidden />
                 {formatDate(sale.created_at)} · {formatTime(sale.created_at)}
               </span>
-              <span>·</span>
+              <span className="hidden sm:inline">·</span>
               <span className="inline-flex items-center gap-1">
                 <MdPerson className="h-4 w-4 shrink-0" aria-hidden />
                 {customerName}
               </span>
-              <span>·</span>
+              <span className="hidden sm:inline">·</span>
               <span className="inline-flex items-center gap-1">
                 {sale.is_delivery ? (
                   <>
-                    <MdLocalShipping className="h-4 w-4 shrink-0" aria-hidden />
+                    <MdLocalShipping className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
                     <span>Envío</span>
                   </>
                 ) : (
                   <>
-                    <MdStore className="h-4 w-4 shrink-0" aria-hidden />
+                    <MdStorefront className="h-4 w-4 shrink-0 text-ov-pink dark:text-ov-pink-muted" aria-hidden />
                     <span>Tienda</span>
                   </>
                 )}
               </span>
-              <span>·</span>
+              <span className="hidden sm:inline">·</span>
               <span className="inline-flex items-center gap-1">
                 <MdBusiness className="h-4 w-4 shrink-0" aria-hidden />
                 {branchName}
               </span>
-              <span>·</span>
+              <span className="hidden sm:inline">·</span>
               <span className="inline-flex items-center gap-1">
                 <MdBadge className="h-4 w-4 shrink-0" aria-hidden />
                 {userName}
               </span>
             </p>
+            {refundWarrantyProcessedCount > 0 && (
+              <span className="mt-2 inline-flex items-center gap-2 rounded-md border border-violet-300/70 bg-violet-50 px-2.5 py-1 text-[12px] font-semibold text-violet-700 dark:border-violet-700/70 dark:bg-violet-900/25 dark:text-violet-300">
+                {refundWarrantyProcessedCount === 1
+                  ? "Con devolución por garantía procesada"
+                  : `Con ${refundWarrantyProcessedCount} devoluciones por garantía procesadas`}
+                {latestRefundWarrantyId && (
+                  <Link
+                    href={`/garantias/${latestRefundWarrantyId}`}
+                    className="rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-violet-800 hover:bg-violet-200 dark:bg-violet-900/40 dark:text-violet-200 dark:hover:bg-violet-900/60"
+                    title="Ver garantía asociada"
+                  >
+                    #{latestRefundWarrantyId.slice(0, 8).toUpperCase()}
+                  </Link>
+                )}
+              </span>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-2 print:hidden">
             <Link
@@ -994,61 +1068,63 @@ export default function SaleDetailPage() {
           </div>
         </div>
         <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
-            <div>
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
+            <div className="min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total</p>
               <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
                 $ {formatMoney(initialOrderTotal)}
               </p>
             </div>
-            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Método de pago</p>
               <p className={`mt-0.5 text-lg sm:text-xl ${PAYMENT_COLOR_CLASS[sale.payment_method] ?? "text-slate-700 dark:text-slate-300"}`}>
                 {paymentLabel}
               </p>
             </div>
-            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Estado del pago</p>
-              <p className={`mt-0.5 text-lg font-medium sm:text-xl ${sale.payment_pending ? "text-amber-600 dark:text-amber-400" : "font-bold text-emerald-600 dark:text-emerald-400"}`}>
-                {sale.payment_pending ? "Pendiente" : "Pagado"}
+              <p className={`mt-0.5 text-lg font-medium sm:text-xl ${paymentStatusClass}`}>
+                {paymentStatusLabel}
               </p>
             </div>
             {sale.is_delivery && (Number(sale.delivery_fee) || 0) > 0 && (
-              <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+              <div className="min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Pago del envío</p>
                 <label className="mt-0.5 flex cursor-pointer items-center gap-3 print:pointer-events-none">
-                  <span
-                    role="checkbox"
-                    aria-checked={!!sale.delivery_paid}
-                    aria-label="Marcar pago del envío como recibido"
-                    tabIndex={markingDeliveryPaid || sale.delivery_paid ? -1 : 0}
-                    onKeyDown={(e) => {
-                      if ((e.key === " " || e.key === "Enter") && !sale.delivery_paid && !markingDeliveryPaid) {
-                        e.preventDefault();
-                        handleMarkDeliveryAsPaid();
-                      }
-                    }}
-                    onClick={() => !sale.delivery_paid && !markingDeliveryPaid && handleMarkDeliveryAsPaid()}
-                    className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-ov-pink/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
-                      sale.delivery_paid
-                        ? "border-ov-pink bg-ov-pink text-white dark:bg-ov-pink dark:border-ov-pink"
-                        : "border-slate-300 bg-white hover:border-ov-pink/50 dark:border-slate-600 dark:bg-slate-800 dark:hover:border-ov-pink/50"
-                    } ${(markingDeliveryPaid || sale.delivery_paid) ? "cursor-default opacity-90" : "cursor-pointer"}`}
-                  >
-                    {sale.delivery_paid && (
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </span>
-                  <span className={`text-lg font-medium sm:text-xl ${sale.delivery_paid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-                    {markingDeliveryPaid ? "Guardando…" : sale.delivery_paid ? "Pagado" : "Pendiente"}
+                  {sale.status !== "cancelled" && (
+                    <span
+                      role="checkbox"
+                      aria-checked={!!sale.delivery_paid}
+                      aria-label="Marcar pago del envío como recibido"
+                      tabIndex={canMarkDeliveryPaid ? 0 : -1}
+                      onKeyDown={(e) => {
+                        if ((e.key === " " || e.key === "Enter") && canMarkDeliveryPaid) {
+                          e.preventDefault();
+                          handleMarkDeliveryAsPaid();
+                        }
+                      }}
+                      onClick={() => canMarkDeliveryPaid && handleMarkDeliveryAsPaid()}
+                      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-ov-pink/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                        sale.delivery_paid
+                          ? "border-ov-pink bg-ov-pink text-white dark:bg-ov-pink dark:border-ov-pink"
+                          : "border-slate-300 bg-white hover:border-ov-pink/50 dark:border-slate-600 dark:bg-slate-800 dark:hover:border-ov-pink/50"
+                      } ${canMarkDeliveryPaid ? "cursor-pointer" : "cursor-default opacity-90"}`}
+                    >
+                      {sale.delivery_paid && (
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </span>
+                  )}
+                  <span className={`text-lg font-medium sm:text-xl ${deliveryPaymentStatusClass}`}>
+                    {markingDeliveryPaid ? "Guardando…" : deliveryPaymentStatusLabel}
                   </span>
                 </label>
               </div>
             )}
             {sale.is_delivery && (
-              <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+              <div className="col-span-2 min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:col-span-1 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Transportador</p>
                 <div className="mt-0.5 flex flex-nowrap items-center gap-2">
                   <select
@@ -1077,10 +1153,58 @@ export default function SaleDetailPage() {
                   )}
                   {updatingDeliveryPerson && <span className="text-[12px] text-slate-500">Guardando…</span>}
                 </div>
+                {deliveryPersonsList.length === 0 && (
+                  <p className="mt-2 text-[12px] text-slate-600 dark:text-slate-400">
+                    <Link
+                      href={`/sucursales/configurar?branchId=${encodeURIComponent(sale.branch_id)}`}
+                      className="font-semibold text-ov-pink hover:text-ov-pink-hover underline-offset-2 hover:underline dark:text-ov-pink-muted"
+                    >
+                      Crear domiciliarios
+                    </Link>
+                    <span className="font-normal"> en la configuración de esta sucursal.</span>
+                  </p>
+                )}
+                {dispatchNeedsTransporterHint && (
+                  <div
+                    className="mt-2 flex items-start gap-2 rounded-md border border-slate-200/90 bg-slate-50/90 py-1.5 pl-2 pr-2.5 dark:border-slate-600/70 dark:bg-slate-800/50"
+                    role="alert"
+                  >
+                    <MdInfoOutline className="mt-[3px] h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden />
+                    <p className="min-w-0 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+                      {deliveryPersonsList.length === 0
+                        ? "Necesitas al menos un domiciliario para Despachado."
+                        : "Elige transportador arriba antes de Despachado."}{" "}
+                      <Link
+                        href={`/sucursales/configurar?branchId=${encodeURIComponent(sale.branch_id)}`}
+                        className="whitespace-nowrap font-medium text-ov-pink underline decoration-ov-pink/35 underline-offset-2 hover:text-ov-pink-hover hover:decoration-ov-pink-hover dark:text-ov-pink-muted dark:decoration-ov-pink-muted/45"
+                      >
+                        Gestionar
+                      </Link>
+                    </p>
+                  </div>
+                )}
+                {finalizeNeedsOrderPaymentHint && (
+                  <div
+                    className="mt-2 flex items-center justify-between gap-2 rounded-md border border-slate-200/90 bg-slate-50/90 py-1.5 pl-2 pr-2.5 dark:border-slate-600/70 dark:bg-slate-800/50"
+                    role="alert"
+                  >
+                    <p className="min-w-0 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+                      Para pasar a <span className="text-slate-700 dark:text-slate-300">Finalizado</span>, marca primero el pedido como pagado.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleMarkAsPaid}
+                      disabled={markingPaid || !sale.payment_pending}
+                      className="shrink-0 rounded-md bg-ov-pink px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-ov-pink-hover disabled:cursor-not-allowed disabled:opacity-50 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                    >
+                      {markingPaid ? "Guardando…" : "Marcar pagado"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {!sale.is_delivery && ["packing", "on_the_way", "delivered", "completed"].includes(sale.status) && (
-              <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+              <div className="min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Impresión</p>
                 <div className="mt-0.5">
                   <button
@@ -1097,14 +1221,14 @@ export default function SaleDetailPage() {
               </div>
             )}
             </div>
-          <div className="flex flex-wrap items-center gap-2 print:hidden sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700" ref={statusDropdownRef}>
-            <div className="relative flex flex-col">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{sale.is_delivery ? "Estado del pedido" : "Estado de la venta"}</p>
+          <div className="col-span-2 flex w-full justify-start print:hidden sm:w-auto sm:justify-start sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700" ref={statusDropdownRef}>
+            <div className="relative flex w-full flex-col rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:w-auto sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{doc.stateHeading}</p>
               <button
                 type="button"
                 onClick={() => canOpenStatusDropdown && setStatusDropdownOpen((v) => !v)}
                 disabled={updatingStatus || !canOpenStatusDropdown}
-                className={`mt-0.5 inline-flex min-h-[1.75rem] min-w-[120px] items-center justify-between gap-1.5 rounded-lg border px-3 py-1.5 text-left text-[13px] font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ov-pink/30 disabled:cursor-default disabled:opacity-80 ${allLinesAlisted ? "estado-listo-animar " : ""}${
+                className={`mt-0.5 inline-flex min-h-[1.75rem] w-full min-w-[120px] items-center justify-between gap-1.5 rounded-lg border px-3 py-1.5 text-left text-[13px] font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ov-pink/30 disabled:cursor-default disabled:opacity-80 sm:w-auto ${allLinesAlisted ? "estado-listo-animar " : ""}${
                   canOpenStatusDropdown
                     ? allLinesAlisted
                       ? "border-emerald-400 bg-emerald-50/50 text-slate-800 hover:bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-slate-200 dark:hover:bg-emerald-950/50"
@@ -1113,7 +1237,7 @@ export default function SaleDetailPage() {
                 }`}
                 aria-expanded={statusDropdownOpen}
                 aria-haspopup="listbox"
-                aria-label={sale.is_delivery ? "Estado del pedido" : "Estado de la venta"}
+                aria-label={doc.stateHeading}
               >
                 <span>{statusLabel}</span>
                 {canOpenStatusDropdown && (
@@ -1129,7 +1253,7 @@ export default function SaleDetailPage() {
                 >
                   {(sale.is_delivery
                     ? ORDER_STATUS_OPTIONS
-                    : STORE_SALE_STATUS_VALUES.map((value) => ({ value, label: getStatusLabel(value, "sales") }))
+                    : STORE_SALE_STATUS_VALUES.map((value) => ({ value, label: getStatusLabelForSale(value, false) }))
                   ).map((opt) => (
                     <li key={opt.value} role="option">
                       <button
@@ -1144,7 +1268,7 @@ export default function SaleDetailPage() {
                           }
                         }}
                         className={`block w-full px-4 py-2 text-left text-[13px] font-medium ${
-                          opt.value === sale.status
+                          orderStatusOptionMatchesSale(sale.status, opt.value)
                             ? "bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20 dark:text-ov-pink-muted"
                             : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                         } ${opt.value === "cancelled" ? "text-red-600 dark:text-red-400" : ""}`}
@@ -1153,7 +1277,7 @@ export default function SaleDetailPage() {
                       </button>
                     </li>
                   ))}
-                  {sale.status === "completed" && (
+                  {(sale.status === "completed" || sale.status === "delivered") && (
                     <>
                       <li className="my-1 border-t border-slate-200 dark:border-slate-700" role="separator" />
                       <li>
@@ -1217,7 +1341,7 @@ export default function SaleDetailPage() {
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 print:shadow-none print:ring-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-            Productos del pedido
+            {doc.productsHeading}
           </h2>
           <div className="flex flex-wrap items-center gap-2 print:hidden">
             {canAlistarGlobal && sale.status !== "cancelled" && branchOrgId && (
@@ -1240,7 +1364,7 @@ export default function SaleDetailPage() {
                 <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 list-none overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800" role="listbox">
                   {productResultsAdd.filter((p) => !items.some((it) => it.product_id === p.id)).length === 0 && (
                     <li className="px-3 py-3 text-center text-[13px] text-slate-500 dark:text-slate-400">
-                      {productResultsAdd.length === 0 ? "Sin resultados" : "Los resultados ya están en el pedido"}
+                      {productResultsAdd.length === 0 ? "Sin resultados" : doc.searchDup}
                     </li>
                   )}
                   {productResultsAdd.filter((p) => !items.some((it) => it.product_id === p.id)).map((p) => (
@@ -1272,7 +1396,7 @@ export default function SaleDetailPage() {
 
         {items.length === 0 ? (
           <div className="mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-10 dark:border-slate-700">
-            <p className="text-[14px] font-medium text-slate-600 dark:text-slate-400">Sin productos en este pedido</p>
+            <p className="text-[14px] font-medium text-slate-600 dark:text-slate-400">{doc.productsEmpty}</p>
             {canAlistarGlobal && sale.status !== "cancelled" && (
               <button
                 type="button"
@@ -1288,7 +1412,38 @@ export default function SaleDetailPage() {
           </div>
         ) : (
           <>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 space-y-2 sm:hidden">
+            {items.map((it) => {
+              const qtyDespachar = fulfillmentQuantity(it);
+              const effectiveQty = getEffectiveQty(it);
+              const hasDefinedQty = it.quantity_picked !== null && it.quantity_picked !== undefined || (partialPickedInputs[it.id] !== undefined && partialPickedInputs[it.id] !== "");
+              const displaySubtotal = canAlistarGlobal ? lineSubtotalForQty(it, getQtyForTotal(it)) : lineSubtotalFulfillment(it);
+              const isAlisted = hasDefinedQty && effectiveQty === it.quantity && it.quantity > 0;
+              return (
+                <div key={`mobile-${it.id}`} className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+                      {it.products?.name ?? "—"} {it.products?.sku ? <span className="font-normal text-slate-500">({it.products.sku})</span> : null}
+                    </p>
+                    {isAlisted && (
+                      <span className="inline-flex shrink-0 text-emerald-600 dark:text-emerald-400" title="Alistado" aria-hidden>
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]">
+                    <p className="text-slate-500 dark:text-slate-400">Cant. pedida: <span className="font-medium text-slate-700 dark:text-slate-200">{it.quantity}</span></p>
+                    <p className="text-slate-500 dark:text-slate-400">Cant.: <span className="font-medium text-slate-700 dark:text-slate-200">{qtyDespachar}</span></p>
+                    <p className="text-slate-500 dark:text-slate-400">P. unit.: <span className="font-medium text-slate-700 dark:text-slate-200">$ {formatMoney(it.unit_price)}</span></p>
+                    <p className="text-slate-500 dark:text-slate-400">Subtotal: <span className="font-semibold text-slate-800 dark:text-slate-100">$ {formatMoney(displaySubtotal)}</span></p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[560px] border-collapse text-[14px]">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-700">
@@ -1399,8 +1554,8 @@ export default function SaleDetailPage() {
             </table>
           </div>
           {/* Resumen de totales: bloque aparte, compacto */}
-          <div className="mt-4 flex justify-end">
-            <div className="w-full max-w-[280px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/50">
+          <div className="mt-4 flex justify-stretch sm:justify-end">
+            <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/50 sm:max-w-[280px]">
               <div className="space-y-1 text-[12px]">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Subtotal productos</span>
@@ -1436,7 +1591,7 @@ export default function SaleDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" aria-modal="true" role="dialog">
           <div className="absolute inset-0 bg-slate-900/60 dark:bg-slate-950/70" onClick={() => !addingProduct && (setAddProductOpen(false), setAddProductError(null))} aria-hidden="true" />
           <div className="relative w-full max-w-md rounded-xl bg-white p-5 shadow-xl dark:bg-slate-900">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Agregar producto al pedido</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">{doc.addProductTitle}</h3>
             {!selectedProductAdd ? (
               <>
                 <label className="mt-4 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Buscar producto</label>
@@ -1450,7 +1605,7 @@ export default function SaleDetailPage() {
                 <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
                   {productResultsAdd.filter((p) => !items.some((it) => it.product_id === p.id)).length === 0 && productSearchAdd.trim() && (
                     <li className="px-3 py-4 text-center text-[13px] text-slate-500 dark:text-slate-400">
-                      {productResultsAdd.length === 0 ? "Sin resultados" : "Los resultados ya están en el pedido"}
+                      {productResultsAdd.length === 0 ? "Sin resultados" : doc.searchDup}
                     </li>
                   )}
                   {productResultsAdd.filter((p) => !items.some((it) => it.product_id === p.id)).map((p) => (
@@ -1530,16 +1685,16 @@ export default function SaleDetailPage() {
       <ConfirmDeleteModal
         isOpen={cancelOpen}
         onClose={() => { setCancelOpen(false); setCancelReason(""); }}
-        title="Anular pedido"
+        title={doc.cancelTitle}
         message={
           sale.branches?.invoice_cancel_requires_approval
-            ? `La anulación del pedido #${displayInvoiceNumber(sale.invoice_number)} requerirá aprobación de un administrador. Escribe el motivo de la solicitud.`
-            : `¿Anular el pedido #${displayInvoiceNumber(sale.invoice_number)}? El pedido quedará en estado "Cancelado" y no se podrá revertir desde esta pantalla.`
+            ? doc.cancelBodyApproval(displayInvoiceNumber(sale.invoice_number))
+            : doc.cancelBodyAsk(displayInvoiceNumber(sale.invoice_number))
         }
         confirmLabel={sale.branches?.invoice_cancel_requires_approval ? "Enviar solicitud" : "Anular"}
         onConfirm={handleCancel}
         loading={cancelling}
-        ariaTitle={`Anular pedido ${displayInvoiceNumber(sale.invoice_number)}`}
+        ariaTitle={doc.cancelAria(displayInvoiceNumber(sale.invoice_number))}
         icon={<MdCancel className="h-5 w-5" aria-hidden />}
         reasonLabel="Motivo de anulación"
         reasonValue={cancelReason}

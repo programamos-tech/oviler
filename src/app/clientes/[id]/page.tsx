@@ -57,6 +57,11 @@ type TopProduct = {
   total_quantity: number;
 };
 
+type WarrantySummary = {
+  total: number;
+  processedRefunds: number;
+};
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -65,6 +70,7 @@ export default function CustomerDetailPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
+  const [warrantySummary, setWarrantySummary] = useState<WarrantySummary>({ total: 0, processedRefunds: 0 });
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -75,10 +81,19 @@ export default function CustomerDetailPage() {
     const supabase = createClient();
     let cancelled = false;
     (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+      if (!ub?.branch_id || cancelled) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
         .select("id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)")
         .eq("id", id)
+        .eq("branch_id", ub.branch_id)
         .single();
 
       if (cancelled) return;
@@ -97,6 +112,18 @@ export default function CustomerDetailPage() {
 
       if (cancelled) return;
       setSales((salesData ?? []) as SaleRow[]);
+
+      const { data: warrantiesData } = await supabase
+        .from("warranties")
+        .select("status, warranty_type")
+        .eq("customer_id", id);
+      if (!cancelled) {
+        const list = (warrantiesData ?? []) as Array<{ status: string; warranty_type: string }>;
+        setWarrantySummary({
+          total: list.length,
+          processedRefunds: list.filter((w) => w.status === "processed" && w.warranty_type === "refund").length,
+        });
+      }
 
       const saleIds = (salesData ?? []).map((s: { id: string }) => s.id);
       if (saleIds.length > 0) {
@@ -220,8 +247,8 @@ export default function CustomerDetailPage() {
           </Link>
         </div>
         <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
-            <div>
+          <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
+            <div className="rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Ticket promedio</p>
               <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
                 {completedSales.length > 0 ? `$ ${formatMoney(ticketPromedio)}` : "—"}
@@ -230,18 +257,27 @@ export default function CustomerDetailPage() {
                 {completedSales.length} {completedSales.length === 1 ? "venta" : "ventas"}
               </p>
             </div>
-            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+            <div className="rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total comprado</p>
               <p className="mt-0.5 text-lg font-bold text-emerald-700 dark:text-emerald-300 sm:text-xl">
                 {completedSales.length > 0 ? `$ ${formatMoney(totalVentas)}` : "—"}
               </p>
             </div>
-            <div className="border-l-0 pl-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700 min-w-0 flex-1 sm:min-w-[280px]">
+            <div className="rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Garantías</p>
+              <p className="mt-0.5 text-lg font-bold text-violet-700 dark:text-violet-300 sm:text-xl">
+                {warrantySummary.total}
+              </p>
+              <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                Devoluciones procesadas
+              </p>
+            </div>
+            <div className="min-w-0 flex-1 rounded-lg border border-slate-200/70 bg-slate-50/40 p-3 dark:border-slate-700/80 dark:bg-slate-800/30 sm:min-w-[280px] sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Direcciones</p>
               {addresses.length === 0 ? (
                 <p className="mt-0.5 text-lg font-bold text-slate-500 dark:text-slate-400 sm:text-xl">—</p>
               ) : (
-                <ul className="mt-2 flex gap-2">
+                <ul className="mt-2 grid grid-cols-1 gap-2 sm:flex">
                   {addresses.map((addr) => (
                     <li key={addr.id} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50/50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/30">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -266,17 +302,17 @@ export default function CustomerDetailPage() {
               )}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 print:hidden">
+          <div className="grid grid-cols-2 gap-2 print:hidden sm:flex sm:flex-wrap">
             <Link
               href={`/clientes/${customer.id}/editar`}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white hover:bg-ov-pink-hover sm:w-auto dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
             >
               Editar
             </Link>
             <button
               type="button"
               onClick={() => setDeleteOpen(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ov-pink/50 bg-white px-4 text-[13px] font-medium text-ov-pink hover:bg-ov-pink/10 dark:border-ov-pink/50 dark:bg-slate-800 dark:text-ov-pink-muted dark:hover:bg-ov-pink/20"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-ov-pink/50 bg-white px-4 text-[13px] font-medium text-ov-pink hover:bg-ov-pink/10 sm:w-auto dark:border-ov-pink/50 dark:bg-slate-800 dark:text-ov-pink-muted dark:hover:bg-ov-pink/20"
             >
               {sales.length === 0 ? "Eliminar" : "Desactivar"}
             </button>

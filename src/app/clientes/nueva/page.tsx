@@ -84,11 +84,18 @@ export default function NewCustomerPage() {
       setSaving(false);
       return;
     }
+    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+    if (!ub?.branch_id) {
+      setError("No encontramos una sucursal activa para tu usuario.");
+      setSaving(false);
+      return;
+    }
 
     const { data: customer, error: insertError } = await supabase
       .from("customers")
       .insert({
         organization_id: userRow.organization_id,
+        branch_id: ub.branch_id,
         name: nameTrim,
         cedula: cedula.trim() || null,
         email: email.trim() || null,
@@ -131,7 +138,6 @@ export default function NewCustomerPage() {
           ? `1 dirección: ${addressLabels[0]}`
           : `${addressLabels.length} direcciones: ${addressLabels.join(", ")}`;
 
-    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
     try {
       await logActivity(supabase, {
         organizationId: userRow.organization_id,

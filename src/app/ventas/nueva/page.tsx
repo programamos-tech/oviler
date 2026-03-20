@@ -6,7 +6,7 @@ import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
-import { getCopy, type SalesMode } from "../sales-mode";
+import { getCopy, getDocumentCopy, type SalesMode } from "../sales-mode";
 
 const IVA_RATE = 0.19;
 
@@ -100,6 +100,7 @@ export default function NewSalePage() {
   const [productHighlightIndex, setProductHighlightIndex] = useState(0);
   const [stockByProductId, setStockByProductId] = useState<Record<string, number>>({});
   const [salesMode, setSalesMode] = useState<SalesMode>("orders");
+  const [cashClosedToday, setCashClosedToday] = useState(false);
   const productListRef = useRef<HTMLUListElement>(null);
   const productItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -134,6 +135,35 @@ export default function NewSalePage() {
       }
     })();
     return () => { cancelled = true; };
+  }, [branchId]);
+
+  // Verificar si ya hubo cierre de caja hoy en esta sucursal.
+  useEffect(() => {
+    if (!branchId) {
+      setCashClosedToday(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const d = String(now.getDate()).padStart(2, "0");
+      const today = `${y}-${m}-${d}`;
+      const { data } = await supabase
+        .from("cash_closings")
+        .select("id")
+        .eq("branch_id", branchId)
+        .eq("closing_date", today)
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      setCashClosedToday(!!data);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [branchId]);
 
   // Al cambiar cliente: cargar direcciones y resetear envío
@@ -507,6 +537,10 @@ export default function NewSalePage() {
       setError("Agrega al menos un producto al carrito.");
       return;
     }
+    if (cashClosedToday) {
+      setError("Ya cerraste la caja hoy. No se pueden registrar más ventas en esta sucursal.");
+      return;
+    }
     if (isDelivery && deliveryFee.trim() === "") {
       setError("El valor del envío es obligatorio (puede ser 0 si es gratis).");
       return;
@@ -537,6 +571,7 @@ export default function NewSalePage() {
         invoice_number: invoiceNumber,
         total,
         payment_method: paymentMethod,
+        // Siempre pending al insertar: el trigger de inventario en tienda corre al pasar a completed (UPDATE).
         status: "pending",
       };
       if (paymentMethod === "cash" && amountReceived.trim() !== "") {
@@ -565,7 +600,7 @@ export default function NewSalePage() {
         .single();
 
       if (saleError) throw saleError;
-      if (!sale?.id) throw new Error("No se creó el pedido");
+      if (!sale?.id) throw new Error(getDocumentCopy(isDelivery).createFailed);
 
       const items = cart.map((item) => ({
         sale_id: sale.id,
@@ -577,6 +612,15 @@ export default function NewSalePage() {
       }));
       const { error: itemsError } = await supabase.from("sale_items").insert(items);
       if (itemsError) throw itemsError;
+
+      // Mostrador: marcar finalizada de inmediato (reportes/caja cuentan solo completed) y disparar descuento de stock.
+      if (!isDelivery) {
+        const { error: completeError } = await supabase
+          .from("sales")
+          .update({ status: "completed", updated_at: new Date().toISOString() })
+          .eq("id", sale.id);
+        if (completeError) throw completeError;
+      }
 
       if (orgId && userId && branchId) {
         try {
@@ -602,18 +646,20 @@ export default function NewSalePage() {
 
       router.push(`/ventas/${sale.id}`);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error al crear el pedido");
+      setError(e instanceof Error ? e.message : getDocumentCopy(isDelivery).createError);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
+  const doc = getDocumentCopy(isDelivery);
+
   if (!branchId || !userId) {
     return (
       <div className="space-y-4">
         <header className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">{getCopy(salesMode).newButton}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">{doc.newButton}</h1>
           <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">Cargando sucursal…</p>
         </header>
       </div>
@@ -623,10 +669,10 @@ export default function NewSalePage() {
   return (
     <div className="space-y-4">
       <header className="space-y-2">
-        <Breadcrumb items={[{ label: getCopy(salesMode).sectionTitle, href: "/ventas" }, { label: getCopy(salesMode).newButton }]} />
+        <Breadcrumb items={[{ label: getCopy(salesMode).sectionTitle, href: "/ventas" }, { label: doc.newButton }]} />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">{getCopy(salesMode).newButton}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">{doc.newButton}</h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Selecciona el cliente, agrega productos al carrito y elige el método de pago.
             </p>
@@ -644,6 +690,11 @@ export default function NewSalePage() {
       </header>
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
+        {cashClosedToday && (
+          <div className="lg:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+            Caja cerrada hoy: no se pueden registrar más ventas en esta sucursal hasta el próximo día.
+          </div>
+        )}
         {/* Columna izquierda: Productos + Carrito (productos seleccionados) */}
         <div className="space-y-4">
           {/* Productos */}
@@ -1257,6 +1308,7 @@ export default function NewSalePage() {
               disabled={
                 !selectedCustomer ||
                 cart.length === 0 ||
+                cashClosedToday ||
                 submitting ||
                 (paymentMethod === "mixed" && parseFormattedPrice(amountCash) + parseFormattedPrice(amountTransfer) !== total)
               }
@@ -1264,7 +1316,7 @@ export default function NewSalePage() {
               aria-busy={submitting}
               aria-disabled={submitting}
             >
-              {submitting ? "Guardando…" : getCopy(salesMode).confirmButton}
+              {submitting ? "Guardando…" : doc.confirmButton}
             </button>
             {error && (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-medium text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200" role="alert">

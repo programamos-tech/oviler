@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { createClient } from "@/lib/supabase/client";
-import { MdStore, MdLocalShipping } from "react-icons/md";
+import { MdStorefront, MdLocalShipping } from "react-icons/md";
 
 const IVA_RATE = 0.19;
 
@@ -21,6 +21,21 @@ function getDayBounds(date: Date): { start: string; end: string } {
 function salePriceFromProduct(basePrice: number | null, applyIva: boolean): number {
   const base = Number(basePrice) ?? 0;
   return applyIva ? base + Math.round(base * IVA_RATE) : base;
+}
+
+function saleLineTotal(
+  unitPrice: number,
+  lineQty: number,
+  discountPercent: number,
+  discountAmount: number
+): number {
+  if (lineQty <= 0) return 0;
+  return Math.max(
+    0,
+    Math.round(
+      lineQty * unitPrice * (1 - (Number(discountPercent) || 0) / 100) - (Number(discountAmount) || 0)
+    )
+  );
 }
 
 function NewCashClosingContent() {
@@ -374,10 +389,10 @@ function NewCashClosingContent() {
       }> = [];
       const { data: warrantiesDay } = await supabase
         .from("warranties")
-        .select("id, warranty_type, sale_id, sale_item_id, product_id, quantity, replacement_product_id, branch_id, sale_items(unit_price, quantity), sales(branch_id, payment_method, amount_cash, amount_transfer, invoice_number)")
+        .select("id, warranty_type, sale_id, sale_item_id, product_id, quantity, replacement_product_id, branch_id, sale_items(unit_price, quantity, discount_percent, discount_amount), sales(branch_id, payment_method, amount_cash, amount_transfer, invoice_number)")
         .eq("status", "processed")
-        .gte("created_at", start)
-        .lte("created_at", end);
+        .gte("updated_at", start)
+        .lte("updated_at", end);
       if (cancelled) return;
 
       const warrantyList = (warrantiesDay ?? []) as Array<{
@@ -389,7 +404,10 @@ function NewCashClosingContent() {
         quantity: number;
         replacement_product_id: string | null;
         branch_id: string | null;
-        sale_items: { unit_price: number; quantity: number } | Array<{ unit_price: number; quantity: number }> | null;
+        sale_items:
+          | { unit_price: number; quantity: number; discount_percent?: number; discount_amount?: number }
+          | Array<{ unit_price: number; quantity: number; discount_percent?: number; discount_amount?: number }>
+          | null;
         sales: { branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null; invoice_number?: string | null } | Array<{ branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null; invoice_number?: string | null }> | null;
       }>;
 
@@ -416,7 +434,15 @@ function NewCashClosingContent() {
           const sal = Array.isArray(w.sales) ? w.sales[0] : w.sales;
           let productValue = 0;
           if (si && si.unit_price != null) {
-            productValue = Number(si.unit_price) * (si.quantity ?? w.quantity ?? 1);
+            const lineQ = Math.max(1, Number(si.quantity ?? w.quantity ?? 1));
+            const returnQty = Math.min(Math.max(1, w.quantity), lineQ);
+            const lineTotalAll = saleLineTotal(
+              Number(si.unit_price),
+              lineQ,
+              Number(si.discount_percent ?? 0),
+              Number(si.discount_amount ?? 0)
+            );
+            productValue = Math.round(lineTotalAll * (returnQty / lineQ));
           } else {
             const prod = productsMap[w.product_id];
             if (prod) {
@@ -488,12 +514,17 @@ function NewCashClosingContent() {
       const expenseEgressItems: Array<{ id: string; concept: string; amount: number; payment_method: string }> = [];
       const { data: expensesDay } = await supabase
         .from("expenses")
-        .select("id, amount, payment_method, concept")
+        .select("id, amount, payment_method, concept, notes")
         .eq("branch_id", branchId)
+        .eq("status", "active")
         .gte("created_at", start)
         .lte("created_at", end);
       if (cancelled) return;
-      (expensesDay ?? []).forEach((e: { id: string; amount: number; payment_method: string; concept: string }) => {
+      /** Ya contabilizado en el bloque de garantías (devolución procesada); evitar doble descuento. */
+      const isAutoWarrantyRefund = (notes: string | null | undefined) =>
+        (notes ?? "").includes("Reembolso automático al procesar garantía tipo devolución");
+      (expensesDay ?? []).forEach((e: { id: string; amount: number; payment_method: string; concept: string; notes?: string | null }) => {
+        if (isAutoWarrantyRefund(e.notes)) return;
         const amount = Number(e.amount) || 0;
         expenseEgressItems.push({ id: e.id, concept: e.concept || "", amount, payment_method: e.payment_method });
         if (e.payment_method === "cash") {
@@ -928,7 +959,7 @@ function NewCashClosingContent() {
                 {cashCloseData.totalSales > 0 && (
                   <div className="flex items-center justify-between text-[14px]">
                     <span className="text-slate-600 dark:text-slate-400">
-                      <MdStore className="inline h-3.5 w-3.5 mr-1" />
+                      <MdStorefront className="inline h-3.5 w-3.5 mr-1 text-ov-pink dark:text-ov-pink-muted align-[-2px]" />
                       Físicas
                     </span>
                     <span className="font-medium text-slate-900 dark:text-slate-50">
@@ -939,7 +970,7 @@ function NewCashClosingContent() {
                 {cashCloseData.totalSales > 0 && (
                   <div className="flex items-center justify-between text-[14px]">
                     <span className="text-slate-600 dark:text-slate-400">
-                      <MdLocalShipping className="inline h-3.5 w-3.5 mr-1" />
+                      <MdLocalShipping className="inline h-3.5 w-3.5 mr-1 text-emerald-600 dark:text-emerald-400 align-[-2px]" />
                       Delivery
                     </span>
                     <span className="font-medium text-slate-900 dark:text-slate-50">

@@ -1,80 +1,186 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 interface Notification {
   id: string;
-  type: "approval" | "request" | "warning" | "info";
+  type: "approval" | "request" | "warning" | "info" | "like" | "comment";
   title: string;
   message: string;
   time: string;
   read: boolean;
   link?: string;
+  activityId?: string;
+  commentId?: string;
 }
 
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    type: "approval",
-    title: "Garantía aprobada",
-    message: "La garantía #GAR-002 de Carlos Gómez ha sido aprobada",
-    time: "Hace 5 minutos",
-    read: false,
-    link: "/garantias",
-  },
-  {
-    id: "2",
-    type: "request",
-    title: "Nueva solicitud de garantía",
-    message: "María López ha solicitado una garantía para Aceite 1L",
-    time: "Hace 1 hora",
-    read: false,
-    link: "/garantias",
-  },
-  {
-    id: "3",
-    type: "warning",
-    title: "Stock bajo",
-    message: "El producto Coca-Cola 1.5L tiene menos de 10 unidades",
-    time: "Hace 2 horas",
-    read: false,
-    link: "/inventario",
-  },
-  {
-    id: "4",
-    type: "approval",
-    title: "Venta anulada",
-    message: "La venta #VTA-1023 ha sido anulada por Juan Pérez",
-    time: "Hace 3 horas",
-    read: true,
-    link: "/ventas",
-  },
-  {
-    id: "5",
-    type: "info",
-    title: "Nuevo cliente registrado",
-    message: "Ana Martínez se ha registrado como nuevo cliente",
-    time: "Ayer",
-    read: true,
-    link: "/clientes",
-  },
-  {
-    id: "6",
-    type: "request",
-    title: "Solicitud de ajuste de stock",
-    message: "Se requiere aprobación para ajustar stock de Pan francés",
-    time: "Ayer",
-    read: true,
-    link: "/inventario",
-  },
-];
+function timeAgo(dateStr: string): string {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const sec = Math.floor((now.getTime() - d.getTime()) / 1000);
+  if (sec < 60) return "Hace un momento";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `Hace ${min} ${min === 1 ? "minuto" : "minutos"}`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `Hace ${h} ${h === 1 ? "hora" : "horas"}`;
+  const day = Math.floor(h / 24);
+  if (day < 30) return `Hace ${day} ${day === 1 ? "día" : "días"}`;
+  const month = Math.floor(day / 30);
+  return `Hace ${month} ${month === 1 ? "mes" : "meses"}`;
+}
 
 export default function Notifications() {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const supabase = createClient();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const loadNotifications = useCallback(async () => {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth.user;
+    if (!user) return;
+
+    const { data: myActivitiesRows } = await supabase
+      .from("activities")
+      .select("id, summary")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const myActivities = (myActivitiesRows ?? []) as Array<{ id: string; summary: string }>;
+    const myActivityIds = myActivities.map((a) => a.id);
+    const activitySummaryById = new Map(myActivities.map((a) => [a.id, a.summary]));
+
+    const { data: myCommentsRows } = await supabase
+      .from("activity_comments")
+      .select("id, activity_id, body")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(300);
+    const myComments = (myCommentsRows ?? []) as Array<{ id: string; activity_id: string; body: string }>;
+    const myCommentIds = myComments.map((c) => c.id);
+    const myCommentBodyById = new Map(myComments.map((c) => [c.id, c.body]));
+
+    const [commentsOnMyPostsRes, likesOnMyPostsRes, likesOnMyCommentsRes] = await Promise.all([
+      myActivityIds.length
+        ? supabase
+            .from("activity_comments")
+            .select("id, activity_id, user_id, body, created_at")
+            .in("activity_id", myActivityIds)
+            .neq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(120)
+        : Promise.resolve({ data: [] as unknown[] }),
+      myActivityIds.length
+        ? supabase
+            .from("activity_likes")
+            .select("activity_id, user_id, created_at")
+            .in("activity_id", myActivityIds)
+            .neq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(120)
+        : Promise.resolve({ data: [] as unknown[] }),
+      myCommentIds.length
+        ? supabase
+            .from("activity_comment_likes")
+            .select("comment_id, user_id, created_at")
+            .in("comment_id", myCommentIds)
+            .neq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(120)
+        : Promise.resolve({ data: [] as unknown[] }),
+    ]);
+
+    const commentsOnMyPosts = (commentsOnMyPostsRes.data ?? []) as Array<{
+      id: string;
+      activity_id: string;
+      user_id: string;
+      body: string;
+      created_at: string;
+    }>;
+    const likesOnMyPosts = (likesOnMyPostsRes.data ?? []) as Array<{
+      activity_id: string;
+      user_id: string;
+      created_at: string;
+    }>;
+    const likesOnMyComments = (likesOnMyCommentsRes.data ?? []) as Array<{
+      comment_id: string;
+      user_id: string;
+      created_at: string;
+    }>;
+
+    const actorIds = Array.from(
+      new Set(
+        [
+          ...commentsOnMyPosts.map((c) => c.user_id),
+          ...likesOnMyPosts.map((l) => l.user_id),
+          ...likesOnMyComments.map((l) => l.user_id),
+        ].filter(Boolean)
+      )
+    );
+
+    let usersById = new Map<string, string>();
+    if (actorIds.length > 0) {
+      const { data: actorUsers } = await supabase.from("users").select("id, name").in("id", actorIds);
+      usersById = new Map(((actorUsers ?? []) as Array<{ id: string; name: string }>).map((u) => [u.id, u.name]));
+    }
+
+    const toShort = (text: string | undefined, max = 52) => {
+      const t = String(text ?? "").trim();
+      if (!t) return "tu publicación";
+      return t.length > max ? `${t.slice(0, max)}...` : t;
+    };
+
+    const mapped: Array<Notification & { createdAt: string }> = [
+      ...commentsOnMyPosts.map((c) => ({
+        id: `comment:${c.id}`,
+        type: "comment" as const,
+        title: "Nuevo comentario en tu post",
+        message: `${usersById.get(c.user_id) ?? "Alguien"} comentó: "${toShort(c.body, 44)}"`,
+        time: timeAgo(c.created_at),
+        read: false,
+        link: `/actividades?activity=${c.activity_id}&comment=${c.id}`,
+        activityId: c.activity_id,
+        commentId: c.id,
+        createdAt: c.created_at,
+      })),
+      ...likesOnMyPosts.map((l) => ({
+        id: `like-post:${l.activity_id}:${l.user_id}:${l.created_at}`,
+        type: "like" as const,
+        title: "Le dieron like a tu post",
+        message: `${usersById.get(l.user_id) ?? "Alguien"} reaccionó a: "${toShort(activitySummaryById.get(l.activity_id), 44)}"`,
+        time: timeAgo(l.created_at),
+        read: false,
+        link: `/actividades?activity=${l.activity_id}`,
+        activityId: l.activity_id,
+        createdAt: l.created_at,
+      })),
+      ...likesOnMyComments.map((l) => ({
+        id: `like-comment:${l.comment_id}:${l.user_id}:${l.created_at}`,
+        type: "like" as const,
+        title: "Le dieron like a tu comentario",
+        message: `${usersById.get(l.user_id) ?? "Alguien"} reaccionó a tu comentario: "${toShort(myCommentBodyById.get(l.comment_id), 44)}"`,
+        time: timeAgo(l.created_at),
+        read: false,
+        link: `/actividades?activity=${myComments.find((c) => c.id === l.comment_id)?.activity_id ?? ""}&comment=${l.comment_id}`,
+        activityId: myComments.find((c) => c.id === l.comment_id)?.activity_id,
+        commentId: l.comment_id,
+        createdAt: l.created_at,
+      })),
+    ]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 40);
+
+    setNotifications(mapped.map(({ createdAt, ...n }) => n));
+  }, [supabase]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -171,6 +277,38 @@ export default function Notifications() {
             />
           </svg>
         );
+      case "like":
+        return (
+          <svg
+            className="h-5 w-5 text-ov-pink dark:text-ov-pink-muted"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+            />
+          </svg>
+        );
+      case "comment":
+        return (
+          <svg
+            className="h-5 w-5 text-blue-600 dark:text-blue-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 10h8M8 14h5m-1 8l-4-3H5a2 2 0 01-2-2V7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-3l-4 3z"
+            />
+          </svg>
+        );
     }
   };
 
@@ -220,7 +358,7 @@ export default function Notifications() {
           </div>
 
           {/* Notifications list */}
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-[30rem] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {notifications.length === 0 ? (
               <div className="p-8 text-center">
                 <svg
@@ -248,8 +386,9 @@ export default function Notifications() {
                     onClick={() => {
                       markAsRead(notification.id);
                       setIsOpen(false);
+                      if (notification.link) router.push(notification.link);
                     }}
-                    className={`w-full px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                    className={`w-full px-4 py-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 ${
                       !notification.read ? "bg-blue-50/50 dark:bg-blue-950/20" : ""
                     }`}
                   >
@@ -272,10 +411,10 @@ export default function Notifications() {
                             <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-ov-pink" />
                           )}
                         </div>
-                        <p className="mt-1 text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                          <p className="mt-0.5 text-[12px] font-medium text-slate-600 dark:text-slate-400">
                           {notification.message}
                         </p>
-                        <p className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-500">
+                        <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-500">
                           {notification.time}
                         </p>
                       </div>
@@ -285,15 +424,6 @@ export default function Notifications() {
               </div>
             )}
           </div>
-
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div className="border-t border-slate-200 p-3 dark:border-slate-800">
-              <button className="w-full rounded-lg bg-slate-100 px-4 py-2 text-[12px] font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
-                Ver todas las notificaciones
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>

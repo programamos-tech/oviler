@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Breadcrumb from "@/app/components/Breadcrumb";
-import { MdStore, MdLocalShipping } from "react-icons/md";
+import { MdStorefront, MdLocalShipping } from "react-icons/md";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -462,7 +462,7 @@ export default function CashClosingDetailPage() {
                 <>
                   <div className="flex justify-between gap-2">
                     <dt className="text-slate-500 dark:text-slate-400">
-                      <MdStore className="inline h-3.5 w-3.5 mr-1" />
+                      <MdStorefront className="inline h-3.5 w-3.5 mr-1 text-ov-pink dark:text-ov-pink-muted align-[-2px]" />
                       Físicas
                     </dt>
                     <dd className="font-medium text-slate-800 dark:text-slate-100">
@@ -471,7 +471,7 @@ export default function CashClosingDetailPage() {
                   </div>
                   <div className="flex justify-between gap-2">
                     <dt className="text-slate-500 dark:text-slate-400">
-                      <MdLocalShipping className="inline h-3.5 w-3.5 mr-1" />
+                      <MdLocalShipping className="inline h-3.5 w-3.5 mr-1 text-emerald-600 dark:text-emerald-400 align-[-2px]" />
                       Delivery
                     </dt>
                     <dd className="font-medium text-slate-800 dark:text-slate-100">

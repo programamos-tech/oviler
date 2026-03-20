@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
 
 /* Iconos del panel "Más" */
 function IconGarantias() {
@@ -157,6 +158,8 @@ export default function BottomNav() {
   const [masOpen, setMasOpen] = useState(false);
   const [showExpenses, setShowExpenses] = useState<boolean | null>(null);
   const [salesMode, setSalesMode] = useState<"sales" | "orders">("sales");
+  const [userRole, setUserRole] = useState<AppRole | null>(null);
+  const [userPermissions, setUserPermissions] = useState<string[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,9 +170,12 @@ export default function BottomNav() {
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
       if (!ub?.branch_id || cancelled) return;
       const { data: branch } = await supabase.from("branches").select("show_expenses, sales_mode").eq("id", ub.branch_id).single();
+      const { data: me } = await supabase.from("users").select("role, permissions").eq("id", user.id).single();
       if (!cancelled && branch) {
         setShowExpenses(branch.show_expenses !== false);
         setSalesMode((branch as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales");
+        setUserRole((me?.role ?? null) as AppRole | null);
+        setUserPermissions((me as { permissions?: string[] | null } | null)?.permissions ?? null);
       }
     })();
     return () => { cancelled = true; };
@@ -179,7 +185,13 @@ export default function BottomNav() {
     setMasOpen(false);
   }, [pathname]);
 
-  const displayMasItems = showExpenses === false ? masItems.filter((g) => g.label !== "Egresos") : masItems;
+  const displayMasItems = (showExpenses === false ? masItems.filter((g) => g.label !== "Egresos") : masItems)
+    .filter((group) => canAccessNavModule(userRole, group.label, userPermissions))
+    .map((group) => ({
+      ...group,
+      items: (group.items ?? []).filter((sub) => canAccessPath(userRole, sub.href, userPermissions)),
+    }))
+    .filter((group) => canAccessPath(userRole, group.href, userPermissions) || (group.items?.length ?? 0) > 0);
 
   useEffect(() => {
     if (masOpen) document.body.style.overflow = "hidden";

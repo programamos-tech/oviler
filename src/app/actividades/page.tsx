@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Avatar from "boring-avatars";
 
 type Activity = {
   id: string;
@@ -56,6 +58,13 @@ function initial(name: string | null): string {
   return name.slice(0, 2).toUpperCase();
 }
 
+function getAvatarVariant(avatarUrl?: string | null): "beam" | "marble" | "pixel" {
+  if (!avatarUrl?.startsWith("avatar:")) return "beam";
+  const variant = avatarUrl.replace("avatar:", "");
+  if (variant === "beam" || variant === "marble" || variant === "pixel") return variant;
+  return "beam";
+}
+
 function getActivityTypeIcon(activity: { entity_type: string; action: string }): { icon: string; label: string } {
   if (activity.entity_type === "customer") return { icon: "person", label: "Cliente" };
   if (activity.entity_type === "category") return { icon: "category", label: "Categoría" };
@@ -69,66 +78,38 @@ function getActivityTypeIcon(activity: { entity_type: string; action: string }):
 const SALE_STATUS_LABELS: Record<string, string> = {
   pending: "Pendiente",
   preparing: "En alistamiento",
-  packing: "Alistado",
+  packing: "En alistamiento",
   on_the_way: "Despachado",
   completed: "Completada",
+  delivered: "Finalizado",
   cancelled: "Anulada",
 };
 
+const FEED_PAGE_SIZE = 20;
+
 export default function ActivityFeedPage() {
+  const searchParams = useSearchParams();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [currentBranch, setCurrentBranch] = useState<BranchOption | null>(null);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [branchFilterId, setBranchFilterId] = useState<string | null>(null);
   const [commentsByActivity, setCommentsByActivity] = useState<Record<string, ActivityComment[]>>({});
   const [likesCount, setLikesCount] = useState<Record<string, number>>({});
   const [likedByMe, setLikedByMe] = useState<Record<string, boolean>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const activityRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [highlightedActivityId, setHighlightedActivityId] = useState<string | null>(null);
 
-  const loadFeed = useCallback(async () => {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    setCurrentUserId(user.id);
-    const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
-    if (!userRow?.organization_id) {
-      setLoading(false);
-      return;
-    }
-
-    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-    const currentBranchId = ub?.branch_id ?? null;
-    if (currentBranchId) {
-      const { data: branchRow } = await supabase.from("branches").select("id, name").eq("id", currentBranchId).single();
-      if (branchRow) setCurrentBranch(branchRow as BranchOption);
-    } else {
-      setCurrentBranch(null);
-    }
-
-    let q = supabase
-      .from("activities")
-      .select("id, organization_id, branch_id, user_id, actor_type, action, entity_type, entity_id, summary, metadata, created_at, users!user_id(name, avatar_url)")
-      .eq("organization_id", userRow.organization_id)
-      .order("created_at", { ascending: false })
-      .limit(80);
-
-    if (currentBranchId) {
-      q = q.or(`branch_id.is.null,branch_id.eq.${currentBranchId}`);
-    } else {
-      q = q.is("branch_id", null);
-    }
-
-    const { data: activitiesData, error: activitiesError } = await q;
-    if (activitiesError && typeof console !== "undefined" && console.error) {
-      console.error("[Actividades] Error al cargar:", activitiesError.message);
-    }
-
-    const list = ((activitiesData ?? []) as Array<{
+  const mapActivities = (activitiesData: unknown[]) =>
+    (activitiesData as Array<{
       id: string;
       organization_id: string;
       branch_id: string | null;
@@ -145,16 +126,10 @@ export default function ActivityFeedPage() {
       ...a,
       users: Array.isArray(a.users) ? (a.users[0] || null) : a.users,
     })) as Activity[];
-    setActivities(list);
-    const ids = list.map((a) => a.id);
-    if (ids.length === 0) {
-      setCommentsByActivity({});
-      setLikesCount({});
-      setLikedByMe({});
-      setLoading(false);
-      return;
-    }
 
+  const mergeActivityMeta = useCallback(async (ids: string[], userId: string, replace: boolean) => {
+    if (ids.length === 0) return;
+    const supabase = createClient();
     const [commentsRes, likesRes] = await Promise.all([
       supabase
         .from("activity_comments")
@@ -180,23 +155,141 @@ export default function ActivityFeedPage() {
       if (!byActivity[c.activity_id]) byActivity[c.activity_id] = [];
       byActivity[c.activity_id].push(c);
     }
-    setCommentsByActivity(byActivity);
+    setCommentsByActivity((prev) => (replace ? byActivity : { ...prev, ...byActivity }));
 
     const likes = likesRes.data ?? [];
     const count: Record<string, number> = {};
     const byMe: Record<string, boolean> = {};
     for (const l of likes as { activity_id: string; user_id: string }[]) {
       count[l.activity_id] = (count[l.activity_id] ?? 0) + 1;
-      if (l.user_id === user.id) byMe[l.activity_id] = true;
+      if (l.user_id === userId) byMe[l.activity_id] = true;
     }
-    setLikesCount(count);
-    setLikedByMe(byMe);
-    setLoading(false);
+    setLikesCount((prev) => (replace ? count : { ...prev, ...count }));
+    setLikedByMe((prev) => (replace ? byMe : { ...prev, ...byMe }));
   }, []);
+
+  const loadFeed = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setCurrentUserId(user.id);
+    const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
+    if (!userRow?.organization_id) {
+      setLoading(false);
+      return;
+    }
+
+    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+    const currentBranchId = ub?.branch_id ?? null;
+    setOrganizationId(userRow.organization_id);
+    setBranchFilterId(currentBranchId);
+    if (currentBranchId) {
+      const { data: branchRow } = await supabase.from("branches").select("id, name").eq("id", currentBranchId).single();
+      if (branchRow) setCurrentBranch(branchRow as BranchOption);
+    } else {
+      setCurrentBranch(null);
+    }
+
+    let q = supabase
+      .from("activities")
+      .select("id, organization_id, branch_id, user_id, actor_type, action, entity_type, entity_id, summary, metadata, created_at, users!user_id(name, avatar_url)")
+      .eq("organization_id", userRow.organization_id)
+      .order("created_at", { ascending: false })
+      .range(0, FEED_PAGE_SIZE - 1);
+
+    if (currentBranchId) {
+      q = q.eq("branch_id", currentBranchId);
+    } else {
+      q = q.is("branch_id", null);
+    }
+
+    const { data: activitiesData, error: activitiesError } = await q;
+    if (activitiesError && typeof console !== "undefined" && console.error) {
+      console.error("[Actividades] Error al cargar:", activitiesError.message);
+    }
+
+    const list = mapActivities(activitiesData ?? []);
+    setActivities(list);
+    setOffset(list.length);
+    setHasMore(list.length === FEED_PAGE_SIZE);
+    const ids = list.map((a) => a.id);
+    if (ids.length === 0) {
+      setCommentsByActivity({});
+      setLikesCount({});
+      setLikedByMe({});
+      setLoading(false);
+      return;
+    }
+    await mergeActivityMeta(ids, user.id, true);
+    setLoading(false);
+  }, [mergeActivityMeta]);
 
   useEffect(() => {
     loadFeed();
   }, [loadFeed]);
+
+  const loadMoreActivities = useCallback(async () => {
+    if (loading || loadingMore || !hasMore || !organizationId) return;
+    setLoadingMore(true);
+    const supabase = createClient();
+    let q = supabase
+      .from("activities")
+      .select("id, organization_id, branch_id, user_id, actor_type, action, entity_type, entity_id, summary, metadata, created_at, users!user_id(name, avatar_url)")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + FEED_PAGE_SIZE - 1);
+
+    if (branchFilterId) {
+      q = q.eq("branch_id", branchFilterId);
+    } else {
+      q = q.is("branch_id", null);
+    }
+
+    const { data } = await q;
+    const batch = mapActivities(data ?? []);
+    setActivities((prev) => [...prev, ...batch.filter((b) => !prev.some((p) => p.id === b.id))]);
+    setOffset((prev) => prev + batch.length);
+    setHasMore(batch.length === FEED_PAGE_SIZE);
+    if (currentUserId && batch.length > 0) {
+      await mergeActivityMeta(batch.map((b) => b.id), currentUserId, false);
+    }
+    setLoadingMore(false);
+  }, [branchFilterId, currentUserId, hasMore, loading, loadingMore, mergeActivityMeta, offset, organizationId]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMoreActivities();
+        }
+      },
+      { rootMargin: "180px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, loadMoreActivities]);
+
+  useEffect(() => {
+    const targetActivityId = searchParams.get("activity");
+    const targetCommentId = searchParams.get("comment");
+    if (!targetActivityId || activities.length === 0) return;
+    const exists = activities.some((a) => a.id === targetActivityId);
+    if (!exists) return;
+    if (targetCommentId) {
+      setExpandedComments((prev) => ({ ...prev, [targetActivityId]: true }));
+    }
+    const el = activityRefs.current[targetActivityId];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedActivityId(targetActivityId);
+    const t = window.setTimeout(() => setHighlightedActivityId((prev) => (prev === targetActivityId ? null : prev)), 2400);
+    return () => window.clearTimeout(t);
+  }, [activities, searchParams]);
 
   const toggleLike = async (activityId: string) => {
     if (!currentUserId) return;
@@ -255,12 +348,12 @@ export default function ActivityFeedPage() {
 
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
-          Actividades
+      <header className="mx-auto max-w-3xl px-4 py-3 text-center">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-50">
+          Qué está pasando hoy
         </h1>
-        <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-          Solo ves las actividades de tu sucursal. Se conservan los últimos 90 días.
+        <p className="mt-0.5 text-[13px] font-medium text-slate-300">
+          Actividad reciente de tu sucursal.
         </p>
         {!currentBranch && !loading && (
           <p className="text-[13px] text-amber-600 dark:text-amber-400">
@@ -269,9 +362,9 @@ export default function ActivityFeedPage() {
         )}
       </header>
 
-      <section className="space-y-3">
+      <section className="mx-auto max-w-3xl px-1 py-1">
         {activities.length === 0 ? (
-          <div className="rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className="p-8 text-center">
             <p className="text-[15px] font-medium text-slate-700 dark:text-slate-300">
               Aún no hay actividades
             </p>
@@ -280,7 +373,9 @@ export default function ActivityFeedPage() {
             </p>
           </div>
         ) : (
-          activities.map((a) => {
+          <>
+          <div className="space-y-2">
+            {activities.map((a) => {
             const comments = commentsByActivity[a.id] ?? [];
             const likesNum = likesCount[a.id] ?? 0;
             const liked = !!likedByMe[a.id];
@@ -289,7 +384,12 @@ export default function ActivityFeedPage() {
             return (
               <div
                 key={a.id}
-                className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800"
+                ref={(el) => {
+                  activityRefs.current[a.id] = el;
+                }}
+                className={`px-4 py-4 sm:px-5 transition-colors ${
+                  highlightedActivityId === a.id ? "rounded-lg bg-ov-pink/10 dark:bg-ov-pink/20" : ""
+                }`}
               >
                 <div className="flex gap-3">
                   <div
@@ -301,7 +401,7 @@ export default function ActivityFeedPage() {
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                    ) : a.users?.avatar_url ? (
+                    ) : a.users?.avatar_url && !a.users.avatar_url.startsWith("avatar:") ? (
                       <img
                         src={a.users.avatar_url}
                         alt=""
@@ -315,9 +415,20 @@ export default function ActivityFeedPage() {
                       />
                     ) : null}
                     {!isSystem(a) && (
-                      <span className={a.users?.avatar_url ? "hidden absolute inset-0 items-center justify-center" : ""} style={a.users?.avatar_url ? { display: "none" } : undefined}>
-                        {initial(actorName(a))}
-                      </span>
+                      a.users?.avatar_url?.startsWith("avatar:") ? (
+                        <div className="rounded-full border" style={{ borderColor: "var(--ov-pink)" }}>
+                          <Avatar
+                            size={30}
+                            name={`${actorName(a)}-${getAvatarVariant(a.users.avatar_url)}`}
+                            variant={getAvatarVariant(a.users.avatar_url)}
+                            colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                          />
+                        </div>
+                      ) : (
+                        <span className={a.users?.avatar_url ? "hidden absolute inset-0 items-center justify-center" : ""} style={a.users?.avatar_url ? { display: "none" } : undefined}>
+                          {initial(actorName(a))}
+                        </span>
+                      )
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -479,7 +590,7 @@ export default function ActivityFeedPage() {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
-                            d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
+                            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
                           />
                         </svg>
                         <span>{likesNum}</span>
@@ -501,11 +612,11 @@ export default function ActivityFeedPage() {
                       </button>
                     </div>
                     {expanded && (
-                      <div className="mt-3 space-y-2 border-t border-slate-200 pt-3 dark:border-slate-800">
+                      <div className="mt-3 space-y-2">
                         {comments.map((c) => (
                           <div key={c.id} className="flex gap-2">
                             <div className="relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-300 text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
-                              {c.users?.avatar_url ? (
+                              {c.users?.avatar_url && !c.users.avatar_url.startsWith("avatar:") ? (
                                 <>
                                   <img
                                     src={c.users.avatar_url}
@@ -522,6 +633,15 @@ export default function ActivityFeedPage() {
                                     {initial(c.users?.name ?? null)}
                                   </span>
                                 </>
+                              ) : c.users?.avatar_url?.startsWith("avatar:") ? (
+                                <div className="rounded-full border" style={{ borderColor: "var(--ov-pink)" }}>
+                                  <Avatar
+                                    size={22}
+                                    name={`${c.users?.name ?? "usuario"}-${getAvatarVariant(c.users.avatar_url)}`}
+                                    variant={getAvatarVariant(c.users.avatar_url)}
+                                    colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                                  />
+                                </div>
                               ) : (
                                 <span>{initial(c.users?.name ?? null)}</span>
                               )}
@@ -552,15 +672,28 @@ export default function ActivityFeedPage() {
                                   submitComment(a.id);
                                 }
                               }}
-                              className="max-w-[220px] rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:placeholder:text-slate-500"
+                              className="max-w-[260px] rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-[12px] outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:placeholder:text-slate-500"
                             />
                             <button
                               type="button"
                               disabled={submittingComment === a.id || !(commentDraft[a.id] ?? "").trim()}
                               onClick={() => submitComment(a.id)}
-                              className="rounded-lg bg-ov-pink px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-50"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-ov-pink transition-colors hover:bg-slate-100 hover:text-ov-pink-hover disabled:opacity-50 dark:text-ov-pink-muted dark:hover:bg-slate-800 dark:hover:text-ov-pink"
+                              aria-label="Publicar comentario"
                             >
-                              {submittingComment === a.id ? "…" : "Enviar"}
+                              {submittingComment === a.id ? (
+                                "…"
+                              ) : (
+                                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M16.862 3.487a2.1 2.1 0 112.97 2.97L8.91 17.378 5 18.3l.922-3.91L16.862 3.487z"
+                                  />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h5" />
+                                </svg>
+                              )}
                             </button>
                           </div>
                         )}
@@ -570,7 +703,12 @@ export default function ActivityFeedPage() {
                 </div>
               </div>
             );
-          })
+          })}
+          </div>
+          <div ref={loadMoreRef} className="py-3 text-center text-[12px] text-slate-500 dark:text-slate-400">
+            {loadingMore ? "Cargando más actividad..." : hasMore ? "Desliza para ver más" : "No hay más actividad por mostrar"}
+          </div>
+          </>
         )}
       </section>
     </div>

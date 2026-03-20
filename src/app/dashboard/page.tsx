@@ -5,9 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import DatePickerCard from "@/app/components/DatePickerCard";
+import {
+  MdAttachMoney,
+  MdTrendingDown,
+  MdPayments,
+  MdAccountBalance,
+  MdCancel,
+  MdCreditCard,
+  MdVerifiedUser,
+  MdInventory2,
+  MdShowChart,
+  MdSavings,
+} from "react-icons/md";
 
 type DashboardData = {
-  totalIncome: number; // Ingresos tienda (sin delivery fees)
+  totalIncome: number; // Total neto en caja/banco (después de egresos)
   totalDeliveryFees: number; // Total envíos (no es ingreso de la tienda)
   unpaidDeliveryFees: number; // Envíos pendientes de pago
   incomeCash: number; // Ingresos por ventas en efectivo (antes de restar egresos)
@@ -33,6 +45,7 @@ type DashboardData = {
   grossProfit: number;
   netProfit: number;
   warrantiesCount: number;
+  warrantiesRefundAmount: number;
   lastExpense: { amount: number; concept: string } | null;
   lastCashSale: { total: number; invoice_number: string } | null;
   lastTransferSale: { total: number; invoice_number: string } | null;
@@ -70,6 +83,21 @@ function salePriceFromProduct(basePrice: number | null, applyIva: boolean): numb
   return applyIva ? base + Math.round(base * IVA_RATE) : base;
 }
 
+function warrantySaleLineTotal(
+  unitPrice: number,
+  lineQty: number,
+  discountPercent: number,
+  discountAmount: number
+): number {
+  if (lineQty <= 0) return 0;
+  return Math.max(
+    0,
+    Math.round(
+      lineQty * unitPrice * (1 - (Number(discountPercent) || 0) / 100) - (Number(discountAmount) || 0)
+    )
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   type DateFilterMode = "today" | "range";
@@ -86,6 +114,7 @@ export default function DashboardPage() {
   });
   const [hideSensitiveInfo, setHideSensitiveInfo] = useState(false);
   const [branchId, setBranchId] = useState<string | null>(null);
+  const [existingClosingId, setExistingClosingId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const today = new Date();
@@ -250,13 +279,21 @@ export default function DashboardPage() {
       let totalExpensesTransfer = 0;
       const { data: expensesDay } = await supabase
         .from("expenses")
-        .select("amount, payment_method")
+        .select("amount, payment_method, concept, notes")
         .eq("branch_id", branchId)
+        .eq("status", "active")
         .gte("created_at", start)
         .lte("created_at", end);
       if (cancelled) return;
-      (expensesDay ?? []).forEach((e: { amount: number; payment_method: string }) => {
+      let warrantiesRefundAmount = 0;
+      (expensesDay ?? []).forEach((e: { amount: number; payment_method: string; concept?: string | null; notes?: string | null }) => {
         const amount = Number(e.amount) || 0;
+        const concept = String(e.concept ?? "");
+        const notes = String(e.notes ?? "");
+        const isWarrantyRefund =
+          concept.startsWith("Devolución garantía ") ||
+          notes === "Reembolso automático al procesar garantía tipo devolución.";
+        if (isWarrantyRefund) warrantiesRefundAmount += amount;
         if (e.payment_method === "cash") {
           totalExpensesCash += amount;
           cash -= amount;
@@ -272,6 +309,7 @@ export default function DashboardPage() {
         .from("expenses")
         .select("amount, concept")
         .eq("branch_id", branchId)
+        .eq("status", "active")
         .gte("created_at", start)
         .lte("created_at", end)
         .order("created_at", { ascending: false })
@@ -305,7 +343,7 @@ export default function DashboardPage() {
           }
         : null;
 
-      const totalIncome = totalStoreIncome; // Total ingresos tienda (sin delivery)
+      const totalIncome = cash + transfer; // Total neto tras restar egresos
       const physicalSales = completed.filter((s) => !s.is_delivery).length;
       const deliverySales = completed.filter((s) => s.is_delivery).length;
       const cancelledSales = sales.filter((s) => s.status === "cancelled");
@@ -347,7 +385,7 @@ export default function DashboardPage() {
         .eq("sales.branch_id", branchId)
         .gte("sales.created_at", start)
         .lte("sales.created_at", end)
-        .not("sales.status", "eq", "cancelled");
+        .eq("sales.status", "completed");
       if (cancelled) return;
       const rawItems = (itemsDayDirect ?? []) as Array<{
         product_id: string;
@@ -359,7 +397,7 @@ export default function DashboardPage() {
       }>;
       // Si la API no soporta filtro por relación, usar fallback con IDs del fetch de ventas
       if (rawItems.length === 0) {
-        const saleIdsForItems = sales.filter((s) => s.status !== "cancelled").map((s) => s.id);
+        const saleIdsForItems = completed.map((s) => s.id);
         if (saleIdsForItems.length > 0) {
           const { data: itemsDayFallback } = await supabase
             .from("sale_items")
@@ -440,7 +478,7 @@ export default function DashboardPage() {
         return sum;
       }, 0);
 
-      const grossProfit = items.reduce((sum, it) => {
+      const grossProfitRaw = items.reduce((sum, it) => {
         const unitPrice = Number(it.unit_price ?? 0);
         const discountPercent = Number(it.discount_percent ?? 0);
         const discountAmount = Number(it.discount_amount ?? 0);
@@ -461,18 +499,25 @@ export default function DashboardPage() {
       }, 0);
 
       const totalExpensesDay = totalExpensesCash + totalExpensesTransfer;
-      const netProfit = grossProfit - totalExpensesDay;
+      // Si el total neto del período quedó en 0 (o negativo), no mostrar utilidades.
+      const grossProfit = totalIncome > 0 ? grossProfitRaw : 0;
+      const netProfit = totalIncome > 0 ? grossProfit - totalExpensesDay : 0;
 
       // Garantías gestionadas en el período
       let warrantiesCount = 0;
       const { data: warrantiesInPeriod } = await supabase
         .from("warranties")
-        .select("id")
-        .eq("branch_id", branchId)
+        .select("id, branch_id, sales(branch_id)")
         .gte("created_at", start)
         .lte("created_at", end);
       if (cancelled) return;
-      warrantiesCount = (warrantiesInPeriod ?? []).length;
+      warrantiesCount = (warrantiesInPeriod ?? []).filter(
+        (w: { branch_id?: string | null; sales?: { branch_id?: string | null }[] | { branch_id?: string | null } | null }) => {
+          const saleRow = Array.isArray(w.sales) ? (w.sales[0] || null) : w.sales;
+          const saleBranchId = saleRow?.branch_id ?? null;
+          return (w.branch_id ?? null) === branchId || saleBranchId === branchId;
+        }
+      ).length;
 
       setDashboardData({
         totalIncome,
@@ -501,6 +546,7 @@ export default function DashboardPage() {
         grossProfit,
         netProfit,
         warrantiesCount,
+        warrantiesRefundAmount,
         lastExpense,
         lastCashSale: lastCashSaleDisplay,
         lastTransferSale: lastTransferSaleDisplay,
@@ -509,6 +555,30 @@ export default function DashboardPage() {
     })();
     return () => { cancelled = true; };
   }, [branchId, dateFilterMode, selectedDay, dateFrom, dateTo]);
+
+  useEffect(() => {
+    if (!branchId) {
+      setExistingClosingId(null);
+      return;
+    }
+    const supabase = createClient();
+    let cancelled = false;
+    const targetDate = dateFilterMode === "today" ? selectedDay : dateTo;
+    const dateStr = targetDate.toISOString().split("T")[0];
+    (async () => {
+      const { data } = await supabase
+        .from("cash_closings")
+        .select("id")
+        .eq("branch_id", branchId)
+        .eq("closing_date", dateStr)
+        .maybeSingle();
+      if (cancelled) return;
+      setExistingClosingId(data?.id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId, dateFilterMode, selectedDay, dateTo]);
 
   const formatDate = (date: Date) => {
     const today = new Date();
@@ -576,6 +646,7 @@ export default function DashboardPage() {
     grossProfit: 0,
     netProfit: 0,
     warrantiesCount: 0,
+    warrantiesRefundAmount: 0,
     lastExpense: null,
     lastCashSale: null,
     lastTransferSale: null,
@@ -593,7 +664,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4 min-w-0">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
             Reportes
@@ -602,14 +673,19 @@ export default function DashboardPage() {
             Resumen de ventas e ingresos de tu sucursal. Elige el rango de fechas (desde / hasta) para ver las métricas.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+        <div className="flex w-full flex-col gap-2 lg:w-auto lg:items-end">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
             {/* Botón Cerrar caja */}
             <button
               onClick={() => {
                 const endDate = dateFilterMode === "today" ? selectedDay : dateTo;
+                if (existingClosingId) {
+                  router.push(`/cierre-caja/${existingClosingId}`);
+                  return;
+                }
                 router.push(`/cierre-caja/nuevo?fecha=${endDate.toISOString().split("T")[0]}`);
               }}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+              className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:flex-none dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
             >
               <svg
                 className="h-4 w-4"
@@ -617,14 +693,31 @@ export default function DashboardPage() {
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
+                {existingClosingId ? (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                ) : (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                )}
+                {existingClosingId && (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                  />
+                )}
               </svg>
-              Cerrar caja
+              {existingClosingId ? "Ver caja cerrada hoy" : "Cerrar caja"}
             </button>
             {/* Botón para ocultar información sensible */}
             <button
@@ -668,9 +761,10 @@ export default function DashboardPage() {
                 </svg>
               )}
             </button>
+            </div>
 
             {/* Filtro: Hoy o Rango */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-col gap-2 rounded-xl border border-slate-200/70 p-2 dark:border-slate-800 lg:min-w-[320px]">
               <div className="flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
                 <button
                   type="button"
@@ -697,13 +791,14 @@ export default function DashboardPage() {
               </div>
 
               {dateFilterMode === "today" ? (
-                <div className="flex items-center gap-2">
+                <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
                   <DatePickerCard
                     id="dashboard-date-today"
                     value={selectedDay}
                     onChange={(d) => d && setSelectedDay(d)}
                     max={today}
                     allowClear={false}
+                    fullWidth
                     aria-label="Seleccionar día"
                   />
                   {selectedDay.getTime() !== today.getTime() && (
@@ -717,20 +812,21 @@ export default function DashboardPage() {
                   )}
                 </div>
               ) : (
-                <>
-                  <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                    <span>Desde</span>
+                <div className="grid w-full grid-cols-2 gap-2">
+                  <label className="flex w-full flex-col items-start gap-1 text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                    <span className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Desde</span>
                     <DatePickerCard
                       id="dashboard-date-from"
                       value={dateFrom}
                       onChange={(d) => d && setDateFrom(d)}
                       max={dateTo}
                       allowClear={false}
+                      fullWidth
                       aria-label="Fecha desde"
                     />
                   </label>
-                  <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                    <span>Hasta</span>
+                  <label className="flex w-full flex-col items-start gap-1 text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                    <span className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Hasta</span>
                     <DatePickerCard
                       id="dashboard-date-to"
                       value={dateTo}
@@ -738,10 +834,11 @@ export default function DashboardPage() {
                       min={dateFrom}
                       max={today}
                       allowClear={false}
+                      fullWidth
                       aria-label="Fecha hasta"
                     />
                   </label>
-                </>
+                </div>
               )}
             </div>
         </div>
@@ -751,58 +848,92 @@ export default function DashboardPage() {
         <p className="text-[13px] font-medium text-slate-500 dark:text-slate-300">Cargando métricas…</p>
       )}
 
-      {/* Métricas del manifiesto: 5 + 5 cards */}
+      {/* Métricas del manifiesto */}
       <section className="space-y-4">
-        {/* Fila 1: Total, Egresos, Efectivo, Transferencia, Facturas anuladas */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-5">
           <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Total</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Total</p>
+              <MdAttachMoney className="h-5 w-5 shrink-0 text-ov-pink dark:text-ov-pink-muted" aria-hidden="true" title="Ingresos del período" />
+            </div>
             <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.totalIncome)}</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Neto después de egresos</p>
           </div>
           <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Egresos</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Egresos</p>
+              <MdTrendingDown className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" title="Salidas de dinero del período" />
+            </div>
             <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(totalExpensesDay)}</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Salidas registradas en caja</p>
           </div>
           <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Efectivo</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Efectivo</p>
+              <MdPayments className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" title="Ventas en efectivo (neto del período)" />
+            </div>
             <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.cash)}</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Disponible en efectivo</p>
           </div>
           <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Transferencia</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Transferencia</p>
+              <MdAccountBalance className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" title="Ventas por transferencia (neto del período)" />
+            </div>
             <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.transfer)}</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Movimientos por banco</p>
           </div>
           <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Facturas anuladas</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Facturas anuladas</p>
+              <MdCancel className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden="true" title="Facturas canceladas en el período" />
+            </div>
             <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">
               {data.cancelledInvoices > 0 ? `${data.cancelledInvoices} (${formatSensitiveValue(data.cancelledTotal)})` : "0"}
             </p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Cantidad y monto anulado</p>
           </div>
-        </div>
-        {/* Fila 2: Créditos (placeholder), Garantías, Stock total, Ganancia bruta, Ganancia neta */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Créditos</p>
+          <div className="hidden min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 2xl:block dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Créditos</p>
+              <MdCreditCard className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" title="Próximamente" />
+            </div>
             <p className="mt-2 text-xl font-bold text-slate-400 dark:text-slate-500 sm:text-2xl">—</p>
             <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">Próximamente</p>
           </div>
           <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Garantías</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Garantías</p>
+              <MdVerifiedUser className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden="true" title="Garantías creadas en el período" />
+            </div>
             <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.warrantiesCount, "number")}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">gestionadas en el período</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+              Devoluciones: {formatSensitiveValue(data.warrantiesRefundAmount)}
+            </p>
           </div>
           <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Stock total</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Stock total</p>
+              <MdInventory2 className="h-5 w-5 shrink-0 text-slate-600 dark:text-slate-300" aria-hidden="true" title="Inventario valorizado a costo" />
+            </div>
             <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.totalStockInvestment)}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">valorizado (costo)</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Valorizado (costo)</p>
           </div>
           <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Ganancia bruta</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Ganancia bruta</p>
+              <MdShowChart className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" title="Margen en ventas del período" />
+            </div>
             <p className="mt-2 text-xl font-bold text-emerald-600 dark:text-emerald-400 sm:text-2xl">{formatSensitiveValue(data.grossProfit)}</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Ventas menos costo</p>
           </div>
           <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Ganancia neta</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Ganancia neta</p>
+              <MdSavings className="h-5 w-5 shrink-0 text-teal-600 dark:text-teal-400" aria-hidden="true" title="Ganancia bruta menos egresos del período" />
+            </div>
             <p className="mt-2 text-xl font-bold text-emerald-600 dark:text-emerald-400 sm:text-2xl">{formatSensitiveValue(data.netProfit)}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">bruta − egresos</p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Bruta − egresos</p>
           </div>
         </div>
       </section>
@@ -819,7 +950,7 @@ export default function DashboardPage() {
             </p>
           </div>
           {/* Gráfica últimos 7 días (datos reales) */}
-          <div className="relative h-56">
+          <div className="relative h-52 sm:h-56">
             {/* Eje Y dinámico */}
             {(() => {
               const maxSales = Math.max(...data.last7Days.map((d) => d.sales), 1);
@@ -836,7 +967,7 @@ export default function DashboardPage() {
             })()}
 
             {/* Área de gráfica */}
-            <div className="relative ml-12 h-full pb-6">
+            <div className="relative ml-10 h-full pb-6 sm:ml-12">
               {/* Grid horizontal */}
               {[0, 1, 2, 3, 4, 5].map((i) => (
                 <div
@@ -850,7 +981,7 @@ export default function DashboardPage() {
               {(() => {
                 const maxSales = Math.max(...data.last7Days.map((d) => d.sales), 1);
                 return (
-                  <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-1 px-1" style={{ height: "calc(100% - 24px)", paddingBottom: "24px" }}>
+                  <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-0.5 px-0.5 sm:gap-1 sm:px-1" style={{ height: "calc(100% - 24px)", paddingBottom: "24px" }}>
                     {data.last7Days.map((day, i) => {
                       const percentage = maxSales > 0 ? (day.sales / maxSales) * 100 : 0;
                       return (
@@ -889,7 +1020,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-2 dark:border-slate-800">
+          <div className="mt-3 flex flex-col gap-1 border-t border-slate-200 pt-2 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left dark:border-slate-800">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
               Promedio diario:{" "}
               <span className="font-bold text-slate-900 dark:text-slate-50">
@@ -1164,10 +1295,10 @@ function CashCloseModal({
       let warrantyEgressTransfer = 0;
       const { data: warrantiesDay } = await supabase
         .from("warranties")
-        .select("id, warranty_type, sale_id, sale_item_id, product_id, quantity, replacement_product_id, branch_id, sale_items(unit_price, quantity), sales(branch_id, payment_method, amount_cash, amount_transfer)")
+        .select("id, warranty_type, sale_id, sale_item_id, product_id, quantity, replacement_product_id, branch_id, sale_items(unit_price, quantity, discount_percent, discount_amount), sales(branch_id, payment_method, amount_cash, amount_transfer)")
         .eq("status", "processed")
-        .gte("created_at", start)
-        .lte("created_at", end);
+        .gte("updated_at", start)
+        .lte("updated_at", end);
       if (cancelled) return;
 
       const warrantyList = (warrantiesDay ?? []) as Array<{
@@ -1179,7 +1310,10 @@ function CashCloseModal({
         quantity: number;
         replacement_product_id: string | null;
         branch_id: string | null;
-        sale_items: { unit_price: number; quantity: number } | Array<{ unit_price: number; quantity: number }> | null;
+        sale_items:
+          | { unit_price: number; quantity: number; discount_percent?: number; discount_amount?: number }
+          | Array<{ unit_price: number; quantity: number; discount_percent?: number; discount_amount?: number }>
+          | null;
         sales: { branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null } | Array<{ branch_id: string; payment_method: string; amount_cash: number | null; amount_transfer: number | null }> | null;
       }>;
 
@@ -1206,7 +1340,15 @@ function CashCloseModal({
           const sal = Array.isArray(w.sales) ? w.sales[0] : w.sales;
           let productValue = 0;
           if (si && si.unit_price != null) {
-            productValue = Number(si.unit_price) * (si.quantity ?? w.quantity ?? 1);
+            const lineQ = Math.max(1, Number(si.quantity ?? w.quantity ?? 1));
+            const returnQty = Math.min(Math.max(1, w.quantity), lineQ);
+            const lineTotalAll = warrantySaleLineTotal(
+              Number(si.unit_price),
+              lineQ,
+              Number(si.discount_percent ?? 0),
+              Number(si.discount_amount ?? 0)
+            );
+            productValue = Math.round(lineTotalAll * (returnQty / lineQ));
           } else {
             const prod = productsMap[w.product_id];
             if (prod) {
@@ -1247,14 +1389,18 @@ function CashCloseModal({
       let expenseEgressCash = 0;
       let expenseEgressTransfer = 0;
       if (branchId) {
-        const { data: expensesDay } = await supabase
-          .from("expenses")
-          .select("amount, payment_method")
-          .eq("branch_id", branchId)
-          .gte("created_at", start)
-          .lte("created_at", end);
+      const { data: expensesDay } = await supabase
+        .from("expenses")
+        .select("amount, payment_method, notes")
+        .eq("branch_id", branchId)
+        .eq("status", "active")
+        .gte("created_at", start)
+        .lte("created_at", end);
         if (cancelled) return;
-        (expensesDay ?? []).forEach((e: { amount: number; payment_method: string }) => {
+        const skipAutoWarrantyRefund = (notes: string | null | undefined) =>
+          (notes ?? "").includes("Reembolso automático al procesar garantía tipo devolución");
+        (expensesDay ?? []).forEach((e: { amount: number; payment_method: string; notes?: string | null }) => {
+          if (skipAutoWarrantyRefund(e.notes)) return;
           const amount = Number(e.amount) || 0;
           if (e.payment_method === "cash") {
             expenseEgressCash += amount;

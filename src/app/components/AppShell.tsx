@@ -1,19 +1,66 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import TopNav from "./TopNav";
 import BottomNav from "./BottomNav";
+import { createClient } from "@/lib/supabase/client";
+import { canAccessPath, type AppRole } from "@/lib/permissions";
 
 const AUTH_PATHS = ["/login", "/registro", "/onboarding"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const isAuth = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
   const isLanding = pathname === "/";
+  const [isAllowed, setIsAllowed] = useState(true);
+  const [checkedAccess, setCheckedAccess] = useState(false);
+
+  useEffect(() => {
+    if (isAuth || isLanding) {
+      setCheckedAccess(true);
+      setIsAllowed(true);
+      return;
+    }
+
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) {
+        setCheckedAccess(true);
+        return;
+      }
+      const { data: me } = await supabase.from("users").select("role, permissions").eq("id", user.id).single();
+      if (cancelled) return;
+      const meRow = me as { role?: string | null; permissions?: string[] | null } | null;
+      const allowed = canAccessPath((meRow?.role ?? null) as AppRole | null, pathname, meRow?.permissions ?? null);
+      setIsAllowed(allowed);
+      setCheckedAccess(true);
+      if (!allowed) {
+        router.replace("/dashboard");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuth, isLanding, pathname, router]);
 
   if (isAuth || isLanding) {
     return <>{children}</>;
   }
+
+  if (!checkedAccess) {
+    return (
+      <main className="flex min-h-screen items-center justify-center">
+        <p className="text-[14px] text-slate-500 dark:text-slate-400">Validando permisos...</p>
+      </main>
+    );
+  }
+
+  if (!isAllowed) return null;
 
   return (
     <>

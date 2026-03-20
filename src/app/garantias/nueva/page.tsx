@@ -457,12 +457,6 @@ function NewWarrantyContent() {
         </div>
       </header>
 
-      {error && (
-        <div className="rounded-lg bg-red-50 p-4 text-red-800 dark:bg-red-900/20 dark:text-red-200">
-          <p className="font-medium">{error}</p>
-        </div>
-      )}
-
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
         <div className="space-y-4">
           {/* Flujo por producto: Cliente + Producto + Cantidad */}
@@ -967,6 +961,11 @@ function NewWarrantyContent() {
             >
               {submitting ? "Guardando…" : "Confirmar garantía"}
             </button>
+            {error && (
+              <p className="mt-2 text-[12px] font-medium text-red-600 dark:text-red-400" role="alert">
+                {error}
+              </p>
+            )}
           </div>
         </div>
       </section>

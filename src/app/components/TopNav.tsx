@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getCopy } from "@/app/ventas/sales-mode";
 import Notifications from "./Notifications";
+import Avatar from "boring-avatars";
+import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
 
 const iconClass = "h-5 w-5 shrink-0";
 
@@ -161,9 +163,9 @@ const navItems: NavItem[] = [
     icon: <NavIconHome />,
     items: [
       { label: "Reportes", href: "/dashboard", icon: <IconChart />, description: "Ventas, ingresos e indicadores" },
+      { label: "Feed", href: "/actividades", icon: <NavIconClipboard />, description: "Actividad reciente de tu sucursal" },
       { label: "Ver cierres", href: "/cierre-caja", icon: <IconList />, description: "Historial de cierres de caja" },
       { label: "Nuevo cierre", href: "/cierre-caja/nuevo", icon: <IconPlus />, description: "Realizar cierre de caja del día" },
-      { label: "Mapa de bodega", href: "/inventario/ubicaciones", icon: <IconLocation />, description: "Zonas, pasillos y estantes" },
     ],
   },
   {
@@ -223,15 +225,18 @@ const navItems: NavItem[] = [
     icon: <NavIconBuilding />,
     items: [
       { label: "Ver sucursales", href: "/sucursales", icon: <IconList />, description: "Lista de sucursales" },
-      { label: "Reportes", href: "/sucursales/reportes", icon: <IconChart />, description: "Ventas e ingresos de la sucursal" },
       { label: "Configurar sucursal", href: "/sucursales/configurar", icon: <IconSettings />, description: "Ajustes y configuración" },
       { label: "Nueva sucursal", href: "/sucursales/nueva", icon: <IconPlus />, description: "Crear nueva sucursal" },
     ],
   },
-  { label: "Actividades", href: "/actividades", icon: <NavIconClipboard /> },
 ];
 
-const FALLBACK_APP_NAME = "NOU Tiendas";
+function getAvatarVariant(avatarUrl?: string | null): "beam" | "marble" | "pixel" {
+  if (!avatarUrl?.startsWith("avatar:")) return "beam";
+  const variant = avatarUrl.replace("avatar:", "");
+  if (variant === "beam" || variant === "marble" || variant === "pixel") return variant;
+  return "beam";
+}
 
 export default function TopNav() {
   const pathname = usePathname();
@@ -239,7 +244,7 @@ export default function TopNav() {
   const supabase = createClient();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; avatar_url?: string | null; role?: string | null; permissions?: string[] | null } | null>(null);
   const [branch, setBranch] = useState<{ name: string; logo_url: string | null; show_expenses?: boolean; sales_mode?: string } | null>(null);
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -250,7 +255,7 @@ export default function TopNav() {
       if (authUser) {
         const { data: userData } = await supabase
           .from("users")
-          .select("name, email")
+          .select("name, email, avatar_url, role, permissions")
           .eq("id", authUser.id)
           .single();
         if (userData) {
@@ -311,24 +316,40 @@ export default function TopNav() {
     return pathname.startsWith(href);
   };
 
-  const displayNavItems = branch && branch.show_expenses === false ? navItems.filter((item) => item.label !== "Egresos") : navItems;
+  const role = (user?.role ?? null) as AppRole | null;
+  const customPermissions = user?.permissions ?? null;
+  const displayNavItems = (branch && branch.show_expenses === false ? navItems.filter((item) => item.label !== "Egresos") : navItems)
+    .filter((item) => canAccessNavModule(role, item.label, customPermissions))
+    .map((item) => ({
+      ...item,
+      items: item.items?.filter((subItem) => canAccessPath(role, subItem.href, customPermissions)),
+    }));
 
   return (
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
       <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Marca NOU: logo + nombre de la plataforma */}
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-0.5 font-logo pt-1" title="NOU Tiendas">
-          <div className="mt-1 flex shrink-0 items-center justify-center -mr-0.5">
-            <span className="material-symbols-outlined h-6 w-6 shrink-0 text-[26px] text-ov-pink dark:text-ov-pink-muted sm:h-7 sm:w-7 sm:text-[28px]" style={{ fontVariationSettings: '"FILL" 1' }} aria-hidden>storefront</span>
-          </div>
-          <div className="hidden sm:flex flex-col justify-center leading-tight">
-            <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-              NOU Tiendas
-            </span>
-          </div>
-          <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:hidden sm:text-xl">
-            NOU Tiendas
+        {/* Marca NOU + logo sucursal */}
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-2 font-logo" title="NOU">
+          <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+            NOU
           </span>
+          <span className="text-slate-400 dark:text-slate-600" aria-hidden>
+            |
+          </span>
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
+            {branch?.logo_url ? (
+              <img
+                src={branch.logo_url}
+                alt={branch?.name ? `Logo ${branch.name}` : "Logo sucursal"}
+                className="h-full w-full object-cover grayscale"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                L
+              </span>
+            )}
+          </div>
         </Link>
 
         {/* Tablet (md–lg): menú arriba solo con iconos, separados. Desktop (lg+): solo texto, sin iconos */}
@@ -474,10 +495,19 @@ export default function TopNav() {
               aria-label="Perfil"
               aria-expanded={userMenuOpen}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white dark:bg-slate-700">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border" style={{ borderColor: "var(--ov-pink)" }}>
+                {user?.avatar_url?.startsWith("avatar:") ? (
+                  <Avatar
+                    size={30}
+                    name={`${user?.name || user?.email || "usuario"}-${getAvatarVariant(user.avatar_url)}`}
+                    variant={getAvatarVariant(user.avatar_url)}
+                    colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                  />
+                ) : (
+                  <svg className="h-4 w-4 text-slate-700 dark:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                )}
               </div>
               <span className="max-w-[120px] truncate text-[13px] font-medium sm:max-w-[140px] lg:max-w-none">
                 {user?.name || user?.email || "Usuario"}

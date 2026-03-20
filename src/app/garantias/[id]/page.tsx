@@ -4,7 +4,52 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import Breadcrumb from "@/app/components/Breadcrumb";
+
+/** Inventario puede ser UNIQUE(product_id, branch_id) o UNIQUE(product_id, branch_id, location). */
+type InventoryRow = { id: string; quantity: number | null; location?: string | null };
+
+async function adjustInventoryByProductBranch(
+  supabase: SupabaseClient,
+  productId: string,
+  branchId: string,
+  delta: number,
+  mode: "add" | "subtract"
+): Promise<void> {
+  const { data: rows, error: selErr } = await supabase
+    .from("inventory")
+    .select("id, quantity, location")
+    .eq("product_id", productId)
+    .eq("branch_id", branchId);
+  if (selErr) throw selErr;
+  const list = (rows ?? []) as InventoryRow[];
+
+  if (list.length === 0) {
+    if (mode === "subtract" || delta <= 0) return;
+    const { error } = await supabase.from("inventory").insert({
+      product_id: productId,
+      branch_id: branchId,
+      location: "bodega",
+      quantity: delta,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+    return;
+  }
+
+  const preferred =
+    list.find((r) => r.location === "bodega") ??
+    list.find((r) => r.location === "local") ??
+    list[0];
+  const q = Number(preferred.quantity ?? 0);
+  const next = mode === "add" ? q + delta : Math.max(0, q - delta);
+  const { error } = await supabase
+    .from("inventory")
+    .update({ quantity: next, updated_at: new Date().toISOString() })
+    .eq("id", preferred.id);
+  if (error) throw error;
+}
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -16,6 +61,22 @@ function formatDate(dateStr: string) {
 
 function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Subtotal de línea de venta con descuentos (valor a reembolsar proporcionalmente). */
+function saleLineTotal(
+  unitPrice: number,
+  lineQty: number,
+  discountPercent: number,
+  discountAmount: number
+): number {
+  if (lineQty <= 0) return 0;
+  return Math.max(
+    0,
+    Math.round(
+      lineQty * unitPrice * (1 - (Number(discountPercent) || 0) / 100) - (Number(discountAmount) || 0)
+    )
+  );
 }
 
 type WarrantyDetail = {
@@ -38,8 +99,21 @@ type WarrantyDetail = {
   updated_at: string;
   customers: { name: string } | null;
   products: { name: string } | null;
-  sales: { invoice_number: string; created_at: string } | null;
-  sale_items: { unit_price: number; quantity: number } | null;
+  sales: {
+    invoice_number: string;
+    created_at: string;
+    branch_id?: string;
+    payment_method?: string;
+    amount_cash?: number | null;
+    amount_transfer?: number | null;
+    total?: number;
+  } | null;
+  sale_items: {
+    unit_price: number;
+    quantity: number;
+    discount_percent?: number;
+    discount_amount?: number;
+  } | null;
   requested_by_user: { name: string } | null;
   reviewed_by_user: { name: string } | null;
   replacement_product: { name: string } | null;
@@ -101,8 +175,8 @@ export default function WarrantyDetailPage() {
           *,
           customers(name),
           products:products!warranties_product_id_fkey(name),
-          sales(invoice_number, created_at),
-          sale_items(unit_price, quantity),
+          sales(invoice_number, created_at, branch_id, payment_method, amount_cash, amount_transfer, total),
+          sale_items(unit_price, quantity, discount_percent, discount_amount),
           requested_by_user:users!warranties_requested_by_fkey(name),
           reviewed_by_user:users!warranties_reviewed_by_fkey(name),
           replacement_product:products!warranties_replacement_product_id_fkey(name)
@@ -197,52 +271,106 @@ export default function WarrantyDetailPage() {
 
   const handleProcess = async () => {
     if (!id || !warranty) return;
+    if (warranty.status === "processed") {
+      alert("Esta garantía ya está procesada.");
+      return;
+    }
     setProcessing(true);
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert("Debes iniciar sesión para procesar la garantía.");
+      setProcessing(false);
+      return;
+    }
     const { data: ub } = await supabase
       .from("user_branches")
       .select("branch_id")
-      .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
+      .eq("user_id", user.id)
       .limit(1)
       .single();
-    const branchId = warranty.branch_id ?? ub?.branch_id;
+
+    const salRow = Array.isArray(warranty.sales) ? warranty.sales[0] : warranty.sales;
+    const siRow = Array.isArray(warranty.sale_items) ? warranty.sale_items[0] : warranty.sale_items;
+    const branchId = warranty.branch_id ?? salRow?.branch_id ?? ub?.branch_id ?? null;
 
     try {
-      const { error: updateError } = await supabase
-        .from("warranties")
-        .update({ status: "processed" })
-        .eq("id", id);
-      if (updateError) throw updateError;
-
-      if (warranty.warranty_type === "exchange" && warranty.replacement_product_id && branchId) {
-        const { data: currentInventory } = await supabase
-          .from("inventory")
-          .select("quantity")
-          .eq("product_id", warranty.replacement_product_id)
-          .eq("branch_id", branchId)
-          .single();
-        const currentQty = currentInventory?.quantity || 0;
-        const qtyToDeduct = warranty.sale_items?.quantity ?? warranty.quantity ?? 1;
-        const newQty = Math.max(0, currentQty - qtyToDeduct);
-        const { error: inventoryError } = await supabase
-          .from("inventory")
-          .upsert(
-            {
-              product_id: warranty.replacement_product_id,
-              branch_id: branchId,
-              quantity: newQty,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "product_id,branch_id" }
-          );
-        if (inventoryError) {
-          console.error("Error updating inventory:", inventoryError);
-          alert("La garantía se marcó como procesada pero hubo un error al actualizar el inventario.");
+      /** Devolución: reingresa stock vendible y registra egreso(s) según la forma de pago de la venta. */
+      if (warranty.warranty_type === "refund") {
+        if (!branchId) {
+          throw new Error("No se pudo determinar la sucursal para devolver el stock.");
         }
+        const lineQtySi = siRow?.quantity ?? warranty.quantity ?? 1;
+        const returnQty = Math.min(Math.max(1, warranty.quantity || lineQtySi), Math.max(1, lineQtySi));
+        const unitPrice = Number(siRow?.unit_price ?? 0);
+        const dPct = Number(siRow?.discount_percent ?? 0);
+        const dAmt = Number(siRow?.discount_amount ?? 0);
+        const lineTotalAll = saleLineTotal(unitPrice, lineQtySi, dPct, dAmt);
+        const refundAmount =
+          lineQtySi > 0 && siRow ? Math.round(lineTotalAll * (returnQty / lineQtySi)) : 0;
+
+        await adjustInventoryByProductBranch(supabase, warranty.product_id, branchId, returnQty, "add");
+
+        if (warranty.sale_id && salRow && refundAmount > 0) {
+          const invoice = salRow.invoice_number ?? "—";
+          const prodName = warranty.products?.name ?? "Producto";
+          const concept = `Devolución garantía ${id.slice(0, 8).toUpperCase()} · ${prodName} · Fact. ${invoice}`;
+          const pm = String(salRow.payment_method ?? "cash");
+
+          const insertExpense = async (amount: number, method: "cash" | "transfer") => {
+            if (amount <= 0) return;
+            const { error } = await supabase.from("expenses").insert({
+              branch_id: branchId,
+              user_id: user.id,
+              amount,
+              payment_method: method,
+              concept,
+              notes: "Reembolso automático al procesar garantía tipo devolución.",
+            });
+            if (error) throw error;
+          };
+
+          if (pm === "transfer") {
+            await insertExpense(refundAmount, "transfer");
+          } else if (pm === "mixed" && salRow.amount_cash != null && salRow.amount_transfer != null) {
+            const ac = Number(salRow.amount_cash);
+            const at = Number(salRow.amount_transfer);
+            const sumMixed = ac + at;
+            if (sumMixed > 0) {
+              const cashRefund = Math.round((ac / sumMixed) * refundAmount);
+              const transferRefund = refundAmount - cashRefund;
+              await insertExpense(cashRefund, "cash");
+              await insertExpense(transferRefund, "transfer");
+            } else {
+              await insertExpense(refundAmount, "cash");
+            }
+          } else {
+            await insertExpense(refundAmount, "cash");
+          }
+        } else if (!warranty.sale_id && refundAmount === 0) {
+          /* garantía sin factura: solo stock; el dinero debe registrarse a mano si aplica */
+        }
+      } else if (warranty.warranty_type === "exchange" && warranty.replacement_product_id && branchId) {
+        const qtyToDeduct = siRow?.quantity ?? warranty.quantity ?? 1;
+        // Cambio: sale stock del producto de reemplazo y entra stock del producto recibido.
+        await adjustInventoryByProductBranch(
+          supabase,
+          warranty.replacement_product_id,
+          branchId,
+          qtyToDeduct,
+          "subtract"
+        );
+        await adjustInventoryByProductBranch(
+          supabase,
+          warranty.product_id,
+          branchId,
+          qtyToDeduct,
+          "add"
+        );
       }
 
-      if (branchId) {
-        const qty = warranty.sale_items?.quantity ?? warranty.quantity ?? 1;
+      if (warranty.warranty_type !== "refund" && branchId) {
+        const qty = siRow?.quantity ?? warranty.quantity ?? 1;
         const { error: defectiveError } = await supabase.from("defective_products").insert({
           warranty_id: id,
           product_id: warranty.product_id,
@@ -250,10 +378,19 @@ export default function WarrantyDetailPage() {
           quantity: qty,
           defect_description: warranty.reason,
         });
-        if (defectiveError) {
-          console.error("Error creating defective product:", defectiveError);
-          alert("La garantía se procesó pero hubo un error al registrar el producto defectuoso.");
-        }
+        if (defectiveError) throw defectiveError;
+      }
+
+      const { error: updateError } = await supabase
+        .from("warranties")
+        .update({ status: "processed" })
+        .eq("id", id);
+      if (updateError) throw updateError;
+
+      if (warranty.warranty_type === "refund" && !warranty.sale_id) {
+        alert(
+          "Garantía procesada: el stock se devolvió al inventario. Esta garantía no tiene factura vinculada: si devolviste dinero al cliente, registra el egreso en Egresos."
+        );
       }
 
       setWarranty((w) => (w ? { ...w, status: "processed" as const } : null));
@@ -292,7 +429,15 @@ export default function WarrantyDetailPage() {
   const si = Array.isArray(warranty.sale_items) ? warranty.sale_items[0] : warranty.sale_items;
   const qty = si?.quantity ?? warranty.quantity ?? 1;
   const unitPrice = si?.unit_price ?? 0;
-  const productValue = unitPrice * qty;
+  const productValue =
+    si != null
+      ? saleLineTotal(
+          Number(unitPrice),
+          Number(qty),
+          Number(si.discount_percent ?? 0),
+          Number(si.discount_amount ?? 0)
+        )
+      : Math.round(Number(unitPrice) * Number(qty));
   const statusColor = STATUS_COLORS[warranty.status];
   const warrantyShortId = warranty.id.slice(0, 8).toUpperCase();
 
@@ -431,6 +576,25 @@ export default function WarrantyDetailPage() {
             </p>
           </div>
         </div>
+        {warranty.warranty_type === "refund" &&
+          (warranty.status === "approved" || warranty.status === "pending") && (
+            <p className="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[12px] text-sky-950 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-100">
+              <strong>Devolución:</strong> al marcar como <strong>Procesada</strong>, el sistema suma las unidades al{" "}
+              <strong>inventario</strong>
+              {warranty.sale_id ? (
+                <>
+                  {" "}
+                  y crea un <strong>egreso</strong> por el valor de la línea (según efectivo/transferencia de la
+                  factura).
+                </>
+              ) : (
+                <>
+                  . <span className="opacity-90">Sin factura vinculada no se crea egreso automático;</span> regístralo
+                  en <strong>Egresos</strong> si devolviste dinero.
+                </>
+              )}
+            </p>
+          )}
       </div>
 
       {/* Tabla: detalle del producto (como ítems de factura) */}

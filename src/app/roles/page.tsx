@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import Avatar from "boring-avatars";
 
 interface Role {
   id: string;
@@ -74,6 +75,13 @@ const roles: Role[] = [
   },
 ];
 
+function getAvatarVariant(avatarUrl?: string | null): "beam" | "marble" | "pixel" {
+  if (!avatarUrl?.startsWith("avatar:")) return "beam";
+  const variant = avatarUrl.replace("avatar:", "");
+  if (variant === "beam" || variant === "marble" || variant === "pixel") return variant;
+  return "beam";
+}
+
 export default function RolesPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,7 +141,7 @@ export default function RolesPage() {
           <div className="flex gap-2">
             <Link
               href="/roles/nuevo"
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover"
+              className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -167,7 +175,7 @@ export default function RolesPage() {
                   <div className="flex gap-4">
                     <div className="relative shrink-0">
                       <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-2xl font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                        {user.avatar_url ? (
+                        {user.avatar_url && !user.avatar_url.startsWith("avatar:") ? (
                           <>
                             <img
                               src={user.avatar_url}
@@ -185,7 +193,17 @@ export default function RolesPage() {
                             </span>
                           </>
                         ) : (
-                          <span>{initials(user.name)}</span>
+                          <div
+                            className="flex h-24 w-24 items-center justify-center rounded-full border-2"
+                            style={{ borderColor: "var(--ov-pink)" }}
+                          >
+                            <Avatar
+                              size={92}
+                              name={`${user.name || user.email || user.id}-${getAvatarVariant(user.avatar_url)}`}
+                              variant={getAvatarVariant(user.avatar_url)}
+                              colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                            />
+                          </div>
                         )}
                       </div>
                       <span
