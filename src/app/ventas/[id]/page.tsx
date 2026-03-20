@@ -839,7 +839,7 @@ export default function SaleDetailPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <p className="text-[14px] text-slate-500 dark:text-slate-400">Cargando…</p>
+        <div className="min-h-[260px]" aria-hidden />
       </div>
     );
   }

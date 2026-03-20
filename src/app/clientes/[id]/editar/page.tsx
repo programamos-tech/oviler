@@ -249,9 +249,7 @@ export default function EditCustomerPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="flex min-h-[200px] items-center justify-center py-24">
-          <p className="font-logo text-lg font-bold tracking-tight text-slate-800 dark:text-white">NOU<span className="animate-pulse">...</span></p>
-        </div>
+        <div className="min-h-[260px]" aria-hidden />
       </div>
     );
   }

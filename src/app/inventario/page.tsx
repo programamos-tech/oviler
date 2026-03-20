@@ -54,27 +54,12 @@ export default function InventoryPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [showLoadingUI, setShowLoadingUI] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const hasFocusedList = useRef(false);
-  const loadingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevFetchDepsRef = useRef({ refreshKey: 0, page: 1, categoryFilter: "" });
   const isFirstFetchRef = useRef(true);
   const router = useRouter();
-
-  useEffect(() => {
-    if (loading) {
-      loadingDelayRef.current = setTimeout(() => setShowLoadingUI(true), 400);
-    } else {
-      if (loadingDelayRef.current) clearTimeout(loadingDelayRef.current);
-      loadingDelayRef.current = null;
-      setShowLoadingUI(false);
-    }
-    return () => {
-      if (loadingDelayRef.current) clearTimeout(loadingDelayRef.current);
-    };
-  }, [loading]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -339,13 +324,7 @@ export default function InventoryPage() {
         className="space-y-3 outline-none"
         aria-label="Lista de productos. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
-        {loading && showLoadingUI ? (
-          <div className="flex min-h-[200px] items-center justify-center pt-48 pb-12">
-            <p className="font-logo text-lg font-bold tracking-tight text-slate-800 dark:text-white sm:text-xl" aria-live="polite">
-              NOU<span className="animate-pulse">...</span>
-            </p>
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="min-h-[280px]" aria-hidden />
         ) : filteredProducts.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">

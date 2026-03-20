@@ -813,10 +813,10 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {loading && (
-        <p className="text-[13px] font-medium text-slate-500 dark:text-slate-300">Cargando métricas…</p>
-      )}
-
+      {loading ? (
+        <div className="min-h-[320px]" aria-hidden />
+      ) : (
+        <>
       {/* Métricas del manifiesto */}
       <section className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-5">
@@ -1009,6 +1009,8 @@ export default function DashboardPage() {
           </div>
         </section>
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -60,27 +60,12 @@ export default function SalesPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [showLoadingUI, setShowLoadingUI] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [salesMode, setSalesMode] = useState<SalesMode>("sales");
   const listRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const hasFocusedList = useRef(false);
-  const loadingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
-
-  useEffect(() => {
-    if (loading) {
-      loadingDelayRef.current = setTimeout(() => setShowLoadingUI(true), 400);
-    } else {
-      if (loadingDelayRef.current) clearTimeout(loadingDelayRef.current);
-      loadingDelayRef.current = null;
-      setShowLoadingUI(false);
-    }
-    return () => {
-      if (loadingDelayRef.current) clearTimeout(loadingDelayRef.current);
-    };
-  }, [loading]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -299,13 +284,7 @@ export default function SalesPage() {
         className="space-y-3 outline-none"
         aria-label="Lista de facturas y pedidos. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
-        {loading && showLoadingUI ? (
-          <div className="flex min-h-[200px] items-center justify-center pt-48 pb-12">
-            <p className="font-logo text-lg font-bold tracking-tight text-slate-800 dark:text-white sm:text-xl" aria-live="polite">
-              NOU<span className="animate-pulse">...</span>
-            </p>
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="min-h-[280px]" aria-hidden />
         ) : loadError ? (
           <div className="rounded-xl bg-amber-50 p-6 text-center dark:bg-amber-900/20">
