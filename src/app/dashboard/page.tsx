@@ -666,7 +666,7 @@ export default function DashboardPage() {
   return (
     <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
       <header className="space-y-2 min-w-0">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
               <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
@@ -691,8 +691,8 @@ export default function DashboardPage() {
               Resumen de ventas e ingresos de tu sucursal.
             </p>
           </div>
-          <div className="w-full">
-            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          <div className="w-full lg:overflow-x-auto">
+            <div className="flex flex-wrap items-center gap-2 lg:min-w-max lg:flex-nowrap lg:justify-end">
               <div className="grid w-full grid-cols-2 rounded-lg bg-slate-100 p-0.5 sm:w-auto dark:bg-slate-800">
                 <button
                   type="button"

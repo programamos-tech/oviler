@@ -231,7 +231,7 @@ export default function CustomersPage() {
   return (
     <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
       <header className="space-y-2 min-w-0">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
               Clientes
@@ -240,33 +240,35 @@ export default function CustomersPage() {
               Lista de clientes de esta sucursal. Busca por nombre, email o teléfono.
             </p>
           </div>
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-            <button
-              type="button"
-              onClick={() => setRefreshKey((k) => k + 1)}
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto sm:px-4 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Actualizar
-            </button>
-            <Link
-              href="/clientes/nueva"
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-3 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:w-auto sm:px-4 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Nuevo cliente
-            </Link>
+          <div className="w-full lg:overflow-x-auto">
+            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:min-w-max lg:flex-nowrap lg:items-center lg:justify-end">
+              <button
+                type="button"
+                onClick={() => setRefreshKey((k) => k + 1)}
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto sm:px-4 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Actualizar
+              </button>
+              <Link
+                href="/clientes/nueva"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-3 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:w-auto sm:px-4 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Nuevo cliente
+              </Link>
+            </div>
           </div>
         </div>
       </header>
 
       {!loading && totalCount > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="relative flex-1 min-w-0 max-w-md">
+          <div className="relative flex-1 min-w-0">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

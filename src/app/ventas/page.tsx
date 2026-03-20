@@ -210,7 +210,7 @@ export default function SalesPage() {
   return (
     <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
       <header className="space-y-2 min-w-0">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
               {copy.sectionTitle}
@@ -219,7 +219,8 @@ export default function SalesPage() {
               Facturas de mostrador y pedidos con envío. Busca por número o cliente y filtra por estado o forma de pago.
             </p>
           </div>
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+          <div className="w-full lg:overflow-x-auto">
+            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:min-w-max lg:flex-nowrap lg:items-center lg:justify-end">
             <button
               type="button"
               onClick={() => setRefreshKey((k) => k + 1)}
@@ -239,13 +240,14 @@ export default function SalesPage() {
               </svg>
               {copy.newButton}
             </Link>
+            </div>
           </div>
         </div>
       </header>
 
       {!loading && totalCount > 0 && (
         <div className="space-y-3">
-          <div className="relative min-w-0 w-full lg:max-w-md">
+          <div className="relative min-w-0 w-full">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -260,7 +262,7 @@ export default function SalesPage() {
               className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-[14px] text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
             />
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:max-w-md">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="block text-[12px] font-medium text-slate-600 dark:text-slate-400">Estado</label>
               <select
