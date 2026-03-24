@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { programamosWhatsAppUrl } from "@/lib/programamos-contact";
 import DatePickerCard from "@/app/components/DatePickerCard";
 import {
   MdAttachMoney,
@@ -689,7 +690,7 @@ export default function DashboardPage() {
                 </svg>
                 powered by{" "}
                 <a
-                  href="https://wa.me/573002061711?text=Hola%20programamos%2C%20te%20escribo%20desde%20NOU..."
+                  href={programamosWhatsAppUrl("Hola programamos, te escribo desde NOU...")}
                   target="_blank"
                   rel="noreferrer"
                   className="font-bold text-ov-pink hover:text-ov-pink-hover hover:underline dark:text-ov-pink-muted dark:hover:text-ov-pink"

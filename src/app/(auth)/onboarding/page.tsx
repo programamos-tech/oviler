@@ -3,6 +3,11 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import FreeTrialWelcomeModal from "@/app/components/FreeTrialWelcomeModal";
+import { PROGRAMAMOS_WA_LICENSE } from "@/lib/programamos-contact";
+import { isTrialWelcomeDismissedThisSession, markTrialWelcomeDismissedThisSession } from "@/lib/trial-welcome-storage";
+import { PLAN_CATALOG } from "@/lib/plan-catalog";
+import { type OrgTrialFields, isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
 
 const inputClass =
   "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:ring-slate-500";
@@ -18,7 +23,12 @@ export default function OnboardingPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [resumen, setResumen] = useState({ nombre: "", nit: "", direccion: "", telefono: "" });
+  const [orgTrial, setOrgTrial] = useState<OrgTrialFields | null>(null);
+  const [trialModalOpen, setTrialModalOpen] = useState(false);
   const supabase = createClient();
+
+  const trialActive = orgTrial != null && isFreeTrialActive(orgTrial);
+  const trialEndsAt = orgTrial?.trial_ends_at ?? "";
 
   useEffect(() => {
     async function checkUser() {
@@ -44,6 +54,13 @@ export default function OnboardingPage() {
 
       setOrganizationId(userData.organization_id);
 
+      const { data: orgRow } = await supabase
+        .from("organizations")
+        .select("subscription_status, plan_type, trial_ends_at")
+        .eq("id", userData.organization_id)
+        .maybeSingle();
+      setOrgTrial(orgRow as OrgTrialFields | null);
+
       // Verificar si ya tiene sucursales
       const { data: branches, error: branchesError } = await supabase
         .from("branches")
@@ -58,6 +75,13 @@ export default function OnboardingPage() {
 
     checkUser();
   }, [router, supabase]);
+
+  useEffect(() => {
+    if (!trialActive || !trialEndsAt || !organizationId) return;
+    if (typeof window === "undefined") return;
+    if (isTrialWelcomeDismissedThisSession(organizationId)) return;
+    setTrialModalOpen(true);
+  }, [trialActive, trialEndsAt, organizationId]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -162,6 +186,27 @@ export default function OnboardingPage() {
               Estos datos son los de tu punto de venta o negocio. Cada sucursal tendrá sus propios números de venta, inventario y configuración.
             </p>
           </div>
+          {trialActive && trialEndsAt ? (
+            <div className="rounded-xl border border-sky-500/35 bg-sky-500/[0.1] p-4 dark:border-sky-500/25 dark:bg-sky-950/35">
+              <p className="text-[13px] font-semibold text-sky-950 dark:text-sky-100">
+                Plan Prueba gratis ({PLAN_CATALOG.free.trialDays ?? 15} días)
+              </p>
+              <p className="mt-1 text-[13px] leading-relaxed text-sky-900/90 dark:text-sky-200/95">
+                Tu cuenta arranca en modo prueba con límites reducidos. Te quedan{" "}
+                <span className="font-bold tabular-nums">{trialRemainingLabel(trialEndsAt)}</span> para explorar NOU. Para
+                pasar a Basic o Pro, escribe a{" "}
+                <a
+                  href={PROGRAMAMOS_WA_LICENSE}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-sky-800 underline underline-offset-2 hover:no-underline dark:text-sky-300"
+                >
+                  programamos por WhatsApp
+                </a>
+                .
+              </p>
+            </div>
+          ) : null}
         </header>
 
         {error && (
@@ -347,6 +392,17 @@ export default function OnboardingPage() {
           </section>
         </form>
       </div>
+
+      {trialActive && trialEndsAt && organizationId ? (
+        <FreeTrialWelcomeModal
+          open={trialModalOpen}
+          trialEndsAt={trialEndsAt}
+          onClose={() => {
+            markTrialWelcomeDismissedThisSession(organizationId);
+            setTrialModalOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

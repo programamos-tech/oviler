@@ -37,16 +37,14 @@ export default function LandingPage() {
       <section className="relative flex min-h-screen items-center overflow-hidden bg-platform-dark/75 backdrop-blur-[2px]">
         <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
         <div className="max-w-3xl">
-          <h1 className="font-logo text-3xl font-bold leading-tight tracking-tight text-white drop-shadow-md sm:text-4xl md:text-5xl lg:text-6xl">
-            <span className="whitespace-nowrap">Si tienes problemas con el inventario,</span>
-            <br />
-            nosotros vamos.
-          </h1>
-          <p className="mt-6 text-base leading-relaxed text-white sm:text-lg md:text-xl lg:leading-[1.6]">
-            No vendemos solo software. Conocemos tu negocio, te mostramos la plataforma, hacemos pruebas y, si te convence, la implementamos en tu sistema: usuarios, IVA, bodega, sucursales.
+          <p className="mb-3 text-[13px] font-medium uppercase tracking-wide text-white/75">
+            Tiendas ocultas · ventas online y físicas
           </p>
-          <p className="mt-4 text-base leading-relaxed text-white sm:text-lg md:text-xl lg:leading-[1.6]">
-            Capacitamos a tu equipo y te acompañamos con una <strong className="text-white">licencia anual</strong>.
+          <h1 className="font-logo text-3xl font-bold leading-tight tracking-tight text-white drop-shadow-md sm:text-4xl md:text-5xl lg:text-6xl">
+            Pedidos, inventario y equipo en un solo lugar.
+          </h1>
+          <p className="mt-5 max-w-xl text-base leading-relaxed text-white/95 sm:text-lg">
+            {PRODUCT}: gestiona tu operación sin vitrina — pedidos y ventas, stock, egresos y usuarios. Implementación, capacitación y <strong className="text-white">licencia anual</strong>.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
             <Link href="/login" className="inline-flex h-12 items-center justify-center rounded-lg bg-white px-6 text-[15px] font-semibold text-slate-900 shadow-lg transition-colors hover:bg-white/95">
@@ -66,24 +64,21 @@ export default function LandingPage() {
           <h2 className="font-logo text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Cómo trabajamos
           </h2>
-          <p className="mt-3 max-w-2xl text-lg text-white/80">
-            Un proceso claro para que tu negocio quede operando con {PRODUCT} sin que tengas que configurar nada solo.
+          <p className="mt-2 max-w-xl text-sm text-white/75 sm:text-base">
+            Te acompañamos de la demo a la puesta en marcha con {PRODUCT}.
           </p>
-          <ul className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-8 grid gap-4 sm:grid-cols-3">
             {[
-              { step: "1", title: "Conocemos tu negocio", desc: "Vamos a tu local, entendemos cómo manejas inventario, ventas y despachos." },
-              { step: "2", title: "Te mostramos la plataforma", desc: `Demo en vivo de ${PRODUCT} adaptada a lo que nos contaste.` },
-              { step: "3", title: "Pruebas a tu ritmo", desc: "Si te interesa, hacemos pruebas y ajustes hasta que te cierre." },
-              { step: "4", title: "Implementación completa", desc: "Configuramos la plataforma: usuarios, IVA, bodega, sucursales y numeración." },
-              { step: "5", title: "Capacitación", desc: "Capacitamos a los colaboradores que van a usar el sistema día a día." },
-              { step: "6", title: "Licencia anual", desc: "Vendes con nosotros una licencia anual e incorporas soporte y actualizaciones." },
+              { step: "1", title: "Conocemos tu flujo", desc: "Pedidos, bodega y tienda." },
+              { step: "2", title: "Demo y pruebas", desc: "Ajustamos contigo." },
+              { step: "3", title: "Implementación", desc: "Configuración, equipo y licencia anual." },
             ].map((item) => (
-              <li key={item.step} className="rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-ov-pink/20 text-sm font-bold text-ov-pink">
+              <li key={item.step} className="rounded-xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-ov-pink/20 text-xs font-bold text-ov-pink">
                   {item.step}
                 </span>
-                <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
-                <p className="mt-2 text-[14px] leading-relaxed text-white/80">{item.desc}</p>
+                <h3 className="mt-3 text-base font-semibold text-white">{item.title}</h3>
+                <p className="mt-1 text-[13px] leading-snug text-white/75">{item.desc}</p>
               </li>
             ))}
           </ul>
@@ -93,12 +88,26 @@ export default function LandingPage() {
       {/* Producto */}
       <section id="producto" className="relative z-10 border-t border-white/10 bg-platform-dark py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="font-logo text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            El software: {PRODUCT}
+          <h2 className="font-logo text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            Qué incluye
           </h2>
-          <p className="mt-3 max-w-2xl text-lg text-white/80">
-            La plataforma que implementamos incluye inventario, ventas, clientes, egresos, cierre de caja, garantías y múltiples sucursales. Todo listo para que tu equipo trabaje con orden.
+          <p className="mt-2 max-w-xl text-sm text-white/75 sm:text-base">
+            Ventas (web y tienda), inventario, clientes, egresos, caja, sucursales y permisos por rol.
           </p>
+          <ul className="mt-6 grid gap-2.5 sm:grid-cols-2">
+            {[
+              "Pedidos y ventas · online y físico",
+              "Inventario y bodega",
+              "Egresos, caja y usuarios",
+            ].map((line) => (
+              <li key={line} className="flex gap-2 text-[15px] leading-snug text-white/90">
+                <span className="material-symbols-outlined mt-0.5 shrink-0 text-[20px] text-ov-pink" aria-hidden>
+                  check_circle
+                </span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
           <div className="mt-10 flex flex-wrap gap-4">
             <Link href="/login" className="inline-flex h-11 items-center justify-center rounded-lg bg-ov-pink px-6 text-[15px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover">
                 Solicitar demo
@@ -123,8 +132,8 @@ export default function LandingPage() {
                   </span>
                 </div>
               </Link>
-              <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-slate-400">
-                Implementación, configuración, capacitación y licencia anual. Si tienes problemas con el inventario, nosotros vamos.
+              <p className="mt-4 max-w-xs text-[13px] leading-relaxed text-slate-400">
+                Gestión para tiendas ocultas: ventas, inventario y equipo. Licencia anual con soporte.
               </p>
             </div>
             <div>

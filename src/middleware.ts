@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isNouInternalStaff } from '@/lib/nou-internal'
 
 type CookieEntry = { name: string; value: string; options?: Record<string, unknown> }
 
@@ -40,6 +41,28 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  const path = request.nextUrl.pathname
+  const isInternalRoute = path.startsWith('/interno') || path.startsWith('/api/internal')
+
+  if (isInternalRoute) {
+    if (!user) {
+      if (path.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return redirectWithCookies(url, cookiesFromSetAll)
+    }
+    if (!isNouInternalStaff(user.email)) {
+      if (path.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return redirectWithCookies(url, cookiesFromSetAll)
+    }
+  }
+
   // Rutas públicas (páginas)
   const publicPaths = ['/login', '/registro', '/']
   const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + '/'))
@@ -47,6 +70,9 @@ export async function middleware(request: NextRequest) {
   // APIs que deben funcionar sin sesión (registro de nueva cuenta)
   const publicApiPaths = ['/api/admin/create-user', '/api/auth/create-organization']
   const isPublicApi = publicApiPaths.some((path) => request.nextUrl.pathname === path)
+
+  // Usuario con sesión pero licencia bloqueada: puede validar clave sin redirigir al modal de bloqueo
+  const licenseUnlockApi = request.nextUrl.pathname === '/api/auth/unlock-license'
 
   // Si no está autenticado y trata de acceder a ruta protegida, redirigir a login
   if (!user && !isPublicPath && !isPublicApi) {
@@ -78,6 +104,40 @@ export async function middleware(request: NextRequest) {
         const url = request.nextUrl.clone()
         url.pathname = '/dashboard'
         return redirectWithCookies(url, cookiesFromSetAll)
+      }
+    }
+  }
+
+  // Trial vencido o licencia suspendida/cancelada (no aplica a staff NOU ni rutas internas)
+  if (
+    user &&
+    !isPublicPath &&
+    !isPublicApi &&
+    !licenseUnlockApi &&
+    path !== '/acceso-bloqueado' &&
+    !isInternalRoute &&
+    !isNouInternalStaff(user.email ?? '')
+  ) {
+    const { data: me } = await supabase.from('users').select('organization_id').eq('id', user.id).maybeSingle()
+    if (me?.organization_id) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('plan_type, trial_ends_at, subscription_status')
+        .eq('id', me.organization_id)
+        .maybeSingle()
+      if (org) {
+        const licenciaBloqueada =
+          org.subscription_status === 'suspended' || org.subscription_status === 'cancelled'
+        const trialVencido =
+          org.plan_type === 'free' &&
+          org.trial_ends_at &&
+          new Date(org.trial_ends_at).getTime() < Date.now()
+        if (licenciaBloqueada || trialVencido) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/acceso-bloqueado'
+          url.searchParams.set('motivo', trialVencido ? 'trial' : 'licencia')
+          return redirectWithCookies(url, cookiesFromSetAll)
+        }
       }
     }
   }

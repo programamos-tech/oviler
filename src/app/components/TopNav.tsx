@@ -8,6 +8,9 @@ import { getCopy } from "@/app/ventas/sales-mode";
 import Notifications from "./Notifications";
 import Avatar from "boring-avatars";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
+import FreeTrialWelcomeModal from "./FreeTrialWelcomeModal";
+import { isTrialWelcomeDismissedThisSession, markTrialWelcomeDismissedThisSession } from "@/lib/trial-welcome-storage";
+import { type OrgTrialFields, isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
 
 const iconClass = "h-5 w-5 shrink-0";
 
@@ -244,8 +247,17 @@ export default function TopNav() {
   const supabase = createClient();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [user, setUser] = useState<{ name: string; email: string; avatar_url?: string | null; role?: string | null; permissions?: string[] | null } | null>(null);
+  const [user, setUser] = useState<{
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+    role?: string | null;
+    permissions?: string[] | null;
+    organization_id?: string | null;
+  } | null>(null);
   const [branch, setBranch] = useState<{ name: string; logo_url: string | null; show_expenses?: boolean; sales_mode?: string } | null>(null);
+  const [orgTrial, setOrgTrial] = useState<OrgTrialFields | null>(null);
+  const [trialModalOpen, setTrialModalOpen] = useState(false);
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -255,16 +267,38 @@ export default function TopNav() {
       if (authUser) {
         const { data: userData } = await supabase
           .from("users")
-          .select("name, email, avatar_url, role, permissions")
+          .select("name, email, avatar_url, role, permissions, organization_id")
           .eq("id", authUser.id)
           .single();
         if (userData) {
           setUser(userData);
+          const oid = (userData as { organization_id?: string | null }).organization_id;
+          if (oid) {
+            const { data: orgRow } = await supabase
+              .from("organizations")
+              .select("subscription_status, plan_type, trial_ends_at")
+              .eq("id", oid)
+              .maybeSingle();
+            setOrgTrial(orgRow as OrgTrialFields | null);
+          } else {
+            setOrgTrial(null);
+          }
         }
       }
     }
     loadUser();
   }, [supabase]);
+
+  const trialActive = orgTrial != null && isFreeTrialActive(orgTrial);
+  const trialEndsAt = orgTrial?.trial_ends_at ?? "";
+
+  useEffect(() => {
+    if (!trialActive || !trialEndsAt) return;
+    const oid = user?.organization_id;
+    if (!oid || typeof window === "undefined") return;
+    if (isTrialWelcomeDismissedThisSession(oid)) return;
+    setTrialModalOpen(true);
+  }, [trialActive, trialEndsAt, user?.organization_id]);
 
   useEffect(() => {
     async function loadBranch() {
@@ -486,8 +520,37 @@ export default function TopNav() {
           })}
         </div>
 
+        {trialActive && trialEndsAt ? (
+          <div
+            className="hidden min-w-0 shrink-0 items-center lg:flex"
+            title={`Prueba gratis · ${trialRemainingLabel(trialEndsAt)} restantes`}
+          >
+            <span className="inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-lg border border-sky-500/35 bg-sky-500/[0.12] px-2.5 py-1.5 text-[11px] font-semibold leading-none text-sky-900 dark:border-sky-500/30 dark:bg-sky-950/40 dark:text-sky-100">
+              <span className="shrink-0" aria-hidden>
+                ⏱
+              </span>
+              <span className="min-w-0 truncate">
+                Prueba · <span className="tabular-nums">{trialRemainingLabel(trialEndsAt)}</span>
+              </span>
+            </span>
+          </div>
+        ) : null}
+
         {/* Right: notificaciones y usuario (visible en mobile, tablet y desktop) */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          {trialActive && trialEndsAt ? (
+            <div
+              className="flex min-w-0 lg:hidden"
+              title={`Prueba gratis · ${trialRemainingLabel(trialEndsAt)} restantes`}
+            >
+              <span className="inline-flex max-w-[130px] items-center truncate rounded-lg border border-sky-500/35 bg-sky-500/[0.12] px-2 py-1 text-[10px] font-semibold text-sky-900 dark:border-sky-500/30 dark:bg-sky-950/40 dark:text-sky-100">
+                <span className="mr-0.5 shrink-0" aria-hidden>
+                  ⏱
+                </span>
+                <span className="min-w-0 truncate tabular-nums">{trialRemainingLabel(trialEndsAt)}</span>
+              </span>
+            </div>
+          ) : null}
           <Notifications />
           <div className="relative" ref={userMenuRef}>
             <button
@@ -548,6 +611,18 @@ export default function TopNav() {
           </div>
         </div>
       </div>
+
+      {trialActive && trialEndsAt ? (
+        <FreeTrialWelcomeModal
+          open={trialModalOpen}
+          trialEndsAt={trialEndsAt}
+          onClose={() => {
+            const oid = user?.organization_id;
+            if (oid) markTrialWelcomeDismissedThisSession(oid);
+            setTrialModalOpen(false);
+          }}
+        />
+      ) : null}
     </nav>
   );
 }

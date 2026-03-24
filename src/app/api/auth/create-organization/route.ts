@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { limitsRowForPlan } from '@/lib/plan-catalog'
 
 export async function POST(request: Request) {
   try {
@@ -63,13 +64,13 @@ export async function POST(request: Request) {
       )
     }
 
+    const freeLimits = limitsRowForPlan('free')
     const { data: orgData, error: orgError } = await admin
       .from('organizations')
       .insert({
         name: `${name}'s Organization`,
-        plan_type: 'basic',
-        max_branches: 1,
-        max_users: 999999,
+        subscription_status: 'trial',
+        ...freeLimits,
       })
       .select()
       .single()

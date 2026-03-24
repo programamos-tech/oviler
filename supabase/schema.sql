@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS organizations (
   plan_type TEXT NOT NULL DEFAULT 'basic' CHECK (plan_type IN ('basic', 'intermediate', 'advanced')),
   max_branches INT NOT NULL DEFAULT 1,
   max_users INT NOT NULL DEFAULT 999999, -- Ilimitado para basic
-  subscription_status TEXT DEFAULT 'active' CHECK (subscription_status IN ('active', 'suspended', 'cancelled')),
+  subscription_status TEXT DEFAULT 'trial' CHECK (subscription_status IN ('trial', 'active', 'suspended', 'cancelled')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

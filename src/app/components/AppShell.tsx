@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import TopNav from "./TopNav";
 import BottomNav from "./BottomNav";
+import PresenceHeartbeat from "./PresenceHeartbeat";
 import { createClient } from "@/lib/supabase/client";
 import { canAccessPath, type AppRole } from "@/lib/permissions";
 
@@ -14,11 +15,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isAuth = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
   const isLanding = pathname === "/";
+  const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
+  const isAccessBlockedPage = pathname === "/acceso-bloqueado";
   const [isAllowed, setIsAllowed] = useState(true);
   const [checkedAccess, setCheckedAccess] = useState(false);
 
   useEffect(() => {
-    if (isAuth || isLanding) {
+    if (isAuth || isLanding || isInterno) {
       setCheckedAccess(true);
       setIsAllowed(true);
       return;
@@ -46,7 +49,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isAuth, isLanding, pathname, router]);
+  }, [isAuth, isLanding, isInterno, pathname, router]);
+
+  if (isInterno) {
+    return (
+      <main className="relative min-h-screen flex-1 py-4 sm:py-6 lg:py-6">
+        <PresenceHeartbeat />
+        <div className="mx-auto min-w-0 max-w-[1600px] px-4 sm:px-6 lg:px-8">{children}</div>
+      </main>
+    );
+  }
+
+  if (isAccessBlockedPage) {
+    return (
+      <main className="relative min-h-screen flex-1 py-6 sm:py-10">
+        <div className="mx-auto min-w-0 max-w-[1600px] px-4 sm:px-6 lg:px-8">{children}</div>
+      </main>
+    );
+  }
 
   if (isAuth || isLanding) {
     return <>{children}</>;
@@ -60,6 +80,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <PresenceHeartbeat />
       <TopNav />
       <main className="relative flex-1 py-4 pb-20 md:pb-6 sm:py-6 lg:py-6">
         <div className="mx-auto min-w-0 max-w-[1600px] px-4 sm:px-6 lg:px-8">{children}</div>

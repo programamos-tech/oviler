@@ -117,8 +117,8 @@ export default function RegistroPage() {
           <span className="material-symbols-outlined h-8 w-8 shrink-0 text-[32px] text-ov-pink sm:h-9 sm:w-9 sm:text-[36px]" aria-hidden>storefront</span>
           <span>NOU Tiendas</span>
         </Link>
-        <p className="mt-4 max-w-md text-[15px] leading-relaxed text-slate-600 dark:text-slate-400">
-          Por NOU Technology. Sistema de gestión para tiendas: implementación, capacitación y soporte.
+        <p className="mt-4 max-w-md text-[14px] leading-relaxed text-slate-600 dark:text-slate-400">
+          Tiendas ocultas: ventas, inventario y equipo. Por NOU Technology.
         </p>
       </div>
 
