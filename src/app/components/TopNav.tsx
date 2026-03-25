@@ -538,6 +538,15 @@ export default function TopNav() {
 
         {/* Right: notificaciones y usuario (visible en mobile, tablet y desktop) */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          {user?.email?.toLowerCase() === "programamos.st@gmail.com" ? (
+            <Link
+              href="/interno"
+              className="hidden h-8 items-center rounded-lg border border-ov-pink/35 bg-ov-pink/[0.08] px-3 text-[12px] font-semibold text-ov-pink transition-colors hover:bg-ov-pink/[0.16] sm:inline-flex"
+              title="Ir al panel interno"
+            >
+              Panel interno
+            </Link>
+          ) : null}
           {trialActive && trialEndsAt ? (
             <div
               className="flex min-w-0 lg:hidden"

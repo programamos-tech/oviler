@@ -6,11 +6,10 @@ export type OrgTrialFields = {
   trial_ends_at: string | null;
 };
 
-/** Prueba gratis vigente: plan free, fin de prueba futura, licencia no cortada. Acepta `subscription_status` `trial` o legacy `active`. */
+/** Prueba gratis vigente: estado trial + plan free + fecha fin futura. */
 export function isFreeTrialActive(org: OrgTrialFields | null): boolean {
   if (!org) return false;
-  const st = org.subscription_status ?? "";
-  if (st === "suspended" || st === "cancelled") return false;
+  if ((org.subscription_status ?? "") !== "trial") return false;
   if (normalizePlanType(org.plan_type ?? "") !== "free") return false;
   if (!org.trial_ends_at) return false;
   return new Date(org.trial_ends_at).getTime() > Date.now();

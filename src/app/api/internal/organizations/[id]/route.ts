@@ -260,15 +260,6 @@ export async function PATCH(request: Request, context: RouteContext) {
         return NextResponse.json({ error: billErr.message }, { status: 500 });
       }
 
-      if (status === "paid") {
-        const { error: paidOrgErr } = await admin
-          .from("organizations")
-          .update({ subscription_status: "active" })
-          .eq("id", id);
-        if (paidOrgErr) {
-          return NextResponse.json({ error: paidOrgErr.message }, { status: 500 });
-        }
-      }
     }
 
     const [{ data: orgRow }, { data: billingRow }, { data: orgMeta }] = await Promise.all([

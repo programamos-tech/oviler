@@ -45,6 +45,7 @@ export default function SucursalesPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchStats, setBranchStats] = useState<Record<string, BranchStats>>({});
   const [loading, setLoading] = useState(true);
+  const [licenseLine, setLicenseLine] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -52,6 +53,43 @@ export default function SucursalesPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) return;
+      try {
+        const licRes = await fetch("/api/auth/license-status", { credentials: "include" });
+        const licJson = (await licRes.json().catch(() => ({}))) as {
+          license_period_end?: string | null;
+          organization?: { subscription_status?: string | null; trial_ends_at?: string | null } | null;
+        };
+        if (!cancelled) {
+          const status = licJson.organization?.subscription_status ?? null;
+          const periodEnd = licJson.license_period_end ?? null;
+          const trialEnd = licJson.organization?.trial_ends_at ?? null;
+          if (status === "active" && periodEnd) {
+            setLicenseLine(
+              `Licencia activa hasta ${new Date(periodEnd).toLocaleDateString("es-CO", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}`
+            );
+          } else if (status === "trial" && trialEnd) {
+            setLicenseLine(
+              `Prueba gratis activa hasta ${new Date(trialEnd).toLocaleDateString("es-CO", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}`
+            );
+          } else if (status === "suspended") {
+            setLicenseLine("Licencia suspendida");
+          } else if (status === "cancelled") {
+            setLicenseLine("Licencia cancelada");
+          } else {
+            setLicenseLine(null);
+          }
+        }
+      } catch {
+        if (!cancelled) setLicenseLine(null);
+      }
       const { data: userData } = await supabase
         .from("users")
         .select("organization_id")
@@ -114,6 +152,9 @@ export default function SucursalesPage() {
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Cada sucursal tiene sus propios datos, numeración de ventas y configuración.
             </p>
+            {licenseLine ? (
+              <p className="mt-1 text-[12px] font-semibold text-emerald-700 dark:text-emerald-300">{licenseLine}</p>
+            ) : null}
           </div>
           <Link
             href="/sucursales/nueva"

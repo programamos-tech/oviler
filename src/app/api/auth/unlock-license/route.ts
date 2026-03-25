@@ -106,6 +106,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: upOrgErr.message }, { status: 500 });
   }
 
+  const periodEnd = licensePeriodEndIso(row.license_period_start, row.license_period_months ?? 12);
+
   const { error: clearErr } = await admin
     .from("internal_org_billing")
     .update({ license_unlock_salt: null, license_unlock_code_hash: null })
@@ -115,5 +117,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: clearErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, license_period_end: periodEnd });
 }
