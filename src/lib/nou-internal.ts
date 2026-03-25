@@ -12,6 +12,11 @@ export function parseNouInternalEmailSet(): Set<string> {
   );
 }
 
+/** Cantidad de emails en allowlist (para diagnóstico; no expone valores). */
+export function getNouInternalAllowlistSize(): number {
+  return parseNouInternalEmailSet().size;
+}
+
 export function isNouInternalStaff(email: string | undefined | null): boolean {
   const allowed = parseNouInternalEmailSet();
   if (allowed.size === 0) return false;

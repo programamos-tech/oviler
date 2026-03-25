@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { isNouInternalStaff } from '@/lib/nou-internal'
+import { getNouInternalAllowlistSize, isNouInternalStaff } from '@/lib/nou-internal'
 
 type CookieEntry = { name: string; value: string; options?: Record<string, unknown> }
 
@@ -45,6 +45,34 @@ export async function middleware(request: NextRequest) {
   const isInternalRoute = path.startsWith('/interno') || path.startsWith('/api/internal')
 
   if (isInternalRoute) {
+    // #region agent log
+    const allowedSize = getNouInternalAllowlistSize()
+    const staffOk = user ? isNouInternalStaff(user.email) : false
+    const payload = {
+      sessionId: 'b5a8bd',
+      location: 'middleware.ts:internal-gate',
+      message: 'interno route access check',
+      data: {
+        hypothesisId: 'H1-H5',
+        path,
+        isApi: path.startsWith('/api/'),
+        hasUser: Boolean(user),
+        hasEmail: Boolean(user?.email),
+        emailLen: user?.email?.length ?? 0,
+        allowedSize,
+        staffOk,
+      },
+      timestamp: Date.now(),
+      runId: 'pre-fix',
+    }
+    void fetch('http://127.0.0.1:7686/ingest/32bc7982-fea9-4353-bdfe-2501fd166c24', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'b5a8bd' },
+      body: JSON.stringify(payload),
+    }).catch(() => {})
+    console.log('[NOU_DEBUG_INTERN]', JSON.stringify(payload.data))
+    // #endregion
+
     if (!user) {
       if (path.startsWith('/api/')) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -53,7 +81,7 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/login'
       return redirectWithCookies(url, cookiesFromSetAll)
     }
-    if (!isNouInternalStaff(user.email)) {
+    if (!staffOk) {
       if (path.startsWith('/api/')) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
