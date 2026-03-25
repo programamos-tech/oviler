@@ -58,6 +58,13 @@ function ConfigurarSucursalContent() {
   const [warrantyRequiresApproval, setWarrantyRequiresApproval] = useState(true);
   const [showExpenses, setShowExpenses] = useState(true);
   const [salesMode, setSalesMode] = useState<"sales" | "orders">("sales");
+  const [catalogSlug, setCatalogSlug] = useState("");
+  const [catalogEnabled, setCatalogEnabled] = useState(false);
+  const [paymentNequi, setPaymentNequi] = useState("");
+  const [paymentBancolombia, setPaymentBancolombia] = useState("");
+  const [paymentLlave, setPaymentLlave] = useState("");
+  const [catalogDeliveryFeeCop, setCatalogDeliveryFeeCop] = useState(0);
+  const [publicOrigin, setPublicOrigin] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -74,6 +81,10 @@ function ConfigurarSucursalContent() {
   const [expenseConcepts, setExpenseConcepts] = useState<ExpenseConcept[]>([]);
   const [newConceptName, setNewConceptName] = useState("");
   const [addingConcept, setAddingConcept] = useState(false);
+
+  useEffect(() => {
+    setPublicOrigin(typeof window !== "undefined" ? window.location.origin : "");
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -98,7 +109,7 @@ function ConfigurarSucursalContent() {
         return;
       }
       setBranchId(targetBranchId);
-      const { data: branch } = await supabase.from("branches").select("organization_id, name, nit, address, phone, logo_url, has_bodega, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, warranty_by_sale, warranty_requires_approval, show_expenses, sales_mode").eq("id", targetBranchId).single();
+      const { data: branch } = await supabase.from("branches").select("organization_id, name, nit, address, phone, logo_url, has_bodega, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, warranty_by_sale, warranty_requires_approval, show_expenses, sales_mode, catalog_slug, catalog_enabled, catalog_delivery_fee_cop, payment_nequi, payment_bancolombia, payment_llave").eq("id", targetBranchId).single();
       if (branch && !cancelled) {
         setOrganizationId((branch as { organization_id?: string }).organization_id ?? null);
         setBranchName((branch as { name?: string }).name ?? "");
@@ -114,6 +125,14 @@ function ConfigurarSucursalContent() {
         setWarrantyRequiresApproval((branch as { warranty_requires_approval?: boolean }).warranty_requires_approval !== false);
         setShowExpenses((branch as { show_expenses?: boolean }).show_expenses !== false);
         setSalesMode((branch as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales");
+        setCatalogSlug((branch as { catalog_slug?: string | null }).catalog_slug ?? "");
+        setCatalogEnabled(!!(branch as { catalog_enabled?: boolean }).catalog_enabled);
+        setPaymentNequi((branch as { payment_nequi?: string | null }).payment_nequi ?? "");
+        setPaymentBancolombia((branch as { payment_bancolombia?: string | null }).payment_bancolombia ?? "");
+        setPaymentLlave((branch as { payment_llave?: string | null }).payment_llave ?? "");
+        setCatalogDeliveryFeeCop(
+          Math.max(0, Math.floor(Number((branch as { catalog_delivery_fee_cop?: number | null }).catalog_delivery_fee_cop) || 0)),
+        );
       }
       
       const orgId = (branch as { organization_id?: string } | null)?.organization_id;
@@ -190,6 +209,13 @@ function ConfigurarSucursalContent() {
       }
     }
 
+    const slugTrim = catalogSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    if (catalogEnabled && !slugTrim) {
+      alert("Define un enlace corto (slug) para activar el catálogo público.");
+      setSaving(false);
+      return;
+    }
+
     const updatePayload: Record<string, unknown> = {
       name: nameTrim,
       nit: nit.trim() || null,
@@ -203,6 +229,12 @@ function ConfigurarSucursalContent() {
       warranty_requires_approval: warrantyRequiresApproval,
       show_expenses: showExpenses,
       sales_mode: salesMode,
+      catalog_slug: catalogEnabled ? slugTrim : null,
+      catalog_enabled: catalogEnabled && !!slugTrim,
+      payment_nequi: paymentNequi.trim() || null,
+      payment_bancolombia: paymentBancolombia.trim() || null,
+      payment_llave: paymentLlave.trim() || null,
+      catalog_delivery_fee_cop: Math.max(0, Math.floor(Number(catalogDeliveryFeeCop) || 0)),
       updated_at: new Date().toISOString(),
     };
     if (newLogoUrl !== undefined) updatePayload.logo_url = newLogoUrl;
@@ -449,6 +481,103 @@ function ConfigurarSucursalContent() {
               <p className="ml-6 text-[12px] text-slate-400 dark:text-slate-500">
                 Verás &quot;Pedidos&quot;, &quot;Nuevo pedido&quot;. Estados: Pendiente, En preparación, En camino, Entregado, Anulado.
               </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Catálogo web público
+            </p>
+            <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">
+              Tus clientes pueden ver productos y crear pedidos desde un enlace con el estilo NOU. Los pedidos aparecen en Pedidos como transferencia pendiente.
+            </p>
+            <label className="mt-3 flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={catalogEnabled}
+                onChange={(e) => setCatalogEnabled(e.target.checked)}
+                disabled={loading}
+                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+              />
+              <span className="text-[13px] font-medium text-slate-600 dark:text-slate-300">Activar catálogo</span>
+            </label>
+            <div className="mt-3">
+              <label className={labelClass}>Enlace corto (solo letras minúsculas, números y guiones)</label>
+              <input
+                value={catalogSlug}
+                onChange={(e) => setCatalogSlug(e.target.value)}
+                placeholder="mi-tienda"
+                className={inputClass}
+                disabled={loading}
+              />
+              {publicOrigin && catalogSlug.trim() && (
+                <p className="mt-2 break-all text-[12px] text-slate-500">
+                  Vista previa:{" "}
+                  <span className="font-mono text-slate-700 dark:text-slate-300">
+                    {publicOrigin}/t/{catalogSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "…"}
+                  </span>
+                </p>
+              )}
+            </div>
+            <div className="mt-4">
+              <label className={labelClass}>Envío catálogo web (COP)</label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                value={catalogDeliveryFeeCop === 0 ? "" : catalogDeliveryFeeCop}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "") {
+                    setCatalogDeliveryFeeCop(0);
+                    return;
+                  }
+                  setCatalogDeliveryFeeCop(Math.max(0, Math.floor(Number(raw) || 0)));
+                }}
+                className={inputClass}
+                disabled={loading}
+                placeholder="0"
+              />
+              <p className="mt-1.5 text-[12px] text-slate-500 dark:text-slate-400">
+                Lo verá el cliente en el checkout; no puede cambiarlo. Usa 0 si el envío es gratis o no aplica.
+              </p>
+            </div>
+            <p className="mt-4 text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Datos de pago (catálogo web)
+            </p>
+            <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">
+              Se muestran al cliente después de confirmar el pedido para transferir.
+            </p>
+            <div className="mt-2 space-y-2">
+              <div>
+                <label className={labelClass}>Nequi</label>
+                <input
+                  value={paymentNequi}
+                  onChange={(e) => setPaymentNequi(e.target.value)}
+                  className={inputClass}
+                  disabled={loading}
+                  placeholder="Número o alias"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Bancolombia / cuenta</label>
+                <input
+                  value={paymentBancolombia}
+                  onChange={(e) => setPaymentBancolombia(e.target.value)}
+                  className={inputClass}
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Llave u otro</label>
+                <input
+                  value={paymentLlave}
+                  onChange={(e) => setPaymentLlave(e.target.value)}
+                  className={inputClass}
+                  disabled={loading}
+                />
+              </div>
             </div>
           </div>
 

@@ -23,3 +23,21 @@ export function isNouInternalStaff(email: string | undefined | null): boolean {
   if (!email) return false;
   return allowed.has(email.trim().toLowerCase());
 }
+
+/** Email dueño NOU: no requiere activar clave de licencia ni bloqueo por trial/suscripción. */
+const DEFAULT_SUPERADMIN_LICENSE_EMAIL = "programamos.st@gmail.com";
+
+/**
+ * Exención de licencia (modal "Activa tu licencia") y de `/acceso-bloqueado` por trial/suspensión.
+ * - `NOU_SUPERADMIN_EMAIL` (opcional) en servidor
+ * - Por defecto: cuenta dueña NOU
+ * - También: `NOU_INTERNAL_EMAILS` (mismo criterio que panel interno)
+ */
+export function isSuperAdminLicenseExempt(email: string | undefined | null): boolean {
+  if (!email) return false;
+  const e = email.trim().toLowerCase();
+  const configured = process.env.NOU_SUPERADMIN_EMAIL?.trim().toLowerCase();
+  if (configured && e === configured) return true;
+  if (e === DEFAULT_SUPERADMIN_LICENSE_EMAIL) return true;
+  return isNouInternalStaff(email);
+}

@@ -68,6 +68,10 @@ type SaleDetail = {
   delivery_person_id: string | null;
   delivery_paid: boolean;
   created_at: string;
+  channel?: string | null;
+  /** Token público para /t/pedido/{token} (pedidos catálogo web). */
+  public_tracking_token?: string | null;
+  payment_proof_url?: string | null;
   cancellation_requested_at?: string | null;
   cancellation_requested_by?: string | null;
   customers: { name: string; phone: string | null; cedula: string | null } | null;
@@ -163,6 +167,7 @@ export default function SaleDetailPage() {
   const router = useRouter();
   const id = params?.id as string | undefined;
   const [sale, setSale] = useState<SaleDetail | null>(null);
+  const [paymentProofSignedUrl, setPaymentProofSignedUrl] = useState<string | null>(null);
   const [items, setItems] = useState<SaleItemRow[]>([]);
   const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddress | null>(null);
   const [loading, setLoading] = useState(true);
@@ -201,6 +206,8 @@ export default function SaleDetailPage() {
   const [finalizeNeedsOrderPaymentHint, setFinalizeNeedsOrderPaymentHint] = useState(false);
   const [refundWarrantyProcessedCount, setRefundWarrantyProcessedCount] = useState(0);
   const [latestRefundWarrantyId, setLatestRefundWarrantyId] = useState<string | null>(null);
+  const [pedidoClienteUrl, setPedidoClienteUrl] = useState("");
+  const [pedidoLinkCopied, setPedidoLinkCopied] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -210,7 +217,7 @@ export default function SaleDetailPage() {
       const { data: saleData, error: saleError } = await supabase
         .from("sales")
         .select(
-          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_address_id, delivery_fee, delivery_person_id, delivery_paid, created_at, customers(name, phone, cedula), users!user_id(name), delivery_persons(name, code)"
+          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_address_id, delivery_fee, delivery_person_id, delivery_paid, created_at, channel, public_tracking_token, payment_proof_url, customers(name, phone, cedula), users!user_id(name), delivery_persons(name, code)"
         )
         .eq("id", id)
         .single();
@@ -319,6 +326,30 @@ export default function SaleDetailPage() {
     })();
     return () => { cancelled = true; };
   }, [id]);
+
+  useEffect(() => {
+    if (!sale?.payment_proof_url) {
+      setPaymentProofSignedUrl(null);
+      return;
+    }
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data: signed } = await supabase.storage.from("payment-proofs").createSignedUrl(sale.payment_proof_url!, 3600);
+      if (!cancelled) setPaymentProofSignedUrl(signed?.signedUrl ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sale?.payment_proof_url, sale?.id]);
+
+  useEffect(() => {
+    if (!sale?.public_tracking_token || typeof window === "undefined") {
+      setPedidoClienteUrl("");
+      return;
+    }
+    setPedidoClienteUrl(`${window.location.origin}/t/pedido/${sale.public_tracking_token}`);
+  }, [sale?.public_tracking_token]);
 
   // Ubicación en bodega por producto (para mostrar en En alistamiento)
   useEffect(() => {
@@ -1053,6 +1084,67 @@ export default function SaleDetailPage() {
                   </Link>
                 )}
               </span>
+            )}
+            {sale.channel === "web_catalog" && (
+              <div className="mt-2 space-y-3">
+                <span className="inline-flex rounded-md border border-violet-200 bg-violet-50/80 px-2.5 py-1 text-[12px] font-semibold text-violet-800 dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-200">
+                  Pedido · catálogo web
+                </span>
+                {sale.public_tracking_token && (
+                  <div className="rounded-xl border border-violet-200/90 bg-violet-50/60 p-3 dark:border-violet-800/70 dark:bg-violet-950/25">
+                    <p className="text-[12px] font-bold uppercase tracking-wide text-violet-900 dark:text-violet-200">
+                      Enlace para el cliente
+                    </p>
+                    <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-400">
+                      Compártelo por WhatsApp o correo si no encuentra la página del pedido o para que suba el comprobante.
+                    </p>
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                      <code className="min-w-0 flex-1 break-all rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono text-[11px] leading-relaxed text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 sm:text-[12px]">
+                        {pedidoClienteUrl || `/t/pedido/${sale.public_tracking_token}`}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!sale.public_tracking_token || typeof window === "undefined") return;
+                          const url = `${window.location.origin}/t/pedido/${sale.public_tracking_token}`;
+                          try {
+                            await navigator.clipboard.writeText(url);
+                            setPedidoLinkCopied(true);
+                            setTimeout(() => setPedidoLinkCopied(false), 2000);
+                          } catch {
+                            /* ignore */
+                          }
+                        }}
+                        className="inline-flex shrink-0 items-center justify-center rounded-lg border border-violet-300 bg-white px-3 py-2 text-[12px] font-semibold text-violet-800 transition-colors hover:bg-violet-100 dark:border-violet-600 dark:bg-violet-900/40 dark:text-violet-200 dark:hover:bg-violet-900/60"
+                      >
+                        {pedidoLinkCopied ? "Copiado" : "Copiar enlace"}
+                      </button>
+                    </div>
+                    <Link
+                      href={`/t/pedido/${sale.public_tracking_token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex text-[12px] font-semibold text-ov-pink hover:underline dark:text-ov-pink-muted"
+                    >
+                      Abrir vista del cliente (nueva pestaña)
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+            {paymentProofSignedUrl && (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                <p className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Comprobante de pago</p>
+                <a
+                  href={paymentProofSignedUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-block text-[13px] font-semibold text-ov-pink hover:underline"
+                >
+                  Abrir imagen en nueva pestaña
+                </a>
+                <img src={paymentProofSignedUrl} alt="Comprobante" className="mt-2 max-h-72 w-auto rounded-lg border border-slate-200 dark:border-slate-600" />
+              </div>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2 print:hidden">

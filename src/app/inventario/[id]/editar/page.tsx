@@ -34,6 +34,8 @@ export default function EditProductPage() {
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const initialProductRef = useRef<{ name: string; sku: string; description: string; brand: string; category_id: string; base_cost: number; base_price: number; apply_iva: boolean } | null>(null);
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function EditProductPage() {
       const [categoriesRes, branchRes, productRes] = await Promise.all([
         supabase.from("categories").select("id, name").eq("organization_id", userRow.organization_id).order("name", { ascending: true }),
         supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single(),
-        supabase.from("products").select("id, name, sku, description, brand, category_id, base_cost, base_price, apply_iva").eq("id", id).single(),
+        supabase.from("products").select("id, name, sku, description, brand, category_id, base_cost, base_price, apply_iva, image_url").eq("id", id).single(),
       ]);
 
       if (cancelled) return;
@@ -73,6 +75,7 @@ export default function EditProductPage() {
         setMarca(p.brand ?? "");
         setCategoria(p.category_id ?? "");
         setAplicarIva(!!p.apply_iva);
+        setImageUrl((p as { image_url?: string | null }).image_url ?? null);
         setBaseCosto(cost ? formatMoney(cost) : "");
         setBasePrecio(price ? formatMoney(price) : "");
         initialProductRef.current = {
@@ -129,6 +132,31 @@ export default function EditProductPage() {
     const userRow = userRowRes.data;
     const branchId = ubRes.data?.branch_id ?? null;
 
+    let nextImageUrl: string | null | undefined = imageUrl;
+    if (productImageFile && userRow?.organization_id) {
+      const allowed = ["image/jpeg", "image/png", "image/webp"];
+      if (!allowed.includes(productImageFile.type)) {
+        setError("Imagen no válida. Usa JPG, PNG o WebP.");
+        setSaving(false);
+        return;
+      }
+      if (productImageFile.size > 5 * 1024 * 1024) {
+        setError("La imagen no debe superar 5 MB.");
+        setSaving(false);
+        return;
+      }
+      const ext = productImageFile.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${userRow.organization_id}/${id}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("product-images").upload(path, productImageFile, { upsert: true });
+      if (upErr) {
+        setError(upErr.message || "Error al subir la imagen.");
+        setSaving(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
+      nextImageUrl = urlData.publicUrl;
+    }
+
     const { error: updateError } = await supabase
       .from("products")
       .update({
@@ -140,6 +168,7 @@ export default function EditProductPage() {
         base_cost: numBaseCosto,
         base_price: numBasePrecio,
         apply_iva: responsableIva ? aplicarIva : false,
+        ...(nextImageUrl !== undefined && productImageFile ? { image_url: nextImageUrl } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
@@ -272,6 +301,19 @@ export default function EditProductPage() {
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                 />
+              </div>
+              <div>
+                <label className={labelClass}>Imagen (catálogo web)</label>
+                {imageUrl && !productImageFile && (
+                  <img src={imageUrl} alt="" className="mb-2 h-24 w-24 rounded-lg border border-slate-200 object-cover dark:border-slate-700" />
+                )}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 dark:file:bg-slate-800"
+                  onChange={(e) => setProductImageFile(e.target.files?.[0] ?? null)}
+                />
+                <p className="mt-1 text-[12px] text-slate-500">JPG, PNG o WebP. Máx. 5 MB.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>

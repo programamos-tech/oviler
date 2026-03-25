@@ -49,6 +49,7 @@ export default function NewProductPage() {
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [productImageFile, setProductImageFile] = useState<File | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -275,6 +276,30 @@ export default function NewProductPage() {
       return;
     }
 
+    if (productImageFile) {
+      const allowed = ["image/jpeg", "image/png", "image/webp"];
+      if (!allowed.includes(productImageFile.type)) {
+        setError("Imagen no válida. Usa JPG, PNG o WebP.");
+        setSaving(false);
+        return;
+      }
+      if (productImageFile.size > 5 * 1024 * 1024) {
+        setError("La imagen no debe superar 5 MB.");
+        setSaving(false);
+        return;
+      }
+      const ext = productImageFile.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${userRow.organization_id}/${product.id}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("product-images").upload(path, productImageFile, { upsert: true });
+      if (upErr) {
+        setError("Producto creado pero falló la imagen: " + (upErr.message || ""));
+        setSaving(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
+      await supabase.from("products").update({ image_url: urlData.publicUrl }).eq("id", product.id);
+    }
+
     const qty = Math.max(0, Number(stockInicial) || 0);
     const locationIdToUse = sinUbicacion ? "" : selectedLocationId;
     if (locationIdToUse) {
@@ -404,6 +429,16 @@ export default function NewProductPage() {
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                 />
+              </div>
+              <div>
+                <label className={labelClass}>Imagen (catálogo web, opcional)</label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200"
+                  onChange={(e) => setProductImageFile(e.target.files?.[0] ?? null)}
+                />
+                <p className="mt-1 text-[12px] text-slate-500">JPG, PNG o WebP. Máx. 5 MB. Visible en el catálogo público.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>

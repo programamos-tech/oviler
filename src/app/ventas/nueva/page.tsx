@@ -58,9 +58,7 @@ type CartItem = {
   reference: string;
   quantity: number;
   unit_price: number;
-  /** Precio de venta mínimo (no se puede vender por menos) */
-  min_unit_price: number;
-  /** Costo de compra por unidad (para alerta de no vender bajo costo) */
+  /** Costo de compra por unidad (piso de precio de venta; alerta si queda por debajo) */
   unit_cost: number;
   /** Descuento en % (0-100) o en valor fijo $; solo uno por línea */
   discount_type?: "percent" | "fixed";
@@ -416,7 +414,7 @@ export default function NewSalePage() {
         next[i] = { ...current, quantity: newQty, reference: current.reference ?? p.sku ?? "", unit_cost: current.unit_cost ?? p.base_cost ?? 0 };
         return next;
       }
-      return [...prev, { product_id: p.id, name: p.name, reference: p.sku ?? "", quantity: 1, unit_price: price, min_unit_price: price, unit_cost: p.base_cost ?? 0 }];
+      return [...prev, { product_id: p.id, name: p.name, reference: p.sku ?? "", quantity: 1, unit_price: price, unit_cost: p.base_cost ?? 0 }];
     });
     if (clearSearch) {
       setProductSearch("");
@@ -487,15 +485,28 @@ export default function NewSalePage() {
     );
   }, []);
 
+  /** Piso de precio unitario: costo de compra; si no hay costo, 0. */
+  const floorUnitPrice = useCallback((item: CartItem) => (item.unit_cost > 0 ? item.unit_cost : 0), []);
+
   const setCartItemPrice = useCallback((productId: string, value: number) => {
     setCart((prev) =>
-      prev.map((item) => {
-        if (item.product_id !== productId) return item;
-        const price = Math.max(item.min_unit_price, value);
-        return { ...item, unit_price: price };
-      })
+      prev.map((item) => (item.product_id === productId ? { ...item, unit_price: value } : item))
     );
   }, []);
+
+  /** Aplica el piso al costo al terminar de editar (no en cada tecla, para poder escribir montos mayores). */
+  const clampCartItemUnitPriceToCost = useCallback(
+    (productId: string) => {
+      setCart((prev) =>
+        prev.map((item) => {
+          if (item.product_id !== productId) return item;
+          const floor = item.unit_cost > 0 ? item.unit_cost : 0;
+          return { ...item, unit_price: Math.max(floor, item.unit_price) };
+        })
+      );
+    },
+    []
+  );
 
   const lineTotal = useCallback((item: CartItem) => {
     const base = item.quantity * item.unit_price;
@@ -546,10 +557,18 @@ export default function NewSalePage() {
       return;
     }
     const payPending = isDelivery && paymentPending;
+
+    const cartClamped = cart.map((item) => {
+      const floor = item.unit_cost > 0 ? item.unit_cost : 0;
+      return { ...item, unit_price: Math.max(floor, item.unit_price) };
+    });
+    const subtotalClamped = cartClamped.reduce((s, i) => s + lineTotal(i), 0);
+    const totalClamped = subtotalClamped + deliveryFeeAmount;
+
     if (!payPending && paymentMethod === "mixed") {
       const cash = parseFormattedPrice(amountCash);
       const trans = parseFormattedPrice(amountTransfer);
-      if (cash + trans !== total) {
+      if (cash + trans !== totalClamped) {
         setError("En pago mixto, la suma de efectivo y transferencia debe ser igual al total.");
         return;
       }
@@ -569,7 +588,7 @@ export default function NewSalePage() {
         user_id: userId,
         customer_id: selectedCustomer.id,
         invoice_number: invoiceNumber,
-        total,
+        total: totalClamped,
         payment_method: paymentMethod,
         // Siempre pending al insertar: el trigger de inventario en tienda corre al pasar a completed (UPDATE).
         status: "pending",
@@ -602,7 +621,7 @@ export default function NewSalePage() {
       if (saleError) throw saleError;
       if (!sale?.id) throw new Error(getDocumentCopy(isDelivery).createFailed);
 
-      const items = cart.map((item) => ({
+      const items = cartClamped.map((item) => ({
         sale_id: sale.id,
         product_id: item.product_id,
         quantity: item.quantity,
@@ -634,9 +653,9 @@ export default function NewSalePage() {
             summary: `Creó la venta ${invoiceNumber}${selectedCustomer?.name ? ` — ${selectedCustomer.name}` : ""}`,
             metadata: {
               invoice_number: invoiceNumber,
-              total,
+              total: totalClamped,
               customer_name: selectedCustomer?.name ?? null,
-              items: cart.map((i) => ({ name: i.name, quantity: i.quantity, reference: i.reference || null })),
+              items: cartClamped.map((i) => ({ name: i.name, quantity: i.quantity, reference: i.reference || null })),
             },
           });
         } catch {
@@ -837,11 +856,12 @@ export default function NewSalePage() {
                             onChange={(e) => {
                               const v = parseFormattedPrice(e.target.value);
                               if (e.target.value.trim() === "") {
-                                setCartItemPrice(item.product_id, item.min_unit_price);
+                                setCartItemPrice(item.product_id, floorUnitPrice(item));
                                 return;
                               }
-                              setCartItemPrice(item.product_id, Math.max(item.min_unit_price, v));
+                              setCartItemPrice(item.product_id, v);
                             }}
+                            onBlur={() => clampCartItemUnitPriceToCost(item.product_id)}
                           />
                         </div>
                         <div className="flex items-center gap-2">

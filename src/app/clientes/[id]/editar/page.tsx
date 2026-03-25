@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { formatCedulaForStorage, normalizeCedulaForUniqueness } from "@/lib/customer-cedula";
 
 const LABEL_OPTIONS = [
   { value: "Casa", label: "Casa" },
@@ -144,11 +145,42 @@ export default function EditCustomerPage() {
     setSaving(true);
     const supabase = createClient();
 
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      setError("Debes iniciar sesión.");
+      setSaving(false);
+      return;
+    }
+    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", authUser.id).limit(1).single();
+    const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", authUser.id).single();
+    if (!ub?.branch_id) {
+      setError("No encontramos una sucursal activa para tu usuario.");
+      setSaving(false);
+      return;
+    }
+
+    const cedulaStored = formatCedulaForStorage(cedula);
+    const cedulaNorm = normalizeCedulaForUniqueness(cedula);
+    if (cedulaNorm) {
+      const { data: other } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("branch_id", ub.branch_id)
+        .eq("cedula_norm", cedulaNorm)
+        .neq("id", id)
+        .maybeSingle();
+      if (other) {
+        setError("Ya existe otro cliente con esta cédula en esta sucursal.");
+        setSaving(false);
+        return;
+      }
+    }
+
     const { error: updateError } = await supabase
       .from("customers")
       .update({
         name: nameTrim,
-        cedula: cedula.trim() || null,
+        cedula: cedulaStored,
         email: email.trim() || null,
         phone: phone.trim() || null,
         updated_at: new Date().toISOString(),
@@ -156,7 +188,11 @@ export default function EditCustomerPage() {
       .eq("id", id);
 
     if (updateError) {
-      setError(updateError.message || "No se pudo actualizar el cliente.");
+      if (updateError.code === "23505") {
+        setError("Ya existe otro cliente con esta cédula en esta sucursal.");
+      } else {
+        setError(updateError.message || "No se pudo actualizar el cliente.");
+      }
       setSaving(false);
       return;
     }
@@ -188,8 +224,8 @@ export default function EditCustomerPage() {
       if (prevName !== nameTrim) {
         changes.push({ field: "name", label: "Nombre", from: prevName || "—", to: nameTrim });
       }
-      const prevCedula = (initial.cedula ?? "").trim();
-      const newCedula = cedula.trim();
+      const prevCedula = formatCedulaForStorage(initial.cedula ?? "") ?? "";
+      const newCedula = cedulaStored ?? "";
       if (prevCedula !== newCedula) {
         changes.push({ field: "cedula", label: "Cédula", from: prevCedula || "—", to: newCedula || "—" });
       }
@@ -219,9 +255,6 @@ export default function EditCustomerPage() {
           ? changes[0]!.label.toLowerCase()
           : changes.map((c) => c.label.toLowerCase()).slice(0, -1).join(", ") + " y " + changes[changes.length - 1]!.label.toLowerCase();
 
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    const { data: userRow } = authUser ? await supabase.from("users").select("organization_id").eq("id", authUser.id).single() : { data: null };
-    const { data: ub } = authUser ? await supabase.from("user_branches").select("branch_id").eq("user_id", authUser.id).limit(1).single() : { data: null };
     try {
       if (userRow?.organization_id && authUser) {
         await logActivity(supabase, {

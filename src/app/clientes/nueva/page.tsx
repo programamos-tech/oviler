@@ -6,6 +6,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { formatCedulaForStorage, normalizeCedulaForUniqueness } from "@/lib/customer-cedula";
 
 const LABEL_OPTIONS = [
   { value: "Casa", label: "Casa" },
@@ -91,13 +92,29 @@ export default function NewCustomerPage() {
       return;
     }
 
+    const cedulaStored = formatCedulaForStorage(cedula);
+    const cedulaNorm = normalizeCedulaForUniqueness(cedula);
+    if (cedulaNorm) {
+      const { data: existingCedula } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("branch_id", ub.branch_id)
+        .eq("cedula_norm", cedulaNorm)
+        .maybeSingle();
+      if (existingCedula) {
+        setError("Ya existe un cliente con esta cédula en esta sucursal.");
+        setSaving(false);
+        return;
+      }
+    }
+
     const { data: customer, error: insertError } = await supabase
       .from("customers")
       .insert({
         organization_id: userRow.organization_id,
         branch_id: ub.branch_id,
         name: nameTrim,
-        cedula: cedula.trim() || null,
+        cedula: cedulaStored,
         email: email.trim() || null,
         phone: phone.trim() || null,
       })
@@ -105,7 +122,11 @@ export default function NewCustomerPage() {
       .single();
 
     if (insertError) {
-      setError(insertError.message || "No se pudo crear el cliente.");
+      if (insertError.code === "23505") {
+        setError("Ya existe un cliente con esta cédula en esta sucursal.");
+      } else {
+        setError(insertError.message || "No se pudo crear el cliente.");
+      }
       setSaving(false);
       return;
     }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { licensePeriodEndIso } from "@/lib/internal-billing";
+import { isSuperAdminLicenseExempt } from "@/lib/nou-internal";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,21 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (isSuperAdminLicenseExempt(user.email)) {
+    const admin = createAdminClient();
+    const { data: me } = await admin.from("users").select("organization_id").eq("id", user.id).maybeSingle();
+    const orgId = me?.organization_id as string | undefined;
+    const org = orgId
+      ? (await admin.from("organizations").select("subscription_status, plan_type, trial_ends_at").eq("id", orgId).maybeSingle()).data
+      : null;
+    return NextResponse.json({
+      requires_unlock: false,
+      license_period_end: null,
+      organization: org ?? null,
+      license_exempt: true,
+    });
+  }
 
   const admin = createAdminClient();
   const { data: me, error: meErr } = await admin

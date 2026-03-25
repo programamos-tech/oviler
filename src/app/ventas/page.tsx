@@ -43,12 +43,15 @@ type SaleRow = {
   delivery_paid: boolean;
   delivery_fee: number | null;
   created_at: string;
+  channel?: string | null;
+  payment_proof_url?: string | null;
   customers: { name: string } | null;
   users: { name: string } | null;
 };
 
 type StatusFilter = "all" | "completed" | "cancelled" | "pending" | "preparing" | "on_the_way" | "delivered";
 type PaymentFilter = "all" | "cash" | "transfer" | "mixed";
+type ChannelFilter = "all" | "pos" | "web_catalog";
 
 export default function SalesPage() {
   const [sales, setSales] = useState<SaleRow[]>([]);
@@ -56,6 +59,7 @@ export default function SalesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -87,7 +91,7 @@ export default function SalesPage() {
       let q = supabase
         .from("sales")
         .select(
-          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_paid, delivery_fee, created_at, customers(name), users!user_id(name)",
+          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_paid, delivery_fee, created_at, channel, payment_proof_url, customers(name), users!user_id(name)",
           { count: "exact" }
         )
         .eq("branch_id", ub.branch_id)
@@ -106,6 +110,7 @@ export default function SalesPage() {
         }
       }
       if (paymentFilter !== "all") q = q.eq("payment_method", paymentFilter);
+      if (channelFilter !== "all") q = q.eq("channel", channelFilter);
 
       const { data: salesData, error: queryError, count } = await q;
       if (cancelled) return;
@@ -141,7 +146,7 @@ export default function SalesPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [refreshKey, page, searchQuery, statusFilter, paymentFilter]);
+  }, [refreshKey, page, searchQuery, statusFilter, paymentFilter, channelFilter]);
 
   const filteredSales = sales.filter((s) => {
     const matchSearch =
@@ -247,7 +252,7 @@ export default function SalesPage() {
               className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-[14px] text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
             />
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1">
               <label className="block text-[12px] font-medium text-slate-600 dark:text-slate-400">Estado</label>
               <select
@@ -271,6 +276,18 @@ export default function SalesPage() {
                 <option value="cash">Efectivo</option>
                 <option value="transfer">Transferencia</option>
                 <option value="mixed">Mixto</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[12px] font-medium text-slate-600 dark:text-slate-400">Origen</label>
+              <select
+                value={channelFilter}
+                onChange={(e) => { setChannelFilter(e.target.value as ChannelFilter); setPage(1); }}
+                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <option value="all">Todos</option>
+                <option value="pos">Caja / app</option>
+                <option value="web_catalog">Catálogo web</option>
               </select>
             </div>
           </div>
@@ -377,7 +394,19 @@ export default function SalesPage() {
                       ) : (
                         <MdStorefront className="h-5 w-5 shrink-0 text-ov-pink dark:text-ov-pink-muted" title="En tienda" aria-hidden />
                       )}
-                      <p className="text-[14px] font-bold text-slate-900 dark:text-slate-50 tabular-nums truncate">{displayInvoiceNumber(s.invoice_number)}</p>
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <p className="text-[14px] font-bold text-slate-900 dark:text-slate-50 tabular-nums truncate">{displayInvoiceNumber(s.invoice_number)}</p>
+                        {s.channel === "web_catalog" && (
+                          <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-violet-800 dark:bg-violet-900/50 dark:text-violet-200">
+                            Web
+                          </span>
+                        )}
+                        {s.payment_proof_url && (
+                          <span className="shrink-0 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400" title="Comprobante">
+                            Comprob.
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="min-w-0">
                       <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{formatTime(s.created_at)} · {formatDate(s.created_at)}</p>
@@ -440,6 +469,12 @@ export default function SalesPage() {
                             <MdStorefront className="h-4 w-4 shrink-0 text-ov-pink dark:text-ov-pink-muted" title="En tienda" aria-hidden />
                           )}
                           <span className="truncate font-bold tabular-nums text-slate-900 dark:text-slate-50">{displayInvoiceNumber(s.invoice_number)}</span>
+                          {s.channel === "web_catalog" && (
+                            <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-violet-800 dark:bg-violet-900/50 dark:text-violet-200">Web</span>
+                          )}
+                          {s.payment_proof_url && (
+                            <span className="shrink-0 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Comprob.</span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-2">

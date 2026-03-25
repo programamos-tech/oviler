@@ -106,6 +106,24 @@ body {
   background-color: rgb(26 26 34 / 0.7);
 }
 
+/* Catálogo público: panel del carrito desde la derecha */
+@keyframes catalog-cart-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.catalog-cart-drawer-panel {
+  animation: catalog-cart-drawer-in 0.28s ease-out both;
+}
+
+/* Catálogo /t: quita el outline azul del navegador; el foco visible va con ring coral en componentes */
+[data-nou-catalog-root] :is(button, [role="button"], [role="link"]):focus {
+  outline: none;
+}
+
 /* Google Material Symbols Outlined - NOU Tiendas */
 .material-symbols-outlined {
   font-family: "Material Symbols Outlined", sans-serif;

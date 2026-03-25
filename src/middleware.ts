@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { getNouInternalAllowlistSize, isNouInternalStaff } from '@/lib/nou-internal'
+import { getNouInternalAllowlistSize, isNouInternalStaff, isSuperAdminLicenseExempt } from '@/lib/nou-internal'
 
 type CookieEntry = { name: string; value: string; options?: Record<string, unknown> }
 
@@ -41,7 +41,8 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const path = request.nextUrl.pathname
+  const pathStr = request.nextUrl.pathname
+  const path = pathStr
   const isInternalRoute = path.startsWith('/interno') || path.startsWith('/api/internal')
 
   if (isInternalRoute) {
@@ -92,12 +93,17 @@ export async function middleware(request: NextRequest) {
   }
 
   // Rutas públicas (páginas)
+  const isCatalogPublic =
+    pathStr.startsWith('/t/') || pathStr === '/t'
   const publicPaths = ['/login', '/registro', '/']
-  const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + '/'))
+  const isPublicPath =
+    isCatalogPublic ||
+    publicPaths.some((path) => pathStr === path || pathStr.startsWith(path + '/'))
 
   // APIs que deben funcionar sin sesión (registro de nueva cuenta)
   const publicApiPaths = ['/api/admin/create-user', '/api/auth/create-organization']
-  const isPublicApi = publicApiPaths.some((path) => request.nextUrl.pathname === path)
+  const isPublicApi =
+    publicApiPaths.some((path) => pathStr === path) || pathStr.startsWith('/api/catalog/')
 
   // Usuario con sesión pero licencia bloqueada: puede validar clave sin redirigir al modal de bloqueo
   const licenseUnlockApi = request.nextUrl.pathname === '/api/auth/unlock-license'
@@ -136,7 +142,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Trial vencido o licencia suspendida/cancelada (no aplica a staff NOU ni rutas internas)
+  // Trial vencido o licencia suspendida/cancelada (no aplica a staff NOU ni rutas internas ni catálogo público)
   if (
     user &&
     !isPublicPath &&
@@ -144,7 +150,8 @@ export async function middleware(request: NextRequest) {
     !licenseUnlockApi &&
     path !== '/acceso-bloqueado' &&
     !isInternalRoute &&
-    !isNouInternalStaff(user.email ?? '')
+    !isCatalogPublic &&
+    !isSuperAdminLicenseExempt(user.email ?? '')
   ) {
     const { data: me } = await supabase.from('users').select('organization_id').eq('id', user.id).maybeSingle()
     if (me?.organization_id) {

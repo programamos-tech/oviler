@@ -17,6 +17,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isAuth = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
   const isLanding = pathname === "/";
   const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
+  /** Catálogo público: tienda aparte, sin TopNav/BottomNav del panel */
+  const isCatalogStorefront = pathname === "/t" || pathname.startsWith("/t/");
   const isAccessBlockedPage = pathname === "/acceso-bloqueado";
   const [isAllowed, setIsAllowed] = useState(true);
   const [checkedAccess, setCheckedAccess] = useState(false);
@@ -28,7 +30,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [unlockPeriodEnd, setUnlockPeriodEnd] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isAuth || isLanding || isInterno) {
+    if (isAuth || isLanding || isInterno || isCatalogStorefront) {
       setCheckedAccess(true);
       setIsAllowed(true);
       return;
@@ -56,10 +58,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isAuth, isLanding, isInterno, pathname, router]);
+  }, [isAuth, isLanding, isInterno, isCatalogStorefront, pathname, router]);
 
   useEffect(() => {
-    if (isAuth || isLanding || isInterno || isAccessBlockedPage) {
+    if (isAuth || isLanding || isInterno || isCatalogStorefront || isAccessBlockedPage) {
       setUnlockRequired(false);
       return;
     }
@@ -83,7 +85,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isAuth, isLanding, isInterno, isAccessBlockedPage, pathname]);
+  }, [isAuth, isLanding, isInterno, isCatalogStorefront, isAccessBlockedPage, pathname]);
 
   const submitUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,6 +140,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (isAuth || isLanding) {
+    return <>{children}</>;
+  }
+
+  if (isCatalogStorefront) {
     return <>{children}</>;
   }
 

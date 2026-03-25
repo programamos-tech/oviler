@@ -218,6 +218,9 @@ export default function InventoryPage() {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const showPagination = !loading && totalCount > PAGE_SIZE;
+  /** Sin filas en BD: sin búsqueda ni categoría en servidor (no confundir con “0 coincidencias”). */
+  const isDatabaseEmpty =
+    !loading && totalCount === 0 && !effectiveSearchQuery.trim() && !categoryFilter;
   const pageNumbers = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     const around = 2;
@@ -266,8 +269,8 @@ export default function InventoryPage() {
         </div>
       </header>
 
-      {/* Buscador y filtros: solo cuando terminó de cargar para evitar parpadeos al recargar */}
-      {!loading && totalCount > 0 && (
+      {/* Buscador y filtros: siempre visibles tras la carga (aunque no haya coincidencias o stock filtrado). */}
+      {!loading && (
         <div className="space-y-3">
           <div className="relative min-w-0 w-full xl:max-w-md">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -329,17 +332,23 @@ export default function InventoryPage() {
         ) : filteredProducts.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[15px] font-medium text-slate-700 dark:text-slate-300">
-              {totalCount === 0 ? "Aún no tienes productos" : "Ningún producto coincide con los filtros en esta página"}
+              {isDatabaseEmpty
+                ? "Aún no tienes productos"
+                : "Ningún producto coincide con tu búsqueda o filtros"}
             </p>
             <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-              {totalCount === 0 ? "Crea tu primer producto para verlo aquí." : "Prueba cambiando la búsqueda, el estado o la categoría."}
+              {isDatabaseEmpty
+                ? "Crea tu primer producto para verlo aquí."
+                : "Ajusta el nombre o código, la categoría o el estado de stock (la lista respeta los filtros de esta página)."}
             </p>
-            <Link
-              href="/inventario/nuevo"
-              className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover"
-            >
-              Nuevo producto
-            </Link>
+            {isDatabaseEmpty ? (
+              <Link
+                href="/inventario/nuevo"
+                className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover"
+              >
+                Nuevo producto
+              </Link>
+            ) : null}
           </div>
         ) : (
           <>
