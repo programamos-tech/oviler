@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
+import { PlanLimitHeaderNote, PLAN_LIMIT_DISABLED_BUTTON_CLASS } from "@/app/components/PlanLimitNotice";
 import {
   workspaceFilterLabelClass,
   workspaceFilterSearchPillClass,
@@ -59,6 +61,7 @@ export default function InventoryPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [planSnapshot, setPlanSnapshot] = useState<OrgPlanSnapshot | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const hasFocusedList = useRef(false);
@@ -75,6 +78,24 @@ export default function InventoryPage() {
       setEffectiveSearchQuery(t);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
+      if (!userRow?.organization_id || cancelled) return;
+      const snap = await loadOrgPlanSnapshot(supabase, userRow.organization_id);
+      if (!cancelled) setPlanSnapshot(snap);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -278,7 +299,7 @@ export default function InventoryPage() {
   return (
     <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
       <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
               <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
                 Productos
@@ -287,26 +308,43 @@ export default function InventoryPage() {
                 Lista de tus productos. Busca, filtra y gestiona stock desde aquí.
               </p>
           </div>
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-            <button
-              type="button"
-              onClick={() => setRefreshKey((k) => k + 1)}
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:w-auto sm:px-4 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Actualizar
-            </button>
-            <Link
-              href="/inventario/nuevo"
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-3 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto sm:px-4"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Nuevo producto
-            </Link>
+          <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setRefreshKey((k) => k + 1)}
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:w-auto sm:px-4 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Actualizar
+              </button>
+              {planSnapshot && !planSnapshot.canCreateProduct ? (
+                <span
+                  className={`col-span-2 inline-flex h-9 w-full cursor-not-allowed items-center justify-center gap-2 sm:col-span-1 sm:w-auto ${PLAN_LIMIT_DISABLED_BUTTON_CLASS}`}
+                  title="Límite de referencias alcanzado"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Nuevo producto
+                </span>
+              ) : (
+                <Link
+                  href="/inventario/nuevo"
+                  className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-3 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto sm:px-4"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Nuevo producto
+                </Link>
+              )}
+            </div>
+            {planSnapshot && !planSnapshot.canCreateProduct ? (
+              <PlanLimitHeaderNote kind="products" planId={planSnapshot.planId} className="w-full justify-end" />
+            ) : null}
           </div>
         </div>
       </header>
@@ -380,12 +418,18 @@ export default function InventoryPage() {
                   : "Ajusta el nombre o código, la categoría o el estado de stock (la lista respeta los filtros de esta página)."}
               </p>
               {isDatabaseEmpty ? (
-                <Link
-                  href="/inventario/nuevo"
-                  className="mt-6 inline-flex h-9 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
-                >
-                  Nuevo producto
-                </Link>
+                planSnapshot && !planSnapshot.canCreateProduct ? (
+                  <span className="mt-6 inline-flex h-9 cursor-not-allowed items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white opacity-50">
+                    Nuevo producto
+                  </span>
+                ) : (
+                  <Link
+                    href="/inventario/nuevo"
+                    className="mt-6 inline-flex h-9 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+                  >
+                    Nuevo producto
+                  </Link>
+                )
               ) : null}
             </div>
           </div>

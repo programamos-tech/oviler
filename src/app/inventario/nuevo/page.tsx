@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
+import { BackLink, PlanLimitHeaderNote } from "@/app/components/PlanLimitNotice";
 import LocationPathWithIcons from "@/app/components/LocationPathWithIcons";
 
 type Category = { id: string; name: string };
@@ -50,6 +52,33 @@ export default function NewProductPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [planSnapshot, setPlanSnapshot] = useState<OrgPlanSnapshot | null>(null);
+  const [planLoading, setPlanLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) {
+        setPlanLoading(false);
+        return;
+      }
+      const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
+      if (!userRow?.organization_id || cancelled) {
+        setPlanLoading(false);
+        return;
+      }
+      const snap = await loadOrgPlanSnapshot(supabase, userRow.organization_id);
+      if (!cancelled) {
+        setPlanSnapshot(snap);
+        setPlanLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -220,6 +249,7 @@ export default function NewProductPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (planSnapshot && !planSnapshot.canCreateProduct) return;
     setError(null);
     const name = nombre.trim();
     const sku = referencia.trim();
@@ -348,6 +378,26 @@ export default function NewProductPage() {
   const inputClass =
     "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
   const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
+
+  if (planLoading) {
+    return (
+      <div className="space-y-4">
+        <p className="text-[14px] text-slate-600 dark:text-slate-400">Cargando…</p>
+      </div>
+    );
+  }
+
+  if (planSnapshot && !planSnapshot.canCreateProduct) {
+    return (
+      <div className="mx-auto max-w-lg space-y-4">
+        <p className="text-[14px] text-slate-600 dark:text-slate-400">
+          <BackLink href="/inventario" label="← Volver a inventario" />
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">Nuevo producto</h1>
+        <PlanLimitHeaderNote kind="products" planId={planSnapshot.planId} />
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">

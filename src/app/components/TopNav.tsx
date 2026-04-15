@@ -15,6 +15,7 @@ import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
 import { OvilerWordmark } from "./OvilerWordmark";
 import { programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 
 const TOP_ICON_BTN =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-50";
@@ -338,14 +339,14 @@ export default function TopNav() {
         {trialActive && trialEndsAt ? (
           <div
             className="hidden min-w-0 shrink-0 items-center lg:flex"
-            title={`Prueba gratis · ${trialRemainingLabel(trialEndsAt)} restantes`}
+            title={`${LITE_PLAN_DISPLAY_NAME} · ${trialRemainingLabel(trialEndsAt)} restantes`}
           >
             <span className="inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-lg border border-nou-200 bg-nou-50 px-2.5 py-1.5 text-[11px] font-semibold leading-none text-nou-800 dark:border-nou-400/35 dark:bg-nou-500/15 dark:text-nou-200">
               <span className="shrink-0" aria-hidden>
                 ⏱
               </span>
               <span className="min-w-0 truncate">
-                Prueba · <span className="tabular-nums">{trialRemainingLabel(trialEndsAt)}</span>
+                {LITE_PLAN_DISPLAY_NAME} · <span className="tabular-nums">{trialRemainingLabel(trialEndsAt)}</span>
               </span>
             </span>
           </div>
@@ -364,14 +365,16 @@ export default function TopNav() {
           ) : null}
           {trialActive && trialEndsAt ? (
             <div
-              className="flex min-w-0 lg:hidden"
-              title={`Prueba gratis · ${trialRemainingLabel(trialEndsAt)} restantes`}
+              className="flex min-w-0 items-center lg:hidden"
+              title={`${LITE_PLAN_DISPLAY_NAME} · ${trialRemainingLabel(trialEndsAt)} restantes`}
             >
               <span className="inline-flex max-w-[130px] items-center truncate rounded-lg border border-nou-200 bg-nou-50 px-2 py-1 text-[10px] font-semibold text-nou-800 dark:border-nou-400/35 dark:bg-nou-500/15 dark:text-nou-200">
                 <span className="mr-0.5 shrink-0" aria-hidden>
                   ⏱
                 </span>
-                <span className="min-w-0 truncate tabular-nums">{trialRemainingLabel(trialEndsAt)}</span>
+                <span className="min-w-0 truncate tabular-nums">
+                  {LITE_PLAN_DISPLAY_NAME} · {trialRemainingLabel(trialEndsAt)}
+                </span>
               </span>
             </div>
           ) : null}

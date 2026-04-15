@@ -116,6 +116,9 @@ type WarrantyDetail = {
   reviewed_at: string | null;
   rejection_reason: string | null;
   replacement_product_id: string | null;
+  resolution_notes: string | null;
+  processed_at: string | null;
+  processed_by: string | null;
   created_at: string;
   updated_at: string;
   customers: { name: string } | null;
@@ -137,6 +140,7 @@ type WarrantyDetail = {
   } | null;
   requested_by_user: { name: string } | null;
   reviewed_by_user: { name: string } | null;
+  processed_by_user: { name: string } | null;
   replacement_product: { name: string } | null;
 };
 
@@ -207,8 +211,9 @@ export default function WarrantyDetailPage() {
   const [processing, setProcessing] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
-  /** Devolución con factura: al procesar, de dónde sale el dinero del reembolso */
-  const [showRefundProcessModal, setShowRefundProcessModal] = useState(false);
+  /** Al pasar a procesada: reembolso (si aplica) + texto de resolución obligatorio */
+  const [showProcessModal, setShowProcessModal] = useState(false);
+  const [processResolutionNotes, setProcessResolutionNotes] = useState("");
   const [refundPayoutChoice, setRefundPayoutChoice] = useState<"cash" | "transfer" | "match_invoice">("match_invoice");
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const statusDropdownRef = useRef<HTMLDivElement>(null);
@@ -239,6 +244,7 @@ export default function WarrantyDetailPage() {
           sale_items(unit_price, quantity, discount_percent, discount_amount),
           requested_by_user:users!warranties_requested_by_fkey(name),
           reviewed_by_user:users!warranties_reviewed_by_fkey(name),
+          processed_by_user:users!processed_by(name),
           replacement_product:products!warranties_replacement_product_id_fkey(name)
         `)
         .eq("id", id)
@@ -329,10 +335,18 @@ export default function WarrantyDetailPage() {
     );
   };
 
-  const handleProcess = async (refundPayout?: "cash" | "transfer" | "match_invoice") => {
+  const handleProcess = async (
+    resolutionNotes: string,
+    refundPayout?: "cash" | "transfer" | "match_invoice"
+  ) => {
     if (!id || !warranty) return;
     if (warranty.status === "processed") {
       alert("Esta garantía ya está procesada.");
+      return;
+    }
+    const notes = resolutionNotes.trim();
+    if (notes.length < 5) {
+      alert("Describe la resolución (al menos unas pocas palabras): qué se hizo al producto o equipo y por qué se cierra así.");
       return;
     }
     setProcessing(true);
@@ -471,9 +485,15 @@ export default function WarrantyDetailPage() {
         if (defectiveError) throw defectiveError;
       }
 
+      const processedAt = new Date().toISOString();
       const { error: updateError } = await supabase
         .from("warranties")
-        .update({ status: "processed" })
+        .update({
+          status: "processed",
+          resolution_notes: notes,
+          processed_at: processedAt,
+          processed_by: user.id,
+        })
         .eq("id", id);
       if (updateError) throw updateError;
 
@@ -483,8 +503,21 @@ export default function WarrantyDetailPage() {
         );
       }
 
-      setWarranty((w) => (w ? { ...w, status: "processed" as const } : null));
-      setShowRefundProcessModal(false);
+      const resolverLabel = user.email?.split("@")[0] ?? "Usuario";
+      setWarranty((w) =>
+        w
+          ? {
+              ...w,
+              status: "processed" as const,
+              resolution_notes: notes,
+              processed_at: processedAt,
+              processed_by: user.id,
+              processed_by_user: { name: resolverLabel },
+            }
+          : null
+      );
+      setShowProcessModal(false);
+      setProcessResolutionNotes("");
     } catch (err: unknown) {
       alert("Error al procesar la garantía: " + (err instanceof Error ? err.message : String(err)));
     }
@@ -613,18 +646,15 @@ export default function WarrantyDetailPage() {
                       type="button"
                       onClick={() => {
                         setShowStatusDropdown(false);
-                        if (warranty.warranty_type === "refund" && warranty.sale_id) {
-                          setRefundPayoutChoice("match_invoice");
-                          setShowRefundProcessModal(true);
-                        } else {
-                          void handleProcess();
-                        }
+                        setProcessResolutionNotes("");
+                        setRefundPayoutChoice("match_invoice");
+                        setShowProcessModal(true);
                       }}
                       disabled={processing}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700"
                     >
                       <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
-                      {processing ? "Procesando…" : "Procesada"}
+                      Procesada
                     </button>
                   )}
                 </div>
@@ -812,89 +842,148 @@ export default function WarrantyDetailPage() {
         </div>
       </section>
 
-      {showRefundProcessModal && warranty && warranty.warranty_type === "refund" && warranty.sale_id && (
+      {warranty.status === "processed" && (
+        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+            Resolución al procesar
+          </h2>
+          <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+            Qué se hizo al producto o equipo, cómo se cerró el caso y el criterio aplicado.
+          </p>
+          {warranty.resolution_notes?.trim() ? (
+            <p className="mt-3 text-[14px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+              {warranty.resolution_notes}
+            </p>
+          ) : (
+            <p className="mt-3 text-[14px] text-slate-500 dark:text-slate-400 italic">
+              No hay texto de resolución registrado para esta garantía.
+            </p>
+          )}
+          {(warranty.processed_by_user?.name || warranty.processed_at) && (
+            <p className="mt-4 border-t border-slate-200 pt-3 text-[13px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              {warranty.processed_by_user?.name && (
+                <>
+                  Procesada por <span className="font-medium text-slate-700 dark:text-slate-300">{warranty.processed_by_user.name}</span>
+                </>
+              )}
+              {warranty.processed_at && (
+                <>
+                  {warranty.processed_by_user?.name ? " · " : ""}
+                  {formatDate(warranty.processed_at)} · {formatTime(warranty.processed_at)}
+                </>
+              )}
+            </p>
+          )}
+        </div>
+      )}
+
+      {showProcessModal && warranty && warranty.status === "approved" && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
-          onClick={() => !processing && setShowRefundProcessModal(false)}
+          onClick={() => !processing && setShowProcessModal(false)}
         >
           <div
-            className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
             role="dialog"
             onClick={(e) => e.stopPropagation()}
-            aria-labelledby="refund-process-title"
+            aria-labelledby="process-warranty-title"
             aria-modal="true"
           >
-            <h3 id="refund-process-title" className="text-lg font-bold text-slate-900 dark:text-slate-50">
-              Procesar devolución al cliente
+            <h3 id="process-warranty-title" className="text-lg font-bold text-slate-900 dark:text-slate-50">
+              Procesar garantía
             </h3>
             <p className="mt-2 text-[13px] text-slate-600 dark:text-slate-400">
-              Se registrará un egreso por{" "}
-              <strong className="text-slate-900 dark:text-slate-100">
-                $ {formatMoney(getRefundAmountForWarranty(warranty))}
-              </strong>
-              . Indica de dónde sale el dinero que devuelves:
+              Al confirmar se aplican movimientos de inventario y, si aplica, el reembolso. Debes dejar constancia de la resolución.
             </p>
-            {(() => {
-              const salModal = Array.isArray(warranty.sales) ? warranty.sales[0] : warranty.sales;
-              const pm = String(salModal?.payment_method ?? "cash");
-              const pmHint =
-                pm === "transfer"
-                  ? "La venta original fue solo transferencia."
-                  : pm === "mixed"
-                    ? "La venta original fue mixta (efectivo + transferencia)."
-                    : "La venta original fue en efectivo.";
-              return (
-                <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">{pmHint}</p>
-              );
-            })()}
-            <fieldset className="mt-4 space-y-3">
-              <legend className="sr-only">Origen del reembolso</legend>
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-zinc-600 dark:bg-zinc-950/40">
-                <input
-                  type="radio"
-                  name="refundPayout"
-                  className="mt-1"
-                  checked={refundPayoutChoice === "cash"}
-                  onChange={() => setRefundPayoutChoice("cash")}
-                />
-                <span>
-                  <span className="block text-[13px] font-medium text-slate-800 dark:text-slate-100">Efectivo (caja)</span>
-                  <span className="text-[12px] text-slate-500 dark:text-slate-400">Todo el reembolso descuenta de efectivo del día.</span>
-                </span>
-              </label>
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-zinc-600 dark:bg-zinc-950/40">
-                <input
-                  type="radio"
-                  name="refundPayout"
-                  className="mt-1"
-                  checked={refundPayoutChoice === "transfer"}
-                  onChange={() => setRefundPayoutChoice("transfer")}
-                />
-                <span>
-                  <span className="block text-[13px] font-medium text-slate-800 dark:text-slate-100">Transferencia</span>
-                  <span className="text-[12px] text-slate-500 dark:text-slate-400">Todo el reembolso descuenta de transferencia.</span>
-                </span>
-              </label>
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-zinc-600 dark:bg-zinc-950/40">
-                <input
-                  type="radio"
-                  name="refundPayout"
-                  className="mt-1"
-                  checked={refundPayoutChoice === "match_invoice"}
-                  onChange={() => setRefundPayoutChoice("match_invoice")}
-                />
-                <span>
-                  <span className="block text-[13px] font-medium text-slate-800 dark:text-slate-100">Como la factura</span>
-                  <span className="text-[12px] text-slate-500 dark:text-slate-400">
-                    Reparto automático según cómo pagó el cliente (si era mixto, divide el reembolso en la misma proporción).
-                  </span>
-                </span>
-              </label>
-            </fieldset>
+            {warranty.warranty_type === "refund" && warranty.sale_id && (
+              <>
+                <p className="mt-3 text-[13px] text-slate-600 dark:text-slate-400">
+                  Se registrará un egreso por{" "}
+                  <strong className="text-slate-900 dark:text-slate-100">
+                    $ {formatMoney(getRefundAmountForWarranty(warranty))}
+                  </strong>
+                  . Indica de dónde sale el dinero que devuelves:
+                </p>
+                {(() => {
+                  const salModal = Array.isArray(warranty.sales) ? warranty.sales[0] : warranty.sales;
+                  const pm = String(salModal?.payment_method ?? "cash");
+                  const pmHint =
+                    pm === "transfer"
+                      ? "La venta original fue solo transferencia."
+                      : pm === "mixed"
+                        ? "La venta original fue mixta (efectivo + transferencia)."
+                        : "La venta original fue en efectivo.";
+                  return (
+                    <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">{pmHint}</p>
+                  );
+                })()}
+                <fieldset className="mt-4 space-y-3">
+                  <legend className="sr-only">Origen del reembolso</legend>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-zinc-600 dark:bg-zinc-950/40">
+                    <input
+                      type="radio"
+                      name="refundPayout"
+                      className="mt-1"
+                      checked={refundPayoutChoice === "cash"}
+                      onChange={() => setRefundPayoutChoice("cash")}
+                    />
+                    <span>
+                      <span className="block text-[13px] font-medium text-slate-800 dark:text-slate-100">Efectivo (caja)</span>
+                      <span className="text-[12px] text-slate-500 dark:text-slate-400">Todo el reembolso descuenta de efectivo del día.</span>
+                    </span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-zinc-600 dark:bg-zinc-950/40">
+                    <input
+                      type="radio"
+                      name="refundPayout"
+                      className="mt-1"
+                      checked={refundPayoutChoice === "transfer"}
+                      onChange={() => setRefundPayoutChoice("transfer")}
+                    />
+                    <span>
+                      <span className="block text-[13px] font-medium text-slate-800 dark:text-slate-100">Transferencia</span>
+                      <span className="text-[12px] text-slate-500 dark:text-slate-400">Todo el reembolso descuenta de transferencia.</span>
+                    </span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-zinc-600 dark:bg-zinc-950/40">
+                    <input
+                      type="radio"
+                      name="refundPayout"
+                      className="mt-1"
+                      checked={refundPayoutChoice === "match_invoice"}
+                      onChange={() => setRefundPayoutChoice("match_invoice")}
+                    />
+                    <span>
+                      <span className="block text-[13px] font-medium text-slate-800 dark:text-slate-100">Como la factura</span>
+                      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+                        Reparto automático según cómo pagó el cliente (si era mixto, divide el reembolso en la misma proporción).
+                      </span>
+                    </span>
+                  </label>
+                </fieldset>
+              </>
+            )}
+            <label htmlFor="resolution-notes" className="mt-4 block text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+              Resolución <span className="text-red-600 dark:text-red-400">*</span>
+            </label>
+            <textarea
+              id="resolution-notes"
+              value={processResolutionNotes}
+              onChange={(e) => setProcessResolutionNotes(e.target.value)}
+              rows={5}
+              placeholder="Ej.: Se reparó cierre de cremallera. Se entregó al cliente el mismo día. Se aplica garantía de taller por 30 días."
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-[14px] text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-900/30 focus:ring-2 focus:ring-slate-900/10 dark:border-zinc-600 dark:bg-zinc-950 dark:text-slate-100 dark:placeholder:text-zinc-500"
+            />
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              Obligatorio: describe trabajos realizados, repuestos, cambio de producto, devolución acordada, etc.
+            </p>
             <div className="mt-5 flex gap-2">
               <button
                 type="button"
-                onClick={() => setShowRefundProcessModal(false)}
+                onClick={() => {
+                  setShowProcessModal(false);
+                  setProcessResolutionNotes("");
+                }}
                 disabled={processing}
                 className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-slate-200 dark:hover:bg-zinc-700"
               >
@@ -902,11 +991,16 @@ export default function WarrantyDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={() => void handleProcess(refundPayoutChoice)}
-                disabled={processing}
+                onClick={() =>
+                  void handleProcess(
+                    processResolutionNotes,
+                    warranty.warranty_type === "refund" && warranty.sale_id ? refundPayoutChoice : undefined
+                  )
+                }
+                disabled={processing || processResolutionNotes.trim().length < 5}
                 className="flex-1 rounded-lg bg-[color:var(--shell-sidebar)] px-4 py-2.5 text-[13px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
               >
-                {processing ? "Procesando…" : "Confirmar y registrar egreso"}
+                {processing ? "Procesando…" : "Confirmar y procesar"}
               </button>
             </div>
           </div>

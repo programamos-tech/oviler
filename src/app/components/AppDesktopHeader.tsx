@@ -9,6 +9,7 @@ import { workspaceAvatarSeed } from "./app-nav-data";
 import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { type OrgTrialFields, isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
 import { programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
 import { workspaceFilterSearchPillClass } from "@/lib/workspace-field-classes";
 
@@ -125,11 +126,13 @@ export default function AppDesktopHeader() {
           ) : null}
           {trialActive && trialEndsAt ? (
             <div
-              className="hidden min-w-0 max-w-[200px] items-center xl:flex"
-              title={`Prueba gratis · ${trialRemainingLabel(trialEndsAt)} restantes`}
+              className="hidden max-w-[200px] min-w-0 items-center xl:flex"
+              title={`${LITE_PLAN_DISPLAY_NAME} · ${trialRemainingLabel(trialEndsAt)} restantes`}
             >
               <span className="inline-flex max-w-full items-center gap-1 truncate rounded-lg border border-nou-200 bg-nou-50 px-2.5 py-1.5 text-[11px] font-semibold text-nou-800 dark:border-nou-400/35 dark:bg-nou-500/15 dark:text-nou-200">
-                <span className="shrink-0 tabular-nums">Prueba · {trialRemainingLabel(trialEndsAt)}</span>
+                <span className="shrink-0 tabular-nums">
+                  {LITE_PLAN_DISPLAY_NAME} · {trialRemainingLabel(trialEndsAt)}
+                </span>
               </span>
             </div>
           ) : null}

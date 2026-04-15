@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { workspaceFormInputMdClass } from "@/lib/workspace-field-classes";
+import { logActivity } from "@/lib/activities";
 import { MdBadge, MdBusiness, MdPerson, MdSchedule, MdStorefront } from "react-icons/md";
 import { getPaymentListChipClass, getStatusListChipClass } from "@/app/ventas/sales-mode";
 import {
@@ -352,6 +353,34 @@ function CreditoDetalleInner() {
       setError(insErr.message);
       return;
     }
+    try {
+      const { data: orgRow } = await supabase.from("users").select("organization_id").eq("id", user.id).maybeSingle();
+      const orgId = orgRow?.organization_id;
+      if (orgId) {
+        const cust = credit.customers?.name?.trim();
+        await logActivity(supabase, {
+          organizationId: orgId,
+          branchId: credit.branch_id,
+          userId: user.id,
+          action: "credit_payment",
+          entityType: "credit",
+          entityId: credit.id,
+          summary: `Abono $ ${formatMoney(amount)} · Crédito ${credit.public_ref}${cust ? ` — ${cust}` : ""}`,
+          metadata: {
+            amount,
+            payment_method: abonoMethod,
+            amount_cash,
+            amount_transfer,
+            payment_source: "customer_payment",
+            notes: abonoNotes.trim() || null,
+            credit_public_ref: credit.public_ref,
+            customer_name: cust ?? null,
+          },
+        });
+      }
+    } catch {
+      /* no bloquear flujo */
+    }
     setShowAbono(false);
     setAbonoAmountStr("");
     setCashStr("");
@@ -371,8 +400,37 @@ function CreditoDetalleInner() {
       .update({ cancelled_at: new Date().toISOString() })
       .eq("id", credit.id);
     setCancelling(false);
-    if (uErr) setError(uErr.message);
-    else await load();
+    if (uErr) {
+      setError(uErr.message);
+      return;
+    }
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (uid) {
+        const { data: orgRow } = await supabase.from("users").select("organization_id").eq("id", uid).maybeSingle();
+        const orgId = orgRow?.organization_id;
+        if (orgId) {
+          const cust = credit.customers?.name?.trim();
+          await logActivity(supabase, {
+            organizationId: orgId,
+            branchId: credit.branch_id,
+            userId: uid,
+            action: "credit_cancelled",
+            entityType: "credit",
+            entityId: credit.id,
+            summary: `Crédito anulado ${credit.public_ref}${cust ? ` — ${cust}` : ""}`,
+            metadata: {
+              credit_public_ref: credit.public_ref,
+              customer_name: cust ?? null,
+            },
+          });
+        }
+      }
+    } catch {
+      /* no bloquear */
+    }
+    await load();
   }
 
   if (loading) {

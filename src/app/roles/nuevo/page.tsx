@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
+import { BackLink, PlanLimitHeaderNote } from "@/app/components/PlanLimitNotice";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { PERMISSION_OPTIONS, ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
 
@@ -49,6 +51,35 @@ export default function NewEmployeePage() {
   const [avatarVariant, setAvatarVariant] = useState<"beam" | "marble" | "pixel">("beam");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [planSnapshot, setPlanSnapshot] = useState<OrgPlanSnapshot | null>(null);
+  const [planLoading, setPlanLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      if (!authUser || cancelled) {
+        setPlanLoading(false);
+        return;
+      }
+      const { data: me } = await supabase.from("users").select("organization_id").eq("id", authUser.id).single();
+      if (!me?.organization_id || cancelled) {
+        setPlanLoading(false);
+        return;
+      }
+      const snap = await loadOrgPlanSnapshot(supabase, me.organization_id);
+      if (!cancelled) {
+        setPlanSnapshot(snap);
+        setPlanLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleNombreChange = (fullName: string) => {
     setNombre(fullName);
@@ -56,6 +87,7 @@ export default function NewEmployeePage() {
   };
 
   async function handleCreate() {
+    if (planSnapshot && !planSnapshot.canCreateUser) return;
     const nameTrim = nombre.trim();
     if (!nameTrim) {
       setError("El nombre es obligatorio.");
@@ -141,6 +173,26 @@ export default function NewEmployeePage() {
   const inputClass =
     "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
   const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
+
+  if (planLoading) {
+    return (
+      <div className="space-y-4">
+        <p className="text-[14px] text-slate-600 dark:text-slate-400">Cargando…</p>
+      </div>
+    );
+  }
+
+  if (planSnapshot && !planSnapshot.canCreateUser) {
+    return (
+      <div className="mx-auto max-w-lg space-y-4">
+        <p className="text-[14px] text-slate-600 dark:text-slate-400">
+          <BackLink href="/roles" label="← Volver a usuarios y roles" />
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">Nuevo colaborador</h1>
+        <PlanLimitHeaderNote kind="users" planId={planSnapshot.planId} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
+import { BackLink, PlanLimitHeaderNote } from "@/app/components/PlanLimitNotice";
 
 const inputClass =
   "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
@@ -20,6 +22,8 @@ export default function NuevaSucursalPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [planSnapshot, setPlanSnapshot] = useState<OrgPlanSnapshot | null>(null);
+  const [planLoading, setPlanLoading] = useState(true);
 
   useEffect(() => {
     if (!logoFile) {
@@ -31,9 +35,36 @@ export default function NuevaSucursalPage() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [logoFile]);
 
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) {
+        setPlanLoading(false);
+        return;
+      }
+      const { data: userData } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
+      if (!userData?.organization_id || cancelled) {
+        setPlanLoading(false);
+        return;
+      }
+      const snap = await loadOrgPlanSnapshot(supabase, userData.organization_id);
+      if (!cancelled) {
+        setPlanSnapshot(snap);
+        setPlanLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (saving) return;
+    if (saving || (planSnapshot && !planSnapshot.canCreateBranch)) return;
     setError(null);
     setSuccess(null);
 
@@ -126,6 +157,26 @@ export default function NuevaSucursalPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (planLoading) {
+    return (
+      <div className="space-y-4">
+        <p className="text-[14px] text-slate-600 dark:text-slate-400">Cargando…</p>
+      </div>
+    );
+  }
+
+  if (planSnapshot && !planSnapshot.canCreateBranch) {
+    return (
+      <div className="mx-auto max-w-lg space-y-4">
+        <p className="text-[14px] text-slate-600 dark:text-slate-400">
+          <BackLink href="/sucursales" label="← Volver a sucursales" />
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">Nueva sucursal</h1>
+        <PlanLimitHeaderNote kind="branches" planId={planSnapshot.planId} />
+      </div>
+    );
   }
 
   return (

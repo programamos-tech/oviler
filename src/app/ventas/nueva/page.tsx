@@ -654,6 +654,7 @@ export default function NewSalePage() {
             summary: `Creó la venta ${invoiceNumber}${selectedCustomer?.name ? ` — ${selectedCustomer.name}` : ""}`,
             metadata: {
               invoice_number: invoiceNumber,
+              sale_id: sale.id,
               total: totalClamped,
               customer_name: selectedCustomer?.name ?? null,
               items: cartClamped.map((i) => ({ name: i.name, quantity: i.quantity, reference: i.reference || null })),

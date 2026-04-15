@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
+import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
+import { PlanLimitHeaderNote, PLAN_LIMIT_DISABLED_BUTTON_CLASS } from "@/app/components/PlanLimitNotice";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
 
 interface Role {
@@ -88,6 +90,7 @@ const roles: Role[] = [
 export default function RolesPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [planSnapshot, setPlanSnapshot] = useState<OrgPlanSnapshot | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -103,6 +106,8 @@ export default function RolesPage() {
         setLoading(false);
         return;
       }
+      const snap = await loadOrgPlanSnapshot(supabase, me.organization_id);
+      if (!cancelled) setPlanSnapshot(snap);
       const { data: rows, error } = await supabase
         .from("users")
         .select("id, name, email, role, status, avatar_url, created_at, updated_at")
@@ -141,15 +146,32 @@ export default function RolesPage() {
               Gestiona colaboradores, roles y permisos. Define quién puede hacer qué en NOU Tiendas.
             </p>
           </div>
-          <Link
-            href="/roles/nuevo"
-            className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Nuevo colaborador
-          </Link>
+          <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
+            {planSnapshot && !planSnapshot.canCreateUser ? (
+              <span
+                className={`${PLAN_LIMIT_DISABLED_BUTTON_CLASS} w-full sm:w-auto`}
+                title="Límite de usuarios alcanzado"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Nuevo colaborador
+              </span>
+            ) : (
+              <Link
+                href="/roles/nuevo"
+                className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Nuevo colaborador
+              </Link>
+            )}
+            {planSnapshot && !planSnapshot.canCreateUser ? (
+              <PlanLimitHeaderNote kind="users" planId={planSnapshot.planId} className="sm:justify-end" />
+            ) : null}
+          </div>
         </div>
       </header>
 

@@ -628,7 +628,7 @@ function NuevoCreditoForm() {
           notes: notes.trim() || null,
           created_by: user.id,
         })
-        .select("id")
+        .select("id, public_ref")
         .single();
       if (creditErr) throw creditErr;
       if (!creditRow?.id) throw new Error("No se pudo crear el crédito.");
@@ -644,6 +644,12 @@ function NuevoCreditoForm() {
           summary: `Factura a crédito ${invoiceNumber}${selectedCustomer.name ? ` — ${selectedCustomer.name}` : ""}`,
           metadata: {
             invoice_number: invoiceNumber,
+            sale_id: sale.id,
+            credit_id: creditRow.id,
+            credit_public_ref:
+              creditRow && typeof creditRow === "object" && "public_ref" in creditRow
+                ? String((creditRow as { public_ref: string }).public_ref ?? "")
+                : null,
             total: totalClamped,
             customer_name: selectedCustomer.name ?? null,
             credit: true,

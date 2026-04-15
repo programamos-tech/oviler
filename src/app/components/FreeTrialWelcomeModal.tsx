@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { PROGRAMAMOS_WA_LICENSE } from "@/lib/programamos-contact";
+import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { trialRemainingLabel } from "@/lib/trial-ux";
 
 type Props = {
@@ -57,12 +58,11 @@ export default function FreeTrialWelcomeModal({ open, trialEndsAt, onClose }: Pr
               id="trial-welcome-title"
               className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50"
             >
-              Prueba gratis de Berea Comercios
+              Licencia {LITE_PLAN_DISPLAY_NAME} · Berea Comercios
             </h2>
             <p className="mt-2 text-[14px] leading-relaxed text-slate-600 dark:text-slate-400">
               Te quedan <span className="font-semibold text-slate-900 dark:text-slate-100">{remaining}</span> para usar la
-              plataforma en modo prueba (límites reducidos). Para adquirir o renovar la licencia Basic o Pro, escríbenos
-              por WhatsApp.
+              plataforma en modo prueba (15 días, límites reducidos). Para pasar a Basic o Pro, escríbenos por WhatsApp.
             </p>
             <a
               href={PROGRAMAMOS_WA_LICENSE}

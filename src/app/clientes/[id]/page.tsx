@@ -8,9 +8,23 @@ import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
+import {
+  creditLineDisplayStatus,
+  creditRowPending,
+  creditStatusChip,
+  formatDateShort,
+  formatMoney as formatMoneyCredit,
+  type CreditStatus,
+} from "@/app/creditos/credit-ui";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
+}
+
+function displayInvoiceNumber(invoiceNumber: string) {
+  if (!invoiceNumber) return invoiceNumber;
+  const sin = invoiceNumber.replace(/^FV-?\s*/i, "").trim();
+  return sin || invoiceNumber;
 }
 
 function formatDate(dateStr: string) {
@@ -64,6 +78,19 @@ type WarrantySummary = {
   processedRefunds: number;
 };
 
+type CustomerCreditRow = {
+  id: string;
+  public_ref: string;
+  title: string | null;
+  total_amount: number;
+  amount_paid: number;
+  due_date: string;
+  status: CreditStatus;
+  cancelled_at: string | null;
+  sale_id: string | null;
+  sales: { invoice_number: string } | null;
+};
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -73,6 +100,7 @@ export default function CustomerDetailPage() {
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [warrantySummary, setWarrantySummary] = useState<WarrantySummary>({ total: 0, processedRefunds: 0 });
+  const [credits, setCredits] = useState<CustomerCreditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -114,6 +142,16 @@ export default function CustomerDetailPage() {
 
       if (cancelled) return;
       setSales((salesData ?? []) as SaleRow[]);
+
+      const { data: creditsData } = await supabase
+        .from("customer_credits")
+        .select("id, public_ref, title, total_amount, amount_paid, due_date, status, cancelled_at, sale_id, sales(invoice_number)")
+        .eq("branch_id", ub.branch_id)
+        .eq("customer_id", id)
+        .order("created_at", { ascending: false });
+      if (!cancelled) {
+        setCredits((creditsData ?? []) as unknown as CustomerCreditRow[]);
+      }
 
       const { data: warrantiesData } = await supabase
         .from("warranties")
@@ -219,6 +257,11 @@ export default function CustomerDetailPage() {
     : 0;
   const totalVentas = completedSales.reduce((sum, s) => sum + Number(s.total), 0);
 
+  const totalCreditoPendiente = credits.reduce(
+    (s, c) => s + creditRowPending(Number(c.total_amount), Number(c.amount_paid), Boolean(c.cancelled_at)),
+    0
+  );
+
   return (
     <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
       <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
@@ -294,6 +337,15 @@ export default function CustomerDetailPage() {
                 Devoluciones procesadas
               </p>
             </div>
+            <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Créditos pendientes</p>
+              <p className="mt-1 text-lg font-semibold text-amber-800 dark:text-amber-200 sm:text-xl">
+                {credits.length === 0 ? "—" : `$ ${formatMoney(totalCreditoPendiente)}`}
+              </p>
+              <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                {credits.length > 0 ? `${credits.length} ${credits.length === 1 ? "crédito" : "créditos"} · saldo por cobrar` : "Sin créditos"}
+              </p>
+            </div>
             <div className="min-w-0 flex-1 sm:min-w-[280px] sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Direcciones</p>
               {addresses.length === 0 ? (
@@ -330,8 +382,11 @@ export default function CustomerDetailPage() {
       <section className="grid min-w-0 gap-6 lg:grid-cols-2">
         <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
             <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-              Ventas de este cliente
+              Facturas
             </h2>
+            <p className="mt-1 text-[12px] font-medium text-slate-500 dark:text-slate-400">
+              Ventas con numeración de factura en esta sucursal. Abre el detalle para ver ítems y pagos.
+            </p>
             {sales.length === 0 ? (
               <div className="mt-4 flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/30 py-10 dark:border-slate-700 dark:bg-slate-800/20">
                 <svg className="h-10 w-10 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -343,27 +398,33 @@ export default function CustomerDetailPage() {
                 </p>
               </div>
             ) : (
-              <ul className="mt-4 space-y-2">
-                {sales.map((sale) => (
-                  <li
-                    key={sale.id}
-                    className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/25"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold text-slate-800 dark:text-slate-100 truncate">{sale.invoice_number}</p>
-                      <p className="text-[12px] text-slate-500 dark:text-slate-400">
-                        {formatDate(sale.created_at)} · {formatTime(sale.created_at)}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-[14px] font-bold text-slate-900 dark:text-slate-50">$ {formatMoney(Number(sale.total))}</p>
-                      <p className={`text-[11px] font-medium ${sale.status === "completed" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                        {sale.status === "completed" ? "Completada" : "Anulada"}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-5 border-t border-slate-100 dark:border-slate-800">
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {sales.map((sale) => (
+                    <li key={sale.id}>
+                      <Link
+                        href={`/ventas/${sale.id}`}
+                        className="-mx-1 flex items-center justify-between gap-3 rounded-lg px-1 py-3.5 transition-colors hover:bg-slate-50/90 dark:hover:bg-white/[0.04]"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+                            Factura {displayInvoiceNumber(sale.invoice_number)}
+                          </p>
+                          <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                            {formatDate(sale.created_at)} · {formatTime(sale.created_at)}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[14px] font-semibold tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(Number(sale.total))}</p>
+                          <p className={`mt-0.5 text-[11px] font-medium ${sale.status === "completed" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                            {sale.status === "completed" ? "Completada" : "Anulada"}
+                          </p>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
         </div>
 
@@ -379,26 +440,104 @@ export default function CustomerDetailPage() {
                 </p>
               </div>
             ) : (
-              <ul className="mt-4 space-y-2">
-                {topProducts.map((p, index) => (
-                  <li
-                    key={p.product_id}
-                    className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/25"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-200/90 text-[11px] font-semibold text-[color:var(--shell-sidebar)] dark:bg-slate-200/80 dark:text-zinc-300">
-                        {index + 1}
+              <div className="mt-5 border-t border-slate-100 dark:border-slate-800">
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {topProducts.map((p, index) => (
+                    <li key={p.product_id} className="flex items-center justify-between gap-3 py-3.5">
+                      <div className="flex min-w-0 items-baseline gap-3">
+                        <span className="w-5 shrink-0 text-right text-[12px] font-medium tabular-nums text-slate-400 dark:text-slate-500">
+                          {index + 1}.
+                        </span>
+                        <span className="truncate text-[13px] font-medium text-slate-800 dark:text-slate-100">{p.product_name}</span>
+                      </div>
+                      <span className="shrink-0 text-[13px] font-medium tabular-nums text-slate-600 dark:text-slate-300">
+                        {p.total_quantity} {p.total_quantity === 1 ? "vez" : "veces"}
                       </span>
-                      <span className="truncate text-[13px] font-medium text-slate-800 dark:text-slate-100">{p.product_name}</span>
-                    </div>
-                    <span className="shrink-0 text-[13px] font-semibold text-slate-700 dark:text-slate-200">
-                      {p.total_quantity} {p.total_quantity === 1 ? "vez" : "veces"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
         </div>
+      </section>
+
+      <section className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div>
+            <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+              Créditos
+            </h2>
+            <p className="mt-1 text-[12px] font-medium text-slate-500 dark:text-slate-400">
+              Ventas a crédito y abonos. Solo los de esta sucursal.
+            </p>
+          </div>
+          <Link
+            href={`/creditos/cliente/${customer.id}`}
+            className="inline-flex shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-[color:var(--shell-sidebar)] transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-zinc-300 dark:hover:bg-slate-800"
+          >
+            Ver cartera de créditos
+          </Link>
+        </div>
+        {credits.length === 0 ? (
+          <div className="mt-4 flex min-h-[120px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/30 py-8 dark:border-slate-700 dark:bg-slate-800/20">
+            <p className="text-[14px] font-semibold text-slate-700 dark:text-slate-300">Sin créditos registrados</p>
+            <p className="mt-1 max-w-[320px] text-center text-[12px] font-medium text-slate-500 dark:text-slate-400">
+              Si registras una venta a crédito o un crédito manual, aparecerá aquí.
+            </p>
+            <Link
+              href={`/creditos/nuevo?cliente=${customer.id}`}
+              className="mt-4 inline-flex h-9 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+            >
+              Nuevo crédito
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-5 border-t border-slate-100 dark:border-slate-800">
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {credits.map((c) => {
+                const pend = creditRowPending(Number(c.total_amount), Number(c.amount_paid), Boolean(c.cancelled_at));
+                const disp = creditLineDisplayStatus(c.status, Number(c.total_amount), Number(c.amount_paid), c.cancelled_at);
+                const chip = creditStatusChip(disp);
+                const inv = c.sales?.invoice_number ?? null;
+                return (
+                  <li key={c.id}>
+                    <Link
+                      href={`/creditos/${c.id}`}
+                      className="-mx-1 flex items-center justify-between gap-3 rounded-lg px-1 py-3.5 transition-colors hover:bg-slate-50/90 dark:hover:bg-white/[0.04]"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-mono text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+                          #{c.public_ref}
+                          {c.title ? <span className="ml-1.5 font-sans text-[12px] font-normal text-slate-600 dark:text-slate-400">· {c.title}</span> : null}
+                        </p>
+                        <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                          Vence {formatDateShort(c.due_date)}
+                          {c.sale_id && inv ? (
+                            <>
+                              {" "}
+                              · Factura{" "}
+                              <span className="font-medium text-slate-600 dark:text-slate-300">{displayInvoiceNumber(inv)}</span>
+                            </>
+                          ) : null}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-[14px] font-semibold tabular-nums text-slate-900 dark:text-slate-50">
+                          {pend > 0.005 && !c.cancelled_at ? (
+                            <>$ {formatMoneyCredit(pend)}</>
+                          ) : (
+                            <span className="text-[13px] font-medium text-slate-500">$ {formatMoneyCredit(Number(c.total_amount))}</span>
+                          )}
+                        </p>
+                        <span className={`mt-0.5 inline-flex ${chip.className}`}>{chip.label}</span>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </section>
 
       <ConfirmDeleteModal

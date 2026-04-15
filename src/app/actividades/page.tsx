@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
@@ -138,14 +139,36 @@ function getActivityTypeIcon(activity: { entity_type: string; action: string }):
     return { icon: "inventory_2", label: activity.action === "stock_adjusted" ? "Inventario" : "Producto" };
   }
   if (activity.entity_type === "sale") return { icon: "shopping_cart", label: "Venta" };
+  if (activity.entity_type === "credit") return { icon: "payments", label: "Crédito" };
   return { icon: "info", label: "Actividad" };
 }
 
+const CREDIT_PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: "Efectivo",
+  transfer: "Transferencia",
+  mixed: "Mixto",
+};
+
+/** Etiquetas en español para el chip de acción (evitar "SALE CREATED", etc.). */
+const ACTION_LABELS_ES: Record<string, string> = {
+  sale_created: "Venta creada",
+  sale_status_updated: "Estado de venta actualizado",
+  sale_cancelled: "Venta anulada",
+  customer_created: "Cliente creado",
+  customer_updated: "Cliente actualizado",
+  product_created: "Producto creado",
+  product_updated: "Producto actualizado",
+  category_created: "Categoría creada",
+  stock_adjusted: "Stock ajustado",
+  credit_payment: "Abono a crédito",
+  credit_cancelled: "Crédito anulado",
+};
+
 function getActionLabel(action: string): string {
-  return action
-    .replace(/_/g, " ")
-    .trim()
-    .toUpperCase();
+  if (ACTION_LABELS_ES[action]) return ACTION_LABELS_ES[action];
+  const human = action.replace(/_/g, " ").trim();
+  if (!human) return action;
+  return human.charAt(0).toUpperCase() + human.slice(1);
 }
 
 const SALE_STATUS_LABELS: Record<string, string> = {
@@ -174,6 +197,7 @@ export default function ActivityFeedPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
   const [submittingComment, setSubmittingComment] = useState<string | null>(null);
@@ -304,6 +328,15 @@ export default function ActivityFeedPage() {
     loadFeed();
   }, [loadFeed]);
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadFeed();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadFeed]);
+
   const loadMoreActivities = useCallback(async () => {
     if (loading || loadingMore || !hasMore || !organizationId) return;
     setLoadingMore(true);
@@ -413,17 +446,44 @@ export default function ActivityFeedPage() {
   return (
     <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
       <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-          Actividades
-        </h1>
-        <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-300">
-          Log de registros y eventos recientes de la sucursal.
-        </p>
-        {!currentBranch && !loading && (
-          <p className="mt-1 text-[13px] text-amber-600 dark:text-amber-400">
-            No tienes sucursal asignada. Asigna una en tu perfil para ver actividades.
-          </p>
-        )}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+              Actividades
+            </h1>
+            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-300">
+              Log de registros y eventos recientes de la sucursal.
+            </p>
+            {!currentBranch && !loading && (
+              <p className="mt-1 text-[13px] text-amber-600 dark:text-amber-400">
+                No tienes sucursal asignada. Asigna una en tu perfil para ver actividades.
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-800 sm:mt-0"
+            aria-label="Actualizar actividades"
+          >
+            <svg
+              className={`h-4 w-4 shrink-0 ${refreshing ? "animate-spin" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            {refreshing ? "Actualizando…" : "Actualizar"}
+          </button>
+        </div>
       </header>
 
       <section className="rounded-3xl bg-white px-4 py-4 dark:bg-slate-900 sm:px-6 sm:py-6">
@@ -461,9 +521,6 @@ export default function ActivityFeedPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-50">
                         {actorName(a)}
-                      </span>
-                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
-                        {typeIcon.label}
                       </span>
                       <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
                         {getActionLabel(a.action)}
@@ -558,7 +615,17 @@ export default function ActivityFeedPage() {
                     ) : a.action === "sale_created" && a.metadata && typeof a.metadata.invoice_number === "string" ? (
                       <div className="space-y-1">
                         <p className="text-[14px] text-slate-700 dark:text-slate-300">
-                          Creó la venta <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.invoice_number)}</span>
+                          {a.metadata.credit === true ? "Creó factura a crédito " : "Creó la venta "}
+                          {typeof a.metadata.sale_id === "string" ? (
+                            <Link
+                              href={`/ventas/${String(a.metadata.sale_id)}`}
+                              className="font-bold text-sky-600 underline decoration-sky-500/40 underline-offset-2 transition-colors hover:text-sky-700 hover:decoration-sky-600/60 dark:text-sky-400 dark:hover:text-sky-300"
+                            >
+                              {String(a.metadata.invoice_number)}
+                            </Link>
+                          ) : (
+                            <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.invoice_number)}</span>
+                          )}
                           {a.metadata.customer_name ? (
                             <span className="text-slate-600 dark:text-slate-400"> — {String(a.metadata.customer_name)}</span>
                           ) : null}
@@ -566,6 +633,20 @@ export default function ActivityFeedPage() {
                             <span className="text-[12px] text-slate-500 dark:text-slate-400"> · ${Number(a.metadata.total).toLocaleString("es-CO")}</span>
                           ) : null}
                         </p>
+                        {a.metadata.credit === true && typeof a.metadata.credit_id === "string" ? (
+                          <p className="text-[12px] text-slate-500 dark:text-slate-400">
+                            <span className="font-medium text-slate-600 dark:text-slate-300">Crédito:</span>{" "}
+                            <Link
+                              href={`/creditos/${String(a.metadata.credit_id)}`}
+                              className="font-semibold text-sky-600 underline decoration-sky-500/40 underline-offset-2 transition-colors hover:text-sky-700 hover:decoration-sky-600/60 dark:text-sky-400 dark:hover:text-sky-300"
+                            >
+                              #
+                              {typeof a.metadata.credit_public_ref === "string" && a.metadata.credit_public_ref
+                                ? String(a.metadata.credit_public_ref)
+                                : String(a.metadata.credit_id).slice(0, 8)}
+                            </Link>
+                          </p>
+                        ) : null}
                         {Array.isArray(a.metadata.items) && (a.metadata.items as { name?: string; quantity?: number; reference?: string | null }[]).length > 0 ? (
                           <ul className="space-y-0.5 text-[12px] text-slate-500 dark:text-slate-400">
                             {(a.metadata.items as { name?: string; quantity?: number; reference?: string | null }[]).map((it, idx) => (
@@ -597,6 +678,41 @@ export default function ActivityFeedPage() {
                         <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.invoice_number)}</span>
                         {a.metadata.reason ? (
                           <span className="text-[12px] text-slate-500 dark:text-slate-400"> — {String(a.metadata.reason)}</span>
+                        ) : null}
+                      </p>
+                    ) : a.action === "credit_payment" && a.metadata && typeof a.metadata.amount === "number" ? (
+                      <div className="space-y-1">
+                        <p className="text-[14px] text-slate-700 dark:text-slate-300">
+                          Abono al crédito{" "}
+                          <span className="font-bold text-slate-900 dark:text-slate-100">
+                            {typeof a.metadata.credit_public_ref === "string" ? a.metadata.credit_public_ref : "—"}
+                          </span>
+                          {a.metadata.customer_name ? (
+                            <span className="text-slate-600 dark:text-slate-400"> — {String(a.metadata.customer_name)}</span>
+                          ) : null}
+                          {" · "}
+                          <span className="font-bold text-slate-900 dark:text-slate-100">
+                            ${Number(a.metadata.amount).toLocaleString("es-CO")}
+                          </span>
+                          {typeof a.metadata.payment_method === "string" ? (
+                            <span className="text-[12px] text-slate-500 dark:text-slate-400">
+                              {" "}
+                              · {CREDIT_PAYMENT_METHOD_LABELS[a.metadata.payment_method] ?? a.metadata.payment_method}
+                            </span>
+                          ) : null}
+                        </p>
+                        {a.metadata.notes ? (
+                          <p className="text-[12px] text-slate-500 dark:text-slate-400">Notas: {String(a.metadata.notes)}</p>
+                        ) : null}
+                      </div>
+                    ) : a.action === "credit_cancelled" ? (
+                      <p className="text-[14px] text-slate-700 dark:text-slate-300">
+                        {a.summary}
+                        {a.metadata && typeof a.metadata.credit_public_ref === "string" ? (
+                          <span className="text-[12px] text-slate-500 dark:text-slate-400">
+                            {" "}
+                            (ref. {String(a.metadata.credit_public_ref)})
+                          </span>
                         ) : null}
                       </p>
                     ) : (

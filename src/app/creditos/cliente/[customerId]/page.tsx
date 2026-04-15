@@ -109,8 +109,12 @@ export default function CreditosClientePage() {
         <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
             {customer && (
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
+              <Link
+                href={`/clientes/${customer.id}`}
+                className="group flex min-w-0 items-center gap-3 rounded-xl outline-none ring-offset-2 transition-colors hover:bg-slate-50/80 focus-visible:ring-2 focus-visible:ring-[color:var(--shell-sidebar)] dark:hover:bg-white/[0.04] dark:focus-visible:ring-zinc-500"
+                title="Ver ficha del cliente"
+              >
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/80 transition-[box-shadow] group-hover:ring-[color:var(--shell-sidebar)]/25 dark:bg-zinc-800 dark:ring-white/10">
                   <WorkspaceCharacterAvatar
                     seed={`${customer.id}-${getAvatarVariant(null)}`}
                     size={96}
@@ -118,10 +122,12 @@ export default function CreditosClientePage() {
                   />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">{customer.name}</h1>
+                  <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl group-hover:text-[color:var(--shell-sidebar)] dark:group-hover:text-zinc-200">
+                    {customer.name}
+                  </h1>
                   <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">Créditos de este cliente en la sucursal</p>
                 </div>
-              </div>
+              </Link>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
