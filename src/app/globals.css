@@ -1,35 +1,58 @@
 @import "tailwindcss";
 
 :root {
-  /* Paleta más sobria y “de batalla” */
-  --background: 255 255 255; /* blanco limpio */
-  --foreground: 15 23 42; /* slate muy oscuro para texto principal */
+  /* Modo claro tipo referencia landing: lienzo off-white, tarjetas blancas, mucho aire */
+  --background: 248 250 252; /* slate-50 */
+  --foreground: 15 23 42; /* slate-900 */
 
-  --ov-surface-soft: 236 239 244;
+  --ov-surface-soft: 255 255 255;
   --ov-surface-strong: 255 255 255;
 
-  --ov-primary: 30 58 138; /* azul oscuro para botones principales */
-  --ov-accent: 255 127 80; /* #ff7f50 coral */
-  --ov-accent-light: 255 160 122; /* coral más claro */
-  --ov-muted: 100 116 139; /* slate medio */
-  --ov-pink: #ff7f50;
-  --ov-pink-hover: #e86f40;
-  --ov-pink-muted: #ffa07a; /* para fondos suaves / dark */
+  /* Acento UI: grises (CTA / enlaces; antes verde marca) */
+  --ov-primary: 23 23 23;
+  --ov-accent: 38 38 38;
+  --ov-accent-light: 82 82 91;
+  --ov-muted: 100 116 139;
+  /* Nombre histórico ov-pink: ahora gris oscuro (botones primarios) */
+  --ov-pink: #171717;
+  --ov-pink-hover: #262626;
+  --ov-pink-muted: #64748b;
+
+  /* Shell: botones y acentos = gris oscuro; “sidebar” ya no es verde en claro */
+  --shell-sidebar: #171717;
+  --shell-sidebar-accent: #d4d4d8;
+  --shell-sidebar-cta-hover: #262626;
+  --shell-canvas: #3f3f46;
+  /* Lienzo principal ERP (columna contenido): mismo tono que --background */
+  --shell-workspace: #f9fafb;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Dark mode matte / suave, un poco más oscuro */
-    --background: 22 22 28;
-    --foreground: 226 232 240;
+    /* Lienzo app: mismo negro neutro que login/onboarding (zinc-950 ≈ #09090b) */
+    --background: 9 9 11;
+    --foreground: 232 234 240;
 
-    --ov-surface-soft: 22 22 28;
-    --ov-surface-strong: 32 32 38;
+    --ov-surface-soft: 24 27 34;
+    --ov-surface-strong: 30 33 41;
 
-    --ov-primary: 59 130 246;
-    --ov-accent: 255 127 80; /* #ff7f50 coral */
-    --ov-accent-light: 255 180 150;
+    --ov-primary: 63 63 70;
+    --ov-accent: 82 82 91;
+    --ov-accent-light: 161 161 170;
     --ov-muted: 148 163 184;
+    --ov-pink: #27272a;
+    --ov-pink-hover: #3f3f46;
+    --ov-pink-muted: #a1a1aa;
+
+    --shell-sidebar: #27272a;
+    --shell-sidebar-accent: #a1a1aa;
+    --shell-sidebar-cta-hover: #3f3f46;
+
+    /* Columna contenido (workspace): igual que auth — negro neutro, sin tinte azul */
+    --shell-workspace-dark: #09090b;
+    /* Sidebar: se mantiene un pelín más profundo para separar del lienzo */
+    --shell-sidebar-dark: #080910;
+    --dark-border-hairline: 51 55 65;
   }
 }
 
@@ -39,9 +62,25 @@
   --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
   --font-logo: var(--font-young-serif);
+  --color-shell-sidebar: var(--shell-sidebar);
+  --color-shell-sidebar-accent: var(--shell-sidebar-accent);
+  --color-shell-sidebar-cta-hover: var(--shell-sidebar-cta-hover);
   --color-ov-pink: var(--ov-pink);
   --color-ov-pink-hover: var(--ov-pink-hover);
   --color-ov-pink-muted: var(--ov-pink-muted);
+
+  /* Escala neutra (badges / chips; antes verdes “nou”) */
+  --color-nou-50: #f8fafc;
+  --color-nou-100: #f1f5f9;
+  --color-nou-200: #e2e8f0;
+  --color-nou-300: #cbd5e1;
+  --color-nou-400: #94a3b8;
+  --color-nou-500: #64748b;
+  --color-nou-600: #475569;
+  --color-nou-700: #334155;
+  --color-nou-800: #1e293b;
+  --color-nou-900: #0f172a;
+  --color-nou-950: #020617;
 }
 
 /* Asegurar que los botones y acentos coral usen la variable (Tailwind puede no generar ov-pink con guión) */
@@ -69,41 +108,80 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* Dark mode: tonos matte, un poco más oscuros */
+/* Dark mode: capas frías (azul / pizarra), alineado a UI tipo Bernabé */
 @media (prefers-color-scheme: dark) {
-  .dark\:bg-slate-900 { --tw-bg-opacity: 1; background-color: rgb(26 26 34 / var(--tw-bg-opacity)) !important; }
-  .dark\:bg-slate-900\/95 { background-color: rgb(26 26 34 / 0.95) !important; }
-  .dark\:bg-slate-900\/90 { background-color: rgb(26 26 34 / 0.9) !important; }
-  .dark\:bg-slate-800 { --tw-bg-opacity: 1; background-color: rgb(36 36 44 / var(--tw-bg-opacity)) !important; }
-  .dark\:bg-slate-700 { --tw-bg-opacity: 1; background-color: rgb(46 46 54 / var(--tw-bg-opacity)) !important; }
-  .dark\:bg-slate-950 { --tw-bg-opacity: 1; background-color: rgb(18 18 24 / var(--tw-bg-opacity)) !important; }
-  .dark\:bg-slate-800\/30 { background-color: rgb(36 36 44 / 0.3) !important; }
-  .dark\:bg-slate-900\/20 { background-color: rgb(26 26 34 / 0.2) !important; }
-  .dark\:bg-slate-800\/50 { background-color: rgb(36 36 44 / 0.5) !important; }
-  .dark\:bg-slate-950\/60 { background-color: rgb(18 18 24 / 0.6) !important; }
-  .dark\:ring-slate-800 { --tw-ring-color: rgb(44 44 52) !important; }
-  .dark\:ring-slate-700 { --tw-ring-color: rgb(52 52 60) !important; }
-  .dark\:border-slate-800 { border-color: rgb(44 44 52) !important; }
-  .dark\:border-slate-700 { border-color: rgb(52 52 60) !important; }
-  .dark\:border-t-slate-800 { border-top-color: rgb(44 44 52) !important; }
-  .dark\:border-t-slate-700 { border-top-color: rgb(52 52 60) !important; }
+  .dark\:bg-slate-900 { --tw-bg-opacity: 1; background-color: rgb(22 24 31 / var(--tw-bg-opacity)) !important; }
+  .dark\:bg-slate-900\/95 { background-color: rgb(22 24 31 / 0.95) !important; }
+  .dark\:bg-slate-900\/90 { background-color: rgb(22 24 31 / 0.9) !important; }
+  .dark\:bg-slate-800 { --tw-bg-opacity: 1; background-color: rgb(30 33 42 / var(--tw-bg-opacity)) !important; }
+  .dark\:bg-slate-700 { --tw-bg-opacity: 1; background-color: rgb(40 43 52 / var(--tw-bg-opacity)) !important; }
+  .dark\:bg-slate-950 { --tw-bg-opacity: 1; background-color: rgb(12 14 19 / var(--tw-bg-opacity)) !important; }
+  .dark\:bg-slate-800\/30 { background-color: rgb(30 33 42 / 0.3) !important; }
+  .dark\:bg-slate-900\/20 { background-color: rgb(22 24 31 / 0.2) !important; }
+  .dark\:bg-slate-800\/50 { background-color: rgb(30 33 42 / 0.5) !important; }
+  .dark\:bg-slate-950\/60 { background-color: rgb(12 14 19 / 0.6) !important; }
+  .dark\:ring-slate-800 { --tw-ring-color: rgb(48 52 62) !important; }
+  .dark\:ring-slate-700 { --tw-ring-color: rgb(55 60 72) !important; }
+  .dark\:border-slate-800 { border-color: rgb(48 52 62) !important; }
+  .dark\:border-slate-700 { border-color: rgb(55 60 72) !important; }
+  .dark\:border-t-slate-800 { border-top-color: rgb(48 52 62) !important; }
+  .dark\:border-t-slate-700 { border-top-color: rgb(55 60 72) !important; }
   /* Mejor legibilidad: texto e iconos más visibles en dark (sin tocar slate-300/200) */
   .dark\:text-slate-500 { color: rgb(148 163 184) !important; }
   .dark\:text-slate-400 { color: rgb(203 213 225) !important; }
 }
 
-/* Mismo fondo oscuro de la plataforma/dashboard (gris neutro, no azul) para landing */
+/* Lienzo workspace: sin degradados fríos (antes añadían aspecto “azulado”; login/onboarding usan negro plano) */
+.dark-app-canvas-glow {
+  background-image: none;
+}
+
+/* Mismo fondo oscuro de la plataforma/dashboard para landing */
+/* Sidebar: barra fina (claro: neutro; oscuro: blanco suave) */
+.sidebar-nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+@media (prefers-color-scheme: dark) {
+  .sidebar-nav-scroll {
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+}
+.sidebar-nav-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.sidebar-nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-nav-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+@media (prefers-color-scheme: dark) {
+  .sidebar-nav-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .sidebar-nav-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.28);
+  }
+}
+@media (prefers-color-scheme: light) {
+  .sidebar-nav-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.55);
+  }
+}
+
 .bg-platform-dark {
-  background-color: rgb(26 26 34);
+  background-color: rgb(22 24 31);
 }
 .bg-platform-dark\/85 {
-  background-color: rgb(26 26 34 / 0.85);
+  background-color: rgb(22 24 31 / 0.85);
 }
 .bg-platform-dark\/75 {
-  background-color: rgb(26 26 34 / 0.75);
+  background-color: rgb(22 24 31 / 0.75);
 }
 .bg-platform-dark\/70 {
-  background-color: rgb(26 26 34 / 0.7);
+  background-color: rgb(22 24 31 / 0.7);
 }
 
 /* Catálogo público: panel del carrito desde la derecha */

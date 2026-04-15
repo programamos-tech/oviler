@@ -80,7 +80,7 @@ function formatTime(dateStr: string) {
 }
 
 const PLAN_CLASS: Record<string, string> = {
-  free: "font-semibold text-sky-600 dark:text-sky-400",
+  free: "font-semibold text-nou-600 dark:text-nou-400",
   basic: "font-semibold text-slate-800 dark:text-slate-100",
   pro: "font-semibold text-violet-600 dark:text-violet-400",
 };
@@ -459,7 +459,7 @@ export default function InternoClienteDetailPage() {
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                   Prueba hasta
                 </p>
-                <p className="mt-0.5 text-[13px] font-semibold text-sky-700 dark:text-sky-300">
+                <p className="mt-0.5 text-[13px] font-semibold text-nou-700 dark:text-nou-300">
                   {new Date(organization.trial_ends_at).toLocaleString("es-CO", {
                     day: "2-digit",
                     month: "short",
@@ -474,7 +474,7 @@ export default function InternoClienteDetailPage() {
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                 En línea (~{Math.round(ONLINE_WINDOW_MS / 60000)} min)
               </p>
-              <p className="mt-0.5 text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400 sm:text-xl">
+              <p className="mt-0.5 text-lg font-bold tabular-nums text-nou-600 dark:text-nou-400 sm:text-xl">
                 {onlineUserCount}
                 <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                   {" "}
@@ -582,19 +582,19 @@ export default function InternoClienteDetailPage() {
                   <MdWorkspacePremium className="h-4 w-4 shrink-0 text-ov-pink dark:text-ov-pink-muted" aria-hidden />
                   Membresía y límites
                 </h2>
-                <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-nou-600 dark:text-nou-400">
                   Plan guardado en la organización
                 </p>
                 <p className={`mt-1 text-[18px] font-bold tracking-tight ${planClass}`}>{savedCfg.label}</p>
                 <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">{planPriceLabel(normalizedPlan)}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[11px] font-medium text-sky-900 dark:text-sky-100">
+                  <span className="rounded-lg border border-nou-500/30 bg-nou-500/10 px-2.5 py-1 text-[11px] font-medium text-nou-900 dark:text-nou-100">
                     {savedCfg.maxProducts >= 999999 ? "Referencias: ∞" : `${savedCfg.maxProducts} ref.`}
                   </span>
-                  <span className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[11px] font-medium text-sky-900 dark:text-sky-100">
+                  <span className="rounded-lg border border-nou-500/30 bg-nou-500/10 px-2.5 py-1 text-[11px] font-medium text-nou-900 dark:text-nou-100">
                     {savedCfg.maxUsers >= 999999 ? "Usuarios: ∞" : `${savedCfg.maxUsers} usuarios`}
                   </span>
-                  <span className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[11px] font-medium text-sky-900 dark:text-sky-100">
+                  <span className="rounded-lg border border-nou-500/30 bg-nou-500/10 px-2.5 py-1 text-[11px] font-medium text-nou-900 dark:text-nou-100">
                     {savedCfg.maxBranches >= 999999 ? "Sucursales: ∞" : `${savedCfg.maxBranches} suc.`}
                   </span>
                 </div>
@@ -768,7 +768,7 @@ export default function InternoClienteDetailPage() {
                   <MdPayments className="h-4 w-4 shrink-0 text-ov-pink dark:text-ov-pink-muted" aria-hidden />
                   Cobro y período de licencia
                 </h2>
-                <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-nou-600 dark:text-nou-400">
                   Datos guardados (seguimiento interno)
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">

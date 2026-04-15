@@ -4,6 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import TopNav from "./TopNav";
 import BottomNav from "./BottomNav";
+import AppSidebar from "./AppSidebar";
+import AppDesktopHeader from "./AppDesktopHeader";
 import PresenceHeartbeat from "./PresenceHeartbeat";
 import { createClient } from "@/lib/supabase/client";
 import { canAccessPath, type AppRole } from "@/lib/permissions";
@@ -156,18 +158,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <PresenceHeartbeat />
-      <TopNav />
-      {unlockSuccess ? (
-        <div className="pointer-events-none fixed left-1/2 top-16 z-[9999] w-[min(92vw,560px)] -translate-x-1/2">
-          <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/[0.12] px-4 py-2.5 text-[13px] text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-950/35 dark:text-emerald-50">
-            {unlockSuccess}
+      <AppSidebar />
+      <div className="relative flex min-h-screen flex-1 flex-col bg-[var(--shell-workspace)] dark:bg-[var(--shell-workspace-dark)] lg:pl-[260px]">
+        <div
+          className="pointer-events-none absolute inset-0 z-0 dark-app-canvas-glow opacity-0 dark:opacity-100"
+          aria-hidden
+        />
+        <AppDesktopHeader />
+        <TopNav />
+        {unlockSuccess ? (
+          <div className="pointer-events-none fixed left-1/2 top-16 z-[9999] w-[min(92vw,560px)] -translate-x-1/2 lg:left-[calc(50%+130px)]">
+            <div className="rounded-xl border border-nou-300/50 bg-white px-4 py-2.5 text-[13px] text-nou-900 shadow-lg">
+              {unlockSuccess}
+            </div>
           </div>
-        </div>
-      ) : null}
-      <main className="relative flex-1 py-4 pb-20 md:pb-6 sm:py-6 lg:py-6">
-        <div className="mx-auto min-w-0 max-w-[1600px] px-4 sm:px-6 lg:px-8">{children}</div>
-      </main>
-      <BottomNav />
+        ) : null}
+        <main className="relative z-[1] flex-1 py-4 pb-20 font-sans sm:py-6 md:pb-6 lg:py-6">
+          <div className="mx-auto min-w-0 max-w-[1600px] px-4 sm:px-6 lg:px-8">{children}</div>
+        </main>
+        <BottomNav />
+      </div>
       {unlockRequired ? (
         <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/55 p-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-600 dark:bg-slate-900">

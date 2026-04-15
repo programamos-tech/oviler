@@ -79,6 +79,27 @@ function saleLineTotal(
   );
 }
 
+function saleLineQuantitySold(si: { quantity: number } | null | undefined): number {
+  return Math.max(1, Number(si?.quantity) || 1);
+}
+
+/**
+ * Unidades cubiertas por esta garantía. Con línea de venta: usa `warranties.quantity`
+ * acotada a la cantidad vendida; si la fila no trae cantidad válida, se asume toda la línea (datos antiguos).
+ */
+function warrantyUnitsCovered(w: WarrantyDetail): number {
+  const siRow = Array.isArray(w.sale_items) ? w.sale_items[0] : w.sale_items;
+  const lineQty = siRow ? saleLineQuantitySold(siRow) : Math.max(1, Number(w.quantity) || 1);
+  const wq = Number(w.quantity);
+  if (!siRow) {
+    return Number.isFinite(wq) && wq >= 1 ? Math.floor(wq) : 1;
+  }
+  if (!Number.isFinite(wq) || wq < 1) {
+    return lineQty;
+  }
+  return Math.min(Math.floor(wq), lineQty);
+}
+
 type WarrantyDetail = {
   id: string;
   sale_id: string | null;
@@ -119,6 +140,42 @@ type WarrantyDetail = {
   replacement_product: { name: string } | null;
 };
 
+/** Monto a reembolsar (misma lógica que al procesar). */
+function getRefundAmountForWarranty(w: WarrantyDetail): number {
+  const siRow = Array.isArray(w.sale_items) ? w.sale_items[0] : w.sale_items;
+  if (!siRow) return 0;
+  const lineQtySi = saleLineQuantitySold(siRow);
+  const returnQty = warrantyUnitsCovered(w);
+  const unitPrice = Number(siRow.unit_price ?? 0);
+  const dPct = Number(siRow.discount_percent ?? 0);
+  const dAmt = Number(siRow.discount_amount ?? 0);
+  const lineTotalAll = saleLineTotal(unitPrice, lineQtySi, dPct, dAmt);
+  return lineQtySi > 0 ? Math.round(lineTotalAll * (returnQty / lineQtySi)) : 0;
+}
+
+/** Reparto efectivo/transferencia del reembolso (misma lógica que egresos y abono al crédito). */
+function computeRefundCashTransferSplit(
+  refundAmount: number,
+  payout: "cash" | "transfer" | "match_invoice" | undefined,
+  salRow: { payment_method?: string | null; amount_cash?: number | null; amount_transfer?: number | null }
+): { cash: number; transfer: number } {
+  const pm = String(salRow.payment_method ?? "cash");
+  const p = payout ?? "match_invoice";
+  if (p === "cash") return { cash: refundAmount, transfer: 0 };
+  if (p === "transfer") return { cash: 0, transfer: refundAmount };
+  if (pm === "transfer") return { cash: 0, transfer: refundAmount };
+  if (pm === "mixed" && salRow.amount_cash != null && salRow.amount_transfer != null) {
+    const ac = Number(salRow.amount_cash);
+    const at = Number(salRow.amount_transfer);
+    const sumMixed = ac + at;
+    if (sumMixed > 0) {
+      const cashPart = Math.round((ac / sumMixed) * refundAmount);
+      return { cash: cashPart, transfer: refundAmount - cashPart };
+    }
+  }
+  return { cash: refundAmount, transfer: 0 };
+}
+
 const WARRANTY_TYPE_LABELS: Record<string, string> = {
   exchange: "Cambio",
   refund: "Devolución",
@@ -150,6 +207,9 @@ export default function WarrantyDetailPage() {
   const [processing, setProcessing] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  /** Devolución con factura: al procesar, de dónde sale el dinero del reembolso */
+  const [showRefundProcessModal, setShowRefundProcessModal] = useState(false);
+  const [refundPayoutChoice, setRefundPayoutChoice] = useState<"cash" | "transfer" | "match_invoice">("match_invoice");
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const statusDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -269,7 +329,7 @@ export default function WarrantyDetailPage() {
     );
   };
 
-  const handleProcess = async () => {
+  const handleProcess = async (refundPayout?: "cash" | "transfer" | "match_invoice") => {
     if (!id || !warranty) return;
     if (warranty.status === "processed") {
       alert("Esta garantía ya está procesada.");
@@ -300,8 +360,8 @@ export default function WarrantyDetailPage() {
         if (!branchId) {
           throw new Error("No se pudo determinar la sucursal para devolver el stock.");
         }
-        const lineQtySi = siRow?.quantity ?? warranty.quantity ?? 1;
-        const returnQty = Math.min(Math.max(1, warranty.quantity || lineQtySi), Math.max(1, lineQtySi));
+        const lineQtySi = siRow ? saleLineQuantitySold(siRow) : Math.max(1, Number(warranty.quantity) || 1);
+        const returnQty = siRow ? warrantyUnitsCovered(warranty) : Math.max(1, Number(warranty.quantity) || 1);
         const unitPrice = Number(siRow?.unit_price ?? 0);
         const dPct = Number(siRow?.discount_percent ?? 0);
         const dAmt = Number(siRow?.discount_amount ?? 0);
@@ -315,7 +375,6 @@ export default function WarrantyDetailPage() {
           const invoice = salRow.invoice_number ?? "—";
           const prodName = warranty.products?.name ?? "Producto";
           const concept = `Devolución garantía ${id.slice(0, 8).toUpperCase()} · ${prodName} · Fact. ${invoice}`;
-          const pm = String(salRow.payment_method ?? "cash");
 
           const insertExpense = async (amount: number, method: "cash" | "transfer") => {
             if (amount <= 0) return;
@@ -330,28 +389,59 @@ export default function WarrantyDetailPage() {
             if (error) throw error;
           };
 
-          if (pm === "transfer") {
-            await insertExpense(refundAmount, "transfer");
-          } else if (pm === "mixed" && salRow.amount_cash != null && salRow.amount_transfer != null) {
-            const ac = Number(salRow.amount_cash);
-            const at = Number(salRow.amount_transfer);
-            const sumMixed = ac + at;
-            if (sumMixed > 0) {
-              const cashRefund = Math.round((ac / sumMixed) * refundAmount);
-              const transferRefund = refundAmount - cashRefund;
-              await insertExpense(cashRefund, "cash");
-              await insertExpense(transferRefund, "transfer");
-            } else {
-              await insertExpense(refundAmount, "cash");
+          const payout = refundPayout ?? "match_invoice";
+          const { cash: expenseCash, transfer: expenseTransfer } = computeRefundCashTransferSplit(
+            refundAmount,
+            payout,
+            salRow
+          );
+          await insertExpense(expenseCash, "cash");
+          await insertExpense(expenseTransfer, "transfer");
+
+          const { data: creditRow } = await supabase
+            .from("customer_credits")
+            .select("id")
+            .eq("sale_id", warranty.sale_id)
+            .is("cancelled_at", null)
+            .maybeSingle();
+
+          if (creditRow?.id) {
+            const shortW = id.slice(0, 8).toUpperCase();
+            const abonoNotes = `Reembolso garantía · Garantía #${shortW}`;
+            const { data: existingAbono } = await supabase
+              .from("credit_payments")
+              .select("id")
+              .eq("credit_id", creditRow.id)
+              .eq("payment_source", "warranty_refund")
+              .ilike("notes", `%Garantía #${shortW}%`)
+              .maybeSingle();
+
+            if (!existingAbono) {
+              const baseRow: Record<string, unknown> = {
+                credit_id: creditRow.id,
+                amount: refundAmount,
+                notes: abonoNotes,
+                created_by: user.id,
+                payment_source: "warranty_refund",
+              };
+              if (expenseCash > 0 && expenseTransfer > 0) {
+                baseRow.payment_method = "mixed";
+                baseRow.amount_cash = expenseCash;
+                baseRow.amount_transfer = expenseTransfer;
+              } else if (expenseCash > 0) {
+                baseRow.payment_method = "cash";
+              } else {
+                baseRow.payment_method = "transfer";
+              }
+              const { error: abonoErr } = await supabase.from("credit_payments").insert(baseRow);
+              if (abonoErr) throw abonoErr;
             }
-          } else {
-            await insertExpense(refundAmount, "cash");
           }
         } else if (!warranty.sale_id && refundAmount === 0) {
           /* garantía sin factura: solo stock; el dinero debe registrarse a mano si aplica */
         }
       } else if (warranty.warranty_type === "exchange" && warranty.replacement_product_id && branchId) {
-        const qtyToDeduct = siRow?.quantity ?? warranty.quantity ?? 1;
+        const qtyToDeduct = warrantyUnitsCovered(warranty);
         // Cambio: sale stock del producto de reemplazo y entra stock del producto recibido.
         await adjustInventoryByProductBranch(
           supabase,
@@ -370,7 +460,7 @@ export default function WarrantyDetailPage() {
       }
 
       if (warranty.warranty_type !== "refund" && branchId) {
-        const qty = siRow?.quantity ?? warranty.quantity ?? 1;
+        const qty = warrantyUnitsCovered(warranty);
         const { error: defectiveError } = await supabase.from("defective_products").insert({
           warranty_id: id,
           product_id: warranty.product_id,
@@ -394,6 +484,7 @@ export default function WarrantyDetailPage() {
       }
 
       setWarranty((w) => (w ? { ...w, status: "processed" as const } : null));
+      setShowRefundProcessModal(false);
     } catch (err: unknown) {
       alert("Error al procesar la garantía: " + (err instanceof Error ? err.message : String(err)));
     }
@@ -427,17 +518,12 @@ export default function WarrantyDetailPage() {
 
   const sal = Array.isArray(warranty.sales) ? warranty.sales[0] : warranty.sales;
   const si = Array.isArray(warranty.sale_items) ? warranty.sale_items[0] : warranty.sale_items;
-  const qty = si?.quantity ?? warranty.quantity ?? 1;
+  const coveredQty = warrantyUnitsCovered(warranty);
   const unitPrice = si?.unit_price ?? 0;
   const productValue =
     si != null
-      ? saleLineTotal(
-          Number(unitPrice),
-          Number(qty),
-          Number(si.discount_percent ?? 0),
-          Number(si.discount_amount ?? 0)
-        )
-      : Math.round(Number(unitPrice) * Number(qty));
+      ? getRefundAmountForWarranty(warranty)
+      : Math.round(Number(unitPrice) * Number(coveredQty));
   const statusColor = STATUS_COLORS[warranty.status];
   const warrantyShortId = warranty.id.slice(0, 8).toUpperCase();
 
@@ -527,7 +613,12 @@ export default function WarrantyDetailPage() {
                       type="button"
                       onClick={() => {
                         setShowStatusDropdown(false);
-                        handleProcess();
+                        if (warranty.warranty_type === "refund" && warranty.sale_id) {
+                          setRefundPayoutChoice("match_invoice");
+                          setShowRefundProcessModal(true);
+                        } else {
+                          void handleProcess();
+                        }
                       }}
                       disabled={processing}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700"
@@ -578,22 +669,30 @@ export default function WarrantyDetailPage() {
         </div>
         {warranty.warranty_type === "refund" &&
           (warranty.status === "approved" || warranty.status === "pending") && (
-            <p className="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[12px] text-sky-950 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-100">
-              <strong>Devolución:</strong> al marcar como <strong>Procesada</strong>, el sistema suma las unidades al{" "}
-              <strong>inventario</strong>
-              {warranty.sale_id ? (
-                <>
-                  {" "}
-                  y crea un <strong>egreso</strong> por el valor de la línea (según efectivo/transferencia de la
-                  factura).
-                </>
-              ) : (
-                <>
-                  . <span className="opacity-90">Sin factura vinculada no se crea egreso automático;</span> regístralo
-                  en <strong>Egresos</strong> si devolviste dinero.
-                </>
-              )}
-            </p>
+            <div className="mt-4 space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-[12px] text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-100">
+              <p>
+                <strong>Devolución:</strong> el <strong>egreso</strong> en{" "}
+                <Link href="/egresos" className="font-semibold text-ov-pink underline-offset-2 hover:underline">
+                  Egresos
+                </Link>{" "}
+                y en reportes aparece <strong>solo cuando marques &quot;Procesada&quot;</strong>, no al aprobar.
+              </p>
+              <p>
+                Al procesar, el sistema devuelve unidades al <strong>inventario</strong>
+                {warranty.sale_id ? (
+                  <>
+                    {" "}
+                    y registra el reembolso; podrás elegir si descuenta de <strong>efectivo</strong>,{" "}
+                    <strong>transferencia</strong> o reparto como la factura.
+                  </>
+                ) : (
+                  <>
+                    . <span className="opacity-90">Sin factura vinculada no se crea egreso automático;</span> regístralo
+                    en <strong>Egresos</strong> si devolviste dinero.
+                  </>
+                )}
+              </p>
+            </div>
           )}
       </div>
 
@@ -620,7 +719,7 @@ export default function WarrantyDetailPage() {
                   </span>
                   <span className="ml-1.5 text-[12px] text-slate-500 dark:text-slate-400">(producto con garantía)</span>
                 </td>
-                <td className="py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-200">{qty}</td>
+                <td className="py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-200">{coveredQty}</td>
                 <td className="py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-200">$ {formatMoney(unitPrice)}</td>
                 <td className="py-2.5 text-right tabular-nums font-medium text-slate-800 dark:text-slate-100">$ {formatMoney(productValue)}</td>
               </tr>
@@ -632,7 +731,7 @@ export default function WarrantyDetailPage() {
                     </span>
                     <span className="ml-1.5 text-[12px] text-slate-500 dark:text-slate-400">(producto de reemplazo)</span>
                   </td>
-                  <td className="py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-200">{qty}</td>
+                  <td className="py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-200">{coveredQty}</td>
                   <td className="py-2.5 text-right tabular-nums text-slate-500 dark:text-slate-400">—</td>
                   <td className="py-2.5 text-right tabular-nums text-slate-500 dark:text-slate-400">—</td>
                 </tr>
@@ -668,7 +767,10 @@ export default function WarrantyDetailPage() {
                 <div className="flex justify-between gap-2">
                   <dt className="text-slate-500 dark:text-slate-400">Factura</dt>
                   <dd>
-                    <Link href={`/ventas/${warranty.sale_id}`} className="font-medium text-ov-pink hover:underline">
+                    <Link
+                      href={`/ventas/${warranty.sale_id}`}
+                      className="font-semibold text-sky-600 underline decoration-sky-500/50 underline-offset-2 transition-colors hover:text-sky-700 hover:decoration-sky-600/70 dark:text-sky-400 dark:decoration-sky-400/70 dark:hover:text-sky-300"
+                    >
                       {sal.invoice_number ?? "—"}
                     </Link>
                   </dd>
@@ -710,8 +812,109 @@ export default function WarrantyDetailPage() {
         </div>
       </section>
 
+      {showRefundProcessModal && warranty && warranty.warranty_type === "refund" && warranty.sale_id && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+          onClick={() => !processing && setShowRefundProcessModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+            role="dialog"
+            onClick={(e) => e.stopPropagation()}
+            aria-labelledby="refund-process-title"
+            aria-modal="true"
+          >
+            <h3 id="refund-process-title" className="text-lg font-bold text-slate-900 dark:text-slate-50">
+              Procesar devolución al cliente
+            </h3>
+            <p className="mt-2 text-[13px] text-slate-600 dark:text-slate-400">
+              Se registrará un egreso por{" "}
+              <strong className="text-slate-900 dark:text-slate-100">
+                $ {formatMoney(getRefundAmountForWarranty(warranty))}
+              </strong>
+              . Indica de dónde sale el dinero que devuelves:
+            </p>
+            {(() => {
+              const salModal = Array.isArray(warranty.sales) ? warranty.sales[0] : warranty.sales;
+              const pm = String(salModal?.payment_method ?? "cash");
+              const pmHint =
+                pm === "transfer"
+                  ? "La venta original fue solo transferencia."
+                  : pm === "mixed"
+                    ? "La venta original fue mixta (efectivo + transferencia)."
+                    : "La venta original fue en efectivo.";
+              return (
+                <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">{pmHint}</p>
+              );
+            })()}
+            <fieldset className="mt-4 space-y-3">
+              <legend className="sr-only">Origen del reembolso</legend>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-zinc-600 dark:bg-zinc-950/40">
+                <input
+                  type="radio"
+                  name="refundPayout"
+                  className="mt-1"
+                  checked={refundPayoutChoice === "cash"}
+                  onChange={() => setRefundPayoutChoice("cash")}
+                />
+                <span>
+                  <span className="block text-[13px] font-medium text-slate-800 dark:text-slate-100">Efectivo (caja)</span>
+                  <span className="text-[12px] text-slate-500 dark:text-slate-400">Todo el reembolso descuenta de efectivo del día.</span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-zinc-600 dark:bg-zinc-950/40">
+                <input
+                  type="radio"
+                  name="refundPayout"
+                  className="mt-1"
+                  checked={refundPayoutChoice === "transfer"}
+                  onChange={() => setRefundPayoutChoice("transfer")}
+                />
+                <span>
+                  <span className="block text-[13px] font-medium text-slate-800 dark:text-slate-100">Transferencia</span>
+                  <span className="text-[12px] text-slate-500 dark:text-slate-400">Todo el reembolso descuenta de transferencia.</span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-zinc-600 dark:bg-zinc-950/40">
+                <input
+                  type="radio"
+                  name="refundPayout"
+                  className="mt-1"
+                  checked={refundPayoutChoice === "match_invoice"}
+                  onChange={() => setRefundPayoutChoice("match_invoice")}
+                />
+                <span>
+                  <span className="block text-[13px] font-medium text-slate-800 dark:text-slate-100">Como la factura</span>
+                  <span className="text-[12px] text-slate-500 dark:text-slate-400">
+                    Reparto automático según cómo pagó el cliente (si era mixto, divide el reembolso en la misma proporción).
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowRefundProcessModal(false)}
+                disabled={processing}
+                className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-slate-200 dark:hover:bg-zinc-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleProcess(refundPayoutChoice)}
+                disabled={processing}
+                className="flex-1 rounded-lg bg-[color:var(--shell-sidebar)] px-4 py-2.5 text-[13px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
+              >
+                {processing ? "Procesando…" : "Confirmar y registrar egreso"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showRejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-slate-800">
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Rechazar garantía</h3>
             <p className="mt-2 text-[13px] text-slate-600 dark:text-slate-400">Ingresa el motivo del rechazo.</p>

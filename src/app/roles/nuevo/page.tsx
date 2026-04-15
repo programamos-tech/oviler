@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import Avatar from "boring-avatars";
+import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { PERMISSION_OPTIONS, ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
 
 const ROLES = [
@@ -182,11 +182,10 @@ export default function NewEmployeePage() {
                 <label className={labelClass}>Avatar</label>
                 <div className="flex items-center gap-4">
                   <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-50 dark:bg-slate-800">
-                    <Avatar
-                      size={76}
-                      name={`${nombre.trim() || email.trim() || "nuevo-colaborador"}-${avatarVariant}`}
-                      variant={avatarVariant}
-                      colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                    <WorkspaceCharacterAvatar
+                      seed={`${email.trim() || nombre.trim() || "nuevo-colaborador"}-${avatarVariant}`}
+                      size={160}
+                      className="h-full w-full object-cover"
                     />
                   </div>
                   <div>
@@ -195,12 +194,12 @@ export default function NewEmployeePage() {
                       onChange={(e) => setAvatarVariant(e.target.value as "beam" | "marble" | "pixel")}
                       className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                     >
-                      <option value="beam">NOU Beam</option>
-                      <option value="marble">NOU Marble</option>
-                      <option value="pixel">NOU Pixel</option>
+                      <option value="beam">Personaje A</option>
+                      <option value="marble">Personaje B</option>
+                      <option value="pixel">Personaje C</option>
                     </select>
                     <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-                      Avatar automático con estilo de marca.
+                      Personaje generado (DiceBear). Elige una variante; se guarda con la cuenta.
                     </p>
                   </div>
                 </div>

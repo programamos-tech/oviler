@@ -59,6 +59,8 @@ type DatePickerCardProps = {
   allowClear?: boolean;
   fullWidth?: boolean;
   size?: "sm" | "md";
+  /** Borde/fondo del botón: zinc evita tinte azulado en modo oscuro */
+  triggerTone?: "slate" | "zinc";
   "aria-label"?: string;
 };
 
@@ -72,6 +74,7 @@ export default function DatePickerCard({
   allowClear = true,
   fullWidth = false,
   size = "sm",
+  triggerTone = "slate",
   "aria-label": ariaLabel,
 }: DatePickerCardProps) {
   const [open, setOpen] = useState(false);
@@ -135,6 +138,14 @@ export default function DatePickerCard({
 
   const grid = getCalendarGrid(viewMonth);
 
+  const triggerSurface =
+    triggerTone === "zinc"
+      ? "border-zinc-200/80 bg-white text-zinc-900 shadow-[0_1px_2px_rgba(0,0,0,0.05)] dark:border-zinc-600/90 dark:bg-zinc-950 dark:text-zinc-100"
+      : "border-slate-200/70 bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
+
+  const placeholderClass =
+    triggerTone === "zinc" ? "text-zinc-400 dark:text-zinc-500" : "text-slate-400 dark:text-slate-500";
+
   return (
     <div ref={wrapperRef} className={`relative ${fullWidth ? "block w-full" : "inline-block"}`}>
       <button
@@ -145,15 +156,15 @@ export default function DatePickerCard({
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((o) => !o)}
-        className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 ${
+        className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border ${triggerSurface} ${
           size === "md" ? "h-10 px-3 text-[13px]" : "h-8 px-2 text-[12px]"
         } ${fullWidth ? "w-full min-w-0" : "min-w-[140px]"}`}
       >
-        <span className={displayValue ? "font-medium" : "text-slate-400 dark:text-slate-500"}>
+        <span className={displayValue ? "font-medium" : placeholderClass}>
           {displayValue || placeholder}
         </span>
         <svg
-          className="h-4 w-4 shrink-0 text-ov-pink dark:text-ov-pink-muted"
+          className="h-4 w-4 shrink-0 text-[color:var(--shell-sidebar)] dark:text-zinc-300"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -177,7 +188,7 @@ export default function DatePickerCard({
             role="dialog"
             aria-modal="true"
             aria-label="Calendario"
-            className="fixed w-[280px] rounded-xl border border-slate-200 bg-white p-4 shadow-xl ring-1 ring-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-700 z-[9999]"
+            className="fixed z-[9999] w-[280px] rounded-2xl border-0 bg-white p-4 shadow-[0_8px_30px_rgba(15,23,42,0.12)] dark:border dark:border-slate-700 dark:bg-slate-900"
             style={{ top: position.top, left: position.left }}
           >
           {/* Mes / año y flechas */}
@@ -253,9 +264,9 @@ export default function DatePickerCard({
                       : disabled
                         ? "cursor-not-allowed text-slate-300 dark:text-slate-600"
                         : isSelected
-                          ? "bg-ov-pink text-white hover:bg-ov-pink-hover dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                          ? "bg-[color:var(--shell-sidebar)] text-white hover:bg-[color:var(--shell-sidebar-cta-hover)]"
                           : isToday
-                            ? "font-bold text-ov-pink ring-2 ring-ov-pink/50 hover:bg-ov-pink/10 dark:text-ov-pink-muted dark:ring-ov-pink-muted/50 dark:hover:bg-ov-pink/20"
+                            ? "font-bold text-[color:var(--shell-sidebar)] ring-2 ring-slate-400/70 hover:bg-slate-200/80 dark:text-zinc-300 dark:ring-zinc-500/40 dark:hover:bg-zinc-700/45"
                             : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                   }`}
                 >
@@ -274,7 +285,7 @@ export default function DatePickerCard({
                   onChange(null);
                   setOpen(false);
                 }}
-                className="text-[13px] font-medium text-ov-pink hover:underline dark:text-ov-pink-muted"
+                className="text-[13px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
               >
                 Borrar
               </button>
@@ -288,7 +299,7 @@ export default function DatePickerCard({
                 onChange(t);
                 setOpen(false);
               }}
-              className="text-[13px] font-medium text-ov-pink hover:underline dark:text-ov-pink-muted"
+              className="text-[13px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
             >
               Hoy
             </button>

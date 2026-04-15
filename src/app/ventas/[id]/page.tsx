@@ -5,10 +5,20 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
-import { MdLocalShipping, MdStorefront, MdCancel, MdCheck, MdSchedule, MdPerson, MdBusiness, MdBadge, MdInfoOutline } from "react-icons/md";
+import { MdLocalShipping, MdStorefront, MdCheck, MdSchedule, MdPerson, MdBusiness, MdBadge, MdInfoOutline } from "react-icons/md";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
-import { getCopy, getStatusLabelForSale, getStatusClass, getDocumentCopy, orderStatusOptionMatchesSale, type SalesMode } from "../sales-mode";
+import {
+  getCopy,
+  getStatusLabelForSale,
+  getStatusClass,
+  getStatusListChipClass,
+  getPaymentListChipClass,
+  getDocumentCopy,
+  orderStatusOptionMatchesSale,
+  type SalesMode,
+} from "../sales-mode";
+import { creditStatusChip } from "@/app/creditos/credit-ui";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -28,16 +38,32 @@ function displayInvoiceNumber(invoiceNumber: string) {
   return sin || invoiceNumber;
 }
 
+/** Crédito vinculado a la venta (cabecera / estado de pago). */
+type LinkedCreditBanner = { id: string; public_ref: string; cancelled_at: string | null };
+
+async function fetchLinkedCreditForSale(
+  supabase: ReturnType<typeof createClient>,
+  saleId: string
+): Promise<LinkedCreditBanner | null> {
+  const { data } = await supabase
+    .from("customer_credits")
+    .select("id, public_ref, cancelled_at")
+    .eq("sale_id", saleId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data?.id) return null;
+  return {
+    id: String(data.id),
+    public_ref: String(data.public_ref ?? ""),
+    cancelled_at: data.cancelled_at ?? null,
+  };
+}
+
 const PAYMENT_LABELS: Record<string, string> = {
   cash: "Efectivo",
   transfer: "Transferencia",
   mixed: "Mixto",
-};
-
-const PAYMENT_COLOR_CLASS: Record<string, string> = {
-  cash: "font-semibold text-emerald-600 dark:text-emerald-400",
-  transfer: "font-semibold text-blue-600 dark:text-blue-400",
-  mixed: "font-semibold text-violet-600 dark:text-violet-400",
 };
 
 /** Opciones de estado con envío (sin paso intermedio "Alistado" en menú; `packing` en BD se gestiona como En alistamiento). */
@@ -72,6 +98,7 @@ type SaleDetail = {
   /** Token público para /t/pedido/{token} (pedidos catálogo web). */
   public_tracking_token?: string | null;
   payment_proof_url?: string | null;
+  cancellation_reason?: string | null;
   cancellation_requested_at?: string | null;
   cancellation_requested_by?: string | null;
   customers: { name: string; phone: string | null; cedula: string | null } | null;
@@ -208,16 +235,18 @@ export default function SaleDetailPage() {
   const [latestRefundWarrantyId, setLatestRefundWarrantyId] = useState<string | null>(null);
   const [pedidoClienteUrl, setPedidoClienteUrl] = useState("");
   const [pedidoLinkCopied, setPedidoLinkCopied] = useState(false);
+  const [linkedCredit, setLinkedCredit] = useState<LinkedCreditBanner | null>(null);
 
   useEffect(() => {
     if (!id) return;
     const supabase = createClient();
     let cancelled = false;
     (async () => {
+      setLinkedCredit(null);
       const { data: saleData, error: saleError } = await supabase
         .from("sales")
         .select(
-          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_address_id, delivery_fee, delivery_person_id, delivery_paid, created_at, channel, public_tracking_token, payment_proof_url, customers(name, phone, cedula), users!user_id(name), delivery_persons(name, code)"
+          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_address_id, delivery_fee, delivery_person_id, delivery_paid, created_at, channel, public_tracking_token, payment_proof_url, cancellation_reason, cancellation_requested_at, cancellation_requested_by, customers(name, phone, cedula), users!user_id(name), delivery_persons(name, code)"
         )
         .eq("id", id)
         .single();
@@ -322,6 +351,11 @@ export default function SaleDetailPage() {
         const { data: userRow } = await supabase.from("users").select("role").eq("id", user.id).single();
         setCurrentUserRole(userRow?.role ?? null);
       }
+
+      if (!cancelled) {
+        setLinkedCredit(await fetchLinkedCreditForSale(supabase, id));
+      }
+
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -618,6 +652,7 @@ export default function SaleDetailPage() {
         .update({ status: "cancelled", cancellation_reason: cancelReason.trim() || null })
         .eq("id", sale.id);
       setSale((prev) => (prev ? { ...prev, status: "cancelled" as const } : null));
+      setLinkedCredit(await fetchLinkedCreditForSale(supabase, sale.id));
       if (branchOrgId && sale.branch_id) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -662,6 +697,7 @@ export default function SaleDetailPage() {
         ? { ...prev, status: "cancelled" as const, cancellation_requested_at: null, cancellation_requested_by: null }
         : null
     );
+    setLinkedCredit(await fetchLinkedCreditForSale(supabase, sale.id));
     if (branchOrgId && sale.branch_id) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -894,20 +930,10 @@ export default function SaleDetailPage() {
   const paymentLabel = PAYMENT_LABELS[sale.payment_method] ?? sale.payment_method;
   const paymentStatusLabel =
     sale.status === "cancelled" ? "Anulada" : sale.payment_pending ? "Pendiente" : "Pagado";
-  const paymentStatusClass =
-    sale.status === "cancelled"
-      ? "text-red-600 dark:text-red-400"
-      : sale.payment_pending
-        ? "text-amber-600 dark:text-amber-400"
-        : "font-bold text-emerald-600 dark:text-emerald-400";
   const deliveryPaymentStatusLabel =
     sale.status === "cancelled" ? "Cancelado" : sale.delivery_paid ? "Pagado" : "Pendiente";
-  const deliveryPaymentStatusClass =
-    sale.status === "cancelled"
-      ? "text-red-600 dark:text-red-400"
-      : sale.delivery_paid
-        ? "text-emerald-600 dark:text-emerald-400"
-        : "text-amber-600 dark:text-amber-400";
+  const paymentStatusKey = sale.status === "cancelled" ? "cancelled" : sale.payment_pending ? "pending" : "completed";
+  const deliveryPaymentStatusKey = sale.status === "cancelled" ? "cancelled" : sale.delivery_paid ? "completed" : "pending";
   const canMarkDeliveryPaid = sale.status !== "cancelled" && !sale.delivery_paid && !markingDeliveryPaid;
   const orderStatusLabels = ["pending", "preparing", "packing", "on_the_way", "delivered", "completed", "cancelled"];
   const statusLabel = getStatusLabelForSale(sale.status, sale.is_delivery);
@@ -1034,6 +1060,49 @@ export default function SaleDetailPage() {
             <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
               {doc.hashTitle(displayInvoiceNumber(sale.invoice_number))}
             </h1>
+            {linkedCredit && (
+              <p className="mt-2 text-[13px] font-medium text-slate-600 dark:text-slate-300">
+                {linkedCredit.cancelled_at ? (
+                  <>
+                    <span className="text-slate-500 dark:text-slate-400">Crédito cancelado con la factura · </span>
+                    <Link
+                      href={`/creditos/${linkedCredit.id}`}
+                      className="font-mono font-semibold text-[color:var(--shell-sidebar)] underline-offset-2 hover:underline dark:text-zinc-300"
+                    >
+                      #{linkedCredit.public_ref}
+                    </Link>
+                    <span className="mt-1 block text-[12px] font-normal leading-snug text-slate-500 dark:text-slate-400">
+                      Los abonos dejaron de contar en ingresos del sistema. La devolución física al cliente la gestionas aparte (efectivo, transferencia, etc.).
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-slate-500 dark:text-slate-400">Venta a crédito · </span>
+                    <Link
+                      href={`/creditos/${linkedCredit.id}`}
+                      className="font-mono font-semibold text-[color:var(--shell-sidebar)] underline-offset-2 hover:underline dark:text-zinc-300"
+                    >
+                      Crédito #{linkedCredit.public_ref}
+                    </Link>
+                  </>
+                )}
+              </p>
+            )}
+            {sale.payment_pending && linkedCredit && !linkedCredit.cancelled_at && sale.status !== "cancelled" && (
+              <p className="mt-1.5 max-w-xl text-[12px] leading-snug text-amber-900 dark:text-amber-100/90">
+                El total aún no se ha registrado como cobrado. En el detalle del crédito ves saldo pendiente, abonos y estado.
+              </p>
+            )}
+            {sale.cancellation_reason?.trim() && (
+              <div className="mt-2 max-w-2xl rounded-lg border border-slate-200 bg-slate-50/95 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800/90">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Motivo de anulación
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-slate-800 dark:text-slate-200">
+                  {sale.cancellation_reason.trim()}
+                </p>
+              </div>
+            )}
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-slate-500 dark:text-slate-400 sm:text-[13px]">
               <span className="inline-flex items-center gap-1">
                 <MdSchedule className="h-4 w-4 shrink-0" aria-hidden />
@@ -1048,12 +1117,12 @@ export default function SaleDetailPage() {
               <span className="inline-flex items-center gap-1">
                 {sale.is_delivery ? (
                   <>
-                    <MdLocalShipping className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                    <MdLocalShipping className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                     <span>Envío</span>
                   </>
                 ) : (
                   <>
-                    <MdStorefront className="h-4 w-4 shrink-0 text-ov-pink dark:text-ov-pink-muted" aria-hidden />
+                    <MdStorefront className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                     <span>Tienda</span>
                   </>
                 )}
@@ -1070,14 +1139,14 @@ export default function SaleDetailPage() {
               </span>
             </p>
             {refundWarrantyProcessedCount > 0 && (
-              <span className="mt-2 inline-flex items-center gap-2 rounded-md border border-violet-300/70 bg-violet-50 px-2.5 py-1 text-[12px] font-semibold text-violet-700 dark:border-violet-700/70 dark:bg-violet-900/25 dark:text-violet-300">
+              <span className="mt-2 inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[12px] font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
                 {refundWarrantyProcessedCount === 1
                   ? "Con devolución por garantía procesada"
                   : `Con ${refundWarrantyProcessedCount} devoluciones por garantía procesadas`}
                 {latestRefundWarrantyId && (
                   <Link
                     href={`/garantias/${latestRefundWarrantyId}`}
-                    className="rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-violet-800 hover:bg-violet-200 dark:bg-violet-900/40 dark:text-violet-200 dark:hover:bg-violet-900/60"
+                    className="rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
                     title="Ver garantía asociada"
                   >
                     #{latestRefundWarrantyId.slice(0, 8).toUpperCase()}
@@ -1087,12 +1156,12 @@ export default function SaleDetailPage() {
             )}
             {sale.channel === "web_catalog" && (
               <div className="mt-2 space-y-3">
-                <span className="inline-flex rounded-md border border-violet-200 bg-violet-50/80 px-2.5 py-1 text-[12px] font-semibold text-violet-800 dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-200">
+                <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[12px] font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
                   Pedido · catálogo web
                 </span>
                 {sale.public_tracking_token && (
-                  <div className="rounded-xl border border-violet-200/90 bg-violet-50/60 p-3 dark:border-violet-800/70 dark:bg-violet-950/25">
-                    <p className="text-[12px] font-bold uppercase tracking-wide text-violet-900 dark:text-violet-200">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                    <p className="text-[12px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
                       Enlace para el cliente
                     </p>
                     <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-400">
@@ -1115,7 +1184,7 @@ export default function SaleDetailPage() {
                             /* ignore */
                           }
                         }}
-                        className="inline-flex shrink-0 items-center justify-center rounded-lg border border-violet-300 bg-white px-3 py-2 text-[12px] font-semibold text-violet-800 transition-colors hover:bg-violet-100 dark:border-violet-600 dark:bg-violet-900/40 dark:text-violet-200 dark:hover:bg-violet-900/60"
+                        className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         {pedidoLinkCopied ? "Copiado" : "Copiar enlace"}
                       </button>
@@ -1124,7 +1193,7 @@ export default function SaleDetailPage() {
                       href={`/t/pedido/${sale.public_tracking_token}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 inline-flex text-[12px] font-semibold text-ov-pink hover:underline dark:text-ov-pink-muted"
+                      className="mt-2 inline-flex text-[12px] font-semibold text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
                     >
                       Abrir vista del cliente (nueva pestaña)
                     </Link>
@@ -1139,7 +1208,7 @@ export default function SaleDetailPage() {
                   href={paymentProofSignedUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-block text-[13px] font-semibold text-ov-pink hover:underline"
+                  className="mt-2 inline-block text-[13px] font-semibold text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
                 >
                   Abrir imagen en nueva pestaña
                 </a>
@@ -1169,15 +1238,25 @@ export default function SaleDetailPage() {
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Método de pago</p>
-              <p className={`mt-0.5 text-lg sm:text-xl ${PAYMENT_COLOR_CLASS[sale.payment_method] ?? "text-slate-700 dark:text-slate-300"}`}>
-                {paymentLabel}
-              </p>
+              <div className="mt-1">
+                <span className={getPaymentListChipClass()}>{paymentLabel}</span>
+              </div>
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Estado del pago</p>
-              <p className={`mt-0.5 text-lg font-medium sm:text-xl ${paymentStatusClass}`}>
-                {paymentStatusLabel}
-              </p>
+              <div className="mt-1">
+                {sale.payment_pending && linkedCredit && !linkedCredit.cancelled_at && sale.status !== "cancelled" ? (
+                  <Link
+                    href={`/creditos/${linkedCredit.id}`}
+                    className={`${creditStatusChip("pending").className} ring-2 ring-amber-400/40 transition hover:brightness-[0.98] dark:ring-amber-500/30 dark:hover:brightness-110`}
+                    title="Abrir el crédito vinculado a esta venta"
+                  >
+                    Pendiente · ver crédito
+                  </Link>
+                ) : (
+                  <span className={getStatusListChipClass(paymentStatusKey)}>{paymentStatusLabel}</span>
+                )}
+              </div>
             </div>
             {sale.is_delivery && (Number(sale.delivery_fee) || 0) > 0 && (
               <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
@@ -1209,7 +1288,7 @@ export default function SaleDetailPage() {
                       )}
                     </span>
                   )}
-                  <span className={`text-lg font-medium sm:text-xl ${deliveryPaymentStatusClass}`}>
+                  <span className={getStatusListChipClass(deliveryPaymentStatusKey)}>
                     {markingDeliveryPaid ? "Guardando…" : deliveryPaymentStatusLabel}
                   </span>
                 </label>
@@ -1787,7 +1866,7 @@ export default function SaleDetailPage() {
         onConfirm={handleCancel}
         loading={cancelling}
         ariaTitle={doc.cancelAria(displayInvoiceNumber(sale.invoice_number))}
-        icon={<MdCancel className="h-5 w-5" aria-hidden />}
+        showPlainCloseIcon
         reasonLabel="Motivo de anulación"
         reasonValue={cancelReason}
         reasonOnChange={setCancelReason}

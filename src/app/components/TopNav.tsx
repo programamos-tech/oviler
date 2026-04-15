@@ -6,245 +6,24 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getCopy } from "@/app/ventas/sales-mode";
 import Notifications from "./Notifications";
-import Avatar from "boring-avatars";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
 import FreeTrialWelcomeModal from "./FreeTrialWelcomeModal";
 import { isTrialWelcomeDismissedThisSession, markTrialWelcomeDismissedThisSession } from "@/lib/trial-welcome-storage";
 import { type OrgTrialFields, isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
+import { navItems, navPathIsActive, workspaceAvatarSeed } from "./app-nav-data";
+import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
+import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
+import { OvilerWordmark } from "./OvilerWordmark";
+import { programamosWhatsAppUrl } from "@/lib/programamos-contact";
 
-const iconClass = "h-5 w-5 shrink-0";
-
-function NavIconHome() {
-  return (
-    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-    </svg>
-  );
-}
-function NavIconCart() {
-  return (
-    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-    </svg>
-  );
-}
-function NavIconShield() {
-  return (
-    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-    </svg>
-  );
-}
-function NavIconUsers() {
-  return (
-    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-    </svg>
-  );
-}
-function NavIconBox() {
-  return (
-    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-    </svg>
-  );
-}
-function NavIconClipboard() {
-  return (
-    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-    </svg>
-  );
-}
-function NavIconCash() {
-  return (
-    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-    </svg>
-  );
-}
-function NavIconUserGroup() {
-  return (
-    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  );
-}
-function NavIconBuilding() {
-  return (
-    <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-    </svg>
-  );
-}
-
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ReactNode;
-  items?: { label: string; href: string; icon?: React.ReactNode; description?: string }[];
-}
-
-// Iconos para los items del menú
-function IconList() {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-    </svg>
-  );
-}
-function IconPlus() {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-    </svg>
-  );
-}
-function IconCategory() {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-    </svg>
-  );
-}
-function IconStock() {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-    </svg>
-  );
-}
-function IconTransfer() {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-    </svg>
-  );
-}
-function IconLocation() {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  );
-}
-function IconSettings() {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  );
-}
-function IconChart() {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-    </svg>
-  );
-}
-function IconCash() {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-    </svg>
-  );
-}
-function IconEgresos() {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-    </svg>
-  );
-}
-
-const navItems: NavItem[] = [
-  {
-    label: "Inicio",
-    href: "/dashboard",
-    icon: <NavIconHome />,
-    items: [
-      { label: "Reportes", href: "/dashboard", icon: <IconChart />, description: "Ventas, ingresos e indicadores" },
-      { label: "Feed", href: "/actividades", icon: <NavIconClipboard />, description: "Actividad reciente de tu sucursal" },
-      { label: "Ver cierres", href: "/cierre-caja", icon: <IconList />, description: "Historial de cierres de caja" },
-      { label: "Nuevo cierre", href: "/cierre-caja/nuevo", icon: <IconPlus />, description: "Realizar cierre de caja del día" },
-    ],
-  },
-  {
-    label: "Ventas",
-    href: "/ventas",
-    icon: <NavIconCart />,
-    items: [
-      { label: "Ver ventas", href: "/ventas", icon: <IconList />, description: "Lista de todas las ventas" },
-      { label: "Nueva factura", href: "/ventas/nueva", icon: <IconPlus />, description: "Registrar nueva factura" },
-      { label: "Ver garantías", href: "/garantias", icon: <NavIconShield />, description: "Lista de garantías gestionadas" },
-      { label: "Nueva garantía", href: "/garantias/nueva", icon: <IconPlus />, description: "Registrar nueva garantía" },
-    ],
-  },
-  {
-    label: "Clientes",
-    href: "/clientes",
-    icon: <NavIconUsers />,
-    items: [
-      { label: "Ver clientes", href: "/clientes", icon: <IconList />, description: "Lista de todos los clientes" },
-      { label: "Nuevo cliente", href: "/clientes/nueva", icon: <IconPlus />, description: "Registrar nuevo cliente" },
-    ],
-  },
-  {
-    label: "Inventario",
-    href: "/inventario",
-    icon: <NavIconBox />,
-    items: [
-      { label: "Listado de productos", href: "/inventario", icon: <IconList />, description: "Ver todos los productos" },
-      { label: "Nuevo producto", href: "/inventario/nuevo", icon: <IconPlus />, description: "Agregar producto al inventario" },
-      { label: "Categorías", href: "/inventario/categorias", icon: <IconCategory />, description: "Gestionar categorías" },
-      { label: "Ubicaciones bodega", href: "/inventario/ubicaciones", icon: <IconLocation />, description: "Bodega, pisos, zonas y ubicaciones" },
-      { label: "Actualizar stock", href: "/inventario/actualizar-stock", icon: <IconStock />, description: "Ajustar cantidades de productos" },
-      { label: "Transferir stock", href: "/inventario/transferir", icon: <IconTransfer />, description: "Mover productos entre sucursales" },
-    ],
-  },
-  {
-    label: "Egresos",
-    href: "/egresos",
-    icon: <IconEgresos />,
-    items: [
-      { label: "Ver egresos", href: "/egresos", icon: <IconList />, description: "Lista de egresos y gastos" },
-      { label: "Nuevo egreso", href: "/egresos/nuevo", icon: <IconPlus />, description: "Registrar egreso o gasto" },
-    ],
-  },
-  {
-    label: "Roles",
-    href: "/roles",
-    icon: <NavIconUserGroup />,
-    items: [
-      { label: "Ver roles", href: "/roles", icon: <IconList />, description: "Lista de colaboradores y roles" },
-      { label: "Nuevo colaborador", href: "/roles/nuevo", icon: <IconPlus />, description: "Agregar nuevo colaborador" },
-    ],
-  },
-  {
-    label: "Sucursales",
-    href: "/sucursales",
-    icon: <NavIconBuilding />,
-    items: [
-      { label: "Ver sucursales", href: "/sucursales", icon: <IconList />, description: "Lista de sucursales" },
-      { label: "Configurar sucursal", href: "/sucursales/configurar", icon: <IconSettings />, description: "Ajustes y configuración" },
-      { label: "Nueva sucursal", href: "/sucursales/nueva", icon: <IconPlus />, description: "Crear nueva sucursal" },
-    ],
-  },
-];
-
-function getAvatarVariant(avatarUrl?: string | null): "beam" | "marble" | "pixel" {
-  if (!avatarUrl?.startsWith("avatar:")) return "beam";
-  const variant = avatarUrl.replace("avatar:", "");
-  if (variant === "beam" || variant === "marble" || variant === "pixel") return variant;
-  return "beam";
-}
+const TOP_ICON_BTN =
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-50";
 
 export default function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const [navSearch, setNavSearch] = useState("");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{
@@ -257,6 +36,7 @@ export default function TopNav() {
   } | null>(null);
   const [branch, setBranch] = useState<{ name: string; logo_url: string | null; show_expenses?: boolean; sales_mode?: string } | null>(null);
   const [orgTrial, setOrgTrial] = useState<OrgTrialFields | null>(null);
+  const [authMeta, setAuthMeta] = useState<Record<string, unknown> | null>(null);
   const [trialModalOpen, setTrialModalOpen] = useState(false);
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -272,6 +52,7 @@ export default function TopNav() {
           .single();
         if (userData) {
           setUser(userData);
+          setAuthMeta((authUser.user_metadata as Record<string, unknown> | null) ?? null);
           const oid = (userData as { organization_id?: string | null }).organization_id;
           if (oid) {
             const { data: orgRow } = await supabase
@@ -283,7 +64,13 @@ export default function TopNav() {
           } else {
             setOrgTrial(null);
           }
+        } else {
+          setUser(null);
+          setAuthMeta(null);
         }
+      } else {
+        setUser(null);
+        setAuthMeta(null);
       }
     }
     loadUser();
@@ -343,48 +130,66 @@ export default function TopNav() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [router]);
 
-  const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
-    if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/sucursales/reportes";
-    if (href === "/inventario/ubicaciones") return pathname === "/inventario/ubicaciones" || pathname.startsWith("/inventario/ubicaciones");
-    return pathname.startsWith(href);
+  const submitNavSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = navSearch.trim();
+    if (!q) return;
+    router.push(`/inventario?q=${encodeURIComponent(q)}`);
+    setNavSearch("");
   };
 
   const role = (user?.role ?? null) as AppRole | null;
   const customPermissions = user?.permissions ?? null;
-  const displayNavItems = (branch && branch.show_expenses === false ? navItems.filter((item) => item.label !== "Egresos") : navItems)
+  const displayNavItems = navItems
     .filter((item) => canAccessNavModule(role, item.label, customPermissions))
     .map((item) => ({
       ...item,
-      items: item.items?.filter((subItem) => canAccessPath(role, subItem.href, customPermissions)),
-    }));
+      items: item.items?.filter((subItem) => {
+        if (branch && branch.show_expenses === false && subItem.href.startsWith("/egresos")) return false;
+        return canAccessPath(role, subItem.href, customPermissions);
+      }),
+    }))
+    .filter((item) => (item.items?.length ?? 0) > 0);
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
-      <div className="mx-auto flex h-14 min-h-[3.5rem] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Marca NOU + logo sucursal */}
-        <div className="flex shrink-0 items-center gap-3">
-          <Link href="/dashboard" className="flex shrink-0 items-center gap-2 font-logo" title="NOU">
-          <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-            NOU
-          </span>
-          <span className="text-slate-400 dark:text-slate-600" aria-hidden>
-            |
-          </span>
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
-            {branch?.logo_url ? (
-              <img
-                src={branch.logo_url}
-                alt={branch?.name ? `Logo ${branch.name}` : "Logo sucursal"}
-                className="h-full w-full object-cover grayscale"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
-                L
-              </span>
-            )}
-          </div>
+    <nav className="sticky top-0 z-50 flex flex-col border-b border-slate-200/90 bg-white/90 text-slate-800 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/95 dark:text-zinc-100 dark:shadow-none lg:hidden">
+      <div className="mx-auto flex h-14 min-h-[3.5rem] w-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        {/* Marca producto + logo sucursal */}
+        <div className="flex min-w-0 flex-1 items-center justify-start gap-3">
+          <Link
+            href="/dashboard"
+            className={
+              branch
+                ? "flex min-w-0 max-w-[min(100%,22rem)] shrink items-center gap-2 rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900/25 dark:focus-visible:outline-[color:var(--shell-sidebar)]"
+                : "flex min-w-0 shrink items-center rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900/25 dark:focus-visible:outline-[color:var(--shell-sidebar)]"
+            }
+            title={branch?.name ? `Berea Comercios · ${branch.name}` : "Berea Comercios"}
+          >
+            <span className="min-w-0 flex-1 overflow-hidden">
+              <OvilerWordmark variant="onLight" className="w-full min-w-0 text-[1.05rem] sm:text-[1.1rem]" />
+            </span>
+            {branch ? (
+              <>
+                <span
+                  className="h-9 w-px shrink-0 rounded-full bg-slate-200/90 dark:bg-white/20"
+                  aria-hidden
+                />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800">
+                  {branch.logo_url ? (
+                    <img
+                      src={branch.logo_url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500">
+                      {(branch.name || "L").slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : null}
           </Link>
         </div>
 
@@ -392,7 +197,9 @@ export default function TopNav() {
         <div className="hidden items-center gap-2 md:flex md:gap-3 lg:gap-1 xl:gap-2">
           {displayNavItems.map((item) => {
             const hasDropdown = item.items && item.items.length > 0;
-            const isItemActive = isActive(item.href);
+            const isItemActive =
+              navPathIsActive(pathname, item.href) ||
+              (item.items?.some((sub) => navPathIsActive(pathname, sub.href)) ?? false);
             const isOpen = openDropdown === item.label;
             const navLabel = item.label;
 
@@ -428,8 +235,8 @@ export default function TopNav() {
                       aria-label={navLabel}
                       className={`flex items-center gap-1 rounded-lg px-2 py-2 text-[13px] font-medium transition-colors md:px-3 md:py-2.5 lg:px-4 lg:py-2 xl:text-[14px] ${
                         isItemActive
-                          ? "bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-50"
-                          : "text-slate-900 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-50"
+                          ? "bg-slate-200/70 text-[color:var(--shell-sidebar)] ring-1 ring-[color:var(--shell-sidebar-accent)] dark:bg-white/10 dark:text-zinc-300 dark:ring-zinc-500/35"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50"
                       }`}
                     >
                       <span className="lg:hidden">{item.icon}</span>
@@ -460,9 +267,17 @@ export default function TopNav() {
                         >
                         <div className="space-y-1">
                           {item.items?.map((subItem) => {
-                            const isSubItemActive = pathname === subItem.href;
-                            const salesCopy = item.label === "Ventas" && branch?.sales_mode ? getCopy(branch.sales_mode as "sales" | "orders") : null;
-                            const subLabel = salesCopy && subItem.href === "/ventas" ? `Ver ${salesCopy.sectionTitle}` : salesCopy && subItem.href === "/ventas/nueva" ? salesCopy.newButton : subItem.label;
+                            const isSubItemActive = navPathIsActive(pathname, subItem.href);
+                            const salesCopy =
+                              (subItem.href === "/ventas" || subItem.href === "/ventas/nueva") && branch?.sales_mode
+                                ? getCopy(branch.sales_mode as "sales" | "orders")
+                                : null;
+                            const subLabel =
+                              salesCopy && subItem.href === "/ventas"
+                                ? salesCopy.sectionTitle
+                                : salesCopy && subItem.href === "/ventas/nueva"
+                                  ? salesCopy.newButton
+                                  : subItem.label;
                             const subDescription = salesCopy && subItem.href === "/ventas" ? (branch?.sales_mode === "orders" ? "Lista de todos los pedidos" : "Lista de todas las ventas") : salesCopy && subItem.href === "/ventas/nueva" ? (branch?.sales_mode === "orders" ? "Registrar nuevo pedido" : "Registrar nueva venta") : subItem.description;
                             return (
                               <Link
@@ -507,8 +322,8 @@ export default function TopNav() {
                     aria-label={navLabel}
                     className={`flex items-center gap-1 rounded-lg px-2 py-2 text-[13px] font-medium transition-colors md:px-3 md:py-2.5 lg:px-4 lg:py-2 xl:text-[14px] ${
                       isItemActive
-                        ? "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50"
-                        : "text-slate-900 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50"
+                        ? "bg-slate-200/70 text-[color:var(--shell-sidebar)] ring-1 ring-[color:var(--shell-sidebar-accent)] dark:bg-white/10 dark:text-zinc-300 dark:ring-zinc-500/35"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50"
                     }`}
                   >
                     <span className="lg:hidden">{item.icon}</span>
@@ -525,7 +340,7 @@ export default function TopNav() {
             className="hidden min-w-0 shrink-0 items-center lg:flex"
             title={`Prueba gratis · ${trialRemainingLabel(trialEndsAt)} restantes`}
           >
-            <span className="inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-lg border border-sky-500/35 bg-sky-500/[0.12] px-2.5 py-1.5 text-[11px] font-semibold leading-none text-sky-900 dark:border-sky-500/30 dark:bg-sky-950/40 dark:text-sky-100">
+            <span className="inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-lg border border-nou-200 bg-nou-50 px-2.5 py-1.5 text-[11px] font-semibold leading-none text-nou-800 dark:border-nou-400/35 dark:bg-nou-500/15 dark:text-nou-200">
               <span className="shrink-0" aria-hidden>
                 ⏱
               </span>
@@ -552,7 +367,7 @@ export default function TopNav() {
               className="flex min-w-0 lg:hidden"
               title={`Prueba gratis · ${trialRemainingLabel(trialEndsAt)} restantes`}
             >
-              <span className="inline-flex max-w-[130px] items-center truncate rounded-lg border border-sky-500/35 bg-sky-500/[0.12] px-2 py-1 text-[10px] font-semibold text-sky-900 dark:border-sky-500/30 dark:bg-sky-950/40 dark:text-sky-100">
+              <span className="inline-flex max-w-[130px] items-center truncate rounded-lg border border-nou-200 bg-nou-50 px-2 py-1 text-[10px] font-semibold text-nou-800 dark:border-nou-400/35 dark:bg-nou-500/15 dark:text-nou-200">
                 <span className="mr-0.5 shrink-0" aria-hidden>
                   ⏱
                 </span>
@@ -560,12 +375,22 @@ export default function TopNav() {
               </span>
             </div>
           ) : null}
-          <Notifications />
+          <Link
+            href="/ventas/nueva"
+            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-[color:var(--shell-sidebar)] dark:hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:flex"
+            title="Nueva venta"
+            aria-label="Nueva venta"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </Link>
+          <Notifications tone="light" />
           <div className="relative" ref={userMenuRef}>
             <button
               type="button"
               onClick={() => setUserMenuOpen((o) => !o)}
-              className="flex items-center gap-1.5 rounded-lg px-2 py-2 text-slate-900 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="flex items-center gap-1.5 rounded-lg px-2 py-2 text-slate-800 hover:bg-slate-50 dark:text-white/90 dark:hover:bg-white/10"
               aria-label="Perfil"
               aria-expanded={userMenuOpen}
             >
@@ -578,19 +403,26 @@ export default function TopNav() {
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <Avatar
-                    size={30}
-                    name={`${user?.name || user?.email || "usuario"}-${getAvatarVariant(user?.avatar_url)}`}
-                    variant={getAvatarVariant(user?.avatar_url)}
-                    colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                  <WorkspaceCharacterAvatar
+                    seed={workspaceAvatarSeed(user?.email, user?.name, user?.avatar_url)}
+                    size={64}
+                    className="h-full w-full object-cover"
                   />
                 )}
               </div>
-              <span className="max-w-[120px] truncate text-[13px] font-medium sm:max-w-[140px] lg:max-w-none">
-                {user?.name || user?.email || "Usuario"}
+              <div className="hidden min-w-0 flex-col text-left leading-tight sm:flex">
+                <span className="max-w-[140px] truncate text-[13px] font-medium text-slate-800 dark:text-slate-100 lg:max-w-[180px]">
+                  {workspaceUserDisplayName(user, authMeta)}
+                </span>
+                <span className="max-w-[140px] truncate text-[11px] font-medium text-slate-500 dark:text-slate-400 lg:max-w-[180px]">
+                  {workspaceRoleLabel(user?.role)}
+                </span>
+              </div>
+              <span className="max-w-[100px] truncate text-[13px] font-medium text-slate-800 dark:text-slate-100 sm:hidden">
+                {workspaceUserDisplayName(user, authMeta)}
               </span>
               <svg
-                className={`h-4 w-4 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${userMenuOpen ? "rotate-180" : ""}`}
+                className={`h-4 w-4 shrink-0 text-slate-400 transition-transform dark:text-white/50 ${userMenuOpen ? "rotate-180" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -600,6 +432,20 @@ export default function TopNav() {
             </button>
             {userMenuOpen && (
               <div className="absolute right-0 top-full z-50 mt-1 min-w-[10rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    router.push("/sucursales/configurar");
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Cuenta
+                </button>
                 <button
                   type="button"
                   onClick={async () => {
@@ -618,6 +464,64 @@ export default function TopNav() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-100 px-4 pb-2.5 pt-2 dark:border-slate-800 sm:px-6">
+        <div className="mx-auto flex max-w-[1600px] items-center gap-2">
+          <form onSubmit={submitNavSearch} className="min-w-0 flex-1" role="search">
+            <div className="relative">
+              <svg
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="search"
+                value={navSearch}
+                onChange={(e) => setNavSearch(e.target.value)}
+                placeholder="Buscar productos, SKU…"
+                className="h-9 w-full rounded-full border border-slate-200 bg-slate-50/90 py-1.5 pl-9 pr-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-900/25 focus:bg-white focus:ring-2 focus:ring-slate-900/10 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:focus:border-zinc-500"
+                aria-label="Buscar"
+              />
+            </div>
+          </form>
+          <Link
+            href="/ventas/nueva"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-[color:var(--shell-sidebar)] dark:hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:hidden"
+            aria-label="Nueva venta"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </Link>
+          <a
+            href={programamosWhatsAppUrl("Hola programamos, te escribo desde Oviler…")}
+            target="_blank"
+            rel="noreferrer"
+            className={TOP_ICON_BTN}
+            title="Ayuda"
+            aria-label="Ayuda"
+          >
+            <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </a>
+          <Link href="/actividades" className={TOP_ICON_BTN} title="Actividades" aria-label="Actividades">
+            <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </Link>
+          <Link href="/sucursales/configurar" className={TOP_ICON_BTN} title="Configuración" aria-label="Configuración">
+            <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </Link>
         </div>
       </div>
 

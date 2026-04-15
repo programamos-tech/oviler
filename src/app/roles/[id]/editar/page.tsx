@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import Avatar from "boring-avatars";
+import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { PERMISSION_OPTIONS, ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
 
 const ROLES = [
@@ -108,8 +108,9 @@ export default function EditEmployeePage() {
   };
 
   const inputClass =
-    "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
-  const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
+    "h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-zinc-500";
+  const labelClass = "mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300";
+  const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
 
   async function handleSave() {
     if (!id) return;
@@ -154,16 +155,16 @@ export default function EditEmployeePage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <p className="text-[14px] text-slate-500 dark:text-slate-400">Cargando colaborador…</p>
+      <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+        <div className="min-h-[280px] animate-pulse rounded-2xl bg-white dark:bg-slate-900" aria-hidden />
       </div>
     );
   }
   if (notFound) {
     return (
-      <div className="space-y-4">
-        <p className="text-[14px] text-slate-600 dark:text-slate-300">No se encontró el colaborador o no tienes permiso para editarlo.</p>
-        <Link href="/roles" className="inline-flex items-center gap-2 text-[14px] font-medium text-ov-pink hover:underline">
+      <div className="mx-auto min-w-0 max-w-[1600px] space-y-4 font-sans text-[13px] text-slate-800 antialiased dark:text-slate-100">
+        <p className="text-[14px] font-medium text-slate-600 dark:text-slate-300">No se encontró el colaborador o no tienes permiso para editarlo.</p>
+        <Link href="/roles" className="inline-flex items-center gap-2 text-[14px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">
           Volver a usuarios y roles
         </Link>
       </div>
@@ -171,20 +172,20 @@ export default function EditEmployeePage() {
   }
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-2">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
+        <div className="mt-1 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
               Editar colaborador
             </h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Actualiza datos, avatar o usuario del colaborador.
             </p>
           </div>
           <Link
             href="/roles"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
             title="Volver a roles"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -194,42 +195,41 @@ export default function EditEmployeePage() {
         </div>
       </header>
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Datos del colaborador
             </p>
-            <div className="mt-3 space-y-3">
+            <div className="mt-4 space-y-3">
               <div>
                 <label className={labelClass}>Avatar</label>
                 <div className="flex items-center gap-4">
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-50 dark:bg-slate-800">
-                    <Avatar
-                      size={76}
-                      name={`${nombre.trim() || email.trim() || id || "colaborador"}-${avatarVariant}`}
-                      variant={avatarVariant}
-                      colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <WorkspaceCharacterAvatar
+                      seed={`${email.trim() || nombre.trim() || id || "colaborador"}-${avatarVariant}`}
+                      size={128}
+                      className="h-full w-full object-cover"
                     />
                   </div>
                   <div>
                     <select
                       value={avatarVariant}
                       onChange={(e) => setAvatarVariant(e.target.value as "beam" | "marble" | "pixel")}
-                      className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                      className="h-10 rounded-xl border border-slate-200 bg-slate-50/90 px-3 text-[13px] font-medium text-slate-700 outline-none focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:focus:border-zinc-500"
                     >
-                      <option value="beam">NOU Beam</option>
-                      <option value="marble">NOU Marble</option>
-                      <option value="pixel">NOU Pixel</option>
+                      <option value="beam">Personaje A</option>
+                      <option value="marble">Personaje B</option>
+                      <option value="pixel">Personaje C</option>
                     </select>
                     <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-                      Avatar automático con estilo de marca.
+                      Personaje generado (DiceBear). Elige una variante; se guarda con la cuenta.
                     </p>
                   </div>
                 </div>
               </div>
               <div>
-                <label className={labelClass}>Nombre completo <span className="text-ov-pink">*</span></label>
+                <label className={labelClass}>Nombre completo <span className={requiredMarkClass}>*</span></label>
                 <input
                   value={nombre}
                   onChange={(e) => handleNombreChange(e.target.value)}
@@ -239,7 +239,7 @@ export default function EditEmployeePage() {
                 />
               </div>
               <div>
-                <label className={labelClass}>Usuario (acceso) <span className="text-ov-pink">*</span></label>
+                <label className={labelClass}>Usuario (acceso) <span className={requiredMarkClass}>*</span></label>
                 <input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -249,7 +249,7 @@ export default function EditEmployeePage() {
                 />
               </div>
               <div>
-                <label className={labelClass}>Correo <span className="text-ov-pink">*</span></label>
+                <label className={labelClass}>Correo <span className={requiredMarkClass}>*</span></label>
                 <input
                   type="email"
                   value={email}
@@ -274,15 +274,15 @@ export default function EditEmployeePage() {
                   <button
                     type="button"
                     onClick={() => setPermissions(withRequiredPermissions([...(ROLE_DEFAULT_PERMISSIONS[rol] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]))}
-                    className="text-[12px] font-medium text-ov-pink hover:underline"
+                    className="text-[12px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
                   >
                     Restaurar por rol
                   </button>
                 </div>
-                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <div className="rounded-2xl border border-slate-200 p-3 dark:border-slate-700">
                   {Array.from(new Set(PERMISSION_OPTIONS.map((p) => p.group))).map((group) => (
                     <div key={group} className="mb-3 last:mb-0">
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{group}</p>
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{group}</p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {PERMISSION_OPTIONS.filter((p) => p.group === group).map((perm) => {
                           const checked = permissions.includes(perm.key);
@@ -302,7 +302,7 @@ export default function EditEmployeePage() {
                                   });
                                 }}
                                 disabled={perm.key === REQUIRED_PERMISSION}
-                                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30 dark:border-slate-600"
+                                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-slate-400/50 dark:border-slate-600"
                               />
                               <span>{perm.label}</span>
                             </label>
@@ -325,21 +325,21 @@ export default function EditEmployeePage() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Resumen
             </p>
             <div className="mt-3 space-y-3 text-[13px]">
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Colaborador</p>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Colaborador</p>
                 <p className="mt-1 text-slate-600 dark:text-slate-400">{nombre || "—"}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Usuario</p>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Usuario</p>
                 <p className="mt-1 text-slate-600 dark:text-slate-400">{username ? `@${username}` : "—"}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Rol</p>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Rol</p>
                 <p className="mt-1 text-slate-600 dark:text-slate-400">
                   {ROLES.find((r) => r.id === rol)?.name ?? "—"}
                 </p>
@@ -347,10 +347,10 @@ export default function EditEmployeePage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className="rounded-3xl bg-white px-5 py-5 dark:bg-slate-900 sm:px-6 sm:py-6">
             <div className="space-y-3">
               <div className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
-                <p className="font-bold text-slate-700 dark:text-slate-100">Paso final</p>
+                <p className="font-semibold text-slate-700 dark:text-slate-100">Paso final</p>
                 <p className="mt-1">
                   Guarda los cambios para aplicar las modificaciones.
                 </p>
@@ -359,7 +359,7 @@ export default function EditEmployeePage() {
                 type="button"
                 onClick={handleSave}
                 disabled={uploading || loading}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-50"
               >
                 {uploading ? "Guardando…" : "Guardar cambios"}
               </button>

@@ -3,7 +3,7 @@
  * Usar en botones y elementos interactivos bajo /t/*
  */
 export const catalogFocusRing =
-  "outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(255,127,80,0.45)] focus-visible:ring-offset-0 focus-visible:ring-offset-transparent";
+  "outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/55 focus-visible:ring-offset-0 focus-visible:ring-offset-transparent";
 
 /** Botones − / + en tarjetas de listado */
 export const catalogQtyButtonSm =

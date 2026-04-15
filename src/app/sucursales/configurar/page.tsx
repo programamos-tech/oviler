@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { workspaceFormInputClass, workspaceFormInputCompactClass } from "@/lib/workspace-field-classes";
 
-const inputClass =
-  "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
-const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
+const inputClass = workspaceFormInputClass;
+const labelClass = "mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300";
+const sectionTitleClass = "text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400";
+const cardClass = "rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7";
+const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
 
 type DeliveryPerson = {
   id: string;
@@ -38,6 +41,7 @@ const DEFAULT_EXPENSE_CONCEPTS = [
 
 function ConfigurarSucursalContent() {
   const featureComingSoon = true;
+  const showAdvancedSettings = false;
   const router = useRouter();
   const searchParams = useSearchParams();
   const branchIdFromUrl = searchParams.get("branchId");
@@ -249,20 +253,20 @@ function ConfigurarSucursalContent() {
   }
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-2">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
-              Configurar sucursal
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
+        <div className="mt-1 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+              Configuración de cuenta
             </h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Logo, NIT, nombre, dirección, teléfono, tipo de factura e impuestos.
             </p>
           </div>
           <Link
             href="/sucursales"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
             title="Volver a sucursales"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -272,10 +276,10 @@ function ConfigurarSucursalContent() {
         </div>
       </header>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className={cardClass}>
+            <p className={sectionTitleClass}>
               Logo
             </p>
             <div className="mt-3 flex items-center gap-4">
@@ -313,13 +317,13 @@ function ConfigurarSucursalContent() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className={cardClass}>
+            <p className={sectionTitleClass}>
               Datos de la sucursal
             </p>
             <div className="mt-3 space-y-3">
               <div>
-                <label className={labelClass}>Nombre de la sucursal <span className="text-ov-pink">*</span></label>
+                <label className={labelClass}>Nombre de la sucursal <span className={requiredMarkClass}>*</span></label>
                 <input
                   value={branchName}
                   onChange={(e) => setBranchName(e.target.value)}
@@ -361,8 +365,8 @@ function ConfigurarSucursalContent() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className={cardClass}>
+            <p className={sectionTitleClass}>
               Impresión de facturas
             </p>
             <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
@@ -377,7 +381,7 @@ function ConfigurarSucursalContent() {
                   checked={invoicePrintType === "tirilla"}
                   onChange={() => setInvoicePrintType("tirilla")}
                   disabled={loading}
-                  className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                  className="h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
                 />
                 <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
                   Tirilla (papel térmico)
@@ -394,7 +398,7 @@ function ConfigurarSucursalContent() {
                   checked={invoicePrintType === "block"}
                   onChange={() => setInvoicePrintType("block")}
                   disabled={loading}
-                  className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                  className="h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
                 />
                 <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
                   Hoja de block (carta / A4)
@@ -406,9 +410,10 @@ function ConfigurarSucursalContent() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          {showAdvancedSettings && (
+          <div className={cardClass}>
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <p className={sectionTitleClass}>
                 Anulaciones de factura
               </p>
               {featureComingSoon && (
@@ -423,7 +428,7 @@ function ConfigurarSucursalContent() {
                 checked={invoiceCancelRequiresApproval}
                 onChange={(e) => setInvoiceCancelRequiresApproval(e.target.checked)}
                 disabled={loading || featureComingSoon}
-                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
               />
               <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                 Las anulaciones de factura requieren aprobación del administrador
@@ -433,10 +438,12 @@ function ConfigurarSucursalContent() {
               Si está marcado, al anular una factura la solicitud quedará pendiente hasta que un administrador u owner la apruebe. Si no, la anulación se aplica de inmediato.
             </p>
           </div>
+          )}
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          {showAdvancedSettings && (
+          <div className={cardClass}>
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <p className={sectionTitleClass}>
                 Modo de operación
               </p>
               {featureComingSoon && (
@@ -456,7 +463,7 @@ function ConfigurarSucursalContent() {
                   checked={salesMode === "sales"}
                   onChange={() => setSalesMode("sales")}
                   disabled={loading || featureComingSoon}
-                  className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                  className="h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
                 />
                 <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                   Pedidos (tienda / retail)
@@ -472,7 +479,7 @@ function ConfigurarSucursalContent() {
                   checked={salesMode === "orders"}
                   onChange={() => setSalesMode("orders")}
                   disabled={loading || featureComingSoon}
-                  className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                  className="h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
                 />
                 <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                   Pedidos (restaurante / envíos)
@@ -483,9 +490,11 @@ function ConfigurarSucursalContent() {
               </p>
             </div>
           </div>
+          )}
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          {showAdvancedSettings && (
+          <div className={cardClass}>
+            <p className={sectionTitleClass}>
               Catálogo web público
             </p>
             <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">
@@ -497,7 +506,7 @@ function ConfigurarSucursalContent() {
                 checked={catalogEnabled}
                 onChange={(e) => setCatalogEnabled(e.target.checked)}
                 disabled={loading}
-                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
               />
               <span className="text-[13px] font-medium text-slate-600 dark:text-slate-300">Activar catálogo</span>
             </label>
@@ -543,7 +552,7 @@ function ConfigurarSucursalContent() {
                 Lo verá el cliente en el checkout; no puede cambiarlo. Usa 0 si el envío es gratis o no aplica.
               </p>
             </div>
-            <p className="mt-4 text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <p className={`mt-4 ${sectionTitleClass}`}>
               Datos de pago (catálogo web)
             </p>
             <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">
@@ -580,10 +589,12 @@ function ConfigurarSucursalContent() {
               </div>
             </div>
           </div>
+          )}
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          {showAdvancedSettings && (
+          <div className={cardClass}>
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <p className={sectionTitleClass}>
                 Garantías
               </p>
               {featureComingSoon && (
@@ -603,7 +614,7 @@ function ConfigurarSucursalContent() {
                   checked={warrantyBySale === true}
                   onChange={() => setWarrantyBySale(true)}
                   disabled={loading || featureComingSoon}
-                  className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                  className="h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
                 />
                 <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                   Por venta (factura)
@@ -619,7 +630,7 @@ function ConfigurarSucursalContent() {
                   checked={warrantyBySale === false}
                   onChange={() => setWarrantyBySale(false)}
                   disabled={loading || featureComingSoon}
-                  className="h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                  className="h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
                 />
                 <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                   Por producto
@@ -635,7 +646,7 @@ function ConfigurarSucursalContent() {
                 checked={warrantyRequiresApproval}
                 onChange={(e) => setWarrantyRequiresApproval(e.target.checked)}
                 disabled={loading || featureComingSoon}
-                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
               />
               <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                 Las garantías requieren aprobación antes de procesarse
@@ -645,12 +656,14 @@ function ConfigurarSucursalContent() {
               Si está marcado, cada garantía pasará por estado &quot;Pendiente&quot; y un supervisor deberá aprobarla antes de poder procesarla (cambio/devolución/reparación). Si no está marcado, las garantías se podrán procesar directamente.
             </p>
           </div>
+          )}
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          {showAdvancedSettings && (
+          <div className={cardClass}>
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <p className={sectionTitleClass}>
                 Impuestos
               </p>
               {featureComingSoon && (
@@ -665,7 +678,7 @@ function ConfigurarSucursalContent() {
                 checked={responsableIva}
                 onChange={(e) => setResponsableIva(e.target.checked)}
                 disabled={loading || featureComingSoon}
-                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
               />
               <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                 Es responsable de IVA
@@ -675,10 +688,12 @@ function ConfigurarSucursalContent() {
               Si está marcado, al crear productos podrás elegir &quot;Aplicar IVA (19%)&quot;. Por defecto los productos no llevan IVA.
             </p>
           </div>
+          )}
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          {showAdvancedSettings && (
+          <div className={cardClass}>
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <p className={sectionTitleClass}>
                 Inventario
               </p>
               {featureComingSoon && (
@@ -694,7 +709,7 @@ function ConfigurarSucursalContent() {
                 checked={hasBodega}
                 onChange={(e) => setHasBodega(e.target.checked)}
                 disabled={loading || featureComingSoon}
-                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
               />
               <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
                 Esta sucursal tiene bodega
@@ -704,11 +719,12 @@ function ConfigurarSucursalContent() {
               Si activas la bodega, podrás tener stock en local y en bodega por separado y usar &quot;Transferir stock&quot; para mover entre ellos. Si no, todo el stock será en un solo lugar (local).
             </p>
           </div>
+          )}
 
           {/* Gestión de domiciliarios */}
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <div className="flex items-center justify-between">
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              <p className={sectionTitleClass}>
                 Domiciliarios
               </p>
               {!showAddForm && !editingPerson && (
@@ -720,7 +736,7 @@ function ConfigurarSucursalContent() {
                     setNewPersonCode("");
                     setNewPersonPhone("");
                   }}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-[12px] font-medium text-white transition-colors hover:bg-emerald-700"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[color:var(--shell-sidebar)] px-3 text-[12px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -738,26 +754,26 @@ function ConfigurarSucursalContent() {
               <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
                 <div>
                   <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                    Código <span className="text-ov-pink">*</span>
+                    Código <span className={requiredMarkClass}>*</span>
                   </label>
                   <input
                     type="text"
                     value={editingPerson?.code ?? newPersonCode}
                     onChange={(e) => editingPerson ? setEditingPerson({...editingPerson, code: e.target.value}) : setNewPersonCode(e.target.value.toUpperCase())}
                     placeholder="Ej. D1, D2, D3"
-                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-[13px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className={workspaceFormInputCompactClass}
                   />
                 </div>
                 <div>
                   <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                    Nombre <span className="text-ov-pink">*</span>
+                    Nombre <span className={requiredMarkClass}>*</span>
                   </label>
                   <input
                     type="text"
                     value={editingPerson?.name ?? newPersonName}
                     onChange={(e) => editingPerson ? setEditingPerson({...editingPerson, name: e.target.value}) : setNewPersonName(e.target.value)}
                     placeholder="Ej. Juan Pérez"
-                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-[13px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className={workspaceFormInputCompactClass}
                   />
                 </div>
                 <div>
@@ -769,7 +785,7 @@ function ConfigurarSucursalContent() {
                     value={editingPerson?.phone ?? newPersonPhone}
                     onChange={(e) => editingPerson ? setEditingPerson({...editingPerson, phone: e.target.value}) : setNewPersonPhone(e.target.value)}
                     placeholder="Ej. 300 123 4567"
-                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-[13px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className={workspaceFormInputCompactClass}
                   />
                 </div>
                 <div className="flex gap-2">
@@ -815,7 +831,7 @@ function ConfigurarSucursalContent() {
                         .order("code", { ascending: true });
                       if (data) setDeliveryPersons(data as DeliveryPerson[]);
                     }}
-                    className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-emerald-700"
+                    className="flex-1 rounded-xl bg-[color:var(--shell-sidebar)] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
                   >
                     {editingPerson ? "Guardar" : "Agregar"}
                   </button>
@@ -920,9 +936,9 @@ function ConfigurarSucursalContent() {
           </div>
 
           {/* Conceptos de egresos */}
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              <p className={sectionTitleClass}>
                 Conceptos de egresos
               </p>
               {expenseConcepts.length === 0 && organizationId && (
@@ -948,7 +964,7 @@ function ConfigurarSucursalContent() {
                     setAddingConcept(false);
                   }}
                   disabled={addingConcept}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-ov-pink px-3 text-[12px] font-medium text-white transition-colors hover:bg-ov-pink-hover disabled:opacity-60"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[color:var(--shell-sidebar)] px-3 text-[12px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-60"
                 >
                   {addingConcept ? "Cargando…" : "Cargar por defecto"}
                 </button>
@@ -964,7 +980,7 @@ function ConfigurarSucursalContent() {
                 checked={showExpenses}
                 onChange={(e) => setShowExpenses(e.target.checked)}
                 disabled={loading}
-                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
               />
               <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
                 Mostrar módulo de egresos en el menú
@@ -986,7 +1002,7 @@ function ConfigurarSucursalContent() {
                     value={newConceptName}
                     onChange={(e) => setNewConceptName(e.target.value)}
                     placeholder="Ej. Arriendo, Publicidad"
-                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-[13px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className={workspaceFormInputCompactClass}
                   />
                 </div>
                 <button
@@ -1010,7 +1026,7 @@ function ConfigurarSucursalContent() {
                     if (data) setExpenseConcepts(data as ExpenseConcept[]);
                   }}
                   disabled={!newConceptName.trim()}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-ov-pink px-3 text-[12px] font-medium text-white transition-colors hover:bg-ov-pink-hover disabled:opacity-50"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[color:var(--shell-sidebar)] px-3 text-[12px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-50"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1055,8 +1071,8 @@ function ConfigurarSucursalContent() {
           </div>
 
           {/* Resumen y Guardar en la misma columna */}
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className={cardClass}>
+            <p className={sectionTitleClass}>
               Resumen
             </p>
             <p className="mt-3 text-[13px] text-slate-600 dark:text-slate-400">
@@ -1067,7 +1083,7 @@ function ConfigurarSucursalContent() {
                 type="button"
                 onClick={handleSave}
                 disabled={loading || saving || !branchId}
-                className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-50"
               >
                 {saving ? "Guardando…" : "Guardar cambios"}
               </button>

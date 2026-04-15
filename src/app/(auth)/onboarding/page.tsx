@@ -1,27 +1,32 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import FreeTrialWelcomeModal from "@/app/components/FreeTrialWelcomeModal";
+import { OvilerWordmark } from "@/app/components/OvilerWordmark";
 import { PROGRAMAMOS_WA_LICENSE } from "@/lib/programamos-contact";
 import { isTrialWelcomeDismissedThisSession, markTrialWelcomeDismissedThisSession } from "@/lib/trial-welcome-storage";
 import { PLAN_CATALOG } from "@/lib/plan-catalog";
 import { type OrgTrialFields, isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
 
+const TOTAL_STEPS = 3;
+
 const inputClass =
-  "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:ring-slate-500";
-const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
+  "h-10 w-full rounded-lg border border-zinc-600 bg-zinc-800/90 px-4 text-[14px] font-medium text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-500/30";
+const labelClass = "mb-2 block text-[13px] font-bold text-zinc-300";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [responsableIva, setResponsableIva] = useState(false);
+  const [step, setStep] = useState(1);
   const [user, setUser] = useState<any>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [resumen, setResumen] = useState({ nombre: "", nit: "", direccion: "", telefono: "" });
   const [orgTrial, setOrgTrial] = useState<OrgTrialFields | null>(null);
   const [trialModalOpen, setTrialModalOpen] = useState(false);
@@ -40,7 +45,6 @@ export default function OnboardingPage() {
 
       setUser(currentUser);
 
-      // Obtener organization_id del usuario
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("organization_id")
@@ -61,14 +65,12 @@ export default function OnboardingPage() {
         .maybeSingle();
       setOrgTrial(orgRow as OrgTrialFields | null);
 
-      // Verificar si ya tiene sucursales
       const { data: branches, error: branchesError } = await supabase
         .from("branches")
         .select("id")
         .eq("organization_id", userData.organization_id);
 
       if (!branchesError && branches && branches.length > 0) {
-        // Ya tiene sucursales, redirigir a bodega (mapa de ubicaciones)
         router.push("/dashboard");
       }
     }
@@ -83,24 +85,42 @@ export default function OnboardingPage() {
     setTrialModalOpen(true);
   }, [trialActive, trialEndsAt, organizationId]);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const canGoNext = () => {
+    if (step === 2) {
+      return resumen.nombre.trim().length > 0 && resumen.nit.trim().length > 0;
+    }
+    return step < TOTAL_STEPS;
+  };
+
+  const goNext = () => {
+    setError(null);
+    if (step === 2 && !canGoNext()) {
+      setError("Indica el nombre de la sucursal y el NIT para continuar.");
+      return;
+    }
+    if (step < TOTAL_STEPS) setStep((s) => s + 1);
+  };
+
+  const goBack = () => {
+    setError(null);
+    if (step > 1) setStep((s) => s - 1);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !organizationId) return;
 
     setLoading(true);
     setError(null);
 
-    const formData = new FormData(e.currentTarget);
-    const nombre = formData.get("nombre") as string;
-    const nit = formData.get("nit") as string;
-    const direccion = formData.get("direccion") as string;
-    const telefono = formData.get("telefono") as string;
-    const logoFile = formData.get("logo") as File | null;
+    const nombre = resumen.nombre.trim();
+    const nit = resumen.nit.trim();
+    const direccion = resumen.direccion.trim();
+    const telefono = resumen.telefono.trim();
 
     try {
       let logoUrl: string | null = null;
 
-      // Subir logo a Supabase Storage si existe
       if (logoFile && logoFile.size > 0) {
         const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
         if (!allowedTypes.includes(logoFile.type)) {
@@ -108,7 +128,7 @@ export default function OnboardingPage() {
           setLoading(false);
           return;
         }
-        const maxSize = 5 * 1024 * 1024; // 5 MB
+        const maxSize = 5 * 1024 * 1024;
         if (logoFile.size > maxSize) {
           setError("El logo no debe superar 5 MB.");
           setLoading(false);
@@ -130,7 +150,6 @@ export default function OnboardingPage() {
         logoUrl = urlData.publicUrl;
       }
 
-      // Crear la primera sucursal
       const { data: branchData, error: branchError } = await supabase
         .from("branches")
         .insert({
@@ -139,7 +158,7 @@ export default function OnboardingPage() {
           nit,
           address: direccion,
           phone: telefono,
-          responsable_iva: responsableIva,
+          responsable_iva: false,
           logo_url: logoUrl,
         })
         .select()
@@ -151,7 +170,6 @@ export default function OnboardingPage() {
         return;
       }
 
-      // Vincular usuario a la sucursal
       const { error: userBranchError } = await supabase
         .from("user_branches")
         .insert({
@@ -165,99 +183,106 @@ export default function OnboardingPage() {
         return;
       }
 
-      // Redirigir a bodega (mapa de ubicaciones)
       router.push("/dashboard");
       router.refresh();
-    } catch (err) {
+    } catch {
       setError("Error inesperado. Por favor intenta de nuevo.");
       setLoading(false);
     }
   };
 
+  const stepTitle =
+    step === 1
+      ? "Logo de tu sucursal"
+      : step === 2
+        ? "Datos de la sucursal"
+        : "Revisa y crea tu sucursal";
+
+  const stepHint =
+    step === 1
+      ? "Opcional: aparece en tickets y documentos. Puedes saltar este paso."
+      : step === 2
+        ? "Nombre y NIT son obligatorios; el resto ayuda en facturas y contacto."
+        : "Si todo está correcto, confirma para entrar al panel.";
+
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="space-y-4">
-        <header className="space-y-2">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-              Configura tu sucursal
-            </h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Estos datos son los de tu punto de venta o negocio. Cada sucursal tendrá sus propios números de venta, inventario y configuración.
-            </p>
-          </div>
-          {trialActive && trialEndsAt ? (
-            <div className="rounded-xl border border-sky-500/35 bg-sky-500/[0.1] p-4 dark:border-sky-500/25 dark:bg-sky-950/35">
-              <p className="text-[13px] font-semibold text-sky-950 dark:text-sky-100">
-                Plan Prueba gratis ({PLAN_CATALOG.free.trialDays ?? 15} días)
-              </p>
-              <p className="mt-1 text-[13px] leading-relaxed text-sky-900/90 dark:text-sky-200/95">
-                Tu cuenta arranca en modo prueba con límites reducidos. Te quedan{" "}
-                <span className="font-bold tabular-nums">{trialRemainingLabel(trialEndsAt)}</span> para explorar NOU. Para
-                pasar a Basic o Pro, escribe a{" "}
-                <a
-                  href={PROGRAMAMOS_WA_LICENSE}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-semibold text-sky-800 underline underline-offset-2 hover:no-underline dark:text-sky-300"
-                >
-                  programamos por WhatsApp
-                </a>
-                .
-              </p>
+    <div className="min-h-[100dvh] bg-zinc-950 text-zinc-100">
+      <main className="flex min-h-[100dvh] flex-col justify-center px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-3xl space-y-6">
+          <Link
+            href="/"
+            className="inline-block w-fit outline-offset-4 focus-visible:rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-500"
+          >
+            <OvilerWordmark variant="onDark" className="text-[clamp(1.5rem,3.8vw,2.1rem)]" />
+          </Link>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3 text-[12px] font-medium uppercase tracking-wide text-zinc-500">
+              <span>
+                Paso {step} de {TOTAL_STEPS}
+              </span>
+              <span className="hidden text-right sm:inline">{stepTitle}</span>
             </div>
-          ) : null}
-        </header>
-
-        {error && (
-          <div className="rounded-lg bg-red-50 p-3 text-[13px] text-red-700 dark:bg-red-900/20 dark:text-red-400">
-            {error}
+            <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+              <div
+                className="h-full rounded-full bg-zinc-100 transition-[width] duration-300 ease-out"
+                style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+              />
+            </div>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit}>
-          <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
-            <div className="space-y-4">
-              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-                <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                  Logo
-                </p>
-                <div className="mt-3 flex items-center gap-4">
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+          <header className="space-y-2">
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-50 sm:text-[1.65rem]">{stepTitle}</h1>
+            <p className="text-[14px] leading-relaxed text-zinc-400">{stepHint}</p>
+          </header>
+
+          {error && (
+            <div className="rounded-lg border border-red-900/50 bg-red-950/50 p-3 text-[13px] text-red-200">
+              {error}
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/80 p-5 shadow-xl ring-1 ring-white/5 backdrop-blur-sm sm:p-6">
+            {step === 1 && (
+              <div className="space-y-4">
+                <p className="text-[13px] font-bold uppercase tracking-wide text-zinc-400">Archivo</p>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-zinc-600 bg-zinc-800/50">
                     {logoPreview ? (
                       <img src={logoPreview} alt="Vista previa" className="h-full w-full object-contain" />
                     ) : (
-                      <span className="text-[12px] font-medium text-slate-400">Sin logo</span>
+                      <span className="text-[12px] font-medium text-zinc-500">Sin logo</span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
-                      name="logo"
                       disabled={loading}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
+                          setLogoFile(file);
                           setLogoPreview(URL.createObjectURL(file));
                           setLogoFileName(file.name);
                         } else {
+                          setLogoFile(null);
                           setLogoPreview(null);
                           setLogoFileName(null);
                         }
                       }}
-                      className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200"
+                      className="block w-full text-[13px] text-zinc-300 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-700 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-zinc-100"
                     />
-                    <p className="mt-1 text-[11px] text-slate-500">JPEG, PNG, WebP o GIF. Máx. 5 MB.</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">JPEG, PNG, WebP o GIF. Máx. 5 MB.</p>
                   </div>
                 </div>
               </div>
+            )}
 
-              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-                <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                  Datos de la sucursal
-                </p>
-                <div className="mt-3 space-y-3">
+            {step === 2 && (
+              <div className="space-y-4">
+                <p className="text-[13px] font-bold uppercase tracking-wide text-zinc-400">Datos de la sucursal</p>
+                <div className="space-y-3">
                   <div>
                     <label className={labelClass}>
                       Nombre de la sucursal <span className="text-ov-pink">*</span>
@@ -310,88 +335,115 @@ export default function OnboardingPage() {
                   </div>
                 </div>
               </div>
+            )}
 
-              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-                <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                  Impuestos
-                </p>
-                <label className="mt-3 flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={responsableIva}
-                    onChange={(e) => setResponsableIva(e.target.checked)}
-                    disabled={loading}
-                    className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400 dark:text-slate-700 dark:focus:ring-slate-500"
-                  />
-                  <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                    Es responsable de IVA
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-                <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                  Resumen
-                </p>
-                <dl className="mt-3 space-y-1.5 text-[13px]">
+            {step === 3 && (
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <p className="text-[13px] font-bold uppercase tracking-wide text-zinc-400">Resumen</p>
+                <dl className="space-y-2 text-[14px]">
                   {resumen.nombre.trim() && (
                     <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500 dark:text-slate-400">Nombre</dt>
-                      <dd className="font-medium text-slate-900 dark:text-slate-100 truncate">{resumen.nombre}</dd>
+                      <dt className="text-zinc-500">Nombre</dt>
+                      <dd className="max-w-[65%] truncate font-medium text-zinc-100">{resumen.nombre}</dd>
                     </div>
                   )}
                   {resumen.nit.trim() && (
                     <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500 dark:text-slate-400">NIT</dt>
-                      <dd className="font-medium text-slate-900 dark:text-slate-100 truncate">{resumen.nit}</dd>
+                      <dt className="text-zinc-500">NIT</dt>
+                      <dd className="font-medium text-zinc-100">{resumen.nit}</dd>
                     </div>
                   )}
                   {resumen.direccion.trim() && (
                     <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500 dark:text-slate-400">Dirección</dt>
-                      <dd className="font-medium text-slate-900 dark:text-slate-100 truncate">{resumen.direccion}</dd>
+                      <dt className="text-zinc-500">Dirección</dt>
+                      <dd className="max-w-[65%] truncate font-medium text-zinc-100">{resumen.direccion}</dd>
                     </div>
                   )}
                   {resumen.telefono.trim() && (
                     <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500 dark:text-slate-400">Teléfono</dt>
-                      <dd className="font-medium text-slate-900 dark:text-slate-100 truncate">{resumen.telefono}</dd>
-                    </div>
-                  )}
-                  {(responsableIva || resumen.nombre || resumen.nit || resumen.direccion || resumen.telefono || logoFileName) && (
-                    <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500 dark:text-slate-400">Responsable IVA</dt>
-                      <dd className="font-medium text-slate-900 dark:text-slate-100">{responsableIva ? "Sí" : "No"}</dd>
+                      <dt className="text-zinc-500">Teléfono</dt>
+                      <dd className="font-medium text-zinc-100">{resumen.telefono}</dd>
                     </div>
                   )}
                   {logoFileName && (
                     <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500 dark:text-slate-400">Logo</dt>
-                      <dd className="font-medium text-slate-900 dark:text-slate-100 truncate">{logoFileName}</dd>
+                      <dt className="text-zinc-500">Logo</dt>
+                      <dd className="max-w-[65%] truncate font-medium text-zinc-100">{logoFileName}</dd>
                     </div>
                   )}
+                  {!logoFileName && (
+                    <p className="text-[13px] text-zinc-500">Sin archivo de logo (puedes volver al paso 1).</p>
+                  )}
                 </dl>
-                {!resumen.nombre.trim() && !resumen.nit.trim() && !resumen.direccion.trim() && !resumen.telefono.trim() && !logoFileName && (
-                  <p className="mt-3 text-[12px] text-slate-400 dark:text-slate-500">
-                    Completa los datos a la izquierda para ver el resumen.
-                  </p>
-                )}
-                <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-slate-800 disabled:opacity-70 dark:bg-slate-800 dark:hover:bg-slate-700"
-                  >
-                    {loading ? "Creando sucursal…" : "Crear sucursal"}
-                  </button>
-                </div>
-              </div>
+
+                {trialActive && trialEndsAt ? (
+                  <div className="rounded-xl border border-zinc-700/90 bg-zinc-950 p-4 shadow-inner">
+                    <p className="text-[13px] font-bold text-zinc-100">
+                      Plan Prueba gratis ({PLAN_CATALOG.free.trialDays ?? 15} días)
+                    </p>
+                    <p className="mt-2 text-[13px] leading-relaxed text-zinc-300">
+                      Tu cuenta arranca en modo prueba con límites reducidos. Te quedan{" "}
+                      <span className="font-bold tabular-nums text-zinc-50">{trialRemainingLabel(trialEndsAt)}</span> para
+                      explorar Berea Comercios. Para pasar a Basic o Pro, escribe a{" "}
+                      <a
+                        href={PROGRAMAMOS_WA_LICENSE}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-zinc-100 underline underline-offset-2 hover:no-underline"
+                      >
+                        programamos por WhatsApp
+                      </a>
+                      .
+                    </p>
+                  </div>
+                ) : null}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-zinc-100 px-4 text-[14px] font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-white disabled:opacity-70"
+                >
+                  {loading ? "Creando sucursal…" : "Crear sucursal"}
+                </button>
+              </form>
+            )}
+          </div>
+
+          {step < 3 && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={goBack}
+                disabled={step === 1 || loading}
+                className="rounded-xl border border-zinc-600 bg-zinc-900/80 px-4 py-2.5 text-[14px] font-medium text-zinc-200 transition-colors hover:bg-zinc-800 disabled:opacity-40"
+              >
+                Atrás
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={loading || (step === 2 && !canGoNext())}
+                className="rounded-xl bg-zinc-100 px-5 py-2.5 text-[14px] font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-white disabled:opacity-50"
+              >
+                {step === 2 ? "Ver resumen" : "Siguiente"}
+              </button>
             </div>
-          </section>
-        </form>
-      </div>
+          )}
+
+          {step === 3 && (
+            <div className="flex justify-start">
+              <button
+                type="button"
+                onClick={goBack}
+                disabled={loading}
+                className="rounded-xl border border-zinc-600 bg-zinc-900/80 px-4 py-2.5 text-[14px] font-medium text-zinc-200 transition-colors hover:bg-zinc-800 disabled:opacity-40"
+              >
+                Atrás
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
 
       {trialActive && trialEndsAt && organizationId ? (
         <FreeTrialWelcomeModal

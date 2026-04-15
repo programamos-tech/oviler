@@ -1,22 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { programamosWhatsAppUrl } from "@/lib/programamos-contact";
 import DatePickerCard from "@/app/components/DatePickerCard";
+import { creditRowPending } from "@/app/creditos/credit-ui";
+import { cashTransferFromLine, addCreditPaymentSplits as addCreditPaymentsToCashTransfer } from "@/lib/cash-transfer-from-line";
 import {
-  MdAttachMoney,
-  MdTrendingDown,
-  MdPayments,
-  MdAccountBalance,
-  MdCancel,
-  MdCreditCard,
-  MdVerifiedUser,
-  MdInventory2,
-  MdShowChart,
-  MdSavings,
+  MdOutlineAttachMoney,
+  MdOutlineTrendingDown,
+  MdOutlinePayments,
+  MdOutlineAccountBalance,
+  MdOutlineCancel,
+  MdOutlineCreditCard,
+  MdOutlineVerifiedUser,
+  MdOutlineInventory2,
+  MdOutlineShowChart,
+  MdOutlineSavings,
+  MdOutlineArrowUpward,
+  MdOutlineArrowDownward,
 } from "react-icons/md";
 
 type DashboardData = {
@@ -38,8 +40,11 @@ type DashboardData = {
   cancelledTotal: number;
   cancelledList: { invoice_number: string; total: number }[];
   topProducts: { name: string; units: number; total: number }[];
-  last7Days: { day: string; sales: number }[];
-  yesterdayIncome: number;
+  last15Days: { day: string; sales: number }[];
+  /** Neto efectivo / transfer / total del día calendario anterior al ancla (para variación %). */
+  prevPeriodNetCash: number;
+  prevPeriodNetTransfer: number;
+  prevPeriodNetTotal: number;
   totalStockInvestment: number;
   defectiveStockInvestment: number;
   expectedProfit: number;
@@ -50,11 +55,291 @@ type DashboardData = {
   lastExpense: { amount: number; concept: string } | null;
   lastCashSale: { total: number; invoice_number: string } | null;
   lastTransferSale: { total: number; invoice_number: string } | null;
+  /** Saldo total pendiente por cobrar en créditos a clientes (esta sucursal). */
+  outstandingCredits: number;
 };
 
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
+/** Color único para iconos Material del resumen (verde shell = sidebar). */
+const DASHBOARD_ICON_CLASS = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
+
+/** Días mostrados en la tendencia de ingresos (siempre anclada a “hoy” calendario). */
+const INCOME_TREND_DAY_COUNT = 15;
+
+function formatTrendAxisDay(d: Date): string {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function emptyIncomeTrendDays(): { day: string; sales: number }[] {
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  const out: { day: string; sales: number }[] = [];
+  for (let i = INCOME_TREND_DAY_COUNT - 1; i >= 0; i--) {
+    const d = new Date(t);
+    d.setDate(d.getDate() - i);
+    out.push({ day: formatTrendAxisDay(d), sales: 0 });
+  }
+  return out;
+}
+
+type DaySaleRow = {
+  total: number;
+  payment_method: string;
+  amount_cash: number | null;
+  amount_transfer: number | null;
+  delivery_fee: number | null;
+  status: string;
+  payment_pending?: boolean | null;
+};
+
+type CreditPaymentRow = {
+  amount: number;
+  payment_method: string;
+  amount_cash: number | null;
+  amount_transfer: number | null;
+  payment_source?: string | null;
+  created_at: string;
+  customer_credits:
+    | { branch_id: string; public_ref: string; sale_id?: string | null; total_amount?: number | string | null }
+    | Array<{ branch_id: string; public_ref: string; sale_id?: string | null; total_amount?: number | string | null }>
+    | null;
+};
+
+function isCreditPaymentCashInflow(p: CreditPaymentRow): boolean {
+  return p.payment_source !== "warranty_refund";
+}
+
+type SaleItemMarginRow = {
+  quantity: number;
+  unit_price: number;
+  discount_percent: number;
+  discount_amount: number;
+  products: { name: string; base_cost: number | null } | null;
+};
+
+/** Margen bruto (precio − costo) × cantidad, misma fórmula que el dashboard. */
+function grossMarginFromItemRows(itemRows: SaleItemMarginRow[]): number {
+  return itemRows.reduce((sum, it) => {
+    const unitPrice = Number(it.unit_price ?? 0);
+    const discountPercent = Number(it.discount_percent ?? 0);
+    const discountAmount = Number(it.discount_amount ?? 0);
+    const quantity = Number(it.quantity ?? 0);
+    const baseCost = Number(it.products?.base_cost ?? 0);
+    const salePriceWithDiscount = Math.max(
+      0,
+      unitPrice * (1 - discountPercent / 100) - discountAmount
+    );
+    if (baseCost > 0) {
+      return sum + (salePriceWithDiscount - baseCost) * quantity;
+    }
+    return sum;
+  }, 0);
+}
+
+function creditPublicRef(p: CreditPaymentRow): string {
+  const c = p.customer_credits;
+  const row = Array.isArray(c) ? c[0] : c;
+  return row?.public_ref ?? "—";
+}
+
+function netCashTransferFromCompletedSales(completed: DaySaleRow[]): { cash: number; transfer: number } {
+  let cash = 0;
+  let transfer = 0;
+  completed.forEach((s) => {
+    if (s.payment_pending) return;
+    const deliveryFee = Number(s.delivery_fee) || 0;
+    const inc = cashTransferFromLine(Number(s.total), deliveryFee, s.payment_method, s.amount_cash, s.amount_transfer);
+    cash += inc.cash;
+    transfer += inc.transfer;
+  });
+  return { cash, transfer };
+}
+
+type LastMoveCtx = { total: number; invoice_number: string; at: number };
+
+function pickNewerMove(a: LastMoveCtx | null, b: LastMoveCtx | null): LastMoveCtx | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a.at >= b.at ? a : b;
+}
+
+function applyExpensesToCashTransfer(
+  expenses: Array<{ amount: number; payment_method: string }>,
+  cash: number,
+  transfer: number
+): { cash: number; transfer: number } {
+  let c = cash;
+  let t = transfer;
+  expenses.forEach((e) => {
+    const amount = Number(e.amount) || 0;
+    if (e.payment_method === "cash") c -= amount;
+    else t -= amount;
+  });
+  return { cash: c, transfer: t };
+}
+
+function HeroDeltaInline({ cur, prev, hide }: { cur: number; prev: number; hide: boolean }) {
+  if (hide) {
+    return (
+      <span className="text-sm font-semibold tabular-nums text-slate-400" title="Oculto">
+        ***
+      </span>
+    );
+  }
+  if (prev <= 0) {
+    if (cur > 0) {
+      return (
+        <span
+          className="inline-flex items-center gap-0.5 text-sm font-semibold text-[color:var(--shell-sidebar)] dark:text-zinc-300"
+          title="Sin día anterior comparable"
+        >
+          <MdOutlineArrowUpward className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          Nuevo
+        </span>
+      );
+    }
+    return null;
+  }
+  const pct = Math.round(((cur - prev) / prev) * 1000) / 10;
+  const up = pct >= 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 text-sm font-semibold tabular-nums ${
+        up ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : "text-rose-600 dark:text-rose-400"
+      }`}
+      title="vs. día anterior"
+    >
+      {up ? (
+        <MdOutlineArrowUpward className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      ) : (
+        <MdOutlineArrowDownward className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      )}
+      <span>
+        {up ? "+" : ""}
+        {pct}%
+      </span>
+    </span>
+  );
+}
+
+function DashboardHeroMetric({
+  label,
+  valueStr,
+  numericValue,
+  prevNumeric,
+  showDelta,
+  hideSensitive,
+  icon,
+}: {
+  label: string;
+  valueStr: string;
+  numericValue: number;
+  prevNumeric: number;
+  showDelta: boolean;
+  hideSensitive: boolean;
+  icon: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3.5">
+      <span
+        className={`inline-flex shrink-0 items-center justify-center leading-none [&>svg]:h-[22px] [&>svg]:w-[22px] ${DASHBOARD_ICON_CLASS}`}
+      >
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">{label}</p>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+          <span className="text-xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+            {valueStr}
+          </span>
+          {showDelta ? <HeroDeltaInline cur={numericValue} prev={prevNumeric} hide={hideSensitive} /> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Bloque de reporte con título tipo sidebar + rejilla de mini-tarjetas. */
+function DashboardReportSection({
+  eyebrow,
+  gridClass,
+  children,
+}: {
+  eyebrow: string;
+  /** ej. `sm:grid-cols-3` o `sm:grid-cols-2 lg:grid-cols-4` */
+  gridClass: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="pt-0">
+      <p className="mb-5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{eyebrow}</p>
+      <div className={`grid grid-cols-1 gap-x-6 gap-y-8 sm:gap-x-8 sm:gap-y-9 ${gridClass}`}>{children}</div>
+    </section>
+  );
+}
+
+function DashboardKpiCard({
+  icon,
+  label,
+  value,
+  hint,
+  valueClassName = "text-lg sm:text-xl",
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  hint: ReactNode;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-3 py-0.5">
+      <span
+        className={`mt-0.5 inline-flex shrink-0 items-center justify-center leading-none [&>svg]:h-5 [&>svg]:w-5 ${DASHBOARD_ICON_CLASS}`}
+      >
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">{label}</p>
+        <p
+          className={`mt-1.5 font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 ${valueClassName}`}
+        >
+          {value}
+        </p>
+        <p className="mt-1 text-[12px] font-medium leading-snug text-slate-500 dark:text-slate-400">{hint}</p>
+      </div>
+    </div>
+  );
+}
+
 const IVA_RATE = 0.19;
+
+/** Curva suave (cúbicas) para la tendencia de ingresos en viewBox normalizado. */
+function buildSalesTrendLine(values: number[]): string {
+  const n = values.length;
+  if (n === 0) return "";
+  const maxVal = Math.max(...values, 1);
+  const vbW = 280;
+  const vbH = 88;
+  const padX = 6;
+  const padY = 10;
+  const padB = 14;
+  const innerW = vbW - padX * 2;
+  const innerH = vbH - padY - padB;
+  const pts = values.map((v, i) => ({
+    x: padX + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW),
+    y: padY + innerH * (1 - v / maxVal),
+  }));
+  if (n === 1) return `M ${pts[0].x} ${pts[0].y}`;
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = pts[i];
+    const p1 = pts[i + 1];
+    const dx = (p1.x - p0.x) / 3;
+    d += ` C ${p0.x + dx} ${p0.y} ${p1.x - dx} ${p1.y} ${p1.x} ${p1.y}`;
+  }
+  return d;
+}
 
 function getDayBounds(date: Date): { start: string; end: string } {
   const year = date.getFullYear();
@@ -100,7 +385,6 @@ function warrantySaleLineTotal(
 }
 
 export default function DashboardPage() {
-  const router = useRouter();
   type DateFilterMode = "today" | "range";
 
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>("today");
@@ -117,7 +401,6 @@ export default function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [branchResolved, setBranchResolved] = useState(false);
-  const [existingClosingId, setExistingClosingId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const today = new Date();
@@ -159,50 +442,87 @@ export default function DashboardPage() {
       dateFilterMode === "today"
         ? getDayBounds(selectedDay)
         : getRangeBounds(dateFrom, dateTo);
-    const refDate = dateFilterMode === "today" ? selectedDay : dateFrom;
-    const dayBeforeRef = new Date(refDate);
+    const anchorForPrevDay = dateFilterMode === "today" ? selectedDay : dateTo;
+    const dayBeforeRef = new Date(anchorForPrevDay);
     dayBeforeRef.setDate(dayBeforeRef.getDate() - 1);
     const { start: yStart, end: yEnd } = getDayBounds(dayBeforeRef);
+
+    const trendWindowStart = new Date();
+    trendWindowStart.setHours(0, 0, 0, 0);
+    trendWindowStart.setDate(trendWindowStart.getDate() - (INCOME_TREND_DAY_COUNT - 1));
+    const trendWindowEnd = new Date();
+    trendWindowEnd.setHours(23, 59, 59, 999);
+    const trendWindowStartIso = trendWindowStart.toISOString();
+    const trendWindowEndIso = trendWindowEnd.toISOString();
+
+    const creditPaySelect =
+      "amount, payment_method, amount_cash, amount_transfer, payment_source, created_at, customer_credits!inner(branch_id, public_ref, sale_id, total_amount)";
 
     (async () => {
       const [
         { data: salesDay },
-        { data: salesYesterday },
-        { data: salesLast7 },
+        { data: salesPrevDay },
+        { data: expensesPrevDay },
+        { data: salesTrendWindow },
+        { data: creditPaymentsPeriod },
+        { data: creditPaymentsPrev },
+        { data: creditPaymentsTrend },
+        { data: customerCreditsBranch },
         { data: inventoryData },
         { data: defectiveData },
       ] = await Promise.all([
         supabase
           .from("sales")
-          .select("id, total, payment_method, amount_cash, amount_transfer, is_delivery, status, invoice_number, delivery_fee, delivery_paid, created_at")
+          .select(
+            "id, total, payment_method, amount_cash, amount_transfer, is_delivery, status, invoice_number, delivery_fee, delivery_paid, payment_pending, created_at"
+          )
           .eq("branch_id", branchId)
           .gte("created_at", start)
           .lte("created_at", end),
         supabase
           .from("sales")
-          .select("total")
+          .select(
+            "id, total, payment_method, amount_cash, amount_transfer, is_delivery, status, invoice_number, delivery_fee, delivery_paid, payment_pending, created_at"
+          )
           .eq("branch_id", branchId)
-          .eq("status", "completed")
+          .gte("created_at", yStart)
+          .lte("created_at", yEnd),
+        supabase
+          .from("expenses")
+          .select("amount, payment_method")
+          .eq("branch_id", branchId)
+          .eq("status", "active")
           .gte("created_at", yStart)
           .lte("created_at", yEnd),
         supabase
           .from("sales")
-          .select("total, created_at, delivery_fee")
+          .select("total, created_at, delivery_fee, payment_pending")
           .eq("branch_id", branchId)
           .eq("status", "completed")
-          .gte("created_at", (() => {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const d = new Date(today);
-            d.setDate(d.getDate() - 6);
-            d.setHours(0, 0, 0, 0);
-            return d.toISOString();
-          })())
-          .lte("created_at", (() => {
-            const today = new Date();
-            today.setHours(23, 59, 59, 999);
-            return today.toISOString();
-          })()),
+          .gte("created_at", trendWindowStartIso)
+          .lte("created_at", trendWindowEndIso),
+        supabase
+          .from("credit_payments")
+          .select(creditPaySelect)
+          .eq("customer_credits.branch_id", branchId)
+          .gte("created_at", start)
+          .lte("created_at", end),
+        supabase
+          .from("credit_payments")
+          .select(creditPaySelect)
+          .eq("customer_credits.branch_id", branchId)
+          .gte("created_at", yStart)
+          .lte("created_at", yEnd),
+        supabase
+          .from("credit_payments")
+          .select(creditPaySelect)
+          .eq("customer_credits.branch_id", branchId)
+          .gte("created_at", trendWindowStartIso)
+          .lte("created_at", trendWindowEndIso),
+        supabase
+          .from("customer_credits")
+          .select("total_amount, amount_paid, cancelled_at, status")
+          .eq("branch_id", branchId),
         supabase
           .from("inventory")
           .select("product_id, quantity, products(base_cost, base_price)")
@@ -216,6 +536,19 @@ export default function DashboardPage() {
 
       if (cancelled) return;
 
+      const outstandingCredits = ((customerCreditsBranch ?? []) as Array<{
+        total_amount: number;
+        amount_paid: number;
+        cancelled_at: string | null;
+        status: string;
+      }>).reduce((sum, r) => {
+        const cancelled = Boolean(r.cancelled_at) || r.status === "cancelled";
+        return (
+          sum +
+          creditRowPending(Number(r.total_amount), Number(r.amount_paid), cancelled)
+        );
+      }, 0);
+
       const sales = (salesDay ?? []) as Array<{
         id: string;
         total: number;
@@ -227,10 +560,27 @@ export default function DashboardPage() {
         invoice_number: string;
         delivery_fee: number | null;
         delivery_paid: boolean;
+        payment_pending?: boolean | null;
         created_at: string;
       }>;
       const completed = sales.filter((s) => s.status === "completed");
-      
+
+      const completedPrev = ((salesPrevDay ?? []) as DaySaleRow[]).filter((s) => s.status === "completed");
+      let prevNet = netCashTransferFromCompletedSales(completedPrev);
+      prevNet = addCreditPaymentsToCashTransfer(
+        (creditPaymentsPrev ?? []) as CreditPaymentRow[],
+        prevNet.cash,
+        prevNet.transfer
+      );
+      prevNet = applyExpensesToCashTransfer(
+        (expensesPrevDay ?? []) as Array<{ amount: number; payment_method: string }>,
+        prevNet.cash,
+        prevNet.transfer
+      );
+      const prevPeriodNetCash = prevNet.cash;
+      const prevPeriodNetTransfer = prevNet.transfer;
+      const prevPeriodNetTotal = prevPeriodNetCash + prevPeriodNetTransfer;
+
       // Calcular ingresos tienda (sin delivery fees) y delivery fees por separado
       let totalStoreIncome = 0;
       let totalDeliveryFees = 0;
@@ -242,45 +592,61 @@ export default function DashboardPage() {
       completed.forEach((s) => {
         const deliveryFee = Number(s.delivery_fee) || 0;
         const saleAmount = Number(s.total) - deliveryFee; // Ingreso real de la tienda
-        totalStoreIncome += saleAmount;
+        const pending = Boolean(s.payment_pending);
+        if (!pending) {
+          totalStoreIncome += saleAmount;
+        }
         totalDeliveryFees += deliveryFee;
         // Calcular envíos pendientes (no pagados)
         if (deliveryFee > 0 && !s.delivery_paid) {
           unpaidDeliveryFees += deliveryFee;
         }
-        
+
+        if (pending) return;
+
+        const inc = cashTransferFromLine(
+          Number(s.total),
+          deliveryFee,
+          s.payment_method,
+          s.amount_cash,
+          s.amount_transfer
+        );
+        cash += inc.cash;
+        transfer += inc.transfer;
+
         if (s.payment_method === "cash") {
-          cash += saleAmount;
           cashSales += 1;
         } else if (s.payment_method === "transfer") {
-          transfer += saleAmount;
           transferSales += 1;
         } else if (s.payment_method === "mixed") {
           const ac = Number(s.amount_cash ?? 0);
           const at = Number(s.amount_transfer ?? 0);
           const sumMixed = ac + at;
-          // Proporcionalmente distribuir el saleAmount (sin delivery) entre cash y transfer
           if (sumMixed > 0 && Math.abs(sumMixed - Number(s.total)) < 0.01) {
-            // Si los amounts coinciden con el total, restar delivery proporcionalmente
-            const deliveryRatio = deliveryFee / Number(s.total);
-            const cashDelivery = ac * deliveryRatio;
-            const transferDelivery = at * deliveryRatio;
-            cash += ac - cashDelivery;
-            transfer += at - transferDelivery;
             if (ac > 0) cashSales += 1;
             if (at > 0) transferSales += 1;
           } else if (sumMixed > 0) {
-            const ratio = saleAmount / sumMixed;
-            const cashPart = Math.round(ac * ratio);
-            const transferPart = saleAmount - cashPart;
-            cash += cashPart;
-            transfer += transferPart;
             if (ac > 0) cashSales += 1;
             if (at > 0) transferSales += 1;
           } else {
-            cash += saleAmount;
             cashSales += 1;
           }
+        }
+      });
+
+      const abonosPeriod = (creditPaymentsPeriod ?? []) as CreditPaymentRow[];
+      const abonosAdded = addCreditPaymentsToCashTransfer(abonosPeriod, cash, transfer);
+      cash = abonosAdded.cash;
+      transfer = abonosAdded.transfer;
+      abonosPeriod.forEach((p) => {
+        if (!isCreditPaymentCashInflow(p)) return;
+        if (p.payment_method === "cash") {
+          cashSales += 1;
+        } else if (p.payment_method === "transfer") {
+          transferSales += 1;
+        } else if (p.payment_method === "mixed") {
+          if (Number(p.amount_cash ?? 0) > 0) cashSales += 1;
+          if (Number(p.amount_transfer ?? 0) > 0) transferSales += 1;
         }
       });
 
@@ -333,27 +699,79 @@ export default function DashboardPage() {
         lastExpense = { amount: Number(lastExpenseRow.amount), concept: String(lastExpenseRow.concept ?? "") };
       }
 
-      // Última venta en efectivo y última en transferencia del día (desde ventas completadas)
+      // Último movimiento efectivo / transfer: ventas cobradas o abonos a crédito
       const completedByDate = [...completed].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       const lastCashSale = completedByDate.find(
-        (s) => s.payment_method === "cash" || (s.payment_method === "mixed" && Number(s.amount_cash ?? 0) > 0)
+        (s) =>
+          !s.payment_pending &&
+          (s.payment_method === "cash" || (s.payment_method === "mixed" && Number(s.amount_cash ?? 0) > 0))
       );
       const lastTransferSale = completedByDate.find(
-        (s) => s.payment_method === "transfer" || (s.payment_method === "mixed" && Number(s.amount_transfer ?? 0) > 0)
+        (s) =>
+          !s.payment_pending &&
+          (s.payment_method === "transfer" || (s.payment_method === "mixed" && Number(s.amount_transfer ?? 0) > 0))
       );
-      const lastCashSaleDisplay = lastCashSale
+      const fromSaleCash: LastMoveCtx | null = lastCashSale
         ? {
-            total: lastCashSale.payment_method === "cash" ? Number(lastCashSale.total) : Number(lastCashSale.amount_cash ?? 0),
+            total:
+              lastCashSale.payment_method === "cash"
+                ? Number(lastCashSale.total)
+                : Number(lastCashSale.amount_cash ?? 0),
             invoice_number: lastCashSale.invoice_number,
+            at: new Date(lastCashSale.created_at).getTime(),
           }
         : null;
-      const lastTransferSaleDisplay = lastTransferSale
+      const fromSaleTransfer: LastMoveCtx | null = lastTransferSale
         ? {
-            total: lastTransferSale.payment_method === "transfer" ? Number(lastTransferSale.total) : Number(lastTransferSale.amount_transfer ?? 0),
+            total:
+              lastTransferSale.payment_method === "transfer"
+                ? Number(lastTransferSale.total)
+                : Number(lastTransferSale.amount_transfer ?? 0),
             invoice_number: lastTransferSale.invoice_number,
+            at: new Date(lastTransferSale.created_at).getTime(),
           }
+        : null;
+
+      const abonosForLastMove = abonosPeriod.filter(isCreditPaymentCashInflow);
+      const abonosSorted = [...abonosForLastMove].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      const lastAbonoCashRow = abonosSorted.find(
+        (p) => p.payment_method === "cash" || (p.payment_method === "mixed" && Number(p.amount_cash ?? 0) > 0)
+      );
+      const lastAbonoTransferRow = abonosSorted.find(
+        (p) => p.payment_method === "transfer" || (p.payment_method === "mixed" && Number(p.amount_transfer ?? 0) > 0)
+      );
+      const fromAbonoCash: LastMoveCtx | null = lastAbonoCashRow
+        ? {
+            total:
+              lastAbonoCashRow.payment_method === "cash"
+                ? Number(lastAbonoCashRow.amount)
+                : Number(lastAbonoCashRow.amount_cash ?? 0),
+            invoice_number: `Abono ${creditPublicRef(lastAbonoCashRow)}`,
+            at: new Date(lastAbonoCashRow.created_at).getTime(),
+          }
+        : null;
+      const fromAbonoTransfer: LastMoveCtx | null = lastAbonoTransferRow
+        ? {
+            total:
+              lastAbonoTransferRow.payment_method === "transfer"
+                ? Number(lastAbonoTransferRow.amount)
+                : Number(lastAbonoTransferRow.amount_transfer ?? 0),
+            invoice_number: `Abono ${creditPublicRef(lastAbonoTransferRow)}`,
+            at: new Date(lastAbonoTransferRow.created_at).getTime(),
+          }
+        : null;
+
+      const pickedCash = pickNewerMove(fromSaleCash, fromAbonoCash);
+      const pickedTransfer = pickNewerMove(fromSaleTransfer, fromAbonoTransfer);
+      const lastCashSaleDisplay = pickedCash
+        ? { total: pickedCash.total, invoice_number: pickedCash.invoice_number }
+        : null;
+      const lastTransferSaleDisplay = pickedTransfer
+        ? { total: pickedTransfer.total, invoice_number: pickedTransfer.invoice_number }
         : null;
 
       const totalIncome = cash + transfer; // Total neto tras restar egresos
@@ -362,45 +780,53 @@ export default function DashboardPage() {
       const cancelledSales = sales.filter((s) => s.status === "cancelled");
       const cancelledTotal = cancelledSales.reduce((a, s) => a + Number(s.total), 0);
       const cancelledList = cancelledSales.map((s) => ({ invoice_number: s.invoice_number, total: Number(s.total) }));
-      const yesterdayIncome = (salesYesterday ?? []).reduce((a, s) => a + Number((s as { total: number }).total), 0);
 
       const byDay: Record<string, number> = {};
-      // Calcular últimos 7 días desde hoy (no desde selectedDate)
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const last7Start = new Date(today);
-      last7Start.setDate(last7Start.getDate() - 6);
-      last7Start.setHours(0, 0, 0, 0);
-      (salesLast7 ?? []).forEach((s: { total: number; created_at: string; delivery_fee: number | null }) => {
-        const saleDate = new Date(s.created_at);
-        saleDate.setHours(0, 0, 0, 0);
-        const key = saleDate.toDateString();
-        const deliveryFee = Number(s.delivery_fee) || 0;
-        const storeIncome = Number(s.total) - deliveryFee; // Solo ingresos tienda (sin delivery)
-        byDay[key] = (byDay[key] ?? 0) + storeIncome;
+      // Últimos N días calendario desde hoy (independiente del filtro del resto del dashboard)
+      (salesTrendWindow ?? []).forEach(
+        (s: { total: number; created_at: string; delivery_fee: number | null; payment_pending?: boolean | null }) => {
+          if (s.payment_pending) return;
+          const saleDate = new Date(s.created_at);
+          saleDate.setHours(0, 0, 0, 0);
+          const key = saleDate.toDateString();
+          const deliveryFee = Number(s.delivery_fee) || 0;
+          const storeIncome = Number(s.total) - deliveryFee; // Solo ingresos tienda (sin delivery)
+          byDay[key] = (byDay[key] ?? 0) + storeIncome;
+        }
+      );
+      (creditPaymentsTrend ?? []).forEach((p: CreditPaymentRow) => {
+        if (!isCreditPaymentCashInflow(p)) return;
+        const d = new Date(p.created_at);
+        d.setHours(0, 0, 0, 0);
+        const key = d.toDateString();
+        byDay[key] = (byDay[key] ?? 0) + Number(p.amount);
       });
-      const last7Days: { day: string; sales: number }[] = [];
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(last7Start);
+      const last15Days: { day: string; sales: number }[] = [];
+      for (let i = 0; i < INCOME_TREND_DAY_COUNT; i++) {
+        const d = new Date(trendWindowStart);
         d.setDate(d.getDate() + i);
         const key = d.toDateString();
-        last7Days.push({
-          day: DAY_LABELS[d.getDay()],
+        last15Days.push({
+          day: formatTrendAxisDay(d),
           sales: byDay[key] ?? 0,
         });
       }
 
-      // Productos más vendidos: ítems del día (consulta directa por join sales para no depender del primer fetch)
-      let items: Array<{ product_id: string; quantity: number; unit_price: number; discount_percent: number; discount_amount: number; products: { name: string; base_cost: number | null } | null }> = [];
+      // Productos más vendidos y margen: solo ventas con cobro registrado (excluye crédito pendiente).
+      let items: Array<SaleItemMarginRow & { product_id: string }> = [];
       const { data: itemsDayDirect } = await supabase
         .from("sale_items")
-        .select("product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost), sales!inner(branch_id, created_at, status)")
+        .select(
+          "sale_id, product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost), sales!inner(branch_id, created_at, status, payment_pending)"
+        )
         .eq("sales.branch_id", branchId)
         .gte("sales.created_at", start)
         .lte("sales.created_at", end)
-        .eq("sales.status", "completed");
+        .eq("sales.status", "completed")
+        .eq("sales.payment_pending", false);
       if (cancelled) return;
       const rawItems = (itemsDayDirect ?? []) as Array<{
+        sale_id?: string;
         product_id: string;
         quantity: number;
         unit_price: number;
@@ -410,11 +836,11 @@ export default function DashboardPage() {
       }>;
       // Si la API no soporta filtro por relación, usar fallback con IDs del fetch de ventas
       if (rawItems.length === 0) {
-        const saleIdsForItems = completed.map((s) => s.id);
+        const saleIdsForItems = completed.filter((s) => !s.payment_pending).map((s) => s.id);
         if (saleIdsForItems.length > 0) {
           const { data: itemsDayFallback } = await supabase
             .from("sale_items")
-            .select("product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost)")
+            .select("sale_id, product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost)")
             .in("sale_id", saleIdsForItems);
           if (cancelled) return;
           const fallback = (itemsDayFallback ?? []) as typeof rawItems;
@@ -491,30 +917,94 @@ export default function DashboardPage() {
         return sum;
       }, 0);
 
-      const grossProfitRaw = items.reduce((sum, it) => {
-        const unitPrice = Number(it.unit_price ?? 0);
-        const discountPercent = Number(it.discount_percent ?? 0);
-        const discountAmount = Number(it.discount_amount ?? 0);
-        const quantity = Number(it.quantity ?? 0);
-        const baseCost = Number(it.products?.base_cost ?? 0);
-        
-        // Precio de venta con descuento aplicado
-        const salePriceWithDiscount = Math.max(
-          0,
-          unitPrice * (1 - discountPercent / 100) - discountAmount
-        );
-        
-        // Ganancia por item = (precio de venta - costo) * cantidad
-        if (baseCost > 0) {
-          return sum + (salePriceWithDiscount - baseCost) * quantity;
-        }
-        return sum;
-      }, 0);
-
       const totalExpensesDay = totalExpensesCash + totalExpensesTransfer;
-      // Si el total neto del período quedó en 0 (o negativo), no mostrar utilidades.
-      const grossProfit = totalIncome > 0 ? grossProfitRaw : 0;
-      const netProfit = totalIncome > 0 ? grossProfit - totalExpensesDay : 0;
+
+      const marginPaidSales = grossMarginFromItemRows(items);
+
+      let marginFromAbonos = 0;
+      const saleIdsForAbono = [
+        ...new Set(
+          abonosPeriod
+            .filter(isCreditPaymentCashInflow)
+            .map((p) => {
+              const c = p.customer_credits;
+              const row = Array.isArray(c) ? c[0] : c;
+              const sid = row?.sale_id;
+              return sid ? String(sid) : null;
+            })
+            .filter((id): id is string => Boolean(id))
+        ),
+      ];
+      if (saleIdsForAbono.length > 0) {
+        const [{ data: abonoSaleItems }, { data: salesForAbono }] = await Promise.all([
+          supabase
+            .from("sale_items")
+            .select("sale_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost)")
+            .in("sale_id", saleIdsForAbono),
+          supabase.from("sales").select("id, total, delivery_fee").in("id", saleIdsForAbono),
+        ]);
+        if (cancelled) return;
+        const storeRevBySale = new Map<string, number>();
+        for (const s of salesForAbono ?? []) {
+          const df = Number(s.delivery_fee) || 0;
+          storeRevBySale.set(String(s.id), Math.max(0, Number(s.total) - df));
+        }
+        type RawAbonoIt = {
+          sale_id: string;
+          quantity: number;
+          unit_price: number;
+          discount_percent: number;
+          discount_amount: number;
+          products: { name: string; base_cost: number | null }[] | { name: string; base_cost: number | null } | null;
+        };
+        const norm = ((abonoSaleItems ?? []) as RawAbonoIt[]).map((it) => ({
+          sale_id: it.sale_id,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          discount_percent: it.discount_percent,
+          discount_amount: it.discount_amount,
+          products: Array.isArray(it.products) ? it.products[0] || null : it.products,
+        }));
+        const grouped = new Map<string, SaleItemMarginRow[]>();
+        for (const it of norm) {
+          const row: SaleItemMarginRow = {
+            quantity: it.quantity,
+            unit_price: it.unit_price,
+            discount_percent: it.discount_percent,
+            discount_amount: it.discount_amount,
+            products: it.products,
+          };
+          const list = grouped.get(it.sale_id) ?? [];
+          list.push(row);
+          grouped.set(it.sale_id, list);
+        }
+        const marginBySale = new Map<string, number>();
+        for (const [sid, list] of grouped) {
+          marginBySale.set(sid, grossMarginFromItemRows(list));
+        }
+        const payBySale = new Map<string, number>();
+        for (const p of abonosPeriod) {
+          if (!isCreditPaymentCashInflow(p)) continue;
+          const c = p.customer_credits;
+          const row = Array.isArray(c) ? c[0] : c;
+          const sid = row?.sale_id ? String(row.sale_id) : null;
+          if (!sid) continue;
+          const pay = Number(p.amount ?? 0);
+          if (pay <= 0) continue;
+          payBySale.set(sid, (payBySale.get(sid) ?? 0) + pay);
+        }
+        for (const [sid, totalPayInPeriod] of payBySale) {
+          const saleM = marginBySale.get(sid) ?? 0;
+          if (saleM <= 0) continue;
+          const storeRev = storeRevBySale.get(sid) ?? 0;
+          const denom = Math.max(storeRev, totalPayInPeriod, 1);
+          const frac = Math.min(1, totalPayInPeriod / denom);
+          marginFromAbonos += frac * saleM;
+        }
+      }
+
+      const grossProfit = Math.round(marginPaidSales + marginFromAbonos);
+      const netProfit = Math.round(totalIncome);
 
       // Garantías gestionadas en el período
       let warrantiesCount = 0;
@@ -551,8 +1041,10 @@ export default function DashboardPage() {
         cancelledTotal,
         cancelledList,
         topProducts,
-        last7Days,
-        yesterdayIncome,
+        last15Days,
+        prevPeriodNetCash,
+        prevPeriodNetTransfer,
+        prevPeriodNetTotal,
         totalStockInvestment,
         defectiveStockInvestment,
         expectedProfit,
@@ -563,35 +1055,12 @@ export default function DashboardPage() {
         lastExpense,
         lastCashSale: lastCashSaleDisplay,
         lastTransferSale: lastTransferSaleDisplay,
+        outstandingCredits,
       });
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [branchId, branchResolved, dateFilterMode, selectedDay, dateFrom, dateTo, refreshKey]);
-
-  useEffect(() => {
-    if (!branchId) {
-      setExistingClosingId(null);
-      return;
-    }
-    const supabase = createClient();
-    let cancelled = false;
-    const targetDate = dateFilterMode === "today" ? selectedDay : dateTo;
-    const dateStr = targetDate.toISOString().split("T")[0];
-    (async () => {
-      const { data } = await supabase
-        .from("cash_closings")
-        .select("id")
-        .eq("branch_id", branchId)
-        .eq("closing_date", dateStr)
-        .maybeSingle();
-      if (cancelled) return;
-      setExistingClosingId(data?.id ?? null);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [branchId, dateFilterMode, selectedDay, dateTo, refreshKey]);
 
   const formatDate = (date: Date) => {
     const today = new Date();
@@ -651,8 +1120,10 @@ export default function DashboardPage() {
     cancelledTotal: 0,
     cancelledList: [],
     topProducts: [],
-    last7Days: DAY_LABELS.map((day) => ({ day, sales: 0 })),
-    yesterdayIncome: 0,
+    last15Days: emptyIncomeTrendDays(),
+    prevPeriodNetCash: 0,
+    prevPeriodNetTransfer: 0,
+    prevPeriodNetTotal: 0,
     totalStockInvestment: 0,
     defectiveStockInvestment: 0,
     expectedProfit: 0,
@@ -663,6 +1134,7 @@ export default function DashboardPage() {
     lastExpense: null,
     lastCashSale: null,
     lastTransferSale: null,
+    outstandingCredits: 0,
   };
   const totalExpensesDay = data.totalExpensesCash + data.totalExpensesTransfer;
   const formatSensitiveValue = (value: number | string, type: "currency" | "number" = "currency") => {
@@ -675,44 +1147,51 @@ export default function DashboardPage() {
     return typeof value === "number" ? value.toLocaleString("es-CO") : value;
   };
 
+  const showHeroDeltas =
+    dateFilterMode === "today" ||
+    (dateFilterMode === "range" && dateFrom.getTime() === dateTo.getTime());
+
   return (
-    <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
-      <header className="space-y-2 min-w-0">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-10 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-              <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              {periodLabel}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2 sm:flex-nowrap">
+              <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
                 Reportes
               </h1>
-              <span className="hidden items-center gap-0.5 whitespace-nowrap text-[11px] font-normal tracking-tight text-slate-700 lg:inline-flex dark:text-slate-200">
-                <svg className="h-3 w-3 text-ov-pink dark:text-ov-pink-muted" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+              <span className="hidden items-center gap-0.5 whitespace-nowrap text-[13px] font-normal tracking-tight text-slate-500 lg:inline-flex dark:text-slate-400">
+                <svg className="h-3 w-3 text-slate-400 dark:text-slate-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
                   <path d="M11.3 1.046a1 1 0 00-1.78-.14l-5 8A1 1 0 005.36 10H9l-1.3 7.954a1 1 0 001.78.14l5-8A1 1 0 0013.64 9H10l1.3-7.954z" />
                 </svg>
                 powered by{" "}
                 <a
-                  href={programamosWhatsAppUrl("Hola programamos, te escribo desde NOU...")}
+                  href={programamosWhatsAppUrl("Hola programamos, te escribo desde Berea Comercios...")}
                   target="_blank"
                   rel="noreferrer"
-                  className="font-bold text-ov-pink hover:text-ov-pink-hover hover:underline dark:text-ov-pink-muted dark:hover:text-ov-pink"
+                  className="font-semibold text-slate-600 underline-offset-2 hover:text-[color:var(--shell-sidebar)] hover:underline dark:text-slate-300 dark:hover:text-zinc-300"
                 >
                   programamos.st
                 </a>
               </span>
             </div>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 md:whitespace-nowrap dark:text-slate-400">
+            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Resumen de ventas e ingresos de tu sucursal.
             </p>
           </div>
           <div className="w-full lg:overflow-x-auto">
             <div className="flex flex-wrap items-center gap-2 lg:min-w-max lg:flex-nowrap lg:justify-end">
-              <div className="grid w-full grid-cols-2 rounded-lg bg-slate-100 p-0.5 sm:w-auto dark:bg-slate-800">
+              <div className="grid w-full grid-cols-2 rounded-xl bg-slate-100/90 p-1 sm:w-auto dark:bg-slate-800/60">
                 <button
                   type="button"
                   onClick={() => setDateFilterMode("today")}
-                  className={`rounded-md px-3 py-1.5 text-center text-[12px] font-semibold transition-colors ${
+                  className={`rounded-lg px-3 py-2 text-center text-[12px] font-semibold transition-all ${
                     dateFilterMode === "today"
-                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
-                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                      ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
+                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                   }`}
                 >
                   Hoy
@@ -720,10 +1199,10 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setDateFilterMode("range")}
-                  className={`rounded-md px-3 py-1.5 text-center text-[12px] font-semibold transition-colors ${
+                  className={`rounded-lg px-3 py-2 text-center text-[12px] font-semibold transition-all ${
                     dateFilterMode === "range"
-                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
-                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                      ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
+                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                   }`}
                 >
                   Rango
@@ -774,7 +1253,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => setRefreshKey((k) => k + 1)}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:w-auto dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -782,31 +1261,8 @@ export default function DashboardPage() {
                 Actualizar
               </button>
               <button
-                onClick={() => {
-                  const endDate = dateFilterMode === "today" ? selectedDay : dateTo;
-                  if (existingClosingId) {
-                    router.push(`/cierre-caja/${existingClosingId}`);
-                    return;
-                  }
-                  router.push(`/cierre-caja/nuevo?fecha=${endDate.toISOString().split("T")[0]}`);
-                }}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:w-auto dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
-              >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {existingClosingId ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                )}
-                {existingClosingId && (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                )}
-              </svg>
-              {existingClosingId ? "Ver caja cerrada hoy" : "Cerrar caja"}
-              </button>
-              <button
                 onClick={() => setHideSensitiveInfo(!hideSensitiveInfo)}
-                className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition-colors hover:bg-slate-50 sm:w-9 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="inline-flex h-9 w-full items-center justify-center rounded-xl bg-slate-100/90 text-slate-600 transition-colors hover:bg-slate-200/70 sm:w-9 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 title={hideSensitiveInfo ? "Mostrar información" : "Ocultar información sensible"}
               >
               {hideSensitiveInfo ? (
@@ -826,196 +1282,177 @@ export default function DashboardPage() {
       </header>
 
       {loading ? (
-        <div className="min-h-[320px]" aria-hidden />
+        <div className="min-h-[300px] animate-pulse rounded-3xl bg-white dark:bg-slate-900" aria-hidden />
       ) : (
         <>
-      {/* Métricas del manifiesto */}
-      <section className="space-y-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-5">
-          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Total</p>
-              <MdAttachMoney className="h-5 w-5 shrink-0 text-ov-pink dark:text-ov-pink-muted" aria-hidden="true" title="Ingresos del período" />
-            </div>
-            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.totalIncome)}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Neto después de egresos</p>
-          </div>
-          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Egresos</p>
-              <MdTrendingDown className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" title="Salidas de dinero del período" />
-            </div>
-            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(totalExpensesDay)}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Salidas registradas en caja</p>
-          </div>
-          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Efectivo</p>
-              <MdPayments className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" title="Ventas en efectivo (neto del período)" />
-            </div>
-            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.cash)}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Disponible en efectivo</p>
-          </div>
-          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Transferencia</p>
-              <MdAccountBalance className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" title="Ventas por transferencia (neto del período)" />
-            </div>
-            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.transfer)}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Movimientos por banco</p>
-          </div>
-          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Facturas anuladas</p>
-              <MdCancel className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden="true" title="Facturas canceladas en el período" />
-            </div>
-            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">
-              {data.cancelledInvoices > 0 ? `${data.cancelledInvoices} (${formatSensitiveValue(data.cancelledTotal)})` : "0"}
-            </p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Cantidad y monto anulado</p>
-          </div>
-          <div className="hidden min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 2xl:block dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Créditos</p>
-              <MdCreditCard className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" title="Próximamente" />
-            </div>
-            <p className="mt-2 text-xl font-bold text-slate-400 dark:text-slate-500 sm:text-2xl">—</p>
-            <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">Próximamente</p>
-          </div>
-          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Garantías</p>
-              <MdVerifiedUser className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden="true" title="Garantías creadas en el período" />
-            </div>
-            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.warrantiesCount, "number")}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-              Devoluciones: {formatSensitiveValue(data.warrantiesRefundAmount)}
-            </p>
-          </div>
-          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Stock total</p>
-              <MdInventory2 className="h-5 w-5 shrink-0 text-slate-600 dark:text-slate-300" aria-hidden="true" title="Inventario valorizado a costo" />
-            </div>
-            <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">{formatSensitiveValue(data.totalStockInvestment)}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Valorizado (costo)</p>
-          </div>
-          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Ganancia bruta</p>
-              <MdShowChart className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" title="Margen en ventas del período" />
-            </div>
-            <p className="mt-2 text-xl font-bold text-emerald-600 dark:text-emerald-400 sm:text-2xl">{formatSensitiveValue(data.grossProfit)}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Ventas menos costo</p>
-          </div>
-          <div className="min-w-0 min-h-[7.5rem] rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:min-h-[8rem] sm:p-6">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-300">Ganancia neta</p>
-              <MdSavings className="h-5 w-5 shrink-0 text-teal-600 dark:text-teal-400" aria-hidden="true" title="Ganancia bruta menos egresos del período" />
-            </div>
-            <p className="mt-2 text-xl font-bold text-emerald-600 dark:text-emerald-400 sm:text-2xl">{formatSensitiveValue(data.netProfit)}</p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Bruta − egresos</p>
-          </div>
-        </div>
-      </section>
+          <div className="space-y-8">
+            <div className="rounded-3xl bg-white px-5 py-7 sm:px-8 sm:py-9 dark:bg-slate-900">
+              <p className="mb-6 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Resumen del período
+              </p>
+              <div className="grid grid-cols-1 gap-8 sm:gap-10 lg:grid-cols-3">
+                <DashboardHeroMetric
+                  label="Ingreso neto del período"
+                  valueStr={formatSensitiveValue(data.totalIncome)}
+                  numericValue={data.totalIncome}
+                  prevNumeric={data.prevPeriodNetTotal}
+                  showDelta={showHeroDeltas}
+                  hideSensitive={hideSensitiveInfo}
+                  icon={<MdOutlineAttachMoney aria-hidden />}
+                />
+                <DashboardHeroMetric
+                  label="Efectivo (neto)"
+                  valueStr={formatSensitiveValue(data.cash)}
+                  numericValue={data.cash}
+                  prevNumeric={data.prevPeriodNetCash}
+                  showDelta={showHeroDeltas}
+                  hideSensitive={hideSensitiveInfo}
+                  icon={<MdOutlinePayments aria-hidden />}
+                />
+                <DashboardHeroMetric
+                  label="Transferencia (neto)"
+                  valueStr={formatSensitiveValue(data.transfer)}
+                  numericValue={data.transfer}
+                  prevNumeric={data.prevPeriodNetTransfer}
+                  showDelta={showHeroDeltas}
+                  hideSensitive={hideSensitiveInfo}
+                  icon={<MdOutlineAccountBalance aria-hidden />}
+                />
+              </div>
 
-      {/* Gráfica de ventas últimos 7 días */}
-      <div>
-        <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <div className="mb-3">
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-50">
-              Ventas últimos 7 días
-            </h2>
-            <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-300">
-              Ingresos por día
-            </p>
-          </div>
-          {/* Gráfica últimos 7 días (datos reales) */}
-          <div className="relative h-52 sm:h-56">
-            {/* Eje Y dinámico */}
+              <div className="my-9 h-px bg-slate-100 sm:my-10 dark:bg-slate-800" aria-hidden />
+
+              <DashboardReportSection eyebrow="Salidas y ajustes" gridClass="sm:grid-cols-3">
+              <DashboardKpiCard
+                icon={<MdOutlineTrendingDown aria-hidden title="Salidas de dinero del período" />}
+                label="Egresos"
+                value={formatSensitiveValue(totalExpensesDay)}
+                hint="Salidas registradas en caja"
+              />
+              <DashboardKpiCard
+                icon={<MdOutlineCancel aria-hidden title="Facturas canceladas en el período" />}
+                label="Facturas anuladas"
+                value={
+                  data.cancelledInvoices > 0
+                    ? `${data.cancelledInvoices} (${formatSensitiveValue(data.cancelledTotal)})`
+                    : "0"
+                }
+                hint="Cantidad y monto anulado"
+              />
+              <DashboardKpiCard
+                icon={<MdOutlineVerifiedUser aria-hidden title="Garantías creadas en el período" />}
+                label="Garantías"
+                value={formatSensitiveValue(data.warrantiesCount, "number")}
+                hint={<>Devoluciones: {formatSensitiveValue(data.warrantiesRefundAmount)}</>}
+              />
+            </DashboardReportSection>
+
+              <div className="my-9 h-px bg-slate-100 sm:my-10 dark:bg-slate-800" aria-hidden />
+
+            <DashboardReportSection eyebrow="Inventario y resultado" gridClass="sm:grid-cols-2 lg:grid-cols-4">
+              <DashboardKpiCard
+                icon={<MdOutlineInventory2 aria-hidden title="Inventario valorizado a costo" />}
+                label="Stock total"
+                value={formatSensitiveValue(data.totalStockInvestment)}
+                hint="Valorizado (costo)"
+              />
+              <DashboardKpiCard
+                icon={<MdOutlineShowChart aria-hidden title="Margen precio de venta − costo del período" />}
+                label="Ganancia bruta"
+                value={formatSensitiveValue(data.grossProfit)}
+                hint="Cobros del período vs costo"
+              />
+              <DashboardKpiCard
+                icon={<MdOutlineSavings aria-hidden title="Ingreso neto del período" />}
+                label="Ganancia neta"
+                value={formatSensitiveValue(data.netProfit)}
+                hint="Ingresos cobrados − egresos"
+              />
+              <DashboardKpiCard
+                icon={<MdOutlineCreditCard aria-hidden title="Saldo pendiente en créditos a clientes" />}
+                label="Créditos"
+                value={formatSensitiveValue(data.outstandingCredits)}
+                hint="Saldo por cobrar"
+              />
+            </DashboardReportSection>
+            </div>
+
+            <section className="rounded-3xl bg-white px-5 py-6 sm:px-8 sm:py-7 dark:bg-slate-900">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tendencia de ingresos</p>
+              <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                Últimos {INCOME_TREND_DAY_COUNT} días · ingresos por día
+              </p>
+              <div className="relative mt-4 h-52 sm:h-56">
             {(() => {
-              const maxSales = Math.max(...data.last7Days.map((d) => d.sales), 1);
+              const maxSales = Math.max(...data.last15Days.map((d) => d.sales), 1);
               const ticks = [1, 0.8, 0.6, 0.4, 0.2, 0].map((r) => Math.round(maxSales * r));
+              const salesValues = data.last15Days.map((d) => d.sales);
+              const linePath = buildSalesTrendLine(salesValues);
               return (
-                <div className="absolute left-0 top-0 flex h-full flex-col justify-between pr-3 text-[10px] font-medium text-slate-400 dark:text-slate-300">
-                  {ticks.map((v, i) => (
-                    <span key={i}>
-                      {hideSensitiveInfo ? "***" : v === 0 ? "$0" : v >= 1000000 ? `$${(v / 1000000).toFixed(1)}M` : `$${(v / 1000).toFixed(0)}k`}
-                    </span>
-                  ))}
-                </div>
+                <>
+                  <div className="absolute left-0 top-0 flex h-[calc(100%-1.5rem)] flex-col justify-between pr-2 text-[10px] font-medium text-slate-400 dark:text-slate-500 sm:pr-3">
+                    {ticks.map((v, i) => (
+                      <span key={i}>
+                        {hideSensitiveInfo
+                          ? "***"
+                          : v === 0
+                            ? "$0"
+                            : v >= 1000000
+                              ? `$${(v / 1000000).toFixed(1)}M`
+                              : `$${(v / 1000).toFixed(0)}k`}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="relative ml-9 h-[calc(100%-1.5rem)] sm:ml-11">
+                    <svg
+                      viewBox="0 0 280 88"
+                      className="h-full w-full max-w-full text-[color:var(--shell-sidebar)] dark:text-zinc-300"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      aria-label={`Gráfico de ingresos de los últimos ${INCOME_TREND_DAY_COUNT} días`}
+                    >
+                      {linePath ? (
+                        <path
+                          d={linePath}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      ) : null}
+                    </svg>
+                  </div>
+                  <div className="absolute bottom-0 left-9 right-0 flex justify-between gap-px sm:left-11">
+                    {data.last15Days.map((day, i) => (
+                      <div key={i} className="relative min-w-0 flex-1 text-center">
+                        <span className="block truncate text-[8px] font-medium text-slate-500 dark:text-slate-400 sm:text-[9px]">
+                          {day.day}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
               );
             })()}
-
-            {/* Área de gráfica */}
-            <div className="relative ml-10 h-full pb-6 sm:ml-12">
-              {/* Grid horizontal */}
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="absolute left-0 right-0 border-t border-slate-100 dark:border-slate-800"
-                  style={{ top: `${(i / 5) * 100}%` }}
-                />
-              ))}
-
-              {/* Barras de la gráfica */}
-              {(() => {
-                const maxSales = Math.max(...data.last7Days.map((d) => d.sales), 1);
-                return (
-                  <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-0.5 px-0.5 sm:gap-1 sm:px-1" style={{ height: "calc(100% - 24px)", paddingBottom: "24px" }}>
-                    {data.last7Days.map((day, i) => {
-                      const percentage = maxSales > 0 ? (day.sales / maxSales) * 100 : 0;
-                      return (
-                        <div
-                          key={i}
-                          className="group relative flex-1 flex flex-col items-center justify-end"
-                          style={{ height: "100%" }}
-                        >
-                          {!hideSensitiveInfo && day.sales > 0 && (
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold text-slate-700 opacity-0 transition-opacity group-hover:opacity-100 dark:text-slate-300 z-10">
-                              {formatSensitiveValue(day.sales)}
-                            </span>
-                          )}
-                          <div
-                            className="relative w-full rounded-t bg-gradient-to-t from-ov-pink/80 to-ov-pink transition-all hover:from-ov-pink hover:to-ov-pink/90"
-                            style={{
-                              height: `${percentage}%`,
-                              minHeight: day.sales > 0 ? "4px" : "0",
-                            }}
-                            title={!hideSensitiveInfo ? formatSensitiveValue(day.sales) : undefined}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-
-              {/* Días */}
-              <div className="absolute bottom-0 left-0 right-0 flex justify-between">
-                {data.last7Days.map((day, i) => (
-                  <div key={i} className="relative flex-1 text-center">
-                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{day.day}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
-          <div className="mt-3 flex flex-col gap-1 border-t border-slate-200 pt-2 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left dark:border-slate-800">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
+          <div className="mt-4 flex flex-col gap-2 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Promedio diario:{" "}
               <span className="font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo ? "***" : (() => {
-                  const total = data.last7Days.reduce((a, d) => a + d.sales, 0);
-                  const daysWithSales = data.last7Days.filter((d) => d.sales > 0).length;
-                  return daysWithSales > 0 ? `$${Math.round(total / daysWithSales).toLocaleString("es-CO")}` : "$0";
-                })()}
+                {hideSensitiveInfo
+                  ? "***"
+                  : (() => {
+                      const total = data.last15Days.reduce((a, d) => a + d.sales, 0);
+                      const daysWithSales = data.last15Days.filter((d) => d.sales > 0).length;
+                      return daysWithSales > 0 ? `$${Math.round(total / daysWithSales).toLocaleString("es-CO")}` : "$0";
+                    })()}
               </span>
             </div>
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-300">
-              Total semana:{" "}
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              Total ({INCOME_TREND_DAY_COUNT} días):{" "}
               <span className="font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo ? "***" : `$${data.last7Days.reduce((a, d) => a + d.sales, 0).toLocaleString("es-CO")}`}
+                {hideSensitiveInfo ? "***" : `$${data.last15Days.reduce((a, d) => a + d.sales, 0).toLocaleString("es-CO")}`}
               </span>
             </div>
           </div>
@@ -1123,12 +1560,25 @@ function CashCloseModal({
       setLoading(true);
       const { start, end } = getDayBounds(selectedDate);
 
-      const { data: salesDay } = await supabase
-        .from("sales")
-        .select("id, total, payment_method, amount_cash, amount_transfer, status, invoice_number, is_delivery")
-        .eq("branch_id", branchId)
-        .gte("created_at", start)
-        .lte("created_at", end);
+      const creditPaySelectClose =
+        "amount, payment_method, amount_cash, amount_transfer, payment_source, created_at, customer_credits!inner(branch_id, public_ref)";
+
+      const [{ data: salesDay }, { data: creditPaymentsCloseDay }] = await Promise.all([
+        supabase
+          .from("sales")
+          .select(
+            "id, total, payment_method, amount_cash, amount_transfer, status, invoice_number, is_delivery, delivery_fee, payment_pending, created_at"
+          )
+          .eq("branch_id", branchId)
+          .gte("created_at", start)
+          .lte("created_at", end),
+        supabase
+          .from("credit_payments")
+          .select(creditPaySelectClose)
+          .eq("customer_credits.branch_id", branchId)
+          .gte("created_at", start)
+          .lte("created_at", end),
+      ]);
 
       if (cancelled) return;
 
@@ -1141,6 +1591,9 @@ function CashCloseModal({
         status: string;
         invoice_number: string;
         is_delivery: boolean;
+        delivery_fee: number | null;
+        payment_pending?: boolean | null;
+        created_at: string;
       }>;
 
       const completed = sales.filter((s) => s.status === "completed");
@@ -1185,29 +1638,25 @@ function CashCloseModal({
       let cash = 0;
       let transfer = 0;
       completed.forEach((s) => {
-        const t = Number(s.total);
-        if (s.payment_method === "cash") {
-          cash += t;
-        } else if (s.payment_method === "transfer") {
-          transfer += t;
-        } else if (s.payment_method === "mixed") {
-          const ac = Number(s.amount_cash ?? 0);
-          const at = Number(s.amount_transfer ?? 0);
-          const sumMixed = ac + at;
-          if (sumMixed > 0 && Math.abs(sumMixed - t) < 0.01) {
-            cash += ac;
-            transfer += at;
-          } else if (sumMixed > 0) {
-            const ratio = t / sumMixed;
-            const cashPart = Math.round(ac * ratio);
-            const transferPart = t - cashPart;
-            cash += cashPart;
-            transfer += transferPart;
-          } else {
-            cash += t;
-          }
-        }
+        if (s.payment_pending) return;
+        const deliveryFee = Number(s.delivery_fee) || 0;
+        const inc = cashTransferFromLine(
+          Number(s.total),
+          deliveryFee,
+          s.payment_method,
+          s.amount_cash,
+          s.amount_transfer
+        );
+        cash += inc.cash;
+        transfer += inc.transfer;
       });
+      const closeAbonos = addCreditPaymentsToCashTransfer(
+        (creditPaymentsCloseDay ?? []) as CreditPaymentRow[],
+        cash,
+        transfer
+      );
+      cash = closeAbonos.cash;
+      transfer = closeAbonos.transfer;
 
       const totalIncome = cash + transfer;
       const cashPercentage = totalIncome > 0 ? Math.round((cash / totalIncome) * 100) : 0;

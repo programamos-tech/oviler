@@ -21,6 +21,7 @@ export default function ProductDetailClient() {
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (!slug) return;
@@ -106,7 +107,13 @@ export default function ProductDetailClient() {
   if (!product) {
     return (
       <>
-        <CatalogStorefrontHeader branch={data.branch} cartCount={cartCount} onOpenCart={() => setCartOpen(true)} />
+        <CatalogStorefrontHeader
+          branch={data.branch}
+          cartCount={cartCount}
+          onOpenCart={() => setCartOpen(true)}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
         <div className="mx-auto max-w-lg px-4 py-16 text-center">
           <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">Producto no encontrado</p>
           <button
@@ -133,7 +140,13 @@ export default function ProductDetailClient() {
 
   return (
     <>
-      <CatalogStorefrontHeader branch={data.branch} cartCount={cartCount} onOpenCart={() => setCartOpen(true)} />
+      <CatalogStorefrontHeader
+        branch={data.branch}
+        cartCount={cartCount}
+        onOpenCart={() => setCartOpen(true)}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
 
       <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
         <button

@@ -4,10 +4,12 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { OvilerWordmark } from "@/app/components/OvilerWordmark";
+import { LoginAvatarCluster } from "./LoginAvatarCluster";
 
 const inputClass =
-  "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:ring-slate-500";
-const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
+  "h-12 w-full rounded-xl border border-zinc-700/90 bg-zinc-900/80 px-4 text-[15px] font-medium text-zinc-100 outline-none transition-[border-color,box-shadow] placeholder:text-zinc-500 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-500/25";
+const labelClass = "mb-2 block text-[13px] font-medium text-zinc-400";
 
 function LoginContent() {
   const [loading, setLoading] = useState(false);
@@ -19,7 +21,7 @@ function LoginContent() {
     const err = searchParams.get("error");
     if (err === "no_organization") {
       setError(
-        "Tu cuenta no está vinculada a ninguna organización. Si ya tenías una cuenta, pide al administrador que en Supabase (tabla users) asigne tu organization_id. Si prefieres crear una cuenta nueva, usa «Crear cuenta»."
+        "Tu cuenta no está vinculada a ninguna organización. Si ya tenías una cuenta, pide al administrador que en Supabase (tabla users) asigne tu organization_id. Si prefieres un registro nuevo, usa «Solicitar licencia»."
       );
     }
   }, [searchParams]);
@@ -59,7 +61,7 @@ function LoginContent() {
           msg.toLowerCase().includes("invalid_credentials")
         ) {
           setError(
-            "Correo o contraseña incorrectos. Si acabas de crear la cuenta, usa exactamente el mismo correo y contraseña (el correo se guarda en minúsculas). Si no recuerdas la contraseña, usa «¿Olvidaste tu contraseña?»."
+            "Correo o contraseña incorrectos. Si acabas de completar tu registro, usa exactamente el mismo correo y contraseña (el correo se guarda en minúsculas). Si no recuerdas la contraseña, usa «¿Olvidaste tu contraseña?»."
           );
         } else {
           setError(msg);
@@ -83,7 +85,7 @@ function LoginContent() {
               : ` Detalle: ${userError.message}`;
           setError(
             "Tu cuenta no está vinculada a ninguna organización." + hint +
-            " Si prefieres crear una cuenta nueva, usa «Crear cuenta»."
+            " Si prefieres un registro nuevo, usa «Solicitar licencia»."
           );
           setLoading(false);
           return;
@@ -93,7 +95,7 @@ function LoginContent() {
           await supabase.auth.signOut();
           setError(
             "Tu cuenta no está vinculada a ninguna organización (organization_id vacío en la tabla users). " +
-            "En Supabase asigna tu organization_id en la tabla users. Si prefieres crear una cuenta nueva, usa «Crear cuenta»."
+            "En Supabase asigna tu organization_id en la tabla users. Si prefieres un registro nuevo, usa «Solicitar licencia»."
           );
           setLoading(false);
           return;
@@ -108,95 +110,104 @@ function LoginContent() {
         const path = branches?.length ? "/dashboard" : "/onboarding";
         window.location.href = path;
       }
-    } catch (err) {
+    } catch {
       setError("Error inesperado. Por favor intenta de nuevo.");
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-1 flex-col lg:flex-row lg:items-stretch">
-      {/* Izquierda: logo y descripción */}
-      <div className="flex flex-col justify-center px-6 py-10 lg:w-1/2 lg:max-w-xl lg:pl-16 xl:pl-24">
-        <Link href="/" className="flex items-center gap-0.5 font-logo text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
-          <span className="material-symbols-outlined h-8 w-8 shrink-0 text-[32px] text-ov-pink sm:h-9 sm:w-9 sm:text-[36px]" aria-hidden>storefront</span>
-          <span>NOU Tiendas</span>
+    <div className="flex min-h-screen flex-1 flex-col bg-zinc-950 lg:flex-row">
+      {/* Columna formulario (izquierda) */}
+      <section className="flex flex-1 flex-col justify-center px-6 py-12 sm:px-10 lg:w-1/2 lg:px-14 xl:px-20">
+        <Link
+          href="/"
+          className="inline-block w-fit outline-offset-4 focus-visible:rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-500"
+        >
+          <OvilerWordmark variant="onDark" className="text-[clamp(1.75rem,4vw,2.5rem)]" />
         </Link>
-        <p className="mt-4 max-w-md text-[14px] leading-relaxed text-slate-600 dark:text-slate-400">
-          Tiendas ocultas: ventas, inventario y equipo. Por NOU Technology.
-        </p>
-      </div>
 
-      {/* Derecha: formulario */}
-      <div className="flex flex-1 items-center justify-center px-4 py-8 lg:py-12 lg:pr-16 xl:pr-24">
-        <div className="w-full max-w-[380px] rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-8">
-          <h2 className="mb-6 text-xl font-bold text-slate-900 dark:text-slate-50">Iniciar sesión</h2>
+        <h1 className="mt-10 text-3xl font-semibold tracking-tight text-white sm:text-[2rem]">Bienvenido de nuevo</h1>
+        <p className="mt-2 text-[15px] text-zinc-400">Ingresa a tu cuenta para continuar</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="rounded-lg bg-red-50 p-3 text-[13px] text-red-700 dark:bg-red-900/20 dark:text-red-400">
-                {error}
-              </div>
-            )}
-            <div>
-              <label htmlFor="email" className={labelClass}>
-                Correo
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="correo@ejemplo.com"
-                className={inputClass}
-                required
-                disabled={loading}
-              />
+        <form onSubmit={handleSubmit} className="mt-10 w-full max-w-md space-y-6">
+          {error ? (
+            <div className="rounded-xl border border-red-900/50 bg-red-950/50 px-4 py-3 text-[14px] leading-relaxed text-red-200">
+              {error}
             </div>
-            <div>
-              <label htmlFor="password" className={labelClass}>
+          ) : null}
+
+          <div>
+            <label htmlFor="email" className={labelClass}>
+              Correo electrónico
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="tu@correo.com"
+              className={inputClass}
+              required
+              disabled={loading}
+              autoComplete="email"
+            />
+          </div>
+
+          <div>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <label htmlFor="password" className="text-[13px] font-medium text-zinc-400">
                 Contraseña
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="••••••••"
-                className={inputClass}
-                required
-                disabled={loading}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Link
-                href="#"
-                className="text-[13px] font-medium text-ov-pink hover:underline dark:text-ov-pink-muted"
-              >
+              <Link href="#" className="text-[13px] font-medium text-zinc-400 underline-offset-2 hover:text-zinc-200 hover:underline">
                 ¿Olvidaste tu contraseña?
               </Link>
-              <Link
-                href="/registro"
-                className="text-[13px] font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-              >
-                Crear cuenta
-              </Link>
             </div>
-            <button
-              type="submit"
+            <input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="••••••••"
+              className={inputClass}
+              required
               disabled={loading}
-              className="h-10 w-full rounded-lg bg-slate-900 px-4 text-[14px] font-medium text-white shadow-sm transition-colors hover:bg-slate-800 disabled:opacity-70 dark:bg-slate-800 dark:hover:bg-slate-700"
-            >
-              {loading ? "Iniciando sesión..." : "Entrar"}
-            </button>
-          </form>
+              autoComplete="current-password"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="h-12 w-full rounded-xl bg-white px-4 text-[15px] font-bold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-100 disabled:opacity-60"
+          >
+            {loading ? "Iniciando sesión…" : "Iniciar sesión"}
+          </button>
+        </form>
+
+        <p className="mt-10 text-[14px] text-zinc-500">
+          ¿Necesitas una licencia?{" "}
+          <Link href="/registro" className="font-semibold text-zinc-300 underline-offset-2 hover:text-white hover:underline">
+            Solicitar licencia
+          </Link>
+        </p>
+      </section>
+
+      {/* Columna ilustración avatares (derecha) */}
+      <section className="flex flex-1 flex-col items-center justify-center border-t border-zinc-800/80 px-6 py-14 lg:border-l lg:border-t-0 lg:py-12">
+        <div className="origin-center scale-[0.88] sm:scale-100">
+          <LoginAvatarCluster />
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center text-slate-500">Cargando…</div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center bg-zinc-950 text-zinc-500">Cargando…</div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

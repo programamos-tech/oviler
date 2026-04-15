@@ -45,6 +45,7 @@ export default function ProductDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const SHOW_TRANSFER_OPTION = false;
 
   useEffect(() => {
     if (!id) return;
@@ -183,17 +184,20 @@ export default function ProductDetailPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="min-h-[260px]" aria-hidden />
+      <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+        <div className="min-h-[280px] animate-pulse rounded-2xl bg-white dark:bg-slate-900" aria-hidden />
       </div>
     );
   }
 
   if (notFound || !product) {
     return (
-      <div className="space-y-4">
-        <p className="text-[14px] text-slate-600 dark:text-slate-400">Producto no encontrado.</p>
-        <Link href="/inventario" className="text-[14px] font-medium text-ov-pink hover:underline">
+      <div className="mx-auto min-w-0 max-w-[1600px] space-y-4 font-sans text-[13px] text-slate-800 antialiased dark:text-slate-100">
+        <p className="text-[14px] font-medium text-slate-600 dark:text-slate-400">Producto no encontrado.</p>
+        <Link
+          href="/inventario"
+          className="inline-flex text-[14px] font-medium text-[color:var(--shell-sidebar)] transition-colors hover:underline dark:text-zinc-300"
+        >
           Volver al inventario
         </Link>
       </div>
@@ -206,122 +210,124 @@ export default function ProductDetailPage() {
     stock === 0
       ? "text-red-600 dark:text-red-400"
       : stock <= 10
-        ? "text-orange-600 dark:text-orange-400"
-        : "text-green-600 dark:text-green-400";
+        ? "text-amber-700 dark:text-amber-300"
+        : "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
   const inversiónEnStock = cost * stock;
   const gananciaBrutaEstimada = (price - cost) * stock;
   const margenGanancia = price > 0 ? Math.round(((price - cost) / price) * 100) : 0;
 
   return (
-    <div className="min-w-0 space-y-6">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
       {/* Card: nombre del producto + métricas y acciones */}
-      <div className="min-w-0 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
         <Breadcrumb
           items={[
             { label: "Inventario", href: "/inventario" },
             { label: product.name },
           ]}
         />
-        <div className="mt-3 flex items-start justify-between gap-3">
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
               {product.name}
             </h1>
-            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-left text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
               {product.sku || "—"}{product.category_name ? ` · ${product.category_name}` : ""}{product.brand ? ` · ${product.brand}` : ""}
             </p>
           </div>
-          <Link
-            href="/inventario"
-            className="shrink-0 rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            title="Volver a inventario"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </Link>
-        </div>
-        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
-          <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
-            <div className="p-0">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Precio de venta</p>
-              <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">$ {formatMoney(price)}</p>
-              {product.apply_iva && <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">incl. IVA 19%</p>}
-            </div>
-            <div className="sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Stock en sucursal</p>
-              <p className={`mt-0.5 text-lg font-bold sm:text-xl ${stockColorClass}`}>
-                {stock} unidades
-              </p>
-            </div>
-            <div className="sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Stock reservado</p>
-              <p className="mt-0.5 text-lg font-bold text-amber-700 dark:text-amber-400 sm:text-xl">
-                {stockReserved} unidades
-              </p>
-              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">En ventas no despachadas ni completadas</p>
-            </div>
-            <div className="sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Costo</p>
-              <p className="mt-0.5 text-lg font-bold text-slate-700 dark:text-slate-300 sm:text-xl">$ {formatMoney(cost)}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 print:hidden sm:flex sm:flex-wrap">
-            <Link href={`/inventario/${product.id}/editar`} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white hover:bg-ov-pink-hover sm:w-auto dark:bg-ov-pink dark:hover:bg-ov-pink-hover">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 print:hidden sm:pt-0.5">
+            <Link
+              href="/inventario"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
+              title="Volver a inventario"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </Link>
+            <Link href={`/inventario/${product.id}/editar`} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]">
               Editar
             </Link>
-            <Link href={`/inventario/actualizar-stock?productId=${product.id}`} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 hover:bg-slate-50 sm:w-auto dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+            <Link href={`/inventario/actualizar-stock?productId=${product.id}`} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10">
               Ajustar stock
             </Link>
-            <Link href={`/inventario/transferir?productId=${product.id}`} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 hover:bg-slate-50 sm:w-auto dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
-              Transferir
-            </Link>
-            <button type="button" onClick={() => setDeleteOpen(true)} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-ov-pink/50 bg-white px-4 text-[13px] font-medium text-ov-pink hover:bg-ov-pink/10 sm:w-auto dark:border-ov-pink/50 dark:bg-slate-800 dark:text-ov-pink-muted dark:hover:bg-ov-pink/20">
+            {SHOW_TRANSFER_OPTION && (
+              <Link href={`/inventario/transferir?productId=${product.id}`} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10">
+                Transferir
+              </Link>
+            )}
+            <button type="button" onClick={() => setDeleteOpen(true)} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-slate-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30">
               Eliminar
             </button>
           </div>
         </div>
-      </div>
+        <div className="mt-6 border-t border-slate-100 pt-6 dark:border-slate-800">
+          <div className="grid grid-cols-1 gap-5 sm:flex sm:flex-row sm:flex-wrap sm:gap-6 sm:gap-y-0">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Precio de venta</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50 sm:text-xl">$ {formatMoney(price)}</p>
+              {product.apply_iva && <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">incl. IVA 19%</p>}
+            </div>
+            <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Stock en sucursal</p>
+              <p className={`mt-1 text-lg font-semibold sm:text-xl ${stockColorClass}`}>
+                {stock} unidades
+              </p>
+            </div>
+            <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Stock reservado</p>
+              <p className="mt-1 text-lg font-semibold text-amber-700 dark:text-amber-300 sm:text-xl">
+                {stockReserved} unidades
+              </p>
+              <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">En ventas no despachadas ni completadas</p>
+            </div>
+            <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Costo</p>
+              <p className="mt-1 text-lg font-semibold text-slate-700 dark:text-slate-300 sm:text-xl">$ {formatMoney(cost)}</p>
+            </div>
+          </div>
+        </div>
+      </header>
 
       {/* Insights: valor en stock y ganancia */}
-      <div className="min-w-0 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
-        <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+      <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
+        <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
           Valor e ingresos estimados
         </h2>
-        <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
           Con el stock actual en esta sucursal.
         </p>
         <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/40 px-4 py-4 dark:border-slate-800 dark:bg-slate-800/25">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Plata en stock
             </p>
-            <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">
+            <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-50 sm:text-2xl">
               $ {formatMoney(inversiónEnStock)}
             </p>
-            <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">
               Inversión en {stock} {stock === 1 ? "unidad" : "unidades"}
             </p>
           </div>
-          <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-900/20">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+          <div className="rounded-2xl border border-slate-400/40 bg-slate-200/70 px-4 py-4 dark:border-zinc-600/40 dark:bg-zinc-800/55">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--shell-sidebar)] dark:text-zinc-300">
               Ganancia bruta estimada
             </p>
-            <p className="mt-1 text-xl font-bold text-emerald-800 dark:text-emerald-200 sm:text-2xl">
+            <p className="mt-1 text-xl font-semibold text-[color:var(--shell-sidebar)] dark:text-zinc-300 sm:text-2xl">
               $ {formatMoney(gananciaBrutaEstimada)}
             </p>
-            <p className="mt-0.5 text-[12px] text-emerald-600/80 dark:text-emerald-400/80">
+            <p className="mt-0.5 text-[12px] font-medium text-[color:var(--shell-sidebar)]/75 dark:text-zinc-300/85">
               Si vendes las {stock} {stock === 1 ? "unidad" : "unidades"}
             </p>
           </div>
-          <div className="rounded-xl bg-ov-pink/10 p-4 dark:bg-ov-pink/20">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-ov-pink dark:text-ov-pink-muted">
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/40 px-4 py-4 dark:border-slate-800 dark:bg-slate-800/25">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Margen de ganancia
             </p>
-            <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50 sm:text-2xl">
+            <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-50 sm:text-2xl">
               {margenGanancia}%
             </p>
-            <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">
               Por unidad vendida
             </p>
           </div>
@@ -329,49 +335,49 @@ export default function ProductDetailPage() {
       </div>
 
       {/* Datos del producto: tres cards en grid simétrico */}
-      <section className="grid min-w-0 gap-5 sm:grid-cols-1 lg:grid-cols-3">
-        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+      <section className="grid min-w-0 gap-6 sm:grid-cols-1 lg:grid-cols-3">
+        <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
             Identificación
           </h2>
-            <dl className="mt-3 space-y-2 text-[14px]">
-              <div className="flex justify-between gap-2"><dt className="text-slate-500 dark:text-slate-400">Código</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{product.sku || "—"}</dd></div>
-              <div className="flex justify-between gap-2"><dt className="text-slate-500 dark:text-slate-400">Categoría</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{product.category_name ?? "—"}</dd></div>
-              {product.brand && <div className="flex justify-between gap-2"><dt className="text-slate-500 dark:text-slate-400">Marca</dt><dd className="font-medium text-slate-800 dark:text-slate-100">{product.brand}</dd></div>}
+            <dl className="mt-4 space-y-2 text-[13px]">
+              <div className="flex justify-between gap-2"><dt className="font-medium text-slate-500 dark:text-slate-400">Código</dt><dd className="font-semibold text-slate-800 dark:text-slate-100">{product.sku || "—"}</dd></div>
+              <div className="flex justify-between gap-2"><dt className="font-medium text-slate-500 dark:text-slate-400">Categoría</dt><dd className="font-semibold text-slate-800 dark:text-slate-100">{product.category_name ?? "—"}</dd></div>
+              {product.brand && <div className="flex justify-between gap-2"><dt className="font-medium text-slate-500 dark:text-slate-400">Marca</dt><dd className="font-semibold text-slate-800 dark:text-slate-100">{product.brand}</dd></div>}
               <div className="flex flex-col gap-1">
-                <dt className="text-slate-500 dark:text-slate-400">Ubicación</dt>
-                <dd className="font-medium text-slate-800 dark:text-slate-100">
+                <dt className="font-medium text-slate-500 dark:text-slate-400">Ubicación</dt>
+                <dd className="font-semibold text-slate-800 dark:text-slate-100">
                   {locationRows.length > 0 ? (
                     <LocationPathWithIcons path={locationRows.map((r) => r.path).join("; ")} iconClass="text-[13px]" />
                   ) : (
-                    <span className="text-slate-500 dark:text-slate-400">Sin ubicación específica</span>
+                    <span className="font-medium text-slate-500 dark:text-slate-400">Sin ubicación específica</span>
                   )}
                 </dd>
               </div>
             </dl>
         </div>
 
-        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+        <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
             Descripción
           </h2>
-          <p className="mt-3 text-[14px] text-slate-600 dark:text-slate-400">
+          <p className="mt-4 text-[13px] font-medium leading-relaxed text-slate-600 dark:text-slate-400">
             {product.description?.trim() ? product.description : "Sin descripción."}
           </p>
         </div>
 
-        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+        <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
             Ubicación en bodega
           </h2>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Dónde está el producto en esta sucursal.
             </p>
             {locationRows.length > 0 ? (
               <>
                 <ul className="mt-3 space-y-2">
                   {locationRows.map((row, i) => (
-                    <li key={i} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 py-2 px-3 text-[13px] dark:bg-slate-800/50">
+                    <li key={i} className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 text-[13px] dark:border-slate-800 dark:bg-slate-800/25">
                       <span className="min-w-0 flex-1">
                         <LocationPathWithIcons path={row.path} iconClass="text-[13px]" />
                       </span>
@@ -379,14 +385,14 @@ export default function ProductDetailPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/inventario/ubicaciones" className="mt-3 inline-block text-[13px] font-medium text-ov-pink hover:underline">
+                <Link href="/inventario/ubicaciones" className="mt-3 inline-block text-[13px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">
                   Gestionar ubicaciones
                 </Link>
               </>
             ) : (
-              <p className="mt-3 text-[13px] text-slate-500 dark:text-slate-400">
+              <p className="mt-3 text-[13px] font-medium text-slate-500 dark:text-slate-400">
                 Sin ubicación específica. El stock ({stock} und) está en inventario general. Puedes asignar una ubicación al actualizar el stock o desde{" "}
-                <Link href="/inventario/ubicaciones" className="font-medium text-ov-pink hover:underline">Ubicaciones bodega</Link>.
+                <Link href="/inventario/ubicaciones" className="font-semibold text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">Ubicaciones bodega</Link>.
               </p>
             )}
         </div>

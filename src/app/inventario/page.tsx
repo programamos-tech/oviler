@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  workspaceFilterLabelClass,
+  workspaceFilterSearchPillClass,
+  workspaceFilterSelectClass,
+} from "@/lib/workspace-field-classes";
 const IVA_RATE = 0.19;
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -60,6 +65,16 @@ export default function InventoryPage() {
   const prevFetchDepsRef = useRef({ refreshKey: 0, page: 1, categoryFilter: "" });
   const isFirstFetchRef = useRef(true);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (typeof q === "string" && q.trim()) {
+      const t = q.trim();
+      setSearchQuery(t);
+      setEffectiveSearchQuery(t);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -232,16 +247,43 @@ export default function InventoryPage() {
     if (end < totalPages) { if (end < totalPages - 1) nums.push("…"); nums.push(totalPages); }
     return nums;
   })();
+  const actionIconClass =
+    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[color:var(--shell-sidebar)] dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-zinc-300";
+  const SHOW_TRANSFER_OPTION = false;
+  const stockStatusChip = (stock: number) => {
+    if (stock === 0) {
+      return {
+        label: "Sin stock",
+        className:
+          "inline-flex max-w-full items-center rounded-full border border-red-200/90 bg-red-50/90 px-2 py-0.5 text-[12px] font-medium text-red-800 dark:border-red-900/55 dark:bg-red-950/35 dark:text-red-200",
+      };
+    }
+    if (stock <= 10) {
+      return {
+        label: "Stock bajo",
+        className:
+          "inline-flex max-w-full items-center rounded-full border border-amber-200/80 bg-amber-50/70 px-2 py-0.5 text-[12px] font-medium text-amber-950 dark:border-amber-900/45 dark:bg-amber-950/25 dark:text-amber-100",
+      };
+    }
+    return {
+      label: "Con stock",
+      className:
+        "inline-flex max-w-full items-center rounded-full border border-nou-200 bg-nou-50 px-2 py-0.5 text-[12px] font-medium text-nou-900 dark:border-emerald-900/45 dark:bg-emerald-950/30 dark:text-emerald-100",
+    };
+  };
+  const filterSearchClass = workspaceFilterSearchPillClass;
+  const filterSelectClass = workspaceFilterSelectClass;
+  const filterLabelClass = workspaceFilterLabelClass;
 
   return (
-    <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
-      <header className="space-y-2 min-w-0">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-              <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
+              <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
                 Productos
               </h1>
-              <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
                 Lista de tus productos. Busca, filtra y gestiona stock desde aquí.
               </p>
           </div>
@@ -249,7 +291,7 @@ export default function InventoryPage() {
             <button
               type="button"
               onClick={() => setRefreshKey((k) => k + 1)}
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto sm:px-4 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:w-auto sm:px-4 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -258,7 +300,7 @@ export default function InventoryPage() {
             </button>
             <Link
               href="/inventario/nuevo"
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-3 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:w-auto sm:px-4 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-3 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto sm:px-4"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -269,113 +311,151 @@ export default function InventoryPage() {
         </div>
       </header>
 
-      {/* Buscador y filtros: siempre visibles tras la carga (aunque no haya coincidencias o stock filtrado). */}
-      {!loading && (
-        <div className="space-y-3">
-          <div className="relative min-w-0 w-full xl:max-w-md">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </span>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              placeholder="Nombre o código (ej. Coca-Cola, REST-BB-04)"
-              aria-label="Buscar producto por nombre o por código"
-              className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-[14px] text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
-            />
-          </div>
-          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="block text-[12px] font-medium text-slate-600 dark:text-slate-400">Estado</label>
-              <select
-                value={stockFilter}
-                onChange={(e) => { setStockFilter(e.target.value as StockFilter); setPage(1); }}
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-              >
-                <option value="all">Todos</option>
-                <option value="sin-stock">Sin stock</option>
-                <option value="bajo">Stock bajo</option>
-                <option value="con-stock">Con stock</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="block text-[12px] font-medium text-slate-600 dark:text-slate-400">Categoría</label>
-              <select
-                value={categoryFilter}
-                onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-              >
-                <option value="">Todas</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-      )}
-
       <section
         ref={listRef}
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        className="space-y-3 outline-none"
+        className="outline-none"
         aria-label="Lista de productos. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
         {loading ? (
-          <div className="min-h-[280px]" aria-hidden />
+          <div className="min-h-[280px] animate-pulse rounded-3xl bg-white dark:bg-slate-900" aria-hidden />
         ) : filteredProducts.length === 0 ? (
-          <div className="rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[15px] font-medium text-slate-700 dark:text-slate-300">
-              {isDatabaseEmpty
-                ? "Aún no tienes productos"
-                : "Ningún producto coincide con tu búsqueda o filtros"}
-            </p>
-            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-              {isDatabaseEmpty
-                ? "Crea tu primer producto para verlo aquí."
-                : "Ajusta el nombre o código, la categoría o el estado de stock (la lista respeta los filtros de esta página)."}
-            </p>
-            {isDatabaseEmpty ? (
-              <Link
-                href="/inventario/nuevo"
-                className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover"
-              >
-                Nuevo producto
-              </Link>
-            ) : null}
+          <div className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
+            <div className="flex min-w-0 flex-col gap-3 md:flex-row md:flex-nowrap md:items-end md:gap-2 md:overflow-x-auto md:pb-0.5 md:[scrollbar-width:thin] lg:gap-3 lg:overflow-visible xl:gap-3">
+              <div className="relative min-w-0 md:min-w-[14rem] md:flex-1">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </span>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                  placeholder="Nombre o código (ej. Coca-Cola, REST-BB-04)"
+                  aria-label="Buscar producto por nombre o por código"
+                  className={filterSearchClass}
+                />
+              </div>
+              <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
+                <label className={filterLabelClass}>Estado</label>
+                <select
+                  value={stockFilter}
+                  onChange={(e) => { setStockFilter(e.target.value as StockFilter); setPage(1); }}
+                  className={filterSelectClass}
+                >
+                  <option value="all">Todos</option>
+                  <option value="sin-stock">Sin stock</option>
+                  <option value="bajo">Stock bajo</option>
+                  <option value="con-stock">Con stock</option>
+                </select>
+              </div>
+              <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
+                <label className={filterLabelClass}>Categoría</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                  className={filterSelectClass}
+                >
+                  <option value="">Todas</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-14 text-center dark:border-slate-700">
+              <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">
+                {isDatabaseEmpty
+                  ? "Aún no tienes productos"
+                  : "Ningún producto coincide con tu búsqueda o filtros"}
+              </p>
+              <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                {isDatabaseEmpty
+                  ? "Crea tu primer producto para verlo aquí."
+                  : "Ajusta el nombre o código, la categoría o el estado de stock (la lista respeta los filtros de esta página)."}
+              </p>
+              {isDatabaseEmpty ? (
+                <Link
+                  href="/inventario/nuevo"
+                  className="mt-6 inline-flex h-9 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+                >
+                  Nuevo producto
+                </Link>
+              ) : null}
+            </div>
           </div>
         ) : (
-          <>
+          <div className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
+            <div className="flex min-w-0 flex-col gap-3 md:flex-row md:flex-nowrap md:items-end md:gap-2 md:overflow-x-auto md:pb-0.5 md:[scrollbar-width:thin] lg:gap-3 lg:overflow-visible xl:gap-3">
+              <div className="relative min-w-0 md:min-w-[14rem] md:flex-1">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </span>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                  placeholder="Nombre o código (ej. Coca-Cola, REST-BB-04)"
+                  aria-label="Buscar producto por nombre o por código"
+                  className={filterSearchClass}
+                />
+              </div>
+              <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
+                <label className={filterLabelClass}>Estado</label>
+                <select
+                  value={stockFilter}
+                  onChange={(e) => { setStockFilter(e.target.value as StockFilter); setPage(1); }}
+                  className={filterSelectClass}
+                >
+                  <option value="all">Todos</option>
+                  <option value="sin-stock">Sin stock</option>
+                  <option value="bajo">Stock bajo</option>
+                  <option value="con-stock">Con stock</option>
+                </select>
+              </div>
+              <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
+                <label className={filterLabelClass}>Categoría</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                  className={filterSelectClass}
+                >
+                  <option value="">Todas</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {/* Contenedor único: encabezado + filas con el mismo grid para alinear columnas (desktop) */}
-            <div className="hidden overflow-hidden rounded-xl ring-1 ring-slate-200 bg-white dark:ring-slate-800 dark:bg-slate-900 xl:block">
+            <div className="hidden overflow-hidden rounded-2xl border border-slate-100 bg-white dark:border-zinc-800/80 dark:bg-zinc-950/30 xl:block">
               {/* Títulos de columna */}
               <div
-                className="grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(70px,0.7fr)_minmax(72px,0.7fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800"
+                className="grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(90px,0.8fr)_minmax(115px,0.9fr)_minmax(140px,auto)] gap-x-6 items-center px-5 py-3 bg-slate-50 border-b border-slate-200 dark:border-zinc-800/80 dark:bg-zinc-900/40"
                 aria-hidden
               >
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Producto</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Código</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Categoría</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Stock</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Estado</div>
-                <div className="min-w-0 w-full text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Precio</div>
-                <div className="min-w-0 pl-4 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Acciones</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Producto</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Código</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Categoría</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Stock</div>
+                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Estado</div>
+                <div className="min-w-0 w-full text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Precio</div>
+                <div className="min-w-0 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Acciones</div>
               </div>
               {filteredProducts.map((p, index) => {
                 const stock = stockByProduct[p.id] ?? 0;
                 const price = salePrice(p);
-                const stockStatus =
-                  stock === 0
-                    ? { label: "Sin stock", class: "text-red-600 dark:text-red-400" }
-                    : stock <= 10
-                      ? { label: "Stock bajo", class: "text-orange-600 dark:text-orange-400" }
-                      : { label: "Con stock", class: "text-green-600 dark:text-green-400" };
+                const stockStatus = stockStatusChip(stock);
                 const isSelected = index === selectedIndex;
                 const isLast = index === filteredProducts.length - 1;
                 return (
@@ -385,57 +465,59 @@ export default function InventoryPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/inventario/${p.id}`)}
-                    className={`grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(70px,0.7fr)_minmax(72px,0.7fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-4 cursor-pointer transition-colors border-b border-slate-100 dark:border-slate-800 ${
+                    className={`grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(90px,0.8fr)_minmax(115px,0.9fr)_minmax(140px,auto)] gap-x-6 items-center px-5 py-4 cursor-pointer transition-colors border-b border-slate-100 dark:border-zinc-800/60 ${
                       isLast ? "border-b-0" : ""
                     } ${
                       isSelected
-                        ? "bg-slate-100 dark:bg-slate-800"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                        ? "bg-slate-100 dark:bg-zinc-900/70"
+                        : "hover:bg-slate-50 dark:hover:bg-zinc-900/35"
                     }`}
                   >
                   <div className="min-w-0">
-                    <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">{p.name}</p>
+                    <p className="truncate text-[15px] font-medium tracking-tight text-slate-900 dark:text-slate-50">{p.name}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{p.sku || "—"}</p>
+                    <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{p.sku || "—"}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p>
+                    <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{stock} {stock === 1 ? "unidad" : "unidades"}</p>
+                    <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{stock} {stock === 1 ? "unidad" : "unidades"}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className={`text-[14px] font-bold ${stockStatus.class}`}>{stockStatus.label}</p>
+                    <span className={stockStatus.className}>{stockStatus.label}</span>
                   </div>
                   <div className="min-w-0 w-full flex items-center justify-end">
-                    <span className="text-[14px] sm:text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">$ {formatMoney(price)}</span>
+                    <span className="text-[15px] font-medium tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(price)}</span>
                   </div>
-                  <div className="min-w-0 pl-6 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                  <div className="min-w-0 flex items-center justify-end gap-0 -space-x-0.5" onClick={(e) => e.stopPropagation()}>
                     <span className="relative inline-flex group/tooltip">
-                      <Link href={`/inventario/${p.id}`} className="inline-flex p-1 text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink dark:hover:text-ov-pink-hover" aria-label="Ver detalle">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      <Link href={`/inventario/${p.id}`} className={actionIconClass} aria-label="Ver detalle">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                       </Link>
                       <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Ver detalle del producto</span>
                     </span>
                     <span className="relative inline-flex group/tooltip">
-                      <Link href={`/inventario/${p.id}/editar`} className="inline-flex p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Editar">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" /></svg>
+                      <Link href={`/inventario/${p.id}/editar`} className={actionIconClass} aria-label="Editar">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" /></svg>
                       </Link>
                       <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Editar nombre, precio, categoría y más</span>
                     </span>
                     <span className="relative inline-flex group/tooltip">
-                      <Link href={`/inventario/actualizar-stock?productId=${p.id}`} className="inline-flex p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Ajustar stock">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                      <Link href={`/inventario/actualizar-stock?productId=${p.id}`} className={actionIconClass} aria-label="Ajustar stock">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                       </Link>
                       <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Ajustar o contar el stock de este producto</span>
                     </span>
-                    <span className="relative inline-flex group/tooltip">
-                      <Link href={`/inventario/transferir?productId=${p.id}`} className="inline-flex p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Transferir">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
-                      </Link>
-                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Transferir stock a otra sucursal</span>
-                    </span>
+                    {SHOW_TRANSFER_OPTION && (
+                      <span className="relative inline-flex group/tooltip">
+                        <Link href={`/inventario/transferir?productId=${p.id}`} className={actionIconClass} aria-label="Transferir">
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
+                        </Link>
+                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Transferir stock a otra sucursal</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               );
@@ -447,7 +529,7 @@ export default function InventoryPage() {
               {filteredProducts.map((p, index) => {
                 const stock = stockByProduct[p.id] ?? 0;
                 const price = salePrice(p);
-                const stockStatus = stock === 0 ? { label: "Sin stock", class: "text-red-600 dark:text-red-400" } : stock <= 10 ? { label: "Stock bajo", class: "text-orange-600 dark:text-orange-400" } : { label: "Con stock", class: "text-green-600 dark:text-green-400" };
+                const stockStatus = stockStatusChip(stock);
                 const isSelected = index === selectedIndex;
                 return (
                   <div
@@ -457,28 +539,32 @@ export default function InventoryPage() {
                     tabIndex={-1}
                     onClick={() => router.push(`/inventario/${p.id}`)}
                     className={`rounded-xl shadow-sm ring-1 cursor-pointer transition-all px-4 py-3 ${
-                      isSelected ? "bg-slate-100 ring-slate-300 dark:bg-slate-800 dark:ring-slate-600" : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
+                      isSelected
+                        ? "bg-slate-100 ring-slate-300 dark:bg-zinc-900/80 dark:ring-zinc-700/60"
+                        : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-zinc-950/40 dark:ring-zinc-800/70 dark:hover:bg-zinc-900/50"
                     }`}
                   >
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Producto</span><p className="truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{p.name}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Código</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{p.sku || "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Categoría</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock</span><p className="text-[14px] font-bold tabular-nums text-slate-900 dark:text-slate-50">{stock} {stock === 1 ? "unidad" : "unidades"}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Estado</span><p className={`text-[14px] font-bold ${stockStatus.class}`}>{stockStatus.label}</p></div>
-                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Precio</span><p className="text-base font-bold tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(price)}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Producto</span><p className="truncate text-right text-[15px] font-medium text-slate-900 dark:text-slate-50">{p.name}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Código</span><p className="text-[13px] font-medium text-slate-700 dark:text-slate-200">{p.sku || "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Categoría</span><p className="text-[13px] font-medium text-slate-700 dark:text-slate-200">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock</span><p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{stock} {stock === 1 ? "unidad" : "unidades"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Estado</span><span className={stockStatus.className}>{stockStatus.label}</span></div>
+                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Precio</span><p className="text-[15px] font-medium tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(price)}</p></div>
                       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                         <span className="inline-flex gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}><Link href={`/inventario/${p.id}`} className="hover:underline" title="Ver detalle del producto">Ver detalle</Link><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
                         <span onClick={(e) => e.stopPropagation()}><Link href={`/inventario/${p.id}/editar`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Editar nombre, precio, categoría y más">Editar</Link></span>
                         <span onClick={(e) => e.stopPropagation()}><Link href={`/inventario/actualizar-stock?productId=${p.id}`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Ajustar o contar el stock de este producto">Ajustar stock</Link></span>
-                        <span onClick={(e) => e.stopPropagation()}><Link href={`/inventario/transferir?productId=${p.id}`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Transferir stock a otra sucursal">Transferir</Link></span>
+                        {SHOW_TRANSFER_OPTION && (
+                          <span onClick={(e) => e.stopPropagation()}><Link href={`/inventario/transferir?productId=${p.id}`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Transferir stock a otra sucursal">Transferir</Link></span>
+                        )}
                       </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </>
+          </div>
         )}
       </section>
 

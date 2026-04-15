@@ -50,7 +50,7 @@ export function CatalogCartDrawer({ slug, open, onClose, cart, productById, cart
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
           <div className="flex items-center gap-2">
-            <MdShoppingCart className="h-6 w-6 text-ov-pink" aria-hidden />
+            <MdShoppingCart className="h-6 w-6 text-[color:var(--shell-sidebar)] dark:text-zinc-300" aria-hidden />
             <h2 id="catalog-cart-title" className="text-lg font-bold text-slate-900 dark:text-white">
               Tu pedido
             </h2>
@@ -89,7 +89,7 @@ export function CatalogCartDrawer({ slug, open, onClose, cart, productById, cart
                       <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
                         {formatMoney(p.unit_price)} × {line.quantity}
                       </p>
-                      <p className="mt-1 text-sm font-bold text-ov-pink">{formatMoney(p.unit_price * line.quantity)}</p>
+                      <p className="mt-1 text-sm font-bold text-[color:var(--shell-sidebar)] dark:text-zinc-300">{formatMoney(p.unit_price * line.quantity)}</p>
                     </div>
                   </li>
                 );
@@ -100,7 +100,7 @@ export function CatalogCartDrawer({ slug, open, onClose, cart, productById, cart
         <div className="border-t border-slate-200 p-4 dark:border-slate-700">
           <div className="mb-3 flex justify-between text-base font-bold text-slate-900 dark:text-white">
             <span>Total</span>
-            <span className="tabular-nums text-ov-pink">{formatMoney(cartTotal)}</span>
+            <span className="tabular-nums text-[color:var(--shell-sidebar)] dark:text-zinc-300">{formatMoney(cartTotal)}</span>
           </div>
           <button
             type="button"
@@ -110,7 +110,7 @@ export function CatalogCartDrawer({ slug, open, onClose, cart, productById, cart
               onClose();
               router.push(`/t/${encodeURIComponent(slug)}/checkout`);
             }}
-            className={`w-full rounded-xl bg-ov-pink py-3 text-center text-sm font-bold text-white shadow hover:bg-ov-pink-hover disabled:opacity-40 ${catalogFocusRing}`}
+            className={`w-full rounded-xl bg-[color:var(--shell-sidebar)] py-3 text-center text-sm font-bold text-white shadow hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-40 ${catalogFocusRing}`}
           >
             Continuar al pago
           </button>

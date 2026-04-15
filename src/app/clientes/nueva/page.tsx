@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { formatCedulaForStorage, normalizeCedulaForUniqueness } from "@/lib/customer-cedula";
+import { workspaceFormInputMdClass } from "@/lib/workspace-field-classes";
 
 const LABEL_OPTIONS = [
   { value: "Casa", label: "Casa" },
@@ -41,6 +42,12 @@ export default function NewCustomerPage() {
   const [addresses, setAddresses] = useState<AddressEntry[]>([newAddressEntry()]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Mismo estilo que «Nueva factura» (`/ventas/nueva`): cards gris/azulado en oscuro + campos del workspace. */
+  const cardClass =
+    "rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800";
+  const inputClass = workspaceFormInputMdClass;
+  const textareaClass = `${workspaceFormInputMdClass} !h-auto resize-y px-3 py-2 text-[13px]`;
+  const compactFieldClass = `${workspaceFormInputMdClass} !h-9 text-[13px]`;
 
   function addAddress() {
     setAddresses((prev) => [...prev, newAddressEntry()]);
@@ -184,21 +191,21 @@ export default function NewCustomerPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-[1600px] mx-auto">
-      <header className="space-y-2">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
         <Breadcrumb items={[{ label: "Clientes", href: "/clientes" }, { label: "Nuevo cliente" }]} />
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
               Nuevo cliente
             </h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
               Registra un nuevo cliente. Puedes añadir varias direcciones (casa, oficina, etc.).
             </p>
           </div>
           <Link
             href="/clientes"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             title="Volver a clientes"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -208,16 +215,16 @@ export default function NewCustomerPage() {
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
+      <form onSubmit={handleSubmit} className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]" aria-label="Nuevo cliente">
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Datos personales
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="customer-name" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
-                  Nombre completo <span className="text-red-500">*</span>
+                  Nombre completo <span className="text-[color:var(--shell-sidebar)] dark:text-zinc-300">*</span>
                 </label>
                 <input
                   id="customer-name"
@@ -226,7 +233,7 @@ export default function NewCustomerPage() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ej. María López"
                   required
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className={inputClass}
                 />
               </div>
               <div>
@@ -241,7 +248,7 @@ export default function NewCustomerPage() {
                   onChange={(e) => setCedula(e.target.value.replace(/\D/g, ""))}
                   placeholder="Ej. 1234567890"
                   maxLength={15}
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className={inputClass}
                 />
               </div>
               <div>
@@ -254,7 +261,7 @@ export default function NewCustomerPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Ej. 312 000 0000"
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className={inputClass}
                 />
               </div>
               <div>
@@ -267,13 +274,13 @@ export default function NewCustomerPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Ej. maria@ejemplo.com"
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className={inputClass}
                 />
               </div>
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
@@ -286,7 +293,7 @@ export default function NewCustomerPage() {
               <button
                 type="button"
                 onClick={addAddress}
-                className="shrink-0 inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="shrink-0 inline-flex h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -298,7 +305,7 @@ export default function NewCustomerPage() {
               {addresses.map((addr, index) => (
                 <div
                   key={addr.id}
-                  className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30"
+                  className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-700 dark:bg-zinc-900/55"
                 >
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <span className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -323,7 +330,7 @@ export default function NewCustomerPage() {
                         <select
                           value={addr.label}
                           onChange={(e) => updateAddress(addr.id, { label: e.target.value })}
-                          className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                          className={compactFieldClass}
                         >
                           {LABEL_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -342,7 +349,7 @@ export default function NewCustomerPage() {
                             value={addr.labelCustom}
                             onChange={(e) => updateAddress(addr.id, { labelCustom: e.target.value })}
                             placeholder="Ej. Trabajo, Finca"
-                            className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                            className={compactFieldClass}
                           />
                         </div>
                       )}
@@ -356,7 +363,7 @@ export default function NewCustomerPage() {
                         value={addr.address}
                         onChange={(e) => updateAddress(addr.id, { address: e.target.value })}
                         placeholder="Ej. Cra 10 # 20-30, Apto 502, barrio Centro. Portería azul."
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 resize-y min-h-[60px]"
+                        className={`${textareaClass} min-h-[60px]`}
                       />
                     </div>
                     <div>
@@ -368,7 +375,7 @@ export default function NewCustomerPage() {
                         value={addr.referencePoint}
                         onChange={(e) => updateAddress(addr.id, { referencePoint: e.target.value })}
                         placeholder="Ej. Frente al parque, casa blanca portón negro."
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 resize-y min-h-[44px]"
+                        className={`${textareaClass} min-h-[44px]`}
                       />
                       <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                         Para que el domiciliario encuentre el lugar (esquina, color de la casa, negocio cercano, etc.).
@@ -382,12 +389,12 @@ export default function NewCustomerPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Resumen
             </p>
             <div className="mt-3 space-y-3 text-[13px]">
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
+              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
                 <p className="font-bold text-slate-800 dark:text-slate-100">
                   {name.trim() || "Cliente nuevo"}
                 </p>
@@ -431,7 +438,7 @@ export default function NewCustomerPage() {
               <button
                 type="submit"
                 disabled={saving || !name.trim()}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 disabled:pointer-events-none dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                className="w-full rounded-xl bg-[color:var(--shell-sidebar)] py-3 text-[15px] font-bold text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:pointer-events-none disabled:opacity-50"
               >
                 {saving ? "Guardando…" : "Crear cliente"}
               </button>

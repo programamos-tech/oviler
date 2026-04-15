@@ -220,29 +220,35 @@ export default function EditProductPage() {
   }
 
   const inputClass =
-    "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
-  const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
+    "h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-zinc-500";
+  const labelClass = "mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300";
+  const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <p className="text-[14px] text-slate-500 dark:text-slate-400">Cargando producto…</p>
+      <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+        <div className="min-h-[280px] animate-pulse rounded-2xl bg-white dark:bg-slate-900" aria-hidden />
       </div>
     );
   }
 
   if (notFound) {
     return (
-      <div className="space-y-4">
-        <p className="text-[14px] text-slate-600 dark:text-slate-400">Producto no encontrado.</p>
-        <Link href="/inventario" className="text-[14px] font-medium text-ov-pink hover:underline">Volver al inventario</Link>
+      <div className="mx-auto min-w-0 max-w-[1600px] space-y-4 font-sans text-[13px] text-slate-800 antialiased dark:text-slate-100">
+        <p className="text-[14px] font-medium text-slate-600 dark:text-slate-400">Producto no encontrado.</p>
+        <Link
+          href="/inventario"
+          className="inline-flex text-[14px] font-medium text-[color:var(--shell-sidebar)] transition-colors hover:underline dark:text-zinc-300"
+        >
+          Volver al inventario
+        </Link>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <header className="space-y-2">
+    <form onSubmit={handleSubmit} className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
         <Breadcrumb
           items={[
             { label: "Inventario", href: "/inventario" },
@@ -250,9 +256,9 @@ export default function EditProductPage() {
             { label: "Editar" },
           ]}
         />
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
+        <div className="mt-3 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
               Editar producto
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
@@ -261,7 +267,7 @@ export default function EditProductPage() {
           </div>
           <Link
             href={id ? `/inventario/${id}` : "/inventario"}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
             title="Volver al detalle"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -272,24 +278,24 @@ export default function EditProductPage() {
       </header>
 
       {error && (
-        <div className="rounded-xl bg-red-50 p-4 text-[14px] font-medium text-red-800 dark:bg-red-900/30 dark:text-red-200" role="alert">
+        <div className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-[13px] font-medium text-red-700 dark:border-red-900/45 dark:bg-red-950/30 dark:text-red-200" role="alert">
           {error}
         </div>
       )}
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Información básica
             </p>
-            <div className="mt-3 space-y-3">
+            <div className="mt-4 space-y-3">
               <div>
-                <label className={labelClass}>Nombre del producto <span className="text-ov-pink">*</span></label>
+                <label className={labelClass}>Nombre del producto <span className={requiredMarkClass}>*</span></label>
                 <input placeholder="Nombre del producto" className={inputClass} value={nombre} onChange={(e) => setNombre(e.target.value)} />
               </div>
               <div>
-                <label className={labelClass}>Referencia <span className="text-ov-pink">*</span></label>
+                <label className={labelClass}>Referencia <span className={requiredMarkClass}>*</span></label>
                 <input placeholder="REF-001" className={inputClass} value={referencia} onChange={(e) => setReferencia(e.target.value)} />
               </div>
               <div>
@@ -297,7 +303,7 @@ export default function EditProductPage() {
                 <textarea
                   rows={2}
                   placeholder="Descripción detallada del producto (opcional)"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-zinc-500"
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                 />
@@ -305,12 +311,12 @@ export default function EditProductPage() {
               <div>
                 <label className={labelClass}>Imagen (catálogo web)</label>
                 {imageUrl && !productImageFile && (
-                  <img src={imageUrl} alt="" className="mb-2 h-24 w-24 rounded-lg border border-slate-200 object-cover dark:border-slate-700" />
+                  <img src={imageUrl} alt="" className="mb-2 h-24 w-24 rounded-xl border border-slate-200 object-cover dark:border-slate-700" />
                 )}
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 dark:file:bg-slate-800"
+                  className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-100 file:px-3 file:py-2 dark:text-slate-300 dark:file:bg-slate-800"
                   onChange={(e) => setProductImageFile(e.target.files?.[0] ?? null)}
                 />
                 <p className="mt-1 text-[12px] text-slate-500">JPG, PNG o WebP. Máx. 5 MB.</p>
@@ -330,7 +336,7 @@ export default function EditProductPage() {
                   </select>
                   {categories.length === 0 && (
                     <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-                      <Link href="/inventario/categorias" className="font-medium text-ov-pink hover:underline">Configura tus categorías</Link> en Inventario.
+                      <Link href="/inventario/categorias" className="font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">Configura tus categorías</Link> en Inventario.
                     </p>
                   )}
                 </div>
@@ -340,14 +346,14 @@ export default function EditProductPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Información financiera
             </p>
             {responsableIva && (
               <>
                 <label className="mt-3 flex cursor-pointer items-center gap-2">
-                  <input type="checkbox" checked={aplicarIva} onChange={(e) => setAplicarIva(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30" />
+                  <input type="checkbox" checked={aplicarIva} onChange={(e) => setAplicarIva(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-slate-400/50" />
                   <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Aplicar IVA (19%)</span>
                 </label>
                 {aplicarIva && <p className="mt-2 text-[13px] font-medium text-slate-600 dark:text-slate-400">Ingresa los precios SIN IVA. El sistema calcula automáticamente el IVA (19%).</p>}
@@ -355,18 +361,18 @@ export default function EditProductPage() {
             )}
             <div className="mt-3 space-y-3">
               <div>
-                <label className={labelClass}>{responsableIva ? "Costo de compra (base sin IVA)" : "Costo de compra"} <span className="text-ov-pink">*</span></label>
-                <div className="flex rounded-lg border border-slate-300 dark:border-slate-700">
-                  <span className="flex items-center rounded-l-lg border-r border-slate-300 bg-slate-50 px-3 text-[14px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">$</span>
-                  <input type="text" inputMode="numeric" value={baseCosto} onChange={handleBaseCostoChange} placeholder="0" className="h-10 flex-1 rounded-r-lg border-0 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:bg-slate-800 dark:text-slate-200" />
+                <label className={labelClass}>{responsableIva ? "Costo de compra (base sin IVA)" : "Costo de compra"} <span className={requiredMarkClass}>*</span></label>
+                <div className="flex rounded-xl border border-slate-200 bg-slate-50/90 dark:border-slate-700 dark:bg-slate-800/80">
+                  <span className="flex items-center rounded-l-xl border-r border-slate-200 bg-slate-100 px-3 text-[13px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">$</span>
+                  <input type="text" inputMode="numeric" value={baseCosto} onChange={handleBaseCostoChange} placeholder="0" className="h-10 flex-1 rounded-r-xl border-0 bg-transparent px-4 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400/35 dark:text-slate-200 dark:placeholder:text-slate-500" />
                 </div>
                 {aplicarIva && <p className="mt-1 text-[13px] text-slate-600 dark:text-slate-400">IVA (19%): $ {formatMoney(ivaCosto)} — Total con IVA: $ {formatMoney(totalCosto)}</p>}
               </div>
               <div>
-                <label className={labelClass}>{responsableIva ? "Precio de venta (base sin IVA)" : "Precio de venta"} <span className="text-ov-pink">*</span></label>
-                <div className="flex rounded-lg border border-slate-300 dark:border-slate-700">
-                  <span className="flex items-center rounded-l-lg border-r border-slate-300 bg-slate-50 px-3 text-[14px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">$</span>
-                  <input type="text" inputMode="numeric" value={basePrecio} onChange={handleBasePrecioChange} placeholder="0" className="h-10 flex-1 rounded-r-lg border-0 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:bg-slate-800 dark:text-slate-200" />
+                <label className={labelClass}>{responsableIva ? "Precio de venta (base sin IVA)" : "Precio de venta"} <span className={requiredMarkClass}>*</span></label>
+                <div className="flex rounded-xl border border-slate-200 bg-slate-50/90 dark:border-slate-700 dark:bg-slate-800/80">
+                  <span className="flex items-center rounded-l-xl border-r border-slate-200 bg-slate-100 px-3 text-[13px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">$</span>
+                  <input type="text" inputMode="numeric" value={basePrecio} onChange={handleBasePrecioChange} placeholder="0" className="h-10 flex-1 rounded-r-xl border-0 bg-transparent px-4 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-slate-400/35 dark:text-slate-200 dark:placeholder:text-slate-500" />
                 </div>
                 {aplicarIva && <p className="mt-1 text-[13px] text-slate-600 dark:text-slate-400">IVA (19%): $ {formatMoney(ivaPrecio)} — Total con IVA: $ {formatMoney(totalPrecio)}</p>}
                 <p className="mt-1.5 text-[12px] text-slate-500 dark:text-slate-400">Este producto no podrá ser vendido por menos del valor de precio de venta.</p>
@@ -374,19 +380,19 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Resumen del producto</p>
+          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Resumen del producto</p>
             <div className="mt-3 space-y-3 text-[13px]">
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Producto</p>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Producto</p>
                 <div className="mt-1.5 space-y-1 text-slate-600 dark:text-slate-400">
                   <p><span className="font-medium text-slate-700 dark:text-slate-300">Nombre:</span> {nombre.trim() || "—"}</p>
                   <p><span className="font-medium text-slate-700 dark:text-slate-300">Referencia:</span> {referencia.trim() || "—"}</p>
                   {categoria && <p><span className="font-medium text-slate-700 dark:text-slate-300">Categoría:</span> {categories.find((c) => c.id === categoria)?.name ?? "—"}</p>}
                 </div>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Precio de venta</p>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Precio de venta</p>
                 <p className="mt-1 text-slate-600 dark:text-slate-400">{aplicarIva ? `$ ${formatMoney(totalPrecio)} (con IVA)` : `$ ${formatMoney(numBasePrecio)}`}</p>
               </div>
             </div>
@@ -396,16 +402,16 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className="rounded-3xl bg-white px-5 py-5 dark:bg-slate-900 sm:px-6 sm:py-6">
             <div className="space-y-3">
               <p className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
-                <span className="font-bold text-slate-700 dark:text-slate-100">Guardar cambios</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-100">Guardar cambios</span>
                 <span className="mt-1 block">Se actualizarán los datos del producto en el catálogo.</span>
               </p>
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-50"
               >
                 {saving ? "Guardando…" : "Guardar cambios"}
               </button>

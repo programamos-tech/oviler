@@ -4,8 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { workspaceFilterSearchPillClass } from "@/lib/workspace-field-classes";
+import { MdOutlineEdit, MdOutlineVisibility } from "react-icons/md";
+import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
+import { getAvatarVariant } from "@/app/components/app-nav-data";
 
 const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 350;
 
 type CustomerAddress = {
   id: string;
@@ -30,7 +35,8 @@ type CustomerRow = {
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -38,22 +44,46 @@ export default function CustomersPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const hasFocusedList = useRef(false);
+  const fetchRequestId = useRef(0);
+  const prevDebouncedSearch = useRef<string | undefined>(undefined);
   const router = useRouter();
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(id);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (prevDebouncedSearch.current !== undefined && prevDebouncedSearch.current !== debouncedSearch) {
+      setPage(1);
+    }
+    prevDebouncedSearch.current = debouncedSearch;
+  }, [debouncedSearch]);
 
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
-    setLoading(true);
+    const reqId = ++fetchRequestId.current;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
+      if (!user || cancelled) {
+        if (!cancelled && reqId === fetchRequestId.current) setLoading(false);
+        return;
+      }
       const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
-      if (!userRow?.organization_id || cancelled) return;
+      if (!userRow?.organization_id || cancelled) {
+        if (!cancelled && reqId === fetchRequestId.current) setLoading(false);
+        return;
+      }
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
       if (!ub?.branch_id || cancelled) {
-        setCustomers([]);
-        setTotalCount(0);
-        setLoading(false);
+        if (!cancelled && reqId === fetchRequestId.current) {
+          setCustomers([]);
+          setTotalCount(0);
+          setLoading(false);
+        }
         return;
       }
 
@@ -68,13 +98,13 @@ export default function CustomersPage() {
         .order("name", { ascending: true })
         .range(from, to);
 
-      const qTrim = searchQuery.trim();
+      const qTrim = debouncedSearch.trim();
       if (qTrim) {
         q = q.or(`name.ilike.%${qTrim}%,cedula.ilike.%${qTrim}%,email.ilike.%${qTrim}%,phone.ilike.%${qTrim}%`);
       }
 
       let { data: customersData, count, error } = await q;
-      if (cancelled) return;
+      if (cancelled || reqId !== fetchRequestId.current) return;
       // Si falla (ej. columna active no existe), intentar sin filtrar por active
       if (error) {
         const q2 = supabase
@@ -86,11 +116,12 @@ export default function CustomersPage() {
           .range(from, to);
         const q2WithSearch = qTrim ? q2.or(`name.ilike.%${qTrim}%,cedula.ilike.%${qTrim}%,email.ilike.%${qTrim}%,phone.ilike.%${qTrim}%`) : q2;
         const res2 = await q2WithSearch;
-        if (cancelled) return;
+        if (cancelled || reqId !== fetchRequestId.current) return;
         customersData = res2.data;
         count = res2.count;
         error = res2.error;
       }
+      if (cancelled || reqId !== fetchRequestId.current) return;
       if (!error) {
         setCustomers((customersData ?? []) as CustomerRow[]);
         setTotalCount(count ?? 0);
@@ -101,38 +132,27 @@ export default function CustomersPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [refreshKey, page, searchQuery]);
-
-  const filteredCustomers = customers.filter((c) => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      c.name.toLowerCase().includes(q) ||
-      (c.cedula?.includes(searchQuery.trim()) ?? false) ||
-      (c.email?.toLowerCase().includes(q) ?? false) ||
-      (c.phone?.includes(searchQuery.trim()) ?? false)
-    );
-  });
+  }, [refreshKey, page, debouncedSearch]);
 
   useEffect(() => {
-    setSelectedIndex((i) => Math.min(i, Math.max(0, filteredCustomers.length - 1)));
-  }, [filteredCustomers.length]);
+    setSelectedIndex((i) => Math.min(i, Math.max(0, customers.length - 1)));
+  }, [customers.length]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (filteredCustomers.length === 0) return;
+      if (customers.length === 0) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, filteredCustomers.length - 1));
+        setSelectedIndex((i) => Math.min(i + 1, customers.length - 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        router.push(`/clientes/${filteredCustomers[selectedIndex].id}`);
+        router.push(`/clientes/${customers[selectedIndex].id}`);
       }
     },
-    [filteredCustomers, selectedIndex, router]
+    [customers, selectedIndex, router]
   );
 
   useEffect(() => {
@@ -140,11 +160,11 @@ export default function CustomersPage() {
   }, [selectedIndex]);
 
   useEffect(() => {
-    if (!loading && filteredCustomers.length > 0 && listRef.current && !hasFocusedList.current) {
+    if (!loading && customers.length > 0 && listRef.current && !hasFocusedList.current) {
       hasFocusedList.current = true;
       listRef.current.focus({ preventScroll: true });
     }
-  }, [loading, filteredCustomers.length]);
+  }, [loading, customers.length]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const showPagination = !loading && totalCount > PAGE_SIZE;
@@ -161,7 +181,7 @@ export default function CustomersPage() {
   })();
 
   const paginationBar = showPagination && (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-white px-5 py-4 dark:bg-slate-900">
       <p className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
         {totalCount} {totalCount === 1 ? "cliente" : "clientes"}
         {totalPages > 1 && <> · Página {page} de {totalPages}</>}
@@ -172,7 +192,7 @@ export default function CustomersPage() {
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100/90 text-slate-700 transition-colors hover:bg-slate-200/80 disabled:pointer-events-none disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             aria-label="Página anterior"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,10 +207,10 @@ export default function CustomersPage() {
                 key={n}
                 type="button"
                 onClick={() => setPage(n)}
-                className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg border px-2 text-[13px] font-medium ${
+                className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl px-2 text-[13px] font-medium transition-colors ${
                   page === n
-                    ? "border-ov-pink bg-ov-pink text-white dark:bg-ov-pink dark:text-white"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    ? "bg-[color:var(--shell-sidebar)] text-white dark:bg-[color:var(--shell-sidebar)]"
+                    : "bg-slate-100/80 text-slate-700 hover:bg-slate-200/80 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 {n}
@@ -201,7 +221,7 @@ export default function CustomersPage() {
             type="button"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100/90 text-slate-700 transition-colors hover:bg-slate-200/80 disabled:pointer-events-none disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             aria-label="Página siguiente"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -213,24 +233,33 @@ export default function CustomersPage() {
     </div>
   );
 
+  const actionIconClass =
+    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[color:var(--shell-sidebar)] transition-colors hover:bg-slate-100 dark:text-zinc-300 dark:hover:bg-white/10";
+
+  const showSearch =
+    totalCount > 0 ||
+    searchInput.trim() !== "" ||
+    debouncedSearch.trim() !== "";
+
   return (
-    <div className="min-w-0 space-y-4 max-w-[1600px] mx-auto">
-      <header className="space-y-2 min-w-0">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
-              Clientes
-            </h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Lista de clientes de esta sucursal. Busca por nombre, email o teléfono.
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">Clientes</h1>
+            <p className="mt-1 whitespace-nowrap text-left text-[13px] font-medium leading-snug text-slate-500 dark:text-slate-400">
+              Lista de esta sucursal. Busca por nombre, cédula, email o teléfono.
             </p>
           </div>
           <div className="w-full lg:overflow-x-auto">
             <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:min-w-max lg:flex-nowrap lg:items-center lg:justify-end">
               <button
                 type="button"
-                onClick={() => setRefreshKey((k) => k + 1)}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto sm:px-4 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                onClick={() => {
+                  setLoading(true);
+                  setRefreshKey((k) => k + 1);
+                }}
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:w-auto dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -239,7 +268,7 @@ export default function CustomersPage() {
               </button>
               <Link
                 href="/clientes/nueva"
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-3 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover sm:w-auto sm:px-4 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -251,70 +280,77 @@ export default function CustomersPage() {
         </div>
       </header>
 
-      {!loading && totalCount > 0 && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="relative flex-1 min-w-0">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </span>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              placeholder="Buscar por nombre, cédula, email o teléfono..."
-              className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 text-[14px] text-slate-800 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
-            />
-          </div>
-        </div>
-      )}
-
       <section
         ref={listRef}
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        className="space-y-3 outline-none"
+        className="outline-none"
         aria-label="Lista de clientes. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
         {loading ? (
-          <div className="min-h-[280px]" aria-hidden />
-        ) : filteredCustomers.length === 0 ? (
-          <div className="rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[15px] font-medium text-slate-700 dark:text-slate-300">
-              {totalCount === 0 ? "Aún no tienes clientes" : "Ningún cliente coincide con la búsqueda en esta página"}
-            </p>
-            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-              {totalCount === 0 ? "Registra tu primer cliente para verlo aquí." : "Prueba con otro término de búsqueda."}
+          <div className="min-h-[280px] animate-pulse rounded-3xl bg-white dark:bg-slate-900" aria-hidden />
+        ) : !showSearch && customers.length === 0 ? (
+          <div className="rounded-3xl bg-white px-6 py-10 text-center dark:bg-slate-900">
+            <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">Aún no tienes clientes</p>
+            <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+              Registra tu primer cliente para verlo aquí.
             </p>
             <Link
               href="/clientes/nueva"
-              className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover"
+              className="mt-6 inline-flex h-9 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
             >
               Nuevo cliente
             </Link>
           </div>
         ) : (
           <>
-            {/* Desktop: tabla con mismos encabezados y grid que inventario */}
-            <div className="hidden overflow-hidden rounded-xl ring-1 ring-slate-200 bg-white dark:ring-slate-800 dark:bg-slate-900 xl:block">
+            <div className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
+              {showSearch && (
+                <div className="relative min-w-0">
+                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </span>
+                  <input
+                    type="search"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Buscar por nombre, cédula, email o teléfono…"
+                    className={workspaceFilterSearchPillClass}
+                  />
+                </div>
+              )}
+            {customers.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-14 text-center dark:border-slate-700">
+                <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">
+                  {debouncedSearch.trim() ? "Ningún cliente coincide con la búsqueda" : "Sin resultados en esta página"}
+                </p>
+                <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                  {debouncedSearch.trim() ? "Prueba con otro término o revisa la ortografía." : "Cambia de página o ajusta el filtro."}
+                </p>
+              </div>
+            ) : (
+              <>
+            <div className="hidden overflow-hidden rounded-2xl border border-slate-100 dark:border-zinc-800/80 xl:block">
               <div
-                className="grid grid-cols-[minmax(120px,1.5fr)_minmax(80px,0.8fr)_1fr_minmax(90px,0.9fr)_minmax(140px,1.5fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800"
+                className="grid grid-cols-[minmax(200px,2fr)_minmax(72px,0.75fr)_minmax(100px,1.1fr)_minmax(88px,0.95fr)_minmax(120px,1.4fr)_minmax(96px,auto)] gap-x-6 border-b border-slate-100 px-5 py-3.5 dark:border-zinc-800/80"
                 aria-hidden
               >
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cliente</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cédula</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Email</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Teléfono</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Dirección</div>
-                <div className="min-w-0 pl-4 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Acciones</div>
+                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Cliente</div>
+                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Cédula</div>
+                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Email</div>
+                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Teléfono</div>
+                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Dirección</div>
+                <div className="min-w-0 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Acciones</div>
               </div>
-              {filteredCustomers.map((c, index) => {
+              <div className="divide-y divide-slate-100 dark:divide-zinc-800/70">
+              {customers.map((c, index) => {
                 const isSelected = index === selectedIndex;
-                const isLast = index === filteredCustomers.length - 1;
                 const addrs = c.customer_addresses ?? [];
                 const sortedAddrs = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
                 const firstAddr = sortedAddrs[0];
+                const avatarSeed = `${c.email || c.name || c.id}-${getAvatarVariant(null)}`;
                 return (
                   <div
                     key={c.id}
@@ -322,100 +358,142 @@ export default function CustomersPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/clientes/${c.id}`)}
-                    className={`grid grid-cols-[minmax(120px,1.5fr)_minmax(80px,0.8fr)_1fr_minmax(90px,0.9fr)_minmax(140px,1.5fr)_minmax(155px,auto)] gap-x-6 items-center px-5 py-4 cursor-pointer transition-colors border-b border-slate-100 dark:border-slate-800 ${
-                      isLast ? "border-b-0" : ""
-                    } ${
-                      isSelected ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    className={`cursor-pointer grid grid-cols-[minmax(200px,2fr)_minmax(72px,0.75fr)_minmax(100px,1.1fr)_minmax(88px,0.95fr)_minmax(120px,1.4fr)_minmax(96px,auto)] gap-x-6 px-5 py-4 transition-colors duration-150 ${
+                      isSelected
+                        ? "bg-slate-50 hover:bg-slate-100/95 dark:bg-zinc-900/70 dark:hover:bg-zinc-900/85"
+                        : "hover:bg-slate-100/90 dark:hover:bg-zinc-900/35"
                     }`}
                   >
-                    <div className="min-w-0">
-                      <p className="text-[15px] sm:text-base font-bold text-slate-900 dark:text-slate-50 truncate">{c.name}</p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <WorkspaceCharacterAvatar seed={avatarSeed} size={80} className="h-full w-full object-cover" />
+                      </div>
+                      <p className="truncate text-[15px] font-medium tracking-tight text-slate-900 dark:text-slate-50">{c.name}</p>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.cedula ? `CC ${c.cedula}` : "—"}</p>
+                    <div className="min-w-0 self-center">
+                      <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.cedula ? `CC ${c.cedula}` : "—"}</p>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.email || "—"}</p>
+                    <div className="min-w-0 self-center">
+                      <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate">{c.phone || "—"}</p>
+                    <div className="min-w-0 self-center">
+                      <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.phone || "—"}</p>
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 self-center">
                       {firstAddr ? (
                         <>
-                          <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 truncate" title={firstAddr.address}>
+                          <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200" title={firstAddr.address}>
                             {addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address}
                           </p>
                           {firstAddr.reference_point && (
-                            <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400 truncate" title={firstAddr.reference_point}>Ref: {firstAddr.reference_point}</p>
+                            <p className="mt-0.5 truncate text-[12px] font-medium text-slate-500 dark:text-slate-400" title={firstAddr.reference_point}>
+                              Ref: {firstAddr.reference_point}
+                            </p>
                           )}
                           {addrs.length > 1 && (
-                            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">+{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}</p>
+                            <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                              +{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}
+                            </p>
                           )}
                         </>
                       ) : (
-                        <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400">—</p>
+                        <p className="text-[13px] font-medium text-slate-400 dark:text-slate-500">—</p>
                       )}
                     </div>
-                    <div className="min-w-0 pl-6 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                      <span className="relative inline-flex group/tooltip">
-                        <Link href={`/clientes/${c.id}`} className="inline-flex p-1 text-ov-pink hover:text-ov-pink-hover dark:text-ov-pink dark:hover:text-ov-pink-hover" aria-label="Ver detalle">
-                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <div className="flex items-center justify-end gap-0.5 self-center" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/clientes/${c.id}`}
+                        className={actionIconClass}
+                        aria-label="Ver detalle"
+                        title="Ver detalle del cliente"
+                      >
+                        <MdOutlineVisibility className="h-5 w-5" aria-hidden />
+                      </Link>
+                      <Link
+                        href={`/clientes/${c.id}/editar`}
+                        className={actionIconClass}
+                        aria-label="Editar"
+                        title="Editar nombre, cédula, contacto y direcciones"
+                      >
+                        <MdOutlineEdit className="h-5 w-5" aria-hidden />
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:hidden pt-1">
+              {customers.map((c, index) => {
+                const isSelected = index === selectedIndex;
+                const addrs = c.customer_addresses ?? [];
+                const sortedAddrs = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
+                const firstAddr = sortedAddrs[0];
+                const avatarSeed = `${c.email || c.name || c.id}-${getAvatarVariant(null)}`;
+                return (
+                  <div
+                    key={c.id}
+                    ref={(el) => { cardRefs.current[index] = el; }}
+                    role="button"
+                    tabIndex={-1}
+                    onClick={() => router.push(`/clientes/${c.id}`)}
+                    className={`cursor-pointer rounded-2xl border border-slate-100 bg-slate-50/40 px-5 py-4 transition-[border-color,background-color,box-shadow] duration-150 dark:border-slate-800 dark:bg-slate-800/25 ${
+                      isSelected
+                        ? "ring-2 ring-slate-400/55 hover:border-slate-200 hover:bg-white hover:shadow-md dark:hover:border-slate-600 dark:hover:bg-slate-800/55 dark:hover:shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
+                        : "hover:border-slate-200 hover:bg-white hover:shadow-md dark:hover:border-slate-600 dark:hover:bg-slate-800/50 dark:hover:shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                          <WorkspaceCharacterAvatar seed={avatarSeed} size={88} className="h-full w-full object-cover" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Cliente</p>
+                          <p className="mt-0.5 truncate text-[15px] font-medium text-slate-900 dark:text-slate-50">{c.name}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Cédula</span>
+                        <p className="text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.cedula ? `CC ${c.cedula}` : "—"}</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Email</span>
+                        <p className="max-w-[58%] truncate text-right text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Teléfono</span>
+                        <p className="text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.phone || "—"}</p>
+                      </div>
+                      <div className="space-y-1 border-t border-slate-100 pt-3 dark:border-slate-800">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Dirección</span>
+                        <div className="min-w-0">
+                          <p className="break-words text-[13px] font-medium text-slate-700 dark:text-slate-200" title={firstAddr?.address}>
+                            {firstAddr ? (addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address) : "—"}
+                          </p>
+                          {addrs.length > 1 && (
+                            <p className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                              +{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-1 border-t border-slate-100 pt-3 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
+                        <Link href={`/clientes/${c.id}`} className={actionIconClass} title="Ver detalle" aria-label="Ver detalle">
+                          <MdOutlineVisibility className="h-5 w-5" aria-hidden />
                         </Link>
-                        <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Ver detalle del cliente</span>
-                      </span>
-                      <span className="relative inline-flex group/tooltip">
-                        <Link href={`/clientes/${c.id}/editar`} className="inline-flex p-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Editar">
-                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" /></svg>
+                        <Link href={`/clientes/${c.id}/editar`} className={actionIconClass} title="Editar" aria-label="Editar">
+                          <MdOutlineEdit className="h-5 w-5" aria-hidden />
                         </Link>
-                        <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Editar nombre, cédula, contacto y direcciones</span>
-                      </span>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-
-            {/* Mobile: tarjetas apiladas (igual estilo que inventario) */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:hidden">
-              {filteredCustomers.map((c, index) => {
-                const isSelected = index === selectedIndex;
-                const addrs = c.customer_addresses ?? [];
-                const sortedAddrs = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
-                const firstAddr = sortedAddrs[0];
-                return (
-                  <div
-                    key={c.id}
-                    ref={(el) => { cardRefs.current[index] = el; }}
-                    role="button"
-                    tabIndex={-1}
-                    onClick={() => router.push(`/clientes/${c.id}`)}
-                    className={`rounded-xl shadow-sm ring-1 cursor-pointer transition-all px-4 py-3 ${
-                      isSelected ? "bg-slate-100 ring-slate-300 dark:bg-slate-800 dark:ring-slate-600" : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-800 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cliente</span><p className="max-w-[60%] truncate text-right text-[14px] font-bold text-slate-900 dark:text-slate-50">{c.name}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cédula</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.cedula ? `CC ${c.cedula}` : "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Email</span><p className="max-w-[60%] truncate text-right text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Teléfono</span><p className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{c.phone || "—"}</p></div>
-                      <div className="space-y-1 border-t border-slate-100 pt-2 dark:border-slate-800">
-                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Dirección</span>
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 break-words" title={firstAddr?.address}>
-                            {firstAddr ? (addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address) : "—"}
-                          </p>
-                          {addrs.length > 1 && <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">+{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}</p>}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-                        <span className="inline-flex gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}><Link href={`/clientes/${c.id}`} className="hover:underline" title="Ver detalle del cliente">Ver detalle</Link><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
-                        <span onClick={(e) => e.stopPropagation()}><Link href={`/clientes/${c.id}/editar`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Editar nombre, cédula, contacto y direcciones">Editar</Link></span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              </>
+            )}
             </div>
           </>
         )}

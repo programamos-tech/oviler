@@ -5,6 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
+import { navPathIsActive } from "./app-nav-data";
+
+const SHOW_BODEGA_IN_SIDEBAR = false;
+const SHOW_SUCURSALES_MODULE = true;
+const SHOW_CIERRES_MODULE = false;
+const SHOW_MI_TIENDA_WEB_MODULE = false;
 
 /* Iconos del panel "Más" */
 function IconGarantias() {
@@ -71,23 +77,97 @@ function IconEgresos() {
     </svg>
   );
 }
+function IconCredits() {
+  return (
+    <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+    </svg>
+  );
+}
+function IconCierres() {
+  return (
+    <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a1 1 0 11-2 0 1 1 0 012 0z" />
+    </svg>
+  );
+}
+function IconBodega() {
+  return (
+    <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
+function IconCatalog() {
+  return (
+    <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18M3 12h18M3 19h18" />
+      <circle cx="7" cy="5" r="1.25" />
+      <circle cx="17" cy="12" r="1.25" />
+      <circle cx="11" cy="19" r="1.25" />
+    </svg>
+  );
+}
 
 const masItems = [
   {
-    label: "Egresos",
-    href: "/egresos",
-    icon: IconEgresos,
+    label: "Garantías",
+    href: "/garantias",
+    icon: IconGarantias,
     items: [
-      { label: "Ver egresos", href: "/egresos", icon: IconList },
-      { label: "Nuevo egreso", href: "/egresos/nuevo", icon: IconPlus },
+      { label: "Ver garantías", href: "/garantias", icon: IconList },
+      { label: "Nueva garantía", href: "/garantias/nueva", icon: IconPlus },
     ],
   },
+  {
+    label: "Créditos",
+    href: "/creditos",
+    icon: IconCredits,
+    items: [
+      { label: "Ver créditos", href: "/creditos", icon: IconList },
+      { label: "Nuevo crédito", href: "/creditos/nuevo", icon: IconPlus },
+    ],
+  },
+  ...(SHOW_CIERRES_MODULE
+    ? [
+        {
+          label: "Cierres",
+          href: "/cierre-caja",
+          icon: IconCierres,
+          items: [
+            { label: "Ver cierres", href: "/cierre-caja", icon: IconList },
+            { label: "Nuevo cierre", href: "/cierre-caja/nuevo", icon: IconPlus },
+          ],
+        },
+      ]
+    : []),
+  ...(SHOW_BODEGA_IN_SIDEBAR
+    ? [{
+        label: "Bodega",
+        href: "/inventario/ubicaciones",
+        icon: IconBodega,
+        items: [],
+      }]
+    : []),
   {
     label: "Actividades",
     href: "/actividades",
     icon: IconActividades,
     items: [],
   },
+  ...(SHOW_MI_TIENDA_WEB_MODULE
+    ? [
+        {
+          label: "Mi tienda web",
+          href: "/catalogo",
+          icon: IconCatalog,
+          items: [
+            { label: "Mi tienda web", href: "/catalogo", icon: IconList },
+          ],
+        },
+      ]
+    : []),
   {
     label: "Roles",
     href: "/roles",
@@ -97,23 +177,39 @@ const masItems = [
       { label: "Nuevo colaborador", href: "/roles/nuevo", icon: IconUserPlus },
     ],
   },
+  ...(SHOW_SUCURSALES_MODULE
+    ? [
+        {
+          label: "Sucursales",
+          href: "/sucursales",
+          icon: IconSucursales,
+          items: [
+            { label: "Ver sucursales", href: "/sucursales", icon: IconList },
+            { label: "Configurar sucursal", href: "/sucursales/configurar", icon: IconCog },
+            { label: "Nueva sucursal", href: "/sucursales/nueva", icon: IconPlus },
+          ],
+        },
+        {
+          label: "Cuenta",
+          href: "/sucursales/configurar",
+          icon: IconCog,
+          items: [],
+        },
+      ]
+    : []),
   {
-    label: "Sucursales",
-    href: "/sucursales",
-    icon: IconSucursales,
-    items: [
-      { label: "Ver sucursales", href: "/sucursales", icon: IconList },
-      { label: "Configurar sucursal", href: "/sucursales/configurar", icon: IconCog },
-      { label: "Nueva sucursal", href: "/sucursales/nueva", icon: IconPlus },
-    ],
+    label: "Egresos",
+    href: "/egresos",
+    icon: IconEgresos,
+    items: [],
   },
 ];
 
 const tabs = [
-  { label: "Inicio", href: "/dashboard", icon: HomeIcon },
+  { label: "Reportes", href: "/dashboard", icon: HomeIcon },
   { label: "Ventas", href: "/ventas", icon: CartIcon },
   { label: "Clientes", href: "/clientes", icon: UsersIcon },
-  { label: "Inventario", href: "/inventario", icon: BoxIcon },
+  { label: "Productos", href: "/inventario", icon: BoxIcon },
   { label: "Más", href: "#", icon: MoreIcon, isMore: true },
 ];
 
@@ -157,7 +253,6 @@ export default function BottomNav() {
   const pathname = usePathname();
   const [masOpen, setMasOpen] = useState(false);
   const [showExpenses, setShowExpenses] = useState<boolean | null>(null);
-  const [salesMode, setSalesMode] = useState<"sales" | "orders">("sales");
   const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [userPermissions, setUserPermissions] = useState<string[] | null>(null);
 
@@ -169,11 +264,10 @@ export default function BottomNav() {
       if (!user || cancelled) return;
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
       if (!ub?.branch_id || cancelled) return;
-      const { data: branch } = await supabase.from("branches").select("show_expenses, sales_mode").eq("id", ub.branch_id).single();
+      const { data: branch } = await supabase.from("branches").select("show_expenses").eq("id", ub.branch_id).single();
       const { data: me } = await supabase.from("users").select("role, permissions").eq("id", user.id).single();
       if (!cancelled && branch) {
         setShowExpenses(branch.show_expenses !== false);
-        setSalesMode((branch as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales");
         setUserRole((me?.role ?? null) as AppRole | null);
         setUserPermissions((me as { permissions?: string[] | null } | null)?.permissions ?? null);
       }
@@ -204,14 +298,26 @@ export default function BottomNav() {
     return href !== "#" && pathname.startsWith(href);
   };
 
+  const isMoreRoutesActive = (path: string) => {
+    if (path.startsWith("/garantias")) return true;
+    if (path.startsWith("/creditos")) return true;
+    if (path.startsWith("/cierre-caja")) return true;
+    if (path.startsWith("/egresos")) return true;
+    if (path.startsWith("/catalogo")) return true;
+    if (path.startsWith("/roles")) return true;
+    if (path.startsWith("/actividades")) return true;
+    if (path.startsWith("/sucursales")) return true;
+    return false;
+  };
+
   return (
     <>
       <nav
-        className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-around border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur-sm md:hidden dark:border-slate-800 dark:bg-slate-900/95"
+        className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-around border-t border-slate-200/90 bg-white/95 pb-[env(safe-area-inset-bottom)] pt-2 text-slate-700 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95 dark:text-zinc-200 md:hidden"
         aria-label="Navegación principal"
       >
         {tabs.map((tab) => {
-          const active = isActive(tab.href);
+          const active = tab.isMore ? isMoreRoutesActive(pathname) : isActive(tab.href);
           const tabLabel = tab.label;
           if (tab.isMore) {
             return (
@@ -220,7 +326,7 @@ export default function BottomNav() {
                 type="button"
                 onClick={() => setMasOpen(true)}
                 className={`flex flex-col items-center gap-0.5 rounded-lg px-3 py-1 transition-colors ${
-                  active ? "text-ov-pink dark:text-ov-pink-muted" : "text-slate-500 dark:text-slate-400"
+                  active ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : "text-slate-400 dark:text-slate-500"
                 }`}
                 aria-label="Más opciones"
               >
@@ -234,7 +340,7 @@ export default function BottomNav() {
               key={tab.label}
               href={tab.href}
               className={`flex flex-col items-center gap-0.5 rounded-lg px-3 py-1 transition-colors ${
-                active ? "text-ov-pink dark:text-ov-pink-muted" : "text-slate-500 dark:text-slate-400"
+                active ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : "text-slate-400 dark:text-slate-500"
               }`}
               aria-label={tabLabel}
             >
@@ -288,7 +394,7 @@ export default function BottomNav() {
                       href={group.href}
                       onClick={() => setMasOpen(false)}
                       className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium ${
-                        pathname === group.href
+                        navPathIsActive(pathname, group.href)
                           ? "bg-ov-pink/10 text-ov-pink-hover dark:bg-ov-pink/20 dark:text-ov-pink-muted"
                           : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                       }`}
@@ -304,7 +410,7 @@ export default function BottomNav() {
                           href={sub.href}
                           onClick={() => setMasOpen(false)}
                           className={`flex items-center gap-3 rounded-lg px-3 py-2.5 pl-5 text-[14px] font-medium ${
-                            pathname === sub.href
+                            navPathIsActive(pathname, sub.href)
                               ? "bg-ov-pink/10 text-ov-pink-hover dark:bg-ov-pink/20 dark:text-ov-pink-muted"
                               : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                           }`}

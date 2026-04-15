@@ -140,9 +140,34 @@ export function getDocumentCopy(isDelivery: boolean): DocumentCopy {
 export function getStatusClass(status: string): string {
   if (status === "cancelled") return "text-red-600 dark:text-red-400";
   if (status === "completed" || status === "delivered") return "text-emerald-600 dark:text-emerald-400";
-  if (status === "pending") return "text-sky-600 dark:text-sky-400 font-semibold";
+  if (status === "pending") return "text-nou-600 dark:text-nou-400 font-semibold";
   if (["preparing", "packing", "on_the_way"].includes(status)) return "text-amber-600 dark:text-amber-400";
   return "text-slate-600 dark:text-slate-400";
+}
+
+const LIST_CHIP_BASE =
+  "inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-left text-[12px] font-medium leading-tight";
+
+/** Chip sobrio para columna Estado en listados (menos ruido que texto plano coloreado). */
+export function getStatusListChipClass(status: string): string {
+  if (status === "cancelled") {
+    return `${LIST_CHIP_BASE} border-red-200/90 bg-red-50/90 text-red-800 dark:border-red-900/55 dark:bg-red-950/35 dark:text-red-200`;
+  }
+  if (status === "completed" || status === "delivered") {
+    return `${LIST_CHIP_BASE} border-nou-200 bg-nou-50 text-nou-900 dark:border-emerald-900/45 dark:bg-emerald-950/30 dark:text-emerald-100`;
+  }
+  if (status === "pending") {
+    return `${LIST_CHIP_BASE} border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200`;
+  }
+  if (["preparing", "packing", "on_the_way"].includes(status)) {
+    return `${LIST_CHIP_BASE} border-amber-200/80 bg-amber-50/70 text-amber-950 dark:border-amber-900/45 dark:bg-amber-950/25 dark:text-amber-100`;
+  }
+  return `${LIST_CHIP_BASE} border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300`;
+}
+
+/** Chip neutro para forma de pago en listados. */
+export function getPaymentListChipClass(): string {
+  return `${LIST_CHIP_BASE} border-slate-200/90 bg-slate-50/95 text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200`;
 }
 
 export const COPY = {

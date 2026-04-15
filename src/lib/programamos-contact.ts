@@ -8,5 +8,5 @@ export function programamosWhatsAppUrl(prefill: string): string {
 
 export const PROGRAMAMOS_WA_LICENSE =
   programamosWhatsAppUrl(
-    "Hola programamos, escribo desde NOU para adquirir o renovar la licencia de mi tienda."
+    "Hola programamos, escribo desde Berea Comercios para adquirir o renovar la licencia de mi tienda."
   );

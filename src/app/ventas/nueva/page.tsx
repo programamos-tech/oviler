@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { workspaceFormInputMdClass } from "@/lib/workspace-field-classes";
 import { logActivity } from "@/lib/activities";
 import { getCopy, getDocumentCopy, type SalesMode } from "../sales-mode";
 
@@ -673,12 +674,17 @@ export default function NewSalePage() {
   };
 
   const doc = getDocumentCopy(isDelivery);
+  const cardClass = "rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800";
+  const inputClass = workspaceFormInputMdClass;
+  const softListClass =
+    "mt-2 max-h-[28rem] overflow-y-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:hover:bg-slate-400 dark:[&::-webkit-scrollbar-track]:bg-slate-800 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 dark:[&::-webkit-scrollbar-thumb]:hover:bg-slate-500";
+  const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
 
   if (!branchId || !userId) {
     return (
-      <div className="space-y-4">
+      <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
         <header className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">{doc.newButton}</h1>
+          <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">{doc.newButton}</h1>
           <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">Cargando sucursal…</p>
         </header>
       </div>
@@ -686,19 +692,19 @@ export default function NewSalePage() {
   }
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-2">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
         <Breadcrumb items={[{ label: getCopy(salesMode).sectionTitle, href: "/ventas" }, { label: doc.newButton }]} />
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">{doc.newButton}</h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">{doc.newButton}</h1>
+            <p className="mt-1 text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
               Selecciona el cliente, agrega productos al carrito y elige el método de pago.
             </p>
           </div>
           <Link
             href="/ventas"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             title="Volver a ventas"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -717,7 +723,7 @@ export default function NewSalePage() {
         {/* Columna izquierda: Productos + Carrito (productos seleccionados) */}
         <div className="space-y-4">
           {/* Productos */}
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Productos</p>
             <input
               type="text"
@@ -726,7 +732,7 @@ export default function NewSalePage() {
               onFocus={handleProductInputFocus}
               onKeyDown={handleProductKeyDown}
               placeholder="Buscar por nombre o código"
-              className="mt-3 h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              className={`mt-3 ${inputClass}`}
               aria-autocomplete="list"
               aria-expanded={filteredProductResults.length > 0}
               aria-controls="product-results-list"
@@ -744,7 +750,7 @@ export default function NewSalePage() {
                   ref={productListRef}
                   id="product-results-list"
                   role="listbox"
-                  className="mt-2 max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:hover:bg-slate-400 dark:[&::-webkit-scrollbar-track]:bg-slate-800 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 dark:[&::-webkit-scrollbar-thumb]:hover:bg-slate-500"
+                  className={softListClass}
                 >
                   {filteredProductResults.map((p, index) => {
                     const stock = stockByProductId[p.id] ?? 0;
@@ -783,11 +789,11 @@ export default function NewSalePage() {
           </div>
 
           {/* Productos seleccionados (carrito) */}
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Productos seleccionados
               {cart.length > 0 && (
-                <span className="ml-2 rounded-full bg-ov-pink/20 px-2 py-0.5 text-[12px] font-semibold text-ov-pink">
+                <span className="ml-2 rounded-full bg-slate-200/90 px-2 py-0.5 text-[12px] font-semibold text-[color:var(--shell-sidebar)] dark:bg-white/10 dark:text-zinc-300">
                   {cart.length} {cart.length === 1 ? "producto" : "productos"}
                 </span>
               )}
@@ -870,14 +876,14 @@ export default function NewSalePage() {
                             <button
                               type="button"
                               onClick={() => setCartItemDiscount(item.product_id, "percent", item.discount_type === "percent" ? (item.discount_value ?? 0) : 0)}
-                              className={`h-8 px-2.5 text-[12px] font-bold ${item.discount_type === "percent" ? "bg-ov-pink/20 text-ov-pink dark:bg-ov-pink/30" : "text-slate-500 dark:text-slate-400"}`}
+                              className={`h-8 px-2.5 text-[12px] font-bold ${item.discount_type === "percent" ? "bg-slate-200/90 text-[color:var(--shell-sidebar)] dark:bg-white/10 dark:text-zinc-300" : "text-slate-500 dark:text-slate-400"}`}
                             >
                               %
                             </button>
                             <button
                               type="button"
                               onClick={() => setCartItemDiscount(item.product_id, "fixed", item.discount_type === "fixed" ? (item.discount_value ?? 0) : 0)}
-                              className={`h-8 px-2.5 text-[12px] font-bold ${item.discount_type === "fixed" ? "bg-ov-pink/20 text-ov-pink dark:bg-ov-pink/30" : "text-slate-500 dark:text-slate-400"}`}
+                              className={`h-8 px-2.5 text-[12px] font-bold ${item.discount_type === "fixed" ? "bg-slate-200/90 text-[color:var(--shell-sidebar)] dark:bg-white/10 dark:text-zinc-300" : "text-slate-500 dark:text-slate-400"}`}
                             >
                               $
                             </button>
@@ -966,9 +972,9 @@ export default function NewSalePage() {
         {/* Columna derecha: Cliente + Método de pago + Resumen */}
         <div className="space-y-4">
           {/* Cliente (obligatorio) */}
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Cliente <span className="text-ov-pink">*</span>
+              Cliente <span className={requiredMarkClass}>*</span>
             </p>
             <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
               <div className="relative flex-1">
@@ -982,7 +988,7 @@ export default function NewSalePage() {
                   onFocus={handleCustomerInputFocus}
                   onKeyDown={handleCustomerKeyDown}
                   placeholder="Buscar por nombre, cédula, email o teléfono"
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className={inputClass}
                   aria-autocomplete="list"
                   aria-expanded={customerResults.length > 0 && !selectedCustomer}
                   aria-controls="customer-results-list"
@@ -992,7 +998,7 @@ export default function NewSalePage() {
                   <button
                     type="button"
                     onClick={() => { setSelectedCustomer(null); setCustomerSearch(""); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-ov-pink hover:underline"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
                   >
                     Quitar
                   </button>
@@ -1000,7 +1006,7 @@ export default function NewSalePage() {
               </div>
               <Link
                 href="/clientes/nueva"
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1013,7 +1019,7 @@ export default function NewSalePage() {
                 ref={customerListRef}
                 id="customer-results-list"
                 role="listbox"
-                className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:hover:bg-slate-400 dark:[&::-webkit-scrollbar-track]:bg-slate-800 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 dark:[&::-webkit-scrollbar-thumb]:hover:bg-slate-500"
+                className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:hover:bg-slate-400 dark:[&::-webkit-scrollbar-track]:bg-slate-800 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 dark:[&::-webkit-scrollbar-thumb]:hover:bg-slate-500"
               >
                 {customerResults.map((c, index) => (
                   <li key={c.id} role="option" aria-selected={index === customerHighlightIndex}>
@@ -1045,7 +1051,7 @@ export default function NewSalePage() {
           </div>
 
           {/* Envío */}
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <label className={`flex items-center gap-2 ${selectedCustomer ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
               <input
                 type="checkbox"
@@ -1062,7 +1068,7 @@ export default function NewSalePage() {
                     }
                   }
                 }}
-                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35 disabled:cursor-not-allowed disabled:opacity-50"
               />
               <svg className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h.01" />
@@ -1090,7 +1096,7 @@ export default function NewSalePage() {
                                 name="delivery-address"
                                 checked={selectedDeliveryAddressId === addr.id}
                                 onChange={() => setSelectedDeliveryAddressId(addr.id)}
-                                className="mt-1.5 h-4 w-4 border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                                className="mt-1.5 h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
                               />
                               <div className="min-w-0 flex-1 text-[13px]">
                                 <span className="font-medium text-slate-800 dark:text-slate-100">{addr.label}</span>
@@ -1139,7 +1145,7 @@ export default function NewSalePage() {
                   )}
                   <div>
                     <label className="block text-[12px] font-medium text-slate-500 dark:text-slate-400">
-                      Valor del envío <span className="text-ov-pink">*</span>
+                      Valor del envío <span className={requiredMarkClass}>*</span>
                     </label>
                     <input
                       type="text"
@@ -1155,7 +1161,7 @@ export default function NewSalePage() {
                       type="checkbox"
                       checked={paymentPending}
                       onChange={(e) => setPaymentPending(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
                     />
                     <span className="text-[12px] text-slate-600 dark:text-slate-300">
                       Pago pendiente (cobro en entrega o transferencia por confirmar)
@@ -1165,7 +1171,7 @@ export default function NewSalePage() {
               )}
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Método de pago</p>
             <div className="mt-3 flex gap-1 rounded-lg bg-slate-100/80 p-1 dark:bg-slate-800/50">
               <button
@@ -1173,7 +1179,7 @@ export default function NewSalePage() {
                 onClick={() => { setPaymentMethod("cash"); setAmountCash(""); setAmountTransfer(""); }}
                 className={`flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors ${
                   paymentMethod === "cash"
-                    ? "bg-white text-ov-pink shadow-sm dark:bg-slate-700 dark:text-ov-pink"
+                    ? "bg-white text-[color:var(--shell-sidebar)] shadow-sm dark:bg-slate-700 dark:text-zinc-300"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                 }`}
               >
@@ -1187,7 +1193,7 @@ export default function NewSalePage() {
                 onClick={() => { setPaymentMethod("transfer"); setAmountReceived(""); setAmountCash(""); setAmountTransfer(""); }}
                 className={`flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors ${
                   paymentMethod === "transfer"
-                    ? "bg-white text-ov-pink shadow-sm dark:bg-slate-700 dark:text-ov-pink"
+                    ? "bg-white text-[color:var(--shell-sidebar)] shadow-sm dark:bg-slate-700 dark:text-zinc-300"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                 }`}
               >
@@ -1201,7 +1207,7 @@ export default function NewSalePage() {
                 onClick={() => { setPaymentMethod("mixed"); setAmountReceived(""); }}
                 className={`flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors ${
                   paymentMethod === "mixed"
-                    ? "bg-white text-ov-pink shadow-sm dark:bg-slate-700 dark:text-ov-pink"
+                    ? "bg-white text-[color:var(--shell-sidebar)] shadow-sm dark:bg-slate-700 dark:text-zinc-300"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                 }`}
               >
@@ -1212,7 +1218,7 @@ export default function NewSalePage() {
               </button>
             </div>
             {paymentMethod === "cash" && (
-              <div className="mt-4 rounded-lg border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700/80 dark:bg-slate-800/40">
+              <div className="mt-4 rounded-lg border border-slate-200/80 bg-slate-50/80 p-4 dark:border-zinc-700 dark:bg-zinc-900/35">
                 <div className="grid grid-cols-2 items-start gap-x-8 gap-y-0">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cuánto me dieron</label>
@@ -1220,7 +1226,7 @@ export default function NewSalePage() {
                       type="text"
                       inputMode="numeric"
                       placeholder="0"
-                      className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-[14px] font-medium leading-9 text-slate-800 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-600/50"
+                      className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-[14px] font-medium leading-9 text-slate-800 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500 dark:focus:ring-zinc-600/25"
                       value={amountReceived}
                       onChange={(e) => setAmountReceived(e.target.value.replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, "."))}
                     />
@@ -1288,7 +1294,7 @@ export default function NewSalePage() {
           </div>
 
           {/* Resumen */}
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Resumen</p>
             <div className="mt-3 space-y-2">
               {cart.length > 0 && (
@@ -1332,7 +1338,7 @@ export default function NewSalePage() {
                 submitting ||
                 (paymentMethod === "mixed" && parseFormattedPrice(amountCash) + parseFormattedPrice(amountTransfer) !== total)
               }
-              className="mt-4 w-full rounded-lg bg-ov-pink py-3 text-[15px] font-bold text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 disabled:pointer-events-none dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+              className="mt-4 w-full rounded-xl bg-[color:var(--shell-sidebar)] py-3 text-[15px] font-bold text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:pointer-events-none disabled:opacity-50"
               aria-busy={submitting}
               aria-disabled={submitting}
             >

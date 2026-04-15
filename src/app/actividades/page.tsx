@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import Avatar from "boring-avatars";
+import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
+import { workspaceAvatarSeed } from "@/app/components/app-nav-data";
 
 type Activity = {
   id: string;
@@ -17,7 +18,7 @@ type Activity = {
   summary: string;
   metadata: Record<string, unknown>;
   created_at: string;
-  users: { name: string; avatar_url?: string | null } | null;
+  users: { name: string; email?: string | null; avatar_url?: string | null } | null;
 };
 
 type BranchOption = { id: string; name: string };
@@ -28,7 +29,7 @@ type ActivityComment = {
   user_id: string;
   body: string;
   created_at: string;
-  users: { name: string; avatar_url?: string | null } | null;
+  users: { name: string; email?: string | null; avatar_url?: string | null } | null;
 };
 
 function timeAgo(dateStr: string): string {
@@ -51,18 +52,83 @@ function formatTime(dateStr: string): string {
   return d.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
 }
 
-function initial(name: string | null): string {
-  if (!name || !name.trim()) return "?";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2);
-  return name.slice(0, 2).toUpperCase();
+function formatDateTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleString("es-CO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-function getAvatarVariant(avatarUrl?: string | null): "beam" | "marble" | "pixel" {
-  if (!avatarUrl?.startsWith("avatar:")) return "beam";
-  const variant = avatarUrl.replace("avatar:", "");
-  if (variant === "beam" || variant === "marble" || variant === "pixel") return variant;
-  return "beam";
+/** Misma lógica que el navbar: foto si hay URL real; si no, WorkspaceCharacterAvatar con workspaceAvatarSeed. */
+function FeedActorAvatar({ activity }: { activity: Activity }) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (activity.actor_type === "system") {
+    return (
+      <div className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-amber-600 text-white">
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+    );
+  }
+
+  const u = activity.users;
+  const rawUrl = u?.avatar_url;
+  const url = typeof rawUrl === "string" ? rawUrl.trim() : "";
+  const showPhoto = Boolean(url && !url.startsWith("avatar:") && !imgFailed);
+  const illustratedSeed = workspaceAvatarSeed(u?.email, u?.name, u?.avatar_url);
+
+  return (
+    <div className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-white dark:bg-slate-700">
+      {showPhoto ? (
+        <img
+          src={url}
+          alt=""
+          className="h-full w-full object-cover"
+          referrerPolicy="no-referrer"
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        <WorkspaceCharacterAvatar seed={illustratedSeed} size={64} className="h-full w-full object-cover" />
+      )}
+    </div>
+  );
+}
+
+function FeedCommentUserAvatar({
+  email,
+  name,
+  avatarUrl,
+}: {
+  email?: string | null;
+  name: string | null;
+  avatarUrl?: string | null;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const url = typeof avatarUrl === "string" ? avatarUrl.trim() : "";
+  const showPhoto = Boolean(url && !url.startsWith("avatar:") && !imgFailed);
+  const illustratedSeed = workspaceAvatarSeed(email, name, avatarUrl);
+
+  return (
+    <div className="relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-300 text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+      {showPhoto ? (
+        <img
+          src={url}
+          alt=""
+          className="h-full w-full object-cover"
+          referrerPolicy="no-referrer"
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        <WorkspaceCharacterAvatar seed={illustratedSeed} size={48} className="h-full w-full object-cover" />
+      )}
+    </div>
+  );
 }
 
 function getActivityTypeIcon(activity: { entity_type: string; action: string }): { icon: string; label: string } {
@@ -73,6 +139,13 @@ function getActivityTypeIcon(activity: { entity_type: string; action: string }):
   }
   if (activity.entity_type === "sale") return { icon: "shopping_cart", label: "Venta" };
   return { icon: "info", label: "Actividad" };
+}
+
+function getActionLabel(action: string): string {
+  return action
+    .replace(/_/g, " ")
+    .trim()
+    .toUpperCase();
 }
 
 const SALE_STATUS_LABELS: Record<string, string> = {
@@ -121,7 +194,7 @@ export default function ActivityFeedPage() {
       summary: string;
       metadata: Record<string, unknown>;
       created_at: string;
-      users: { name: string; avatar_url?: string | null }[] | { name: string; avatar_url?: string | null } | null;
+      users: { name: string; email?: string | null; avatar_url?: string | null }[] | { name: string; email?: string | null; avatar_url?: string | null } | null;
     }>).map((a) => ({
       ...a,
       users: Array.isArray(a.users) ? (a.users[0] || null) : a.users,
@@ -133,7 +206,7 @@ export default function ActivityFeedPage() {
     const [commentsRes, likesRes] = await Promise.all([
       supabase
         .from("activity_comments")
-        .select("id, activity_id, user_id, body, created_at, users!user_id(name, avatar_url)")
+        .select("id, activity_id, user_id, body, created_at, users!user_id(name, email, avatar_url)")
         .in("activity_id", ids)
         .order("created_at", { ascending: true }),
       supabase.from("activity_likes").select("activity_id, user_id").in("activity_id", ids),
@@ -145,7 +218,7 @@ export default function ActivityFeedPage() {
       user_id: string;
       body: string;
       created_at: string;
-      users: { name: string; avatar_url?: string | null }[] | { name: string; avatar_url?: string | null } | null;
+      users: { name: string; email?: string | null; avatar_url?: string | null }[] | { name: string; email?: string | null; avatar_url?: string | null } | null;
     }>).map((c) => ({
       ...c,
       users: Array.isArray(c.users) ? (c.users[0] || null) : c.users,
@@ -195,7 +268,7 @@ export default function ActivityFeedPage() {
 
     let q = supabase
       .from("activities")
-      .select("id, organization_id, branch_id, user_id, actor_type, action, entity_type, entity_id, summary, metadata, created_at, users!user_id(name, avatar_url)")
+      .select("id, organization_id, branch_id, user_id, actor_type, action, entity_type, entity_id, summary, metadata, created_at, users!user_id(name, email, avatar_url)")
       .eq("organization_id", userRow.organization_id)
       .order("created_at", { ascending: false })
       .range(0, FEED_PAGE_SIZE - 1);
@@ -237,7 +310,7 @@ export default function ActivityFeedPage() {
     const supabase = createClient();
     let q = supabase
       .from("activities")
-      .select("id, organization_id, branch_id, user_id, actor_type, action, entity_type, entity_id, summary, metadata, created_at, users!user_id(name, avatar_url)")
+      .select("id, organization_id, branch_id, user_id, actor_type, action, entity_type, entity_id, summary, metadata, created_at, users!user_id(name, email, avatar_url)")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .range(offset, offset + FEED_PAGE_SIZE - 1);
@@ -314,7 +387,7 @@ export default function ActivityFeedPage() {
     const { data: newComment } = await supabase
       .from("activity_comments")
       .insert({ activity_id: activityId, user_id: currentUserId, body })
-      .select("id, activity_id, user_id, body, created_at, users!user_id(name, avatar_url)")
+      .select("id, activity_id, user_id, body, created_at, users!user_id(name, email, avatar_url)")
       .single();
     setSubmittingComment(null);
     setCommentDraft((prev) => ({ ...prev, [activityId]: "" }));
@@ -328,43 +401,34 @@ export default function ActivityFeedPage() {
   };
 
   const actorName = (a: Activity) => (a.actor_type === "system" ? "Sistema" : a.users?.name ?? "Usuario");
-  const isSystem = (a: Activity) => a.actor_type === "system";
 
   if (loading) {
     return (
-      <div className="space-y-4 max-w-[1600px] mx-auto">
-        <header className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">Actividades</h1>
-          <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-            Cargando el muro…
-          </p>
-        </header>
-        <div className="flex min-h-[200px] items-center justify-center rounded-xl bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800">
-          <p className="text-[14px] text-slate-500 dark:text-slate-400">Cargando actividades…</p>
-        </div>
+      <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+        <div className="min-h-[280px] animate-pulse rounded-2xl bg-white dark:bg-slate-900" aria-hidden />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 max-w-[1600px] mx-auto">
-      <header className="mx-auto max-w-3xl px-4 py-3 text-center">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-          Qué está pasando hoy
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
+        <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+          Actividades
         </h1>
-        <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-300">
-          Actividad reciente de tu sucursal.
+        <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-300">
+          Log de registros y eventos recientes de la sucursal.
         </p>
         {!currentBranch && !loading && (
-          <p className="text-[13px] text-amber-600 dark:text-amber-400">
+          <p className="mt-1 text-[13px] text-amber-600 dark:text-amber-400">
             No tienes sucursal asignada. Asigna una en tu perfil para ver actividades.
           </p>
         )}
       </header>
 
-      <section className="mx-auto max-w-3xl px-1 py-1">
+      <section className="rounded-3xl bg-white px-4 py-4 dark:bg-slate-900 sm:px-6 sm:py-6">
         {activities.length === 0 ? (
-          <div className="p-8 text-center">
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/40 p-8 text-center dark:border-slate-700 dark:bg-slate-800/25">
             <p className="text-[15px] font-medium text-slate-700 dark:text-slate-300">
               Aún no hay actividades
             </p>
@@ -387,57 +451,25 @@ export default function ActivityFeedPage() {
                 ref={(el) => {
                   activityRefs.current[a.id] = el;
                 }}
-                className={`px-4 py-4 sm:px-5 transition-colors ${
-                  highlightedActivityId === a.id ? "rounded-lg bg-ov-pink/10 dark:bg-ov-pink/20" : ""
+                className={`rounded-2xl border border-slate-100 bg-slate-50/35 px-3 py-3 transition-colors dark:border-slate-800 dark:bg-slate-800/20 sm:px-4 ${
+                  highlightedActivityId === a.id ? "border-slate-300/80 bg-slate-200/60 dark:border-zinc-600/40 dark:bg-zinc-800/55" : ""
                 }`}
               >
                 <div className="flex gap-3">
-                  <div
-                    className={`relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[12px] font-bold text-white ${
-                      isSystem(a) ? "bg-orange-500" : "bg-slate-900 dark:bg-slate-700"
-                    }`}
-                  >
-                    {isSystem(a) ? (
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    ) : a.users?.avatar_url && !a.users.avatar_url.startsWith("avatar:") ? (
-                      <img
-                        src={a.users.avatar_url}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                          const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                          if (fallback) fallback.style.display = "flex";
-                        }}
-                      />
-                    ) : null}
-                    {!isSystem(a) && (
-                      a.users?.avatar_url?.startsWith("avatar:") || !a.users?.avatar_url ? (
-                        <div className="rounded-full">
-                          <Avatar
-                            size={30}
-                            name={`${actorName(a)}-${getAvatarVariant(a.users?.avatar_url)}`}
-                            variant={getAvatarVariant(a.users?.avatar_url)}
-                            colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
-                          />
-                        </div>
-                      ) : (
-                        <span className={a.users?.avatar_url ? "hidden absolute inset-0 items-center justify-center" : ""} style={a.users?.avatar_url ? { display: "none" } : undefined}>
-                          {initial(actorName(a))}
-                        </span>
-                      )
-                    )}
-                  </div>
+                  <FeedActorAvatar activity={a} />
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">
+                      <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-50">
                         {actorName(a)}
                       </span>
-                      <span className="text-[12px] text-slate-500 dark:text-slate-400">
-                        {formatTime(a.created_at)} · {timeAgo(a.created_at)}
+                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                        {typeIcon.label}
+                      </span>
+                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                        {getActionLabel(a.action)}
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {formatDateTime(a.created_at)} · {timeAgo(a.created_at)}
                       </span>
                     </div>
                     <div className="mt-1 flex items-start gap-2">
@@ -568,16 +600,21 @@ export default function ActivityFeedPage() {
                         ) : null}
                       </p>
                     ) : (
-                      <p className="text-[14px] text-slate-700 dark:text-slate-300">{a.summary}</p>
+                      <p className="text-[13px] text-slate-700 dark:text-slate-300">{a.summary}</p>
                     )}
+                        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                          Registro: <span className="font-mono">{a.id.slice(0, 8)}</span>
+                          {a.entity_type ? <> · Entidad: <span className="font-mono">{a.entity_type}</span></> : null}
+                          {a.entity_id ? <> · Ref: <span className="font-mono">{a.entity_id.slice(0, 8)}</span></> : null}
+                        </p>
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center gap-4">
+                    <div className="mt-2 flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => toggleLike(a.id)}
-                        className={`group flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 ${
-                          liked ? "text-ov-pink dark:text-ov-pink-muted" : "text-slate-600 dark:text-slate-400"
+                        className={`group flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                          liked ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : "text-slate-600 dark:text-slate-400"
                         }`}
                       >
                         <svg
@@ -598,7 +635,7 @@ export default function ActivityFeedPage() {
                       <button
                         type="button"
                         onClick={() => setExpandedComments((prev) => ({ ...prev, [a.id]: !prev[a.id] }))}
-                        className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                        className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
@@ -615,37 +652,11 @@ export default function ActivityFeedPage() {
                       <div className="mt-3 space-y-2">
                         {comments.map((c) => (
                           <div key={c.id} className="flex gap-2">
-                            <div className="relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-300 text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
-                              {c.users?.avatar_url && !c.users.avatar_url.startsWith("avatar:") ? (
-                                <>
-                                  <img
-                                    src={c.users.avatar_url}
-                                    alt=""
-                                    className="h-full w-full object-cover"
-                                    referrerPolicy="no-referrer"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = "none";
-                                      const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                                      if (fallback) fallback.style.display = "flex";
-                                    }}
-                                  />
-                                  <span className="absolute inset-0 hidden items-center justify-center" style={{ display: "none" }}>
-                                    {initial(c.users?.name ?? null)}
-                                  </span>
-                                </>
-                              ) : c.users?.avatar_url?.startsWith("avatar:") || !c.users?.avatar_url ? (
-                                <div className="rounded-full">
-                                  <Avatar
-                                    size={22}
-                                    name={`${c.users?.name ?? "usuario"}-${getAvatarVariant(c.users?.avatar_url)}`}
-                                    variant={getAvatarVariant(c.users?.avatar_url)}
-                                    colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
-                                  />
-                                </div>
-                              ) : (
-                                <span>{initial(c.users?.name ?? null)}</span>
-                              )}
-                            </div>
+                            <FeedCommentUserAvatar
+                              email={c.users?.email}
+                              name={c.users?.name ?? null}
+                              avatarUrl={c.users?.avatar_url}
+                            />
                             <div className="flex-1">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[12px] font-bold text-slate-900 dark:text-slate-50">
@@ -672,13 +683,13 @@ export default function ActivityFeedPage() {
                                   submitComment(a.id);
                                 }
                               }}
-                              className="max-w-[260px] rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-[12px] outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:placeholder:text-slate-500"
+                              className="max-w-[260px] rounded-xl border border-slate-300 bg-transparent px-3 py-1.5 text-[12px] outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:placeholder:text-slate-500 dark:focus:border-zinc-500"
                             />
                             <button
                               type="button"
                               disabled={submittingComment === a.id || !(commentDraft[a.id] ?? "").trim()}
                               onClick={() => submitComment(a.id)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-ov-pink transition-colors hover:bg-slate-100 hover:text-ov-pink-hover disabled:opacity-50 dark:text-ov-pink-muted dark:hover:bg-slate-800 dark:hover:text-ov-pink"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--shell-sidebar)] transition-colors hover:bg-slate-100 hover:text-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-slate-800 dark:hover:text-zinc-300"
                               aria-label="Publicar comentario"
                             >
                               {submittingComment === a.id ? (

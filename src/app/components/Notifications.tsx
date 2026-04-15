@@ -31,7 +31,7 @@ function timeAgo(dateStr: string): string {
   return `Hace ${month} ${month === 1 ? "mes" : "meses"}`;
 }
 
-export default function Notifications() {
+export default function Notifications({ tone = "dark" }: { tone?: "dark" | "light" }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -317,7 +317,11 @@ export default function Notifications() {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-900 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-50"
+        className={
+          tone === "light"
+            ? "relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            : "relative flex h-9 w-9 items-center justify-center rounded-lg text-white/85 transition-colors hover:bg-white/10 hover:text-white"
+        }
         aria-label="Notificaciones"
       >
         <svg

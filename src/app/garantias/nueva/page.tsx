@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MdSwapHoriz, MdAttachMoney, MdBuild } from "react-icons/md";
 
@@ -22,6 +22,24 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/** Subtotal de línea de venta (cantidad × precio − descuentos). */
+function saleLineSubtotal(it: SaleItemOption): number {
+  const q = Number(it.quantity) || 0;
+  if (q <= 0) return 0;
+  const unit = Number(it.unit_price) || 0;
+  const dp = Number(it.discount_percent ?? 0) || 0;
+  const da = Number(it.discount_amount ?? 0) || 0;
+  return Math.max(0, Math.round(q * unit * (1 - dp / 100) - da));
+}
+
+/** Valor proporcional de la línea para `warrantyQty` unidades. */
+function warrantyValueForLineQty(it: SaleItemOption, warrantyQty: number): number {
+  if (it.quantity <= 0) return 0;
+  const w = Math.min(Math.max(1, warrantyQty), it.quantity);
+  const total = saleLineSubtotal(it);
+  return Math.round(total * (w / it.quantity));
+}
+
 type SaleOption = {
   id: string;
   invoice_number: string;
@@ -36,7 +54,15 @@ type SaleItemOption = {
   product_id: string;
   quantity: number;
   unit_price: number;
+  discount_percent?: number | null;
+  discount_amount?: number | null;
   products: { name: string; sku: string | null } | null;
+};
+
+/** Línea de factura marcada + cuántas unidades entran en esta garantía (≤ cantidad vendida). */
+type SelectedSaleLine = {
+  line: SaleItemOption;
+  warrantyQty: number;
 };
 
 type ProductOption = {
@@ -67,7 +93,8 @@ function NewWarrantyContent() {
   const [saleResults, setSaleResults] = useState<SaleOption[]>([]);
   const [selectedSale, setSelectedSale] = useState<SaleOption | null>(null);
   const [saleItems, setSaleItems] = useState<SaleItemOption[]>([]);
-  const [selectedSaleItem, setSelectedSaleItem] = useState<SaleItemOption | null>(null);
+  /** Líneas de la venta incluidas + unidades por línea (una fila de garantía por línea al confirmar). */
+  const [selectedSaleLines, setSelectedSaleLines] = useState<SelectedSaleLine[]>([]);
   const [warrantyType, setWarrantyType] = useState<"exchange" | "refund" | "repair" | null>(null);
   const [reason, setReason] = useState("");
   const [replacementProductSearch, setReplacementProductSearch] = useState("");
@@ -162,27 +189,65 @@ function NewWarrantyContent() {
     return () => { cancelled = true; clearTimeout(timeoutId); };
   }, [warrantyBySale, customerSearch, selectedCustomer]);
 
-  // Stock del producto con garantía (para saber si hay stock para cambio)
-  const productUnderWarrantyId = warrantyBySale ? selectedSaleItem?.product_id : selectedProduct?.id;
+  const [stockByWarrantyProductId, setStockByWarrantyProductId] = useState<Record<string, number>>({});
+
+  // Stock del/los productos con garantía (por sucursal)
   useEffect(() => {
-    if (!branchId || !productUnderWarrantyId) {
+    if (!branchId) {
+      setStockProduct(null);
+      setStockByWarrantyProductId({});
+      return;
+    }
+    let cancelled = false;
+    if (warrantyBySale) {
+      setStockProduct(null);
+      const ids = [...new Set(selectedSaleLines.map((s) => s.line.product_id))];
+      if (ids.length === 0) {
+        setStockByWarrantyProductId({});
+        return;
+      }
+      (async () => {
+        const supabase = createClient();
+        const next: Record<string, number> = {};
+        await Promise.all(
+          ids.map(async (productId) => {
+            const { data } = await supabase
+              .from("inventory")
+              .select("quantity")
+              .eq("branch_id", branchId)
+              .eq("product_id", productId);
+            if (cancelled) return;
+            const total = (data ?? []).reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
+            next[productId] = total;
+          })
+        );
+        if (!cancelled) setStockByWarrantyProductId(next);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+    setStockByWarrantyProductId({});
+    const pid = selectedProduct?.id;
+    if (!pid) {
       setStockProduct(null);
       return;
     }
     const supabase = createClient();
-    let cancelled = false;
     (async () => {
       const { data } = await supabase
         .from("inventory")
         .select("quantity")
         .eq("branch_id", branchId)
-        .eq("product_id", productUnderWarrantyId);
+        .eq("product_id", pid);
       if (cancelled) return;
       const total = (data ?? []).reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
       setStockProduct(total);
     })();
-    return () => { cancelled = true; };
-  }, [branchId, productUnderWarrantyId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId, warrantyBySale, selectedSaleLines, selectedProduct?.id]);
 
   // Stock del producto de reemplazo (cuando tipo es cambio)
   useEffect(() => {
@@ -263,7 +328,7 @@ function NewWarrantyContent() {
   useEffect(() => {
     if (!selectedSale) {
       setSaleItems([]);
-      setSelectedSaleItem(null);
+      setSelectedSaleLines([]);
       return;
     }
     const supabase = createClient();
@@ -271,7 +336,7 @@ function NewWarrantyContent() {
     (async () => {
       const { data } = await supabase
         .from("sale_items")
-        .select("id, product_id, quantity, unit_price, products(name, sku)")
+        .select("id, product_id, quantity, unit_price, discount_percent, discount_amount, products(name, sku)")
         .eq("sale_id", selectedSale.id)
         .order("created_at", { ascending: true });
       if (cancelled) return;
@@ -280,15 +345,19 @@ function NewWarrantyContent() {
         product_id: string;
         quantity: number;
         unit_price: number;
+        discount_percent?: number | null;
+        discount_amount?: number | null;
         products: { name: string; sku: string | null }[] | { name: string; sku: string | null } | null;
       }>).map((item) => ({
         ...item,
         products: Array.isArray(item.products) ? (item.products[0] || null) : item.products,
       })) as SaleItemOption[];
       setSaleItems(transformedItems);
-      // Si solo hay un ítem, seleccionarlo automáticamente
-      if (transformedItems && transformedItems.length === 1) {
-        setSelectedSaleItem(transformedItems[0]);
+      if (transformedItems.length === 1) {
+        const only = transformedItems[0];
+        setSelectedSaleLines([{ line: only, warrantyQty: 1 }]);
+      } else {
+        setSelectedSaleLines([]);
       }
     })();
     return () => { cancelled = true; };
@@ -319,6 +388,16 @@ function NewWarrantyContent() {
     };
   }, [replacementProductSearch, warrantyType, selectedReplacementProduct, branchId]);
 
+  const uniqueWarrantyProducts = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const { line } of selectedSaleLines) {
+      if (!map.has(line.product_id)) {
+        map.set(line.product_id, line.products?.name ?? "Producto");
+      }
+    }
+    return [...map.entries()].map(([product_id, name]) => ({ product_id, name }));
+  }, [selectedSaleLines]);
+
   const handleSubmit = async () => {
     setError(null);
     if (!warrantyType) {
@@ -339,9 +418,16 @@ function NewWarrantyContent() {
         setError("Debes seleccionar una venta");
         return;
       }
-      if (!selectedSaleItem) {
-        setError("Debes seleccionar un producto de la venta");
+      if (selectedSaleLines.length === 0) {
+        setError("Selecciona al menos un producto de la venta (marca las líneas en la lista)");
         return;
+      }
+      for (const { line, warrantyQty } of selectedSaleLines) {
+        const maxQ = Math.max(1, Number(line.quantity) || 0);
+        if (warrantyQty < 1 || warrantyQty > maxQ) {
+          setError(`Indica una cantidad válida para ${line.products?.name ?? "el producto"} (entre 1 y ${maxQ}).`);
+          return;
+        }
       }
     } else {
       if (!selectedCustomer) {
@@ -368,36 +454,53 @@ function NewWarrantyContent() {
     }
 
     try {
-      const payload: Record<string, unknown> = {
-        customer_id: warrantyBySale ? selectedSale!.customer_id! : selectedCustomer!.id,
-        product_id: warrantyBySale ? selectedSaleItem!.product_id : selectedProduct!.id,
-        warranty_type: warrantyType,
-        reason: reason.trim(),
-        requested_by: user.id,
-        replacement_product_id: warrantyType === "exchange" ? selectedReplacementProduct!.id : null,
-      };
       if (warrantyBySale) {
-        payload.sale_id = selectedSale!.id;
-        payload.sale_item_id = selectedSaleItem!.id;
-      } else {
-        payload.branch_id = branchId;
-        payload.quantity = Math.max(1, quantityProduct);
-      }
-
-      const { error: warrantyError } = await supabase
-        .from("warranties")
-        .insert(payload)
-        .select("id")
-        .single();
-
-      if (warrantyError) {
-        if (warrantyError.code === "23505") {
-          setError("Ya existe una garantía para este ítem de venta");
-        } else {
-          setError("Error al crear la garantía: " + warrantyError.message);
+        const rows = selectedSaleLines.map(({ line, warrantyQty }) => ({
+          customer_id: selectedSale!.customer_id!,
+          product_id: line.product_id,
+          warranty_type: warrantyType,
+          reason: reason.trim(),
+          requested_by: user.id,
+          replacement_product_id: warrantyType === "exchange" ? selectedReplacementProduct!.id : null,
+          sale_id: selectedSale!.id,
+          sale_item_id: line.id,
+          quantity: warrantyQty,
+        }));
+        const { error: warrantyError } = await supabase.from("warranties").insert(rows);
+        if (warrantyError) {
+          if (warrantyError.code === "23505") {
+            setError("Uno o más ítems ya tienen garantía registrada");
+          } else {
+            setError("Error al crear la garantía: " + warrantyError.message);
+          }
+          setSubmitting(false);
+          return;
         }
-        setSubmitting(false);
-        return;
+      } else {
+        const payload: Record<string, unknown> = {
+          customer_id: selectedCustomer!.id,
+          product_id: selectedProduct!.id,
+          warranty_type: warrantyType,
+          reason: reason.trim(),
+          requested_by: user.id,
+          replacement_product_id: warrantyType === "exchange" ? selectedReplacementProduct!.id : null,
+          branch_id: branchId,
+          quantity: Math.max(1, quantityProduct),
+        };
+        const { error: warrantyError } = await supabase
+          .from("warranties")
+          .insert(payload)
+          .select("id")
+          .single();
+        if (warrantyError) {
+          if (warrantyError.code === "23505") {
+            setError("Ya existe una garantía para este registro");
+          } else {
+            setError("Error al crear la garantía: " + warrantyError.message);
+          }
+          setSubmitting(false);
+          return;
+        }
       }
 
       router.push("/garantias");
@@ -408,14 +511,15 @@ function NewWarrantyContent() {
   };
 
   const quantityWarranty = warrantyBySale
-    ? (selectedSaleItem?.quantity ?? 0)
+    ? selectedSaleLines.reduce((sum, s) => sum + s.warrantyQty, 0)
     : quantityProduct;
 
-  const productValue = warrantyBySale && selectedSaleItem
-    ? selectedSaleItem.unit_price * selectedSaleItem.quantity
-    : selectedProduct
-      ? salePriceProduct(selectedProduct.base_price ?? null, !!selectedProduct.apply_iva) * quantityProduct
-      : 0;
+  const productValue =
+    warrantyBySale && selectedSaleLines.length > 0
+      ? selectedSaleLines.reduce((sum, s) => sum + warrantyValueForLineQty(s.line, s.warrantyQty), 0)
+      : selectedProduct
+        ? salePriceProduct(selectedProduct.base_price ?? null, !!selectedProduct.apply_iva) * quantityProduct
+        : 0;
 
   const replacementValue =
     warrantyType === "exchange" && selectedReplacementProduct
@@ -430,16 +534,37 @@ function NewWarrantyContent() {
       ? replacementValue - productValue
       : null;
 
+  /** Si el reemplazo es el mismo producto que el de la garantía, el inventario es el mismo que arriba */
+  const replacementStockIsDuplicate =
+    warrantyType === "exchange" &&
+    !!selectedReplacementProduct &&
+    (warrantyBySale
+      ? selectedSaleLines.some((s) => s.line.product_id === selectedReplacementProduct.id)
+      : selectedProduct?.id === selectedReplacementProduct.id);
+
+  const cardClass = "rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800";
+  /** Solo Venta + Motivo: gris neutro (zinc) en oscuro, sin matiz slate/azulado */
+  const warrantyNeutralCardClass =
+    "rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-950 dark:ring-zinc-800";
+  const inputClass =
+    "h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 text-[14px] text-slate-800 outline-none transition-colors focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:focus:border-zinc-500";
+  const warrantyNeutralInputClass =
+    "h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 text-[14px] text-slate-800 outline-none transition-colors placeholder:text-slate-500 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-zinc-600 dark:bg-zinc-900/80 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:bg-zinc-900 dark:focus:ring-zinc-500/35";
+  const listClass = "mt-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800";
+  const warrantyNeutralListClass =
+    "mt-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900";
+  const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
+
   return (
-    <div className="space-y-4 max-w-[1600px] mx-auto">
-      <header className="space-y-2">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
         <Breadcrumb items={[{ label: "Garantías", href: "/garantias" }, { label: "Nueva garantía" }]} />
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
+        <div className="mt-3 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
               Nueva garantía
             </h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
               {warrantyBySale
                 ? "Registra una nueva garantía: selecciona la venta, el producto y describe el motivo."
                 : "Registra una nueva garantía: selecciona cliente, producto y describe el motivo (sin exigir factura)."}
@@ -462,9 +587,9 @@ function NewWarrantyContent() {
           {/* Flujo por producto: Cliente + Producto + Cantidad */}
           {!warrantyBySale && (
             <>
-              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+              <div className={cardClass}>
                 <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                  Cliente <span className="text-ov-pink">*</span>
+                  Cliente <span className={requiredMarkClass}>*</span>
                 </p>
                 <label className="mt-3 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
                   Buscar por nombre o teléfono
@@ -478,14 +603,14 @@ function NewWarrantyContent() {
                       setCustomerSearch(e.target.value);
                     }}
                     placeholder="Ej. María López, 312..."
-                    className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className={inputClass}
                   />
                   {selectedCustomer && (
-                    <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerSearch(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-ov-pink hover:underline">Cambiar</button>
+                    <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerSearch(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">Cambiar</button>
                   )}
                 </div>
                 {customerResults.length > 0 && !selectedCustomer && (
-                  <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+                  <ul className={listClass}>
                     {customerResults.map((c) => (
                       <li key={c.id}>
                         <button type="button" onClick={() => { setSelectedCustomer(c); setCustomerSearch(c.name); setCustomerResults([]); }} className="w-full px-4 py-2 text-left text-[14px] hover:bg-slate-50 dark:hover:bg-slate-700">
@@ -496,9 +621,9 @@ function NewWarrantyContent() {
                   </ul>
                 )}
               </div>
-              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+              <div className={cardClass}>
                 <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                  Producto <span className="text-ov-pink">*</span>
+                  Producto <span className={requiredMarkClass}>*</span>
                 </p>
                 <label className="mt-3 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
                   Buscar producto con garantía
@@ -512,14 +637,14 @@ function NewWarrantyContent() {
                       setProductSearch(e.target.value);
                     }}
                     placeholder="Nombre o código"
-                    className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className={inputClass}
                   />
                   {selectedProduct && (
-                    <button type="button" onClick={() => { setSelectedProduct(null); setProductSearch(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-ov-pink hover:underline">Cambiar</button>
+                    <button type="button" onClick={() => { setSelectedProduct(null); setProductSearch(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">Cambiar</button>
                   )}
                 </div>
                 {productResults.length > 0 && !selectedProduct && (
-                  <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+                  <ul className={listClass}>
                     {productResults.map((p) => (
                       <li key={p.id}>
                         <button type="button" onClick={() => { setSelectedProduct(p); setProductSearch(p.name); setProductResults([]); }} className="w-full px-4 py-2 text-left text-[14px] hover:bg-slate-50 dark:hover:bg-slate-700">
@@ -532,7 +657,7 @@ function NewWarrantyContent() {
                 )}
                 <div className="mt-3">
                   <label className="mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">Cantidad</label>
-                  <input type="number" min={1} value={quantityProduct} onChange={(e) => setQuantityProduct(Math.max(1, parseInt(e.target.value, 10) || 1))} className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
+                  <input type="number" min={1} value={quantityProduct} onChange={(e) => setQuantityProduct(Math.max(1, parseInt(e.target.value, 10) || 1))} className={inputClass} />
                 </div>
               </div>
             </>
@@ -540,9 +665,9 @@ function NewWarrantyContent() {
 
           {/* Seleccionar venta (solo cuando garantías por venta) */}
           {warrantyBySale && (
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={warrantyNeutralCardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Venta <span className="text-ov-pink">*</span>
+              Venta <span className={requiredMarkClass}>*</span>
             </p>
             <label className="mt-3 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
               Buscar por número de factura
@@ -556,7 +681,7 @@ function NewWarrantyContent() {
                   setSaleSearch(e.target.value);
                 }}
                 placeholder="Ej. 001, 002..."
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                className={warrantyNeutralInputClass}
               />
               {selectedSale && (
                 <button
@@ -565,14 +690,14 @@ function NewWarrantyContent() {
                     setSelectedSale(null);
                     setSaleSearch("");
                   }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-ov-pink hover:underline"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
                 >
                   Cambiar
                 </button>
               )}
             </div>
             {saleResults.length > 0 && !selectedSale && (
-              <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+              <ul className={warrantyNeutralListClass}>
                 {saleResults.map((sale) => (
                   <li key={sale.id}>
                     <button
@@ -582,12 +707,12 @@ function NewWarrantyContent() {
                         setSaleSearch(sale.invoice_number);
                         setSaleResults([]);
                       }}
-                      className="w-full px-4 py-2 text-left text-[14px] hover:bg-slate-50 dark:hover:bg-slate-700"
+                      className="w-full px-4 py-2 text-left text-[14px] hover:bg-slate-50 dark:hover:bg-zinc-800"
                     >
-                      <div className="font-medium text-slate-900 dark:text-slate-50">
+                      <div className="font-medium text-slate-900 dark:text-zinc-50">
                         Factura {sale.invoice_number}
                       </div>
-                      <div className="text-[12px] text-slate-500 dark:text-slate-400">
+                      <div className="text-[12px] text-slate-500 dark:text-zinc-400">
                         {sale.customers?.name ?? "Cliente rápido"} · {formatDate(sale.created_at)} · $ {formatMoney(sale.total)}
                       </div>
                     </button>
@@ -596,11 +721,11 @@ function NewWarrantyContent() {
               </ul>
             )}
             {selectedSale && (
-              <div className="mt-2 rounded-lg bg-slate-50 p-3 text-[13px] dark:bg-slate-800">
-                <div className="font-medium text-slate-900 dark:text-slate-50">
+              <div className="mt-2 rounded-xl bg-slate-50 p-3 text-[13px] dark:bg-zinc-900">
+                <div className="font-medium text-slate-900 dark:text-zinc-50">
                   Factura {selectedSale.invoice_number}
                 </div>
-                <div className="text-slate-600 dark:text-slate-400">
+                <div className="text-slate-600 dark:text-zinc-400">
                   {selectedSale.customers?.name ?? "Cliente rápido"} · {formatDate(selectedSale.created_at)}
                 </div>
               </div>
@@ -610,38 +735,83 @@ function NewWarrantyContent() {
 
           {/* Seleccionar producto de la venta (solo por venta) */}
           {warrantyBySale && selectedSale && (
-            <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <div className={warrantyNeutralCardClass}>
               <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                Producto de la venta <span className="text-ov-pink">*</span>
+                Producto de la venta <span className={requiredMarkClass}>*</span>
               </p>
               <p className="mt-2 text-[13px] text-slate-600 dark:text-slate-400">
-                Selecciona el producto por el cual se solicita la garantía:
+                Marca una o varias líneas de la venta. Si una línea tiene más de una unidad, indica cuántas entran en esta garantía (se crea un registro por línea marcada).
               </p>
               {saleItems.length === 0 ? (
                 <p className="mt-2 text-[13px] text-slate-500 dark:text-slate-400">Cargando productos...</p>
               ) : (
                 <div className="mt-3 space-y-2">
-                  {saleItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setSelectedSaleItem(item)}
-                      className={`w-full rounded-lg border-2 p-3 text-left transition-colors ${
-                        selectedSaleItem?.id === item.id
-                          ? "border-ov-pink bg-ov-pink/10 dark:bg-ov-pink/20"
-                          : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
-                      }`}
-                    >
-                      <div className="font-medium text-slate-900 dark:text-slate-50">
-                        {item.products?.name ?? "Producto"}
+                  {saleItems.map((item) => {
+                    const sel = selectedSaleLines.find((s) => s.line.id === item.id);
+                    const checked = !!sel;
+                    const maxQ = Math.max(1, Number(item.quantity) || 1);
+                    return (
+                      <div
+                        key={item.id}
+                        className={`rounded-xl border p-3 text-left transition-colors ${
+                          checked
+                            ? "border-[color:var(--shell-sidebar)] bg-slate-200/70 text-[color:var(--shell-sidebar)] dark:border-zinc-400/70 dark:bg-white/10 dark:text-zinc-300"
+                            : "border-slate-200 bg-white hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        <label className="flex cursor-pointer gap-3">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setSelectedSaleLines((prev) => {
+                                const exists = prev.some((p) => p.line.id === item.id);
+                                if (exists) return prev.filter((p) => p.line.id !== item.id);
+                                return [...prev, { line: item, warrantyQty: 1 }];
+                              });
+                            }}
+                            className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-400 text-[color:var(--shell-sidebar)] focus:ring-[color:var(--shell-sidebar)] dark:border-zinc-500 dark:bg-zinc-950"
+                            aria-label={`Incluir en la garantía: ${item.products?.name ?? "producto"}`}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-medium text-slate-900 dark:text-zinc-50">
+                              {item.products?.name ?? "Producto"}
+                            </span>
+                            <span className="mt-1 block text-[12px] text-slate-600 dark:text-zinc-400">
+                              {item.products?.sku && <span>Ref. {item.products.sku}</span>}
+                              {item.products?.sku && " · "}
+                              <span>Cantidad en factura: {item.quantity}</span>
+                            </span>
+                          </span>
+                        </label>
+                        {checked && maxQ > 1 && (
+                          <div className="mt-3 flex flex-wrap items-center gap-2 pl-7 text-[13px] text-slate-700 dark:text-zinc-300">
+                            <label htmlFor={`warranty-qty-${item.id}`} className="font-medium">
+                              Unidades con garantía
+                            </label>
+                            <input
+                              id={`warranty-qty-${item.id}`}
+                              type="number"
+                              min={1}
+                              max={maxQ}
+                              value={sel?.warrantyQty ?? 1}
+                              onChange={(e) => {
+                                const raw = parseInt(e.target.value, 10);
+                                const next = Number.isFinite(raw) ? Math.min(maxQ, Math.max(1, raw)) : 1;
+                                setSelectedSaleLines((prev) =>
+                                  prev.map((p) =>
+                                    p.line.id === item.id ? { ...p, warrantyQty: next } : p
+                                  )
+                                );
+                              }}
+                              className="h-9 w-20 rounded-lg border border-slate-300 bg-white px-2 text-center text-[14px] dark:border-zinc-600 dark:bg-zinc-950"
+                            />
+                            <span className="text-slate-500 dark:text-zinc-500">(máx. {maxQ})</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="mt-1 text-[12px] text-slate-600 dark:text-slate-400">
-                        {item.products?.sku && <span>Ref. {item.products.sku}</span>}
-                        {item.products?.sku && " · "}
-                        <span>Cantidad: {item.quantity}</span>
-                      </div>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -651,9 +821,9 @@ function NewWarrantyContent() {
         {/* Columna derecha: Motivo, Tipo y Resumen */}
         <div className="space-y-4">
           {/* Motivo de la garantía */}
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={warrantyNeutralCardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Motivo de la garantía <span className="text-ov-pink">*</span>
+              Motivo de la garantía <span className={requiredMarkClass}>*</span>
             </p>
             <label className="mt-3 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
               Describe el problema o motivo
@@ -663,28 +833,46 @@ function NewWarrantyContent() {
               onChange={(e) => setReason(e.target.value)}
               rows={4}
               placeholder="Ej. El producto presenta defecto de fábrica. El aceite tiene una fuga en el envase."
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-[14px] text-slate-800 outline-none transition-colors placeholder:text-slate-500 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-zinc-600 dark:bg-zinc-900/80 dark:text-zinc-200 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:bg-zinc-900 dark:focus:ring-zinc-500/35"
             />
           </div>
 
           {/* Tipo de garantía */}
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Tipo de garantía <span className="text-ov-pink">*</span>
+              Tipo de garantía <span className={requiredMarkClass}>*</span>
             </p>
-            {productUnderWarrantyId && (
-              <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-[13px] dark:bg-slate-800">
-                <p className="font-medium text-slate-700 dark:text-slate-300">
-                  Stock del producto:{" "}
-                  {stockProduct !== null ? (
-                    <span className={stockProduct > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
-                      {stockProduct} {stockProduct === 1 ? "unidad" : "unidades"} disponible{stockProduct === 0 ? " (no hay cambio por mismo producto)" : ""}
-                    </span>
-                  ) : (
-                    <span className="text-slate-500 dark:text-slate-400">—</span>
-                  )}
-                </p>
-                {warrantyType === "exchange" && selectedReplacementProduct && (
+            {(warrantyBySale ? selectedSaleLines.length > 0 : !!selectedProduct) && (
+              <div className="mt-2 space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-[13px] dark:bg-slate-800">
+                {warrantyBySale ? (
+                  uniqueWarrantyProducts.map(({ product_id, name }) => {
+                    const q = stockByWarrantyProductId[product_id];
+                    return (
+                      <p key={product_id} className="font-medium text-slate-700 dark:text-slate-300">
+                        Stock ({name}):{" "}
+                        {q !== undefined ? (
+                          <span className={q > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+                            {q} {q === 1 ? "unidad" : "unidades"} disponible{q === 0 ? " (no hay cambio por mismo producto)" : ""}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500 dark:text-slate-400">—</span>
+                        )}
+                      </p>
+                    );
+                  })
+                ) : (
+                  <p className="font-medium text-slate-700 dark:text-slate-300">
+                    Stock del producto:{" "}
+                    {stockProduct !== null ? (
+                      <span className={stockProduct > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+                        {stockProduct} {stockProduct === 1 ? "unidad" : "unidades"} disponible{stockProduct === 0 ? " (no hay cambio por mismo producto)" : ""}
+                      </span>
+                    ) : (
+                      <span className="text-slate-500 dark:text-slate-400">—</span>
+                    )}
+                  </p>
+                )}
+                {warrantyType === "exchange" && selectedReplacementProduct && !replacementStockIsDuplicate && (
                   <p className="mt-1 font-medium text-slate-700 dark:text-slate-300">
                     Stock de reemplazo ({selectedReplacementProduct.name}):{" "}
                     {stockReplacement !== null ? (
@@ -706,9 +894,9 @@ function NewWarrantyContent() {
                   setSelectedReplacementProduct(null);
                   setReplacementProductSearch("");
                 }}
-                className={`inline-flex h-9 items-center gap-2 rounded-lg border-2 px-4 text-[13px] font-medium transition-colors ${
+                className={`inline-flex h-9 items-center gap-2 rounded-xl border px-4 text-[13px] font-medium transition-colors ${
                   warrantyType === "exchange"
-                    ? "border-ov-pink bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20"
+                    ? "border-[color:var(--shell-sidebar)] bg-slate-200/70 text-[color:var(--shell-sidebar)] dark:border-slate-300/80 dark:bg-white/10 dark:text-zinc-300"
                     : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                 }`}
               >
@@ -722,9 +910,9 @@ function NewWarrantyContent() {
                   setSelectedReplacementProduct(null);
                   setReplacementProductSearch("");
                 }}
-                className={`inline-flex h-9 items-center gap-2 rounded-lg border-2 px-4 text-[13px] font-medium transition-colors ${
+                className={`inline-flex h-9 items-center gap-2 rounded-xl border px-4 text-[13px] font-medium transition-colors ${
                   warrantyType === "refund"
-                    ? "border-ov-pink bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20"
+                    ? "border-[color:var(--shell-sidebar)] bg-slate-200/70 text-[color:var(--shell-sidebar)] dark:border-slate-300/80 dark:bg-white/10 dark:text-zinc-300"
                     : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                 }`}
               >
@@ -738,9 +926,9 @@ function NewWarrantyContent() {
                   setSelectedReplacementProduct(null);
                   setReplacementProductSearch("");
                 }}
-                className={`inline-flex h-9 items-center gap-2 rounded-lg border-2 px-4 text-[13px] font-medium transition-colors ${
+                className={`inline-flex h-9 items-center gap-2 rounded-xl border px-4 text-[13px] font-medium transition-colors ${
                   warrantyType === "repair"
-                    ? "border-ov-pink bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20"
+                    ? "border-[color:var(--shell-sidebar)] bg-slate-200/70 text-[color:var(--shell-sidebar)] dark:border-slate-300/80 dark:bg-white/10 dark:text-zinc-300"
                     : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                 }`}
               >
@@ -752,9 +940,9 @@ function NewWarrantyContent() {
 
           {/* Producto de reemplazo (solo si es cambio) */}
           {warrantyType === "exchange" && (
-            <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <div className={cardClass}>
               <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                Producto de reemplazo <span className="text-ov-pink">*</span>
+                Producto de reemplazo <span className={requiredMarkClass}>*</span>
               </p>
               <label className="mt-3 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
                 Buscar producto para el cambio
@@ -768,7 +956,7 @@ function NewWarrantyContent() {
                     setReplacementProductSearch(e.target.value);
                   }}
                   placeholder="Buscar por nombre o código"
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className={warrantyNeutralInputClass}
                 />
                 {selectedReplacementProduct && (
                   <button
@@ -777,14 +965,14 @@ function NewWarrantyContent() {
                       setSelectedReplacementProduct(null);
                       setReplacementProductSearch("");
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-ov-pink hover:underline"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
                   >
                     Cambiar
                   </button>
                 )}
               </div>
               {replacementProductResults.length > 0 && !selectedReplacementProduct && (
-                <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+                <ul className={warrantyNeutralListClass}>
                   {replacementProductResults.map((product) => (
                     <li key={product.id}>
                       <button
@@ -794,13 +982,13 @@ function NewWarrantyContent() {
                           setReplacementProductSearch(product.name);
                           setReplacementProductResults([]);
                         }}
-                        className="w-full px-4 py-2 text-left text-[14px] hover:bg-slate-50 dark:hover:bg-slate-700"
+                        className="w-full px-4 py-2 text-left text-[14px] hover:bg-slate-50 dark:hover:bg-zinc-800"
                       >
-                        <div className="font-medium text-slate-900 dark:text-slate-50">
+                        <div className="font-medium text-slate-900 dark:text-zinc-50">
                           {product.name}
                         </div>
                         {product.sku && (
-                          <div className="text-[12px] text-slate-500 dark:text-slate-400">
+                          <div className="text-[12px] text-slate-500 dark:text-zinc-400">
                             Código: {product.sku}
                           </div>
                         )}
@@ -810,12 +998,12 @@ function NewWarrantyContent() {
                 </ul>
               )}
               {selectedReplacementProduct && (
-                <div className="mt-2 rounded-lg bg-slate-50 p-3 text-[13px] dark:bg-slate-800">
-                  <div className="font-medium text-slate-900 dark:text-slate-50">
+                <div className="mt-2 rounded-xl bg-slate-50 p-3 text-[13px] dark:bg-zinc-900">
+                  <div className="font-medium text-slate-900 dark:text-zinc-50">
                     {selectedReplacementProduct.name}
                   </div>
                   {selectedReplacementProduct.sku && (
-                    <div className="text-slate-600 dark:text-slate-400">
+                    <div className="text-slate-600 dark:text-zinc-400">
                       Código: {selectedReplacementProduct.sku}
                     </div>
                   )}
@@ -824,7 +1012,7 @@ function NewWarrantyContent() {
             </div>
           )}
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Resumen de la garantía
             </p>
@@ -846,7 +1034,30 @@ function NewWarrantyContent() {
               <div className="flex items-center justify-between text-[14px]">
                 <span className="text-slate-600 dark:text-slate-400">Producto</span>
                 <span className="font-medium text-slate-900 dark:text-slate-50 text-right max-w-[60%]">
-                  {warrantyBySale ? (selectedSaleItem?.products?.name ?? "—") : (selectedProduct ? `${selectedProduct.name}${quantityProduct > 1 ? ` · ${quantityProduct} un.` : ""}` : "—")}
+                  {warrantyBySale
+                    ? selectedSaleLines.length === 0
+                      ? "—"
+                      : selectedSaleLines.length === 1
+                        ? (() => {
+                            const s0 = selectedSaleLines[0];
+                            const nm = s0.line.products?.name ?? "—";
+                            const sold = s0.line.quantity;
+                            if (sold > 1) {
+                              return `${nm} · ${s0.warrantyQty} de ${sold} un.`;
+                            }
+                            return nm;
+                          })()
+                        : `${selectedSaleLines.length} líneas: ${selectedSaleLines
+                            .map((s) => {
+                              const nm = s.line.products?.name ?? "Producto";
+                              return s.line.quantity > 1
+                                ? `${nm} (${s.warrantyQty}/${s.line.quantity} un.)`
+                                : nm;
+                            })
+                            .join(" · ")}`
+                    : selectedProduct
+                      ? `${selectedProduct.name}${quantityProduct > 1 ? ` · ${quantityProduct} un.` : ""}`
+                      : "—"}
                 </span>
               </div>
               <div className="flex items-center justify-between text-[14px]">
@@ -904,7 +1115,7 @@ function NewWarrantyContent() {
                   {exchangeDifference !== null && (
                     <div className="flex items-center justify-between text-[14px]">
                       <span className="text-slate-600 dark:text-slate-400">Diferencia</span>
-                      <span className={`font-medium ${exchangeDifference > 0 ? "text-ov-pink" : exchangeDifference < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700 dark:text-slate-300"}`}>
+                      <span className={`font-medium ${exchangeDifference > 0 ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : exchangeDifference < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700 dark:text-slate-300"}`}>
                         {exchangeDifference > 0
                           ? `Cliente paga $ ${formatMoney(exchangeDifference)}`
                           : exchangeDifference < 0
@@ -952,10 +1163,10 @@ function NewWarrantyContent() {
                 !warrantyType ||
                 !reason.trim() ||
                 (warrantyType === "exchange" && !selectedReplacementProduct) ||
-                (warrantyBySale && (!selectedSale || !selectedSaleItem)) ||
+                (warrantyBySale && (!selectedSale || selectedSaleLines.length === 0)) ||
                 (!warrantyBySale && (!selectedCustomer || !selectedProduct || !branchId))
               }
-              className="mt-4 w-full rounded-lg bg-ov-pink py-3 text-[15px] font-bold text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 disabled:pointer-events-none dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+              className="mt-4 w-full rounded-xl bg-[color:var(--shell-sidebar)] py-3 text-[15px] font-bold text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:pointer-events-none disabled:opacity-50"
               aria-busy={submitting}
               aria-disabled={submitting}
             >

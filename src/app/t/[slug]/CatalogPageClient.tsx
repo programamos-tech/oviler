@@ -17,6 +17,8 @@ export default function CatalogPageClient() {
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategoryId, setActiveCategoryId] = useState<string>("all");
 
   useEffect(() => {
     if (!slug) return;
@@ -80,20 +82,41 @@ export default function CatalogPageClient() {
 
   const cartCount = useMemo(() => cart.reduce((a, l) => a + l.quantity, 0), [cart]);
 
-  const byCategory = useMemo(() => {
-    const products = data?.products ?? [];
-    const uncategorized: CatalogProductRow[] = [];
+  const productsByCategory = useMemo(() => {
     const map = new Map<string, CatalogProductRow[]>();
     for (const c of data?.categories ?? []) map.set(c.id, []);
-    for (const p of products) {
-      if (p.category_id && map.has(p.category_id)) {
-        map.get(p.category_id)!.push(p);
-      } else {
-        uncategorized.push(p);
-      }
+    for (const p of data?.products ?? []) {
+      if (!p.category_id || !map.has(p.category_id)) continue;
+      map.get(p.category_id)!.push(p);
     }
-    return { map, uncategorized };
+    return map;
   }, [data]);
+
+  const categoryStats = useMemo(() => {
+    return (data?.categories ?? [])
+      .map((category) => ({
+        ...category,
+        productCount: (productsByCategory.get(category.id) ?? []).length,
+      }))
+      .filter((category) => category.productCount > 0);
+  }, [data, productsByCategory]);
+
+  const visibleProducts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return (data?.products ?? []).filter((product) => {
+      if (activeCategoryId !== "all" && product.category_id !== activeCategoryId) return false;
+      if (!query) return true;
+      const haystack = `${product.name} ${product.brand ?? ""} ${product.description ?? ""} ${product.category?.name ?? ""}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [activeCategoryId, data, searchQuery]);
+
+  useEffect(() => {
+    if (!data) return;
+    if (activeCategoryId === "all") return;
+    const exists = data.categories.some((c) => c.id === activeCategoryId);
+    if (!exists) setActiveCategoryId("all");
+  }, [activeCategoryId, data]);
 
   if (loading) {
     return (
@@ -114,34 +137,96 @@ export default function CatalogPageClient() {
 
   return (
     <>
-      <CatalogStorefrontHeader branch={data.branch} cartCount={cartCount} onOpenCart={() => setCartOpen(true)} />
+      <CatalogStorefrontHeader
+        branch={data.branch}
+        cartCount={cartCount}
+        onOpenCart={() => setCartOpen(true)}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
 
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-        {data.categories.map((cat) => {
-          const list = byCategory.map.get(cat.id) ?? [];
-          if (list.length === 0) return null;
-          return (
-            <section key={cat.id} className="mb-12">
-              <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{cat.name}</h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {list.map((p) => (
-                  <CatalogProductCard key={p.id} p={p} slug={slug} cart={cart} setQty={setQty} variant="surface" />
-                ))}
-              </div>
-            </section>
-          );
-        })}
+      <main className="mx-auto max-w-7xl space-y-6 px-4 py-5 sm:px-6 lg:px-8">
+        <section className="relative overflow-hidden rounded-2xl border border-black/15 bg-[#1e3522] px-4 py-4 text-white sm:px-5">
+          <div className="pointer-events-none absolute inset-0 bg-[#1e3522]" aria-hidden />
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_115%_72%_at_50%_108%,rgba(211,202,165,0.28),rgba(211,202,165,0.08)_38%,transparent_58%)]"
+            aria-hidden
+          />
+          <div className="pointer-events-none absolute -bottom-32 left-1/2 h-44 w-[130%] -translate-x-1/2 rounded-[100%] bg-[#d3caa5]/[0.2] blur-[38px]" aria-hidden />
+          <div className="relative flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[12px] font-medium uppercase tracking-[0.09em] text-white/70">Compra segura</p>
+              <p className="text-[14px] font-semibold tracking-tight text-white">Tu tienda está respaldada por Oviler</p>
+            </div>
+            <p className="text-[12px] text-white/75">Seguimiento de pedidos, comprobantes y control de inventario.</p>
+          </div>
+        </section>
 
-        {byCategory.uncategorized.length > 0 && (
-          <section className="mb-12">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Otros</h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {byCategory.uncategorized.map((p) => (
-                <CatalogProductCard key={p.id} p={p} slug={slug} cart={cart} setQty={setQty} variant="plain" />
+        <section className="sm:hidden">
+          <div className="relative">
+            <svg
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Busca productos"
+              className="h-10 w-full rounded-full border border-slate-200 bg-slate-50/90 pl-10 pr-4 text-[13px] text-slate-900 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35"
+              aria-label="Buscar en la tienda"
+            />
+          </div>
+        </section>
+
+        <section>
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setActiveCategoryId("all")}
+                className={`rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
+                  activeCategoryId === "all"
+                    ? "border-[color:var(--shell-sidebar)] bg-slate-200/80 text-[color:var(--shell-sidebar)]"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                Todos
+              </button>
+              {categoryStats.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setActiveCategoryId(category.id)}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
+                    activeCategoryId === category.id
+                      ? "border-[color:var(--shell-sidebar)] bg-slate-200/80 text-[color:var(--shell-sidebar)]"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {category.name} <span className="text-slate-400">({category.productCount})</span>
+                </button>
               ))}
             </div>
-          </section>
-        )}
+            <p className="text-[11px] text-slate-500">{visibleProducts.length} resultados</p>
+          </div>
+
+          {visibleProducts.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-6 text-center text-[13px] text-slate-600">
+              No encontramos productos con esos filtros.
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {visibleProducts.map((p) => (
+                <CatalogProductCard key={p.id} p={p} slug={slug} cart={cart} setQty={setQty} variant="surface" />
+              ))}
+            </div>
+          )}
+        </section>
       </main>
 
       <CatalogCartDrawer

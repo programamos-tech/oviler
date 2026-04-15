@@ -20,11 +20,13 @@ export type PermissionKey =
   | "roles.manage"
   | "branches.view"
   | "branches.manage"
-  | "activities.view";
+  | "activities.view"
+  | "credits.view"
+  | "credits.manage";
 
 export const PERMISSION_OPTIONS: Array<{ key: PermissionKey; label: string; group: string }> = [
   { key: "dashboard.view", label: "Inicio / Reportes", group: "Inicio" },
-  { key: "sales.view", label: "Ver ventas", group: "Ventas" },
+  { key: "sales.view", label: "Ventas", group: "Ventas" },
   { key: "sales.create", label: "Crear ventas", group: "Ventas" },
   { key: "customers.view", label: "Ver clientes", group: "Clientes" },
   { key: "customers.create", label: "Crear clientes", group: "Clientes" },
@@ -44,6 +46,8 @@ export const PERMISSION_OPTIONS: Array<{ key: PermissionKey; label: string; grou
   { key: "branches.view", label: "Ver sucursales", group: "Administración" },
   { key: "branches.manage", label: "Gestionar sucursales", group: "Administración" },
   { key: "activities.view", label: "Ver actividades", group: "Administración" },
+  { key: "credits.view", label: "Ver créditos a clientes", group: "Créditos" },
+  { key: "credits.manage", label: "Crear créditos y registrar abonos", group: "Créditos" },
 ];
 
 export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionKey[]> = {
@@ -66,6 +70,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionKey[]> = {
     "inventory.locations",
     "inventory.waste",
     "activities.view",
+    "credits.view",
+    "credits.manage",
   ],
   cashier: [
     "dashboard.view",
@@ -78,6 +84,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionKey[]> = {
     "expenses.create",
     "inventory.view",
     "activities.view",
+    "credits.view",
+    "credits.manage",
   ],
   delivery: PERMISSION_OPTIONS
     .filter((p) => p.group === "Inventario")
@@ -132,7 +140,12 @@ export function canAccessPath(
 
   if (hasPathPrefix(path, "/dashboard") || hasPathPrefix(path, "/cierre-caja")) return can("dashboard.view");
   if (hasPathPrefix(path, "/ventas") || hasPathPrefix(path, "/garantias")) return can("sales.view");
+  if (hasPathPrefix(path, "/creditos")) {
+    if (hasPathPrefix(path, "/creditos/nuevo")) return can("credits.manage");
+    return can("credits.view");
+  }
   if (hasPathPrefix(path, "/clientes")) return can("customers.view");
+  if (hasPathPrefix(path, "/catalogo")) return can("inventory.view");
   if (hasPathPrefix(path, "/egresos")) return path.endsWith("/nuevo") ? can("expenses.create") : can("expenses.view");
   if (hasPathPrefix(path, "/roles")) return path.endsWith("/nuevo") || hasPathPrefix(path, "/roles/") ? can("roles.manage") : can("roles.view");
   if (hasPathPrefix(path, "/sucursales")) return path.endsWith("/nueva") || hasPathPrefix(path, "/sucursales/configurar") ? can("branches.manage") : can("branches.view");
@@ -158,13 +171,61 @@ export function canAccessNavModule(
   label: string,
   customPermissions?: string[] | null
 ): boolean {
+  if (label === "COMERCIAL") {
+    return (
+      canAccessPath(role, "/ventas", customPermissions) ||
+      canAccessPath(role, "/clientes", customPermissions) ||
+      canAccessPath(role, "/garantias", customPermissions) ||
+      canAccessPath(role, "/creditos", customPermissions) ||
+      canAccessPath(role, "/cierre-caja", customPermissions) ||
+      canAccessPath(role, "/dashboard", customPermissions)
+    );
+  }
+  if (label === "OPERACIÓN" || label === "OPERACION") {
+    return (
+      canAccessPath(role, "/inventario", customPermissions) ||
+      canAccessPath(role, "/inventario/ubicaciones", customPermissions) ||
+      canAccessPath(role, "/roles", customPermissions) ||
+      canAccessPath(role, "/actividades", customPermissions) ||
+      canAccessPath(role, "/egresos", customPermissions)
+    );
+  }
+  if (
+    label === "CATÁLOGO" ||
+    label === "CATALOGO" ||
+    label === "MI TIENDA WEB"
+  ) {
+    return canAccessPath(role, "/catalogo", customPermissions);
+  }
+  if (label === "CONFIGURACIÓN" || label === "CONFIGURACION") {
+    return (
+      canAccessPath(role, "/sucursales", customPermissions) ||
+      canAccessPath(role, "/sucursales/configurar", customPermissions)
+    );
+  }
+  if (label === "Bodega") {
+    return canAccessPath(role, "/inventario/ubicaciones", customPermissions);
+  }
+  if (label === "Cuenta") {
+    return canAccessPath(role, "/sucursales/configurar", customPermissions);
+  }
+
   const p = resolvePermissions(role, customPermissions);
   const moduleMap: Record<string, PermissionKey> = {
     Inicio: "dashboard.view",
+    Reportes: "dashboard.view",
     Ventas: "sales.view",
     Clientes: "customers.view",
     Inventario: "inventory.view",
+    Productos: "inventory.view",
+    Garantías: "sales.view",
+    Créditos: "credits.view",
+    Cierres: "dashboard.view",
+    "Bodega y stock": "inventory.view",
     Egresos: "expenses.view",
+    Catálogo: "inventory.view",
+    Catalogo: "inventory.view",
+    "Mi tienda web": "inventory.view",
     Roles: "roles.view",
     Sucursales: "branches.view",
     Actividades: "activities.view",

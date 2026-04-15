@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
+import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
+import { getAvatarVariant } from "@/app/components/app-nav-data";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -184,17 +186,20 @@ export default function CustomerDetailPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="min-h-[260px]" aria-hidden />
+      <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+        <div className="min-h-[280px] animate-pulse rounded-2xl bg-white dark:bg-slate-900" aria-hidden />
       </div>
     );
   }
 
   if (notFound || !customer) {
     return (
-      <div className="space-y-4">
-        <p className="text-[14px] text-slate-600 dark:text-slate-400">Cliente no encontrado.</p>
-        <Link href="/clientes" className="text-[14px] font-medium text-ov-pink hover:underline">
+      <div className="mx-auto min-w-0 max-w-[1600px] space-y-4 font-sans text-[13px] text-slate-800 antialiased dark:text-slate-100">
+        <p className="text-[14px] font-medium text-slate-600 dark:text-slate-400">Cliente no encontrado.</p>
+        <Link
+          href="/clientes"
+          className="inline-flex text-[14px] font-medium text-[color:var(--shell-sidebar)] transition-colors hover:underline dark:text-zinc-300"
+        >
           Volver a clientes
         </Link>
       </div>
@@ -206,6 +211,7 @@ export default function CustomerDetailPage() {
   );
   const subtitleParts = [customer.cedula ? `CC ${customer.cedula}` : null, customer.phone || null, customer.email ? customer.email : null].filter(Boolean);
   const subtitle = subtitleParts.length > 0 ? subtitleParts.join(" · ") : "Sin datos de contacto";
+  const avatarSeed = `${customer.email || customer.name || customer.id}-${getAvatarVariant(null)}`;
 
   const completedSales = sales.filter((s) => s.status === "completed");
   const ticketPromedio = completedSales.length > 0
@@ -214,81 +220,101 @@ export default function CustomerDetailPage() {
   const totalVentas = completedSales.reduce((sum, s) => sum + Number(s.total), 0);
 
   return (
-    <div className="min-w-0 space-y-6">
-      {/* Card: nombre + resumen y acciones */}
-      <div className="min-w-0 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
         <Breadcrumb
           items={[
             { label: "Clientes", href: "/clientes" },
             { label: customer.name },
           ]}
         />
-        <div className="mt-3 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
-              {customer.name}
-            </h1>
-            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              {subtitle}
-            </p>
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 flex-1 gap-3">
+            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 sm:h-14 sm:w-14">
+              <WorkspaceCharacterAvatar seed={avatarSeed} size={96} className="h-full w-full object-cover" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+                {customer.name}
+              </h1>
+              <p className="mt-1 text-left text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
+                {subtitle}
+              </p>
+            </div>
           </div>
-          <Link
-            href="/clientes"
-            className="shrink-0 rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            title="Volver a clientes"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </Link>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 print:hidden sm:pt-0.5">
+            <Link
+              href="/clientes"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
+              title="Volver a clientes"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </Link>
+            <Link
+              href={`/clientes/${customer.id}/editar`}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+            >
+              Editar
+            </Link>
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-slate-600 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
+            >
+              {sales.length === 0 ? "Eliminar" : "Desactivar"}
+            </button>
+          </div>
         </div>
-        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
-          <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:gap-4 sm:gap-y-0">
-            <div className="p-0">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Ticket promedio</p>
-              <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
+
+        <div className="mt-6 border-t border-slate-100 pt-6 dark:border-slate-800">
+          <div className="grid grid-cols-1 gap-5 sm:flex sm:flex-row sm:flex-wrap sm:gap-6 sm:gap-y-0">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Ticket promedio</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50 sm:text-xl">
                 {completedSales.length > 0 ? `$ ${formatMoney(ticketPromedio)}` : "—"}
               </p>
-              <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+              <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">
                 {completedSales.length} {completedSales.length === 1 ? "venta" : "ventas"}
               </p>
             </div>
-            <div className="sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total comprado</p>
-              <p className="mt-0.5 text-lg font-bold text-emerald-700 dark:text-emerald-300 sm:text-xl">
+            <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Total comprado</p>
+              <p className="mt-1 text-lg font-semibold text-[color:var(--shell-sidebar)] dark:text-zinc-300 sm:text-xl">
                 {completedSales.length > 0 ? `$ ${formatMoney(totalVentas)}` : "—"}
               </p>
             </div>
-            <div className="sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Garantías</p>
-              <p className="mt-0.5 text-lg font-bold text-violet-700 dark:text-violet-300 sm:text-xl">
+            <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Garantías</p>
+              <p className="mt-1 text-lg font-semibold text-violet-700 dark:text-violet-300 sm:text-xl">
                 {warrantySummary.total}
               </p>
-              <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+              <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">
                 Devoluciones procesadas
               </p>
             </div>
-            <div className="min-w-0 flex-1 sm:min-w-[280px] sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Direcciones</p>
+            <div className="min-w-0 flex-1 sm:min-w-[280px] sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Direcciones</p>
               {addresses.length === 0 ? (
-                <p className="mt-0.5 text-lg font-bold text-slate-500 dark:text-slate-400 sm:text-xl">—</p>
+                <p className="mt-1 text-lg font-semibold text-slate-400 dark:text-slate-500 sm:text-xl">—</p>
               ) : (
                 <ul className="mt-2 grid grid-cols-1 gap-2 sm:flex">
                   {addresses.map((addr) => (
-                    <li key={addr.id} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50/50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/30">
+                    <li key={addr.id} className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-slate-50/50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/30">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[13px] font-bold text-slate-900 dark:text-slate-50">{addr.label}</span>
+                        <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-50">{addr.label}</span>
                         {addr.is_default && (
-                          <span className="rounded bg-ov-pink/15 px-1.5 py-0.5 text-[10px] font-bold text-ov-pink dark:bg-ov-pink/20 shrink-0">
+                          <span className="shrink-0 rounded-md bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--shell-sidebar)] dark:bg-zinc-700/40 dark:text-zinc-300">
                             Principal
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-[12px] font-medium text-slate-600 dark:text-slate-400 break-words line-clamp-2" title={addr.address}>
+                      <p className="mt-0.5 text-[12px] font-medium text-slate-600 break-words line-clamp-2 dark:text-slate-400" title={addr.address}>
                         {addr.address}
                       </p>
                       {addr.reference_point && (
-                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500 truncate" title={addr.reference_point}>
+                        <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-500" title={addr.reference_point}>
                           Ref: {addr.reference_point}
                         </p>
                       )}
@@ -298,46 +324,30 @@ export default function CustomerDetailPage() {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 print:hidden sm:flex sm:flex-wrap">
-            <Link
-              href={`/clientes/${customer.id}/editar`}
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white hover:bg-ov-pink-hover sm:w-auto dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
-            >
-              Editar
-            </Link>
-            <button
-              type="button"
-              onClick={() => setDeleteOpen(true)}
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-ov-pink/50 bg-white px-4 text-[13px] font-medium text-ov-pink hover:bg-ov-pink/10 sm:w-auto dark:border-ov-pink/50 dark:bg-slate-800 dark:text-ov-pink-muted dark:hover:bg-ov-pink/20"
-            >
-              {sales.length === 0 ? "Eliminar" : "Desactivar"}
-            </button>
-          </div>
         </div>
-      </div>
+      </header>
 
-      {/* Ventas y top productos, uno al lado del otro */}
-      <section className="grid min-w-0 gap-5 lg:grid-cols-2">
-        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+      <section className="grid min-w-0 gap-6 lg:grid-cols-2">
+        <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
+            <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Ventas de este cliente
             </h2>
             {sales.length === 0 ? (
-              <div className="mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-10 dark:border-slate-700 min-h-[200px]">
+              <div className="mt-4 flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/30 py-10 dark:border-slate-700 dark:bg-slate-800/20">
                 <svg className="h-10 w-10 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <p className="mt-3 text-[14px] font-medium text-slate-600 dark:text-slate-400">Aún no hay ventas registradas</p>
-                <p className="mt-1 max-w-[260px] text-center text-[13px] text-slate-500 dark:text-slate-500">
+                <p className="mt-3 text-[15px] font-semibold text-slate-800 dark:text-slate-200">Aún no hay ventas registradas</p>
+                <p className="mt-2 max-w-[280px] text-center text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
                   Cuando registres ventas con este cliente, aquí verás el detalle.
                 </p>
               </div>
             ) : (
-              <ul className="mt-3 space-y-2">
+              <ul className="mt-4 space-y-2">
                 {sales.map((sale) => (
                   <li
                     key={sale.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/30"
+                    className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/25"
                   >
                     <div className="min-w-0">
                       <p className="text-[13px] font-bold text-slate-800 dark:text-slate-100 truncate">{sale.invoice_number}</p>
@@ -357,31 +367,31 @@ export default function CustomerDetailPage() {
             )}
         </div>
 
-        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+        <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
+          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
             Top productos comprados
           </h2>
             {topProducts.length === 0 ? (
-              <div className="mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-10 dark:border-slate-700 min-h-[200px]">
-                <p className="text-[14px] font-medium text-slate-600 dark:text-slate-400">Sin datos aún</p>
-                <p className="mt-1 max-w-[260px] text-center text-[13px] text-slate-500 dark:text-slate-500">
+              <div className="mt-4 flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/30 py-10 dark:border-slate-700 dark:bg-slate-800/20">
+                <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">Sin datos aún</p>
+                <p className="mt-2 max-w-[280px] text-center text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
                   Cuando las ventas incluyan ítems por producto, aquí verás el top de productos que ha comprado.
                 </p>
               </div>
             ) : (
-              <ul className="mt-3 space-y-2">
+              <ul className="mt-4 space-y-2">
                 {topProducts.map((p, index) => (
                   <li
                     key={p.product_id}
-                    className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50"
+                    className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/25"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-ov-pink/20 text-[11px] font-bold text-ov-pink">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-200/90 text-[11px] font-semibold text-[color:var(--shell-sidebar)] dark:bg-slate-200/80 dark:text-zinc-300">
                         {index + 1}
                       </span>
-                      <span className="text-[13px] font-medium text-slate-800 dark:text-slate-100 truncate">{p.product_name}</span>
+                      <span className="truncate text-[13px] font-medium text-slate-800 dark:text-slate-100">{p.product_name}</span>
                     </div>
-                    <span className="text-[13px] font-bold text-slate-700 dark:text-slate-200 shrink-0">
+                    <span className="shrink-0 text-[13px] font-semibold text-slate-700 dark:text-slate-200">
                       {p.total_quantity} {p.total_quantity === 1 ? "vez" : "veces"}
                     </span>
                   </li>

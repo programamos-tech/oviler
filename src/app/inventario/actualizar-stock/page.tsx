@@ -241,8 +241,8 @@ function UpdateStockContent() {
   }
 
   return (
-    <div className="min-w-0 space-y-4">
-      <header className="space-y-2 min-w-0">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
         <Breadcrumb
           items={[
             { label: "Inventario", href: "/inventario" },
@@ -254,7 +254,7 @@ function UpdateStockContent() {
         />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-emerald-50 sm:text-2xl">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
               Actualizar stock
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
@@ -263,7 +263,7 @@ function UpdateStockContent() {
           </div>
           <Link
             href={productIdFromUrl ? `/inventario/${productIdFromUrl}` : "/inventario"}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
             title={productIdFromUrl ? "Volver al detalle del producto" : "Volver a inventario"}
           >
             <svg
@@ -283,13 +283,13 @@ function UpdateStockContent() {
         </div>
       </header>
 
-      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
+      <section className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
         <div className="min-w-0 space-y-4">
-          <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Producto y movimiento
             </p>
-            <label className="mt-3 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
+            <label className="mb-1 mt-4 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
               Buscar producto
             </label>
             <div className="mt-2 relative" ref={searchDropdownRef}>
@@ -304,7 +304,7 @@ function UpdateStockContent() {
                 }}
                 onFocus={() => productSearchQuery.trim().length >= 2 && setSearchDropdownOpen(true)}
                 placeholder="Nombre o código (escribe al menos 2 letras)"
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-zinc-500"
               />
               {selectedProduct && !loadingProduct && (
                 <button
@@ -320,7 +320,7 @@ function UpdateStockContent() {
                 </button>
               )}
               {searchDropdownOpen && (productSearchQuery.trim().length >= 2 || productSearchResults.length > 0) && (
-                <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
                   {searchingProducts ? (
                     <p className="px-4 py-3 text-[13px] text-slate-500 dark:text-slate-400">Buscando…</p>
                   ) : productSearchResults.length === 0 ? (
@@ -354,7 +354,7 @@ function UpdateStockContent() {
             </p>
 
             <div className="mt-4">
-              <label className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
+              <label className="mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
                 Tipo de movimiento
               </label>
               <div className="flex flex-wrap gap-2">
@@ -363,8 +363,8 @@ function UpdateStockContent() {
                   onClick={() => setMovementType("ajuste")}
                   className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-medium transition-colors ${
                     movementType === "ajuste"
-                      ? "border-2 border-ov-pink bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20"
-                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                      ? "border border-slate-400 bg-slate-200/80 text-[color:var(--shell-sidebar)] dark:border-zinc-500/55 dark:bg-zinc-700/40 dark:text-zinc-300"
+                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                   }`}
                   title="El valor que ingresas es el nuevo stock total (reemplaza)"
                 >
@@ -375,8 +375,8 @@ function UpdateStockContent() {
                   onClick={() => setMovementType("entrada")}
                   className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-medium transition-colors ${
                     movementType === "entrada"
-                      ? "border-2 border-ov-pink bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20"
-                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                      ? "border border-slate-400 bg-slate-200/80 text-[color:var(--shell-sidebar)] dark:border-zinc-500/55 dark:bg-zinc-700/40 dark:text-zinc-300"
+                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                   }`}
                   title="Compré o me llegó mercancía"
                 >
@@ -390,7 +390,7 @@ function UpdateStockContent() {
 
             {hasBodega && (
               <div className="mt-4">
-                <label className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
+                <label className="mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
                   Ubicación
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -399,8 +399,8 @@ function UpdateStockContent() {
                     onClick={() => setLocation("local")}
                     className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-medium transition-colors ${
                       location === "local"
-                        ? "border-2 border-ov-pink bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20"
-                        : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                        ? "border border-slate-400 bg-slate-200/80 text-[color:var(--shell-sidebar)] dark:border-zinc-500/55 dark:bg-zinc-700/40 dark:text-zinc-300"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                     }`}
                   >
                     Local
@@ -410,8 +410,8 @@ function UpdateStockContent() {
                     onClick={() => setLocation("bodega")}
                     className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-medium transition-colors ${
                       location === "bodega"
-                        ? "border-2 border-ov-pink bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20"
-                        : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                        ? "border border-slate-400 bg-slate-200/80 text-[color:var(--shell-sidebar)] dark:border-zinc-500/55 dark:bg-zinc-700/40 dark:text-zinc-300"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                     }`}
                   >
                     Bodega
@@ -423,7 +423,7 @@ function UpdateStockContent() {
               </div>
             )}
 
-            <label className="mt-4 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
+            <label className="mb-1 mt-4 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
               Cantidad
             </label>
             <div className="mt-2">
@@ -433,11 +433,11 @@ function UpdateStockContent() {
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
                 placeholder="0"
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-zinc-500"
               />
             </div>
 
-            <label className="mt-4 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
+            <label className="mb-1 mt-4 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
               Motivo (opcional)
             </label>
             <div className="mt-2">
@@ -446,47 +446,47 @@ function UpdateStockContent() {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Ej. Entrada por compra a proveedor"
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-zinc-500"
               />
             </div>
           </div>
         </div>
 
         <div className="min-w-0 space-y-4">
-          <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Resumen del movimiento
             </p>
             <div className="mt-3 space-y-3 text-[13px]">
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Producto</p>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Producto</p>
                 <p className="mt-1 text-slate-600 dark:text-slate-400">{selectedProduct?.name ?? "Selecciona un producto"}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Tipo</p>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Tipo</p>
                 <p className="mt-1 text-slate-600 dark:text-slate-400">{movementType === "entrada" ? "Entrada (sumar)" : "Reemplazar stock"}</p>
               </div>
               {hasBodega && (
-                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                  <p className="font-bold text-slate-800 dark:text-slate-100">Ubicación</p>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">Ubicación</p>
                   <p className="mt-1 text-slate-600 dark:text-slate-400">{location === "local" ? "Local" : "Bodega"}</p>
                 </div>
               )}
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Stock actual</p>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Stock actual</p>
                 <p className="mt-1 text-slate-600 dark:text-slate-400">{selectedProduct && currentStock !== null ? currentStock : "—"}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Después del movimiento</p>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Después del movimiento</p>
                 <p className="mt-1 text-slate-600 dark:text-slate-400">{afterStock !== null ? afterStock : "—"}</p>
               </div>
             </div>
           </div>
 
-          <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className="min-w-0 rounded-3xl bg-white px-5 py-5 dark:bg-slate-900 sm:px-6 sm:py-6">
             <div className="space-y-3">
               <div className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
-                <p className="font-bold text-slate-700 dark:text-slate-100">Paso final</p>
+                <p className="font-semibold text-slate-700 dark:text-slate-100">Paso final</p>
                 <p className="mt-1">
                   Cuando confirmes, se registrará el movimiento en el inventario.
                 </p>
@@ -495,7 +495,7 @@ function UpdateStockContent() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={!canSubmit || saving}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 disabled:pointer-events-none dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:pointer-events-none disabled:opacity-50"
               >
                 {saving ? "Guardando…" : "Actualizar stock"}
               </button>

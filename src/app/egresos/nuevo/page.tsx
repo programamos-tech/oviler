@@ -129,23 +129,27 @@ export default function NewExpensePage() {
 
   const amountNum = parseFloat(amount.replace(/\./g, "").replace(",", ".")) || 0;
   const paymentLabel = paymentMethod === "cash" ? "Efectivo" : "Transferencia";
+  const inputClass =
+    "h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 text-[13px] font-medium text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-zinc-500";
+  const labelClass = "mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300";
+  const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
 
   return (
-    <div className="space-y-4 max-w-[1600px] mx-auto">
-      <header className="space-y-2">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
         <Breadcrumb items={[{ label: "Egresos", href: "/egresos" }, { label: "Nuevo egreso" }]} />
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+        <div className="mt-3 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
               Nuevo egreso o gasto
             </h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Registra una salida de dinero: pago a proveedor, gasto operativo, etc.
             </p>
           </div>
           <Link
             href="/egresos"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
             title="Volver a egresos"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -156,27 +160,27 @@ export default function NewExpensePage() {
       </header>
 
       {error && (
-        <div className="rounded-xl bg-red-50 p-4 text-[14px] font-medium text-red-800 dark:bg-red-900/30 dark:text-red-200" role="alert">
+        <div className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-[13px] font-medium text-red-800 dark:border-red-900/45 dark:bg-red-900/30 dark:text-red-200" role="alert">
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
+      <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Datos del egreso
             </p>
             <div className="mt-3 space-y-4">
               <div>
-                <label htmlFor="expense-concept" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
-                  Concepto <span className="text-red-500">*</span>
+                <label htmlFor="expense-concept" className={labelClass}>
+                  Concepto <span className={requiredMarkClass}>*</span>
                 </label>
                 <select
                   id="expense-concept"
                   value={selectedConcept}
                   onChange={(e) => setSelectedConcept(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className={inputClass}
                 >
                   {selectOptions.map((opt) => (
                     <option key={opt.id} value={opt.id}>
@@ -191,14 +195,14 @@ export default function NewExpensePage() {
                     value={customConcept}
                     onChange={(e) => setCustomConcept(e.target.value)}
                     placeholder="Escribe el concepto"
-                    className="mt-2 h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className={`mt-2 ${inputClass}`}
                   />
                 )}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="expense-amount" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
-                    Monto <span className="text-red-500">*</span>
+                  <label htmlFor="expense-amount" className={labelClass}>
+                    Monto <span className={requiredMarkClass}>*</span>
                   </label>
                   <input
                     id="expense-amount"
@@ -208,18 +212,18 @@ export default function NewExpensePage() {
                     onChange={(e) => setAmount(formatAmountDisplay(e.target.value))}
                     placeholder="Ej. 50.000"
                     required
-                    className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label htmlFor="expense-payment" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
+                  <label htmlFor="expense-payment" className={labelClass}>
                     Forma de pago
                   </label>
                   <select
                     id="expense-payment"
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as "cash" | "transfer")}
-                    className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    className={inputClass}
                   >
                     <option value="cash">Efectivo</option>
                     <option value="transfer">Transferencia</option>
@@ -227,7 +231,7 @@ export default function NewExpensePage() {
                 </div>
               </div>
               <div>
-                <label htmlFor="expense-notes" className="mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
+                <label htmlFor="expense-notes" className={labelClass}>
                   Notas (opcional)
                 </label>
                 <textarea
@@ -236,7 +240,7 @@ export default function NewExpensePage() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Detalle adicional si lo necesitas"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-[14px] font-medium text-slate-800 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-[13px] font-medium text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-zinc-500"
                 />
               </div>
             </div>
@@ -244,13 +248,13 @@ export default function NewExpensePage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-ov-pink px-5 text-[14px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-60 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-5 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-60"
               >
                 {saving ? "Guardando…" : "Registrar egreso"}
               </button>
               <Link
                 href="/egresos"
-                className="inline-flex h-10 items-center rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 Cancelar
               </Link>
@@ -258,24 +262,24 @@ export default function NewExpensePage() {
           </div>
         </div>
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Resumen
             </p>
-            <div className="mt-3 space-y-2 text-[14px]">
-              <div className="flex justify-between gap-2">
+            <div className="mt-3 space-y-2 text-[13px]">
+              <div className="flex justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/25">
                 <span className="text-slate-600 dark:text-slate-400">Concepto</span>
-                <span className="font-medium text-slate-900 dark:text-slate-100 text-right truncate max-w-[180px]" title={effectiveConcept || undefined}>
+                <span className="max-w-[180px] truncate text-right font-medium text-slate-900 dark:text-slate-100" title={effectiveConcept || undefined}>
                   {effectiveConcept || "—"}
                 </span>
               </div>
-              <div className="flex justify-between gap-2">
+              <div className="flex justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/25">
                 <span className="text-slate-600 dark:text-slate-400">Monto</span>
-                <span className="font-bold text-slate-900 dark:text-slate-50 tabular-nums">
+                <span className="tabular-nums font-semibold text-slate-900 dark:text-slate-50">
                   {amountNum > 0 ? `$ ${amountNum.toLocaleString("es-CO")}` : "—"}
                 </span>
               </div>
-              <div className="flex justify-between gap-2">
+              <div className="flex justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/25">
                 <span className="text-slate-600 dark:text-slate-400">Forma de pago</span>
                 <span className="font-medium text-slate-900 dark:text-slate-100">{paymentLabel}</span>
               </div>

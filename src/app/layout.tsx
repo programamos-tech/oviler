@@ -21,9 +21,9 @@ const youngSerif = Young_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "NOU Tiendas | Tiendas ocultas y ventas online",
+  title: "Berea Comercios | Gestión de comercios",
   description:
-    "Pedidos, inventario, egresos y usuarios para tiendas ocultas. Licencia anual con soporte.",
+    "Inventario, ventas, clientes y créditos. Producto Berea para tu negocio. Licencia con soporte.",
 };
 
 export default function RootLayout({
@@ -42,7 +42,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${geistMono.variable} ${youngSerif.variable} antialiased min-h-screen bg-background text-foreground`}
       >
-        <div className="flex min-h-screen flex-col bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+        <div className="flex min-h-screen flex-col bg-[rgb(var(--background))] text-slate-900 dark:bg-[rgb(var(--background))] dark:text-slate-100">
           <AppShell>{children}</AppShell>
         </div>
       </body>

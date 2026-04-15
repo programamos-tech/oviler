@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import Avatar from "boring-avatars";
+import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
+import { getAvatarVariant } from "@/app/components/app-nav-data";
 
 interface Role {
   id: string;
@@ -84,13 +85,6 @@ const roles: Role[] = [
   },
 ];
 
-function getAvatarVariant(avatarUrl?: string | null): "beam" | "marble" | "pixel" {
-  if (!avatarUrl?.startsWith("avatar:")) return "beam";
-  const variant = avatarUrl.replace("avatar:", "");
-  if (variant === "beam" || variant === "marble" || variant === "pixel") return variant;
-  return "beam";
-}
-
 export default function RolesPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,10 +116,10 @@ export default function RolesPage() {
   }, []);
   const getRoleColor = (color: string) => {
     const colors: Record<string, string> = {
-      emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-      blue: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-      purple: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
-      orange: "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
+      emerald: "border border-slate-400/50 bg-slate-200/80 text-[color:var(--shell-sidebar)] dark:border-zinc-600/40 dark:bg-zinc-700/40 dark:text-zinc-300",
+      blue: "border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
+      purple: "border border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/50 dark:bg-violet-950/25 dark:text-violet-300",
+      orange: "border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/45 dark:bg-amber-950/25 dark:text-amber-300",
     };
     return colors[color] || colors.blue;
   };
@@ -136,35 +130,33 @@ export default function RolesPage() {
     name.trim().split(/\s+/).map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto">
-      <header className="space-y-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
               Usuarios y roles
             </h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Gestiona colaboradores, roles y permisos. Define quién puede hacer qué en NOU Tiendas.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link
-              href="/roles/nuevo"
-              className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Nuevo colaborador
-            </Link>
-          </div>
+          <Link
+            href="/roles/nuevo"
+            className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nuevo colaborador
+          </Link>
         </div>
       </header>
 
       {loading ? (
-        <p className="text-[14px] text-slate-500 dark:text-slate-400">Cargando usuarios…</p>
+        <div className="min-h-[280px] animate-pulse rounded-3xl bg-white dark:bg-slate-900" aria-hidden />
       ) : users.length === 0 ? (
-        <div className="rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div className="rounded-3xl bg-white px-6 py-10 text-center dark:bg-slate-900">
           <p className="text-[15px] font-medium text-slate-600 dark:text-slate-300">No hay usuarios en tu organización</p>
           <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
             El usuario con el que creaste la cuenta debería aparecer aquí. Si no ves a nadie, revisa que estés en la organización correcta.
@@ -172,18 +164,18 @@ export default function RolesPage() {
         </div>
       ) : (
         <section className="space-y-3">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {users.map((user) => {
               const userRole = getRole(user.role);
               const isActive = (user.status ?? "active") === "active";
               return (
                 <div
                   key={user.id}
-                  className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 transition-shadow hover:ring-slate-300 dark:bg-slate-900 dark:ring-slate-800 dark:hover:ring-slate-700"
+                  className="rounded-3xl bg-white px-5 py-4 transition-colors hover:bg-slate-50/80 dark:bg-slate-900 dark:hover:bg-slate-900/80"
                 >
-                  <div className="flex gap-4">
+                  <div className="flex gap-3">
                     <div className="relative shrink-0">
-                      <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-2xl font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                      <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-xl font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
                         {user.avatar_url && !user.avatar_url.startsWith("avatar:") ? (
                           <>
                             <img
@@ -202,36 +194,38 @@ export default function RolesPage() {
                             </span>
                           </>
                         ) : (
-                          <div className="flex h-24 w-24 items-center justify-center rounded-full">
-                            <Avatar
-                              size={92}
-                              name={`${user.name || user.email || user.id}-${getAvatarVariant(user.avatar_url)}`}
-                              variant={getAvatarVariant(user.avatar_url)}
-                              colors={["#FF7F50", "#FFA07A", "#FFB300", "#00BFA5", "#5C6BC0"]}
+                          <div className="flex h-14 w-14 items-center justify-center rounded-full">
+                            <WorkspaceCharacterAvatar
+                              seed={`${user.email || user.id}-${getAvatarVariant(user.avatar_url)}`}
+                              size={112}
+                              className="h-full w-full object-cover"
                             />
                           </div>
                         )}
                       </div>
                       <span
-                        className={`absolute bottom-2 right-0 h-3 w-3 -translate-y-1 -translate-x-2 rounded-full ${
-                          isActive ? "bg-emerald-500" : "bg-slate-400"
+                        className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-slate-900 ${
+                          isActive ? "bg-[color:var(--shell-sidebar)] dark:bg-zinc-300" : "bg-slate-400"
                         }`}
                         title={isActive ? "Activo" : "Inactivo"}
                       />
                     </div>
                     <div className="min-w-0 flex-1 flex flex-col justify-center text-left">
-                      <p className="text-[15px] font-bold text-slate-900 dark:text-slate-50">
-                        {user.name}
+                      <p className="truncate text-[15px] font-semibold text-slate-900 dark:text-slate-50">
+                        {user.name || user.email}
                       </p>
                       <p className="mt-0.5 truncate text-[12px] font-medium text-slate-500 dark:text-slate-400">
                         {user.email}
                       </p>
-                      <p className="mt-1.5 line-clamp-2 text-[12px] font-medium text-slate-600 dark:text-slate-400">
-                        {isActive ? "Activo" : "Inactivo"}
+                      <p className="mt-1 line-clamp-2 text-[12px] text-slate-500 dark:text-slate-400">
+                        {userRole?.description || "Sin descripción de rol."}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${isActive ? "border border-slate-300/90 bg-slate-200/70 text-[color:var(--shell-sidebar)] dark:border-zinc-600/40 dark:bg-zinc-800/55 dark:text-zinc-300" : "border border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>
+                          {isActive ? "Activo" : "Inactivo"}
+                        </span>
                         <span
-                          className={`inline-block rounded-md px-2 py-1 text-[11px] font-bold ${getRoleColor(
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${getRoleColor(
                             userRole?.color || "blue"
                           )}`}
                         >
@@ -239,7 +233,7 @@ export default function RolesPage() {
                         </span>
                         <Link
                           href={`/roles/${user.id}/editar`}
-                          className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                          className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
                           Editar
                         </Link>

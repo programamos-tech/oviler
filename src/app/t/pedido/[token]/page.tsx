@@ -102,7 +102,7 @@ function OrderStatusStepper({ status, isDelivery }: { status: string; isDelivery
                         : isPast
                           ? "border-emerald-500 bg-emerald-500 text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-500"
                           : isCurrent
-                            ? "border-sky-500 bg-sky-500/15 text-sky-600 shadow-[0_0_0_3px_rgba(14,165,233,0.2)] dark:border-sky-400 dark:bg-sky-500/20 dark:text-sky-300"
+                            ? "border-nou-500 bg-nou-500/15 text-nou-600 shadow-[0_0_0_3px_rgba(0,191,99,0.22)] dark:border-nou-400 dark:bg-nou-500/20 dark:text-nou-300"
                             : isFuture
                               ? "border-slate-200 bg-slate-50 text-slate-300 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-500"
                               : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-500"
@@ -116,7 +116,7 @@ function OrderStatusStepper({ status, isDelivery }: { status: string; isDelivery
                       cancelled
                         ? "text-slate-400 dark:text-slate-500"
                         : isCurrent
-                          ? "text-sky-600 dark:text-sky-300"
+                          ? "text-nou-600 dark:text-nou-300"
                           : isPast
                             ? "text-emerald-700 dark:text-emerald-400"
                             : "text-slate-500 dark:text-slate-400"

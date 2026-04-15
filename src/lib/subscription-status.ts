@@ -19,7 +19,7 @@ export function licenseLabel(status: string | null): string {
 export function licenseClass(status: string | null): string {
   switch (status) {
     case "trial":
-      return "font-bold text-sky-600 dark:text-sky-400";
+      return "font-bold text-nou-600 dark:text-nou-400";
     case "active":
       return "font-bold text-emerald-600 dark:text-emerald-400";
     case "suspended":
