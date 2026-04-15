@@ -10,7 +10,7 @@ import { navPathIsActive } from "./app-nav-data";
 const SHOW_BODEGA_IN_SIDEBAR = false;
 const SHOW_SUCURSALES_MODULE = true;
 const SHOW_CIERRES_MODULE = false;
-const SHOW_MI_TIENDA_WEB_MODULE = false;
+const SHOW_COMERCIAL_CATALOGO_MODULE = true;
 
 /* Iconos del panel "Más" */
 function IconGarantias() {
@@ -99,13 +99,15 @@ function IconBodega() {
     </svg>
   );
 }
-function IconCatalog() {
+function IconCatalogNav() {
   return (
-    <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18M3 12h18M3 19h18" />
-      <circle cx="7" cy="5" r="1.25" />
-      <circle cx="17" cy="12" r="1.25" />
-      <circle cx="11" cy="19" r="1.25" />
+    <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden>
+      <rect x="3.5" y="4" width="5" height="4.5" rx="1" strokeWidth={2} />
+      <path strokeWidth={2} d="M11 6h9M11 8.5h6" />
+      <rect x="3.5" y="10" width="5" height="4.5" rx="1" strokeWidth={2} />
+      <path strokeWidth={2} d="M11 12h9M11 14.5h6" />
+      <rect x="3.5" y="16" width="5" height="4.5" rx="1" strokeWidth={2} />
+      <path strokeWidth={2} d="M11 18h9M11 20.5h6" />
     </svg>
   );
 }
@@ -156,15 +158,13 @@ const masItems = [
     icon: IconActividades,
     items: [],
   },
-  ...(SHOW_MI_TIENDA_WEB_MODULE
+  ...(SHOW_COMERCIAL_CATALOGO_MODULE
     ? [
         {
-          label: "Mi tienda web",
+          label: "Catálogo",
           href: "/catalogo",
-          icon: IconCatalog,
-          items: [
-            { label: "Mi tienda web", href: "/catalogo", icon: IconList },
-          ],
+          icon: IconCatalogNav,
+          items: [{ label: "Catálogo", href: "/catalogo", icon: IconCatalogNav }],
         },
       ]
     : []),

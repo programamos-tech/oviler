@@ -309,7 +309,7 @@ export default function EditProductPage() {
                 />
               </div>
               <div>
-                <label className={labelClass}>Imagen (catálogo web)</label>
+                <label className={labelClass}>Imagen (catálogo en línea)</label>
                 {imageUrl && !productImageFile && (
                   <img src={imageUrl} alt="" className="mb-2 h-24 w-24 rounded-xl border border-slate-200 object-cover dark:border-slate-700" />
                 )}

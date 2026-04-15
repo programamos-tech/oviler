@@ -129,7 +129,7 @@ export default function ConfiguracionCatalogoPage() {
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-              Configuración del catálogo
+              Configuración · Catálogo
             </h1>
             <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Define enlace público, costo de envío y datos de pago.
@@ -167,7 +167,7 @@ export default function ConfiguracionCatalogoPage() {
               <input
                 value={catalogSlug}
                 onChange={(e) => setCatalogSlug(e.target.value)}
-                placeholder="mi-tienda"
+                placeholder="mi-comercio"
                 className={inputClass}
                 disabled={saving}
               />
@@ -180,7 +180,7 @@ export default function ConfiguracionCatalogoPage() {
             </div>
 
             <div>
-              <label className={labelClass}>Envío catálogo web (COP)</label>
+              <label className={labelClass}>Envío catálogo en línea (COP)</label>
               <input
                 type="number"
                 min={0}
@@ -203,7 +203,7 @@ export default function ConfiguracionCatalogoPage() {
 
             <div className="rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-3 dark:border-slate-800 dark:bg-slate-800/25">
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Datos de pago (catálogo web)
+                Datos de pago (catálogo en línea)
               </p>
               <div className="space-y-3">
                 <div>

@@ -14,7 +14,8 @@ import { navItems, navPathIsActive, workspaceAvatarSeed } from "./app-nav-data";
 import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
 import { OvilerWordmark } from "./OvilerWordmark";
-import { programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { bereaPlanUpgradeWhatsAppUrl, programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 
 const TOP_ICON_BTN =
@@ -354,6 +355,25 @@ export default function TopNav() {
 
         {/* Right: notificaciones y usuario (visible en mobile, tablet y desktop) */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          {orgTrial && normalizePlanType(orgTrial.plan_type ?? "") === "free" ? (
+            <a
+              href={bereaPlanUpgradeWhatsAppUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={TOP_ICON_BTN}
+              title="Adquirir plan Estándar o Pro"
+              aria-label="Adquirir plan Estándar o Pro"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9zm7 4v3m-3 0h6"
+                />
+              </svg>
+            </a>
+          ) : null}
           {user?.email?.toLowerCase() === "programamos.st@gmail.com" ? (
             <Link
               href="/interno"

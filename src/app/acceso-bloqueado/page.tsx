@@ -60,7 +60,7 @@ function AccesoBloqueadoContent() {
           Adquirir o renovar licencia
         </h2>
         <p className="mt-2 text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
-          Escribinos por WhatsApp y te ayudamos con planes Basic o Pro. Cuando acuerdes el pago, te enviaremos una{" "}
+          Escribinos por WhatsApp y te ayudamos con planes Estándar o Pro. Cuando acuerdes el pago, te enviaremos una{" "}
           <span className="font-semibold text-slate-900 dark:text-slate-100">clave de acceso</span> generada para{" "}
           <span className="font-semibold text-slate-900 dark:text-slate-100">esta cuenta</span> (tu organización en NOU): solo
           funciona con el usuario que ya pertenece a esa tienda.
@@ -119,10 +119,12 @@ function AccesoBloqueadoContent() {
 
       <ul className="mt-8 list-inside list-disc space-y-2 text-[14px] text-slate-600 dark:text-slate-400">
         <li>
-          <span className="font-semibold text-slate-800 dark:text-slate-200">Basic</span>: hasta 500 referencias, 3 usuarios; el resto sin tope práctico.
+          <span className="font-semibold text-slate-800 dark:text-slate-200">Estándar</span>: hasta 3 sucursales, 8 usuarios, 500
+          referencias; incluye catálogo en línea, créditos y actividades.
         </li>
         <li>
-          <span className="font-semibold text-slate-800 dark:text-slate-200">Pro</span>: hasta 1000 referencias, 3 sucursales, 5 usuarios.
+          <span className="font-semibold text-slate-800 dark:text-slate-200">Pro</span>: hasta 5 sucursales, 15 usuarios, 1000
+          referencias; lo mismo con más capacidad.
         </li>
       </ul>
       <p className="mt-6 text-[14px] text-slate-600 dark:text-slate-400">

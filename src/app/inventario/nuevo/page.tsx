@@ -481,7 +481,7 @@ export default function NewProductPage() {
                 />
               </div>
               <div>
-                <label className={labelClass}>Imagen (catálogo web, opcional)</label>
+                <label className={labelClass}>Imagen (catálogo en línea, opcional)</label>
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"

@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { InfoTip } from "@/app/components/InfoTip";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const DEFAULT_CONCEPTS = [
   "Pago servicios",
+  "Compra de inventario (mercancía)",
   "Compra insumos",
+  "Pago a proveedores",
   "Nómina",
   "Arriendo",
   "Servicios públicos",
@@ -16,7 +19,6 @@ const DEFAULT_CONCEPTS = [
   "Mantenimiento",
   "Publicidad",
   "Suministros de oficina",
-  "Pago a proveedores",
 ];
 const OTHER_VALUE = "__other__";
 
@@ -140,11 +142,19 @@ export default function NewExpensePage() {
         <Breadcrumb items={[{ label: "Egresos", href: "/egresos" }, { label: "Nuevo egreso" }]} />
         <div className="mt-3 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-              Nuevo egreso o gasto
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+                Nuevo egreso o gasto
+              </h1>
+              <InfoTip ariaLabel="Cómo encaja con los reportes">
+                Este egreso reduce el <strong className="font-semibold">dinero disponible</strong> (neto en caja en
+                reportes). El <strong className="font-semibold">margen bruto</strong> se calcula al vender usando el{" "}
+                <strong className="font-semibold">costo del producto</strong> en el catálogo: conviene actualizarlo cuando
+                compras mercancía para que ambos números reflejen la misma realidad.
+              </InfoTip>
+            </div>
             <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Registra una salida de dinero: pago a proveedor, gasto operativo, etc.
+              Registra una salida de dinero (efectivo o transferencia).
             </p>
           </div>
           <Link

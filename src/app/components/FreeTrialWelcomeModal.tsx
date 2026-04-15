@@ -62,7 +62,7 @@ export default function FreeTrialWelcomeModal({ open, trialEndsAt, onClose }: Pr
             </h2>
             <p className="mt-2 text-[14px] leading-relaxed text-slate-600 dark:text-slate-400">
               Te quedan <span className="font-semibold text-slate-900 dark:text-slate-100">{remaining}</span> para usar la
-              plataforma en modo prueba (15 días, límites reducidos). Para pasar a Basic o Pro, escríbenos por WhatsApp.
+              plataforma en modo prueba (15 días, límites Lite). Para pasar a Estándar o Pro, escríbenos por WhatsApp.
             </p>
             <a
               href={PROGRAMAMOS_WA_LICENSE}

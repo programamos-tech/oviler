@@ -204,7 +204,7 @@ export default function InternoPage() {
               >
                 <option value="all">Todos</option>
                 <option value="free">Prueba</option>
-                <option value="basic">Basic</option>
+                <option value="basic">Estándar</option>
                 <option value="pro">Pro</option>
               </select>
             </div>

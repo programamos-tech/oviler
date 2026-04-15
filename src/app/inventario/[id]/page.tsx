@@ -311,7 +311,7 @@ export default function ProductDetailPage() {
           </div>
           <div className="rounded-2xl border border-slate-400/40 bg-slate-200/70 px-4 py-4 dark:border-zinc-600/40 dark:bg-zinc-800/55">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--shell-sidebar)] dark:text-zinc-300">
-              Ganancia bruta estimada
+              Margen bruto estimado
             </p>
             <p className="mt-1 text-xl font-semibold text-[color:var(--shell-sidebar)] dark:text-zinc-300 sm:text-2xl">
               $ {formatMoney(gananciaBrutaEstimada)}

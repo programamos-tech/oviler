@@ -384,7 +384,7 @@ export default function OnboardingPage() {
                     <p className="mt-2 text-[13px] leading-relaxed text-zinc-300">
                       Tu cuenta arranca en modo prueba con límites reducidos. Te quedan{" "}
                       <span className="font-bold tabular-nums text-zinc-50">{trialRemainingLabel(trialEndsAt)}</span> para
-                      explorar Berea Comercios. Para pasar a Basic o Pro, escribe a{" "}
+                      explorar Berea Comercios. Para pasar a Estándar o Pro, escribe a{" "}
                       <a
                         href={PROGRAMAMOS_WA_LICENSE}
                         target="_blank"

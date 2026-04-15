@@ -8,7 +8,7 @@ export function programamosWhatsAppUrl(prefill: string): string {
 
 export const PROGRAMAMOS_WA_LICENSE =
   programamosWhatsAppUrl(
-    "Hola programamos, escribo desde Berea Comercios para adquirir o renovar la licencia de mi tienda."
+    "Hola programamos, escribo desde Berea Comercios para adquirir o renovar la licencia (catálogo en línea y demás módulos)."
   );
 
 /** Licencia comercial — contacto directo (WhatsApp y llamada). */
@@ -24,4 +24,11 @@ export function commercialLicenseWhatsAppUrl(
 
 export function commercialLicenseWhatsAppPrefill(planLabelForUser: string): string {
   return `Hola, quiero información sobre la licencia comercial de Berea Comercios. Mi plan actual: ${planLabelForUser}.`;
+}
+
+/** WhatsApp programamos: pasar de Lite a Estándar / Pro (precio por definir). */
+export function bereaPlanUpgradeWhatsAppUrl(): string {
+  return programamosWhatsAppUrl(
+    "Hola programamos, uso Berea Comercios con licencia Lite y quiero pasar a plan Estándar o Pro. ¿Me comparten opciones y precios?"
+  );
 }

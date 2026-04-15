@@ -6,6 +6,7 @@ import { programamosWhatsAppUrl } from "@/lib/programamos-contact";
 import DatePickerCard from "@/app/components/DatePickerCard";
 import { creditRowPending } from "@/app/creditos/credit-ui";
 import { cashTransferFromLine, addCreditPaymentSplits as addCreditPaymentsToCashTransfer } from "@/lib/cash-transfer-from-line";
+import { InfoTip } from "@/app/components/InfoTip";
 import {
   MdOutlineAttachMoney,
   MdOutlineTrendingDown,
@@ -231,6 +232,7 @@ function DashboardHeroMetric({
   showDelta,
   hideSensitive,
   icon,
+  infoTip,
 }: {
   label: string;
   valueStr: string;
@@ -239,6 +241,7 @@ function DashboardHeroMetric({
   showDelta: boolean;
   hideSensitive: boolean;
   icon: ReactNode;
+  infoTip?: ReactNode;
 }) {
   return (
     <div className="flex min-w-0 items-center gap-3.5">
@@ -248,7 +251,12 @@ function DashboardHeroMetric({
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">{label}</p>
+        <div className="flex min-w-0 items-start gap-1">
+          <p className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+            {label}
+          </p>
+          {infoTip ? <InfoTip ariaLabel={`${label}: más información`}>{infoTip}</InfoTip> : null}
+        </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
           <span className="text-xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
             {valueStr}
@@ -283,13 +291,13 @@ function DashboardKpiCard({
   icon,
   label,
   value,
-  hint,
+  infoTip,
   valueClassName = "text-lg sm:text-xl",
 }: {
   icon: ReactNode;
   label: string;
   value: ReactNode;
-  hint: ReactNode;
+  infoTip?: ReactNode;
   valueClassName?: string;
 }) {
   return (
@@ -300,13 +308,17 @@ function DashboardKpiCard({
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">{label}</p>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+            {label}
+          </p>
+          {infoTip ? <InfoTip ariaLabel={`${label}: más información`}>{infoTip}</InfoTip> : null}
+        </div>
         <p
           className={`mt-1.5 font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 ${valueClassName}`}
         >
           {value}
         </p>
-        <p className="mt-1 text-[12px] font-medium leading-snug text-slate-500 dark:text-slate-400">{hint}</p>
       </div>
     </div>
   );
@@ -1179,7 +1191,7 @@ export default function DashboardPage() {
               </span>
             </div>
             <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Resumen de ventas e ingresos de tu sucursal.
+              Ventas y caja por sucursal y período.
             </p>
           </div>
           <div className="w-full lg:overflow-x-auto">
@@ -1287,18 +1299,31 @@ export default function DashboardPage() {
         <>
           <div className="space-y-8">
             <div className="rounded-3xl bg-white px-5 py-7 sm:px-8 sm:py-9 dark:bg-slate-900">
-              <p className="mb-6 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Resumen del período
-              </p>
+              <div className="mb-6 flex flex-wrap items-center gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Resumen del período
+                </p>
+                <InfoTip ariaLabel="Qué muestra el resumen del período">
+                  Aquí ves el <strong className="font-semibold">dinero en caja</strong> del período (cobros y abonos, menos
+                  egresos) y, aparte, el <strong className="font-semibold">margen bruto</strong> según el costo cargado en
+                  cada producto. Son dos lecturas distintas a un balance contable formal.
+                </InfoTip>
+              </div>
               <div className="grid grid-cols-1 gap-8 sm:gap-10 lg:grid-cols-3">
                 <DashboardHeroMetric
-                  label="Ingreso neto del período"
+                  label="Neto en caja del período"
                   valueStr={formatSensitiveValue(data.totalIncome)}
                   numericValue={data.totalIncome}
                   prevNumeric={data.prevPeriodNetTotal}
                   showDelta={showHeroDeltas}
                   hideSensitive={hideSensitiveInfo}
                   icon={<MdOutlineAttachMoney aria-hidden />}
+                  infoTip={
+                    <>
+                      Cobros de ventas y abonos a crédito del período, menos todos los egresos registrados. Es el dinero
+                      disponible entre efectivo y transferencia.
+                    </>
+                  }
                 />
                 <DashboardHeroMetric
                   label="Efectivo (neto)"
@@ -1308,6 +1333,9 @@ export default function DashboardPage() {
                   showDelta={showHeroDeltas}
                   hideSensitive={hideSensitiveInfo}
                   icon={<MdOutlinePayments aria-hidden />}
+                  infoTip={
+                    <>Ingresos en efectivo del período menos egresos que pagaste en efectivo.</>
+                  }
                 />
                 <DashboardHeroMetric
                   label="Transferencia (neto)"
@@ -1317,6 +1345,9 @@ export default function DashboardPage() {
                   showDelta={showHeroDeltas}
                   hideSensitive={hideSensitiveInfo}
                   icon={<MdOutlineAccountBalance aria-hidden />}
+                  infoTip={
+                    <>Ingresos por transferencia del período menos egresos pagados por transferencia.</>
+                  }
                 />
               </div>
 
@@ -1327,7 +1358,12 @@ export default function DashboardPage() {
                 icon={<MdOutlineTrendingDown aria-hidden title="Salidas de dinero del período" />}
                 label="Egresos"
                 value={formatSensitiveValue(totalExpensesDay)}
-                hint="Salidas registradas en caja"
+                infoTip={
+                  <>
+                    Dinero que registraste como salida: compras, gastos operativos, pago a proveedores, compra de mercancía,
+                    etc. Reduce el neto en caja del período.
+                  </>
+                }
               />
               <DashboardKpiCard
                 icon={<MdOutlineCancel aria-hidden title="Facturas canceladas en el período" />}
@@ -1337,13 +1373,18 @@ export default function DashboardPage() {
                     ? `${data.cancelledInvoices} (${formatSensitiveValue(data.cancelledTotal)})`
                     : "0"
                 }
-                hint="Cantidad y monto anulado"
+                infoTip={<>Cantidad de facturas canceladas en el período y suma de sus montos.</>}
               />
               <DashboardKpiCard
                 icon={<MdOutlineVerifiedUser aria-hidden title="Garantías creadas en el período" />}
                 label="Garantías"
                 value={formatSensitiveValue(data.warrantiesCount, "number")}
-                hint={<>Devoluciones: {formatSensitiveValue(data.warrantiesRefundAmount)}</>}
+                infoTip={
+                  <>
+                    Garantías creadas en el período. Devoluciones: monto reembolsado asociado (
+                    {formatSensitiveValue(data.warrantiesRefundAmount)}).
+                  </>
+                }
               />
             </DashboardReportSection>
 
@@ -1354,25 +1395,40 @@ export default function DashboardPage() {
                 icon={<MdOutlineInventory2 aria-hidden title="Inventario valorizado a costo" />}
                 label="Stock total"
                 value={formatSensitiveValue(data.totalStockInvestment)}
-                hint="Valorizado (costo)"
+                infoTip={
+                  <>
+                    Cantidad en bodega × costo del producto en el catálogo. No usa la tabla de egresos: es el valor del
+                    inventario al costo cargado en cada producto.
+                  </>
+                }
               />
               <DashboardKpiCard
-                icon={<MdOutlineShowChart aria-hidden title="Margen precio de venta − costo del período" />}
-                label="Ganancia bruta"
+                icon={<MdOutlineShowChart aria-hidden title="Margen: precio de venta menos costo del producto" />}
+                label="Margen bruto"
                 value={formatSensitiveValue(data.grossProfit)}
-                hint="Cobros del período vs costo"
+                infoTip={
+                  <>
+                    Suma de (precio de venta − costo del producto) × cantidad en líneas de ventas cobradas. Conviene tener el
+                    costo actualizado en el catálogo para que refleje la realidad.
+                  </>
+                }
               />
               <DashboardKpiCard
-                icon={<MdOutlineSavings aria-hidden title="Ingreso neto del período" />}
-                label="Ganancia neta"
+                icon={<MdOutlineSavings aria-hidden title="Mismo neto en caja que el bloque superior" />}
+                label="Resultado en caja"
                 value={formatSensitiveValue(data.netProfit)}
-                hint="Ingresos cobrados − egresos"
+                infoTip={
+                  <>
+                    Cobros más abonos, menos egresos del período. Coincide con «Neto en caja del período» en el bloque
+                    superior.
+                  </>
+                }
               />
               <DashboardKpiCard
                 icon={<MdOutlineCreditCard aria-hidden title="Saldo pendiente en créditos a clientes" />}
                 label="Créditos"
                 value={formatSensitiveValue(data.outstandingCredits)}
-                hint="Saldo por cobrar"
+                infoTip={<>Saldo pendiente por cobrar en ventas a crédito (esta sucursal).</>}
               />
             </DashboardReportSection>
             </div>

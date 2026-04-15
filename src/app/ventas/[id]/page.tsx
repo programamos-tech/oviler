@@ -95,7 +95,7 @@ type SaleDetail = {
   delivery_paid: boolean;
   created_at: string;
   channel?: string | null;
-  /** Token público para /t/pedido/{token} (pedidos catálogo web). */
+  /** Token público para /t/pedido/{token} (pedidos catálogo en línea). */
   public_tracking_token?: string | null;
   payment_proof_url?: string | null;
   cancellation_reason?: string | null;
@@ -1157,7 +1157,7 @@ export default function SaleDetailPage() {
             {sale.channel === "web_catalog" && (
               <div className="mt-2 space-y-3">
                 <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[12px] font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
-                  Pedido · catálogo web
+                  Pedido · catálogo en línea
                 </span>
                 {sale.public_tracking_token && (
                   <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/50">

@@ -495,7 +495,7 @@ function ConfigurarSucursalContent() {
           {showAdvancedSettings && (
           <div className={cardClass}>
             <p className={sectionTitleClass}>
-              Catálogo web público
+              Catálogo en línea (público)
             </p>
             <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">
               Tus clientes pueden ver productos y crear pedidos desde un enlace con el estilo NOU. Los pedidos aparecen en Pedidos como transferencia pendiente.
@@ -529,7 +529,7 @@ function ConfigurarSucursalContent() {
               )}
             </div>
             <div className="mt-4">
-              <label className={labelClass}>Envío catálogo web (COP)</label>
+              <label className={labelClass}>Envío catálogo en línea (COP)</label>
               <input
                 type="number"
                 min={0}
@@ -553,7 +553,7 @@ function ConfigurarSucursalContent() {
               </p>
             </div>
             <p className={`mt-4 ${sectionTitleClass}`}>
-              Datos de pago (catálogo web)
+              Datos de pago (catálogo en línea)
             </p>
             <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">
               Se muestran al cliente después de confirmar el pedido para transferir.

@@ -4,7 +4,8 @@ const iconClass = "h-5 w-5 shrink-0";
 const SHOW_BODEGA_IN_SIDEBAR = false;
 const SHOW_SUCURSALES_MODULE = true;
 const SHOW_CIERRES_MODULE = false;
-const SHOW_MI_TIENDA_WEB_MODULE = false;
+/** Catálogo en línea (/catalogo): siempre visible; el acceso funcional depende del plan (Lite bloqueado en pantalla). */
+const SHOW_COMERCIAL_CATALOGO_MODULE = true;
 
 function NavIconHome() {
   return (
@@ -142,13 +143,16 @@ function IconCredits() {
     </svg>
   );
 }
-function IconCatalog() {
+/** Lista con miniatura + líneas (catálogo de referencias / vitrina). */
+function IconCatalogNav() {
   return (
-    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18M3 12h18M3 19h18" />
-      <circle cx="7" cy="5" r="1.25" />
-      <circle cx="17" cy="12" r="1.25" />
-      <circle cx="11" cy="19" r="1.25" />
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden>
+      <rect x="3.5" y="4" width="5" height="4.5" rx="1" strokeWidth={2} />
+      <path strokeWidth={2} d="M11 6h9M11 8.5h6" />
+      <rect x="3.5" y="10" width="5" height="4.5" rx="1" strokeWidth={2} />
+      <path strokeWidth={2} d="M11 12h9M11 14.5h6" />
+      <rect x="3.5" y="16" width="5" height="4.5" rx="1" strokeWidth={2} />
+      <path strokeWidth={2} d="M11 18h9M11 20.5h6" />
     </svg>
   );
 }
@@ -165,6 +169,16 @@ export const navItems: NavItem[] = [
       { label: "Clientes", href: "/clientes", icon: <NavIconUsers />, description: "Directorio de clientes" },
       { label: "Garantías", href: "/garantias", icon: <NavIconShield />, description: "Garantías y devoluciones" },
       { label: "Créditos", href: "/creditos", icon: <IconCredits />, description: "Créditos y cobros a clientes" },
+      ...(SHOW_COMERCIAL_CATALOGO_MODULE
+        ? [
+            {
+              label: "Catálogo",
+              href: "/catalogo",
+              icon: <IconCatalogNav />,
+              description: "Vista, enlace y configuración del catálogo en línea",
+            },
+          ]
+        : []),
       ...(SHOW_CIERRES_MODULE
         ? [{ label: "Cierres", href: "/cierre-caja", icon: <IconList />, description: "Cierres de caja" }]
         : []),
@@ -184,18 +198,6 @@ export const navItems: NavItem[] = [
       { label: "Egresos", href: "/egresos", icon: <IconEgresos />, description: "Gastos y salidas de efectivo" },
     ],
   },
-  ...(SHOW_MI_TIENDA_WEB_MODULE
-    ? [
-        {
-          label: "MI TIENDA WEB",
-          href: "/catalogo",
-          icon: <IconCatalog />,
-          items: [
-            { label: "Mi tienda web", href: "/catalogo", icon: <IconList />, description: "Vista, enlace y configuración del catálogo" },
-          ],
-        },
-      ]
-    : []),
   ...(SHOW_SUCURSALES_MODULE
     ? [
         {

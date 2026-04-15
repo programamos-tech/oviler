@@ -178,7 +178,8 @@ export function canAccessNavModule(
       canAccessPath(role, "/garantias", customPermissions) ||
       canAccessPath(role, "/creditos", customPermissions) ||
       canAccessPath(role, "/cierre-caja", customPermissions) ||
-      canAccessPath(role, "/dashboard", customPermissions)
+      canAccessPath(role, "/dashboard", customPermissions) ||
+      canAccessPath(role, "/catalogo", customPermissions)
     );
   }
   if (label === "OPERACIÓN" || label === "OPERACION") {
@@ -189,13 +190,6 @@ export function canAccessNavModule(
       canAccessPath(role, "/actividades", customPermissions) ||
       canAccessPath(role, "/egresos", customPermissions)
     );
-  }
-  if (
-    label === "CATÁLOGO" ||
-    label === "CATALOGO" ||
-    label === "MI TIENDA WEB"
-  ) {
-    return canAccessPath(role, "/catalogo", customPermissions);
   }
   if (label === "CONFIGURACIÓN" || label === "CONFIGURACION") {
     return (

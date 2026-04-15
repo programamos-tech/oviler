@@ -74,7 +74,7 @@ const FEATURES: Feature[] = [
   {
     title: "Ventas y facturación",
     description:
-      "Facturas en mostrador, pedidos con envío y ventas desde catálogo web. Estados, pagos mixtos y seguimiento en un solo lugar.",
+      "Facturas en mostrador, pedidos con envío y ventas desde el catálogo en línea. Estados, pagos mixtos y seguimiento en un solo lugar.",
     icon: <IconCart />,
   },
   {

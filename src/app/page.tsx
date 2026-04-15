@@ -104,7 +104,7 @@ export default function LandingPage() {
                   </Link>
                 </div>
                 <p className="mt-4 text-[12px] leading-relaxed text-zinc-500">
-                  Modo prueba con límites reducidos. Licencia Basic o Pro con el equipo Berea por WhatsApp cuando la necesites.
+                  Modo prueba con límites reducidos. Plan Estándar o Pro con el equipo Berea por WhatsApp cuando lo necesites.
                 </p>
               </div>
 

@@ -76,7 +76,7 @@ const PAYMENT_FILTER_OPTIONS: { value: PaymentFilter; label: string }[] = [
 const CHANNEL_FILTER_OPTIONS: { value: ChannelFilter; label: string }[] = [
   { value: "all", label: "Todos" },
   { value: "pos", label: "Mostrador / POS" },
-  { value: "web_catalog", label: "Catálogo web" },
+  { value: "web_catalog", label: "Catálogo" },
 ];
 
 export default function SalesPage() {
@@ -326,7 +326,7 @@ export default function SalesPage() {
     const creditIconClass = "h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300";
 
     const channelLabel = isWeb
-      ? "Catálogo web"
+      ? "Catálogo"
       : creditPending && !isWeb
         ? sale.is_delivery
           ? "Pedido a crédito"

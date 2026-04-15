@@ -155,7 +155,7 @@ export default function CatalogoPage() {
             href="/catalogo/configuracion"
             className="inline-flex h-9 items-center rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
           >
-            Configurar mi tienda web
+            Configurar catálogo
           </Link>
         </div>
       </header>
@@ -202,7 +202,7 @@ export default function CatalogoPage() {
                       rel="noreferrer"
                       className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
-                      Abrir tienda
+                      Abrir catálogo
                     </a>
                   </div>
                 </div>
@@ -215,12 +215,12 @@ export default function CatalogoPage() {
 
           <section className="rounded-3xl bg-white px-4 py-4 dark:bg-slate-900 sm:px-6 sm:py-6">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-[14px] font-semibold text-slate-900 dark:text-slate-50">Ventas realizadas en mi tienda web</h2>
+              <h2 className="text-[14px] font-semibold text-slate-900 dark:text-slate-50">Ventas del catálogo en línea</h2>
               <Link
                 href="/catalogo/configuracion"
                 className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
-                Configurar mi tienda web
+                Configurar catálogo
               </Link>
             </div>
 
@@ -264,7 +264,7 @@ export default function CatalogoPage() {
 
             {webSales.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5 text-[13px] text-slate-600 dark:border-slate-700 dark:bg-slate-800/25 dark:text-slate-300">
-                Aún no hay ventas registradas desde la tienda web.
+                Aún no hay ventas registradas en el catálogo en línea.
               </div>
             ) : null}
 

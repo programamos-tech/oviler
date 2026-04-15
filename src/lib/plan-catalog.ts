@@ -1,6 +1,6 @@
 /**
- * Membresías NOU: precios COP/año y límites (referencias = filas en `products`).
- * Ajusta `pro.annualPriceCop` si cambia la tarifa Pro.
+ * Membresías Berea Comercios (IDs en BD: `free` = Lite, `basic` = Estándar, `pro` = Pro).
+ * Precios anuales: `null` = por definir comercialmente.
  */
 
 export type PlanId = "free" | "basic" | "pro";
@@ -14,7 +14,7 @@ export const PLAN_CATALOG: Record<
     shortLabel: string;
     /** Texto para UI interna / marketing */
     blurb: string;
-    /** COP/año; null en prueba */
+    /** COP/año; null = sin cargo (Lite en prueba) o precio por definir */
     annualPriceCop: number | null;
     maxProducts: number;
     maxUsers: number;
@@ -24,9 +24,9 @@ export const PLAN_CATALOG: Record<
   }
 > = {
   free: {
-    label: "Prueba (15 días)",
-    shortLabel: "Prueba",
-    blurb: "50 referencias, 1 usuario, 1 sucursal; clientes y ventas sin tope práctico.",
+    label: "Lite (prueba 15 días)",
+    shortLabel: "Lite",
+    blurb: "1 sucursal, 1 usuario, hasta 50 referencias. Sin catálogo en línea, créditos ni actividades. Luego aplica plan de pago.",
     annualPriceCop: null,
     maxProducts: 50,
     maxUsers: 1,
@@ -34,23 +34,23 @@ export const PLAN_CATALOG: Record<
     trialDays: 15,
   },
   basic: {
-    label: "Basic",
-    shortLabel: "Basic",
-    blurb: "Hasta 500 referencias y 3 usuarios; sucursales y CRM sin tope práctico.",
-    annualPriceCop: 1_200_000,
+    label: "Estándar",
+    shortLabel: "Estándar",
+    blurb: "Hasta 3 sucursales, 8 usuarios, 500 referencias. Incluye catálogo en línea, créditos a clientes y actividades.",
+    annualPriceCop: null,
     maxProducts: 500,
-    maxUsers: 3,
-    maxBranches: 999999,
+    maxUsers: 8,
+    maxBranches: 3,
     trialDays: null,
   },
   pro: {
     label: "Pro",
     shortLabel: "Pro",
-    blurb: "Hasta 1000 referencias, 3 sucursales y 5 usuarios.",
-    annualPriceCop: 2_400_000,
+    blurb: "Hasta 5 sucursales, 15 usuarios, 1000 referencias. Todo lo del plan Estándar con más capacidad.",
+    annualPriceCop: null,
     maxProducts: 1000,
-    maxUsers: 5,
-    maxBranches: 3,
+    maxUsers: 15,
+    maxBranches: 5,
     trialDays: null,
   },
 };
@@ -76,7 +76,10 @@ export function formatCop(n: number): string {
 
 export function planPriceLabel(plan: PlanId): string {
   const p = PLAN_CATALOG[plan].annualPriceCop;
-  if (p == null) return "Sin cargo (período de prueba)";
+  if (p == null) {
+    if (plan === "free") return "Sin cargo (período de prueba)";
+    return "Precio por definir";
+  }
   return `${formatCop(p)} / año`;
 }
 

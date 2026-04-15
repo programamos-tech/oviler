@@ -8,7 +8,8 @@ import Notifications from "./Notifications";
 import { workspaceAvatarSeed } from "./app-nav-data";
 import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { type OrgTrialFields, isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
-import { programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { bereaPlanUpgradeWhatsAppUrl, programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
 import { workspaceFilterSearchPillClass } from "@/lib/workspace-field-classes";
@@ -135,6 +136,26 @@ export default function AppDesktopHeader() {
                 </span>
               </span>
             </div>
+          ) : null}
+
+          {orgTrial && normalizePlanType(orgTrial.plan_type ?? "") === "free" ? (
+            <a
+              href={bereaPlanUpgradeWhatsAppUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={iconBtn}
+              title="Adquirir plan Estándar o Pro"
+              aria-label="Adquirir plan Estándar o Pro"
+            >
+              <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9zm7 4v3m-3 0h6"
+                />
+              </svg>
+            </a>
           ) : null}
 
           <Link

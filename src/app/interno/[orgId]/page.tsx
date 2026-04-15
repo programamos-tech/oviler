@@ -542,7 +542,7 @@ export default function InternoClienteDetailPage() {
           <p className="min-w-0 text-[12px] leading-relaxed text-slate-600 dark:text-slate-400">
             <span className="font-medium text-slate-700 dark:text-slate-300">Prueba gratis</span> = cuenta en trial;{" "}
             <span className="font-medium text-slate-700 dark:text-slate-300">Activa</span> = ya ingresó la clave, pagó (cobro al
-            día) o tiene plan Basic/Pro. Las acciones afectan a todos los usuarios de la organización.
+            día) o tiene plan Estándar/Pro. Las acciones afectan a todos los usuarios de la organización.
           </p>
         </div>
 
@@ -670,8 +670,8 @@ export default function InternoClienteDetailPage() {
               </div>
 
               <p className="mt-4 text-[11px] leading-relaxed text-slate-500 dark:text-slate-500">
-                <span className="font-medium text-slate-600 dark:text-slate-400">Referencia rápida:</span> Prueba — 15 días, 50
-                ref., 1 usuario, 1 suc. · Basic — {planPriceLabel("basic")} · Pro — {planPriceLabel("pro")}.
+                <span className="font-medium text-slate-600 dark:text-slate-400">Referencia rápida:</span> Lite — 15 días, 50
+                ref., 1 usuario, 1 suc. · Estándar — {planPriceLabel("basic")} · Pro — {planPriceLabel("pro")}.
               </p>
 
               <div className="mt-4 grid flex-1 gap-4 sm:grid-cols-2">
@@ -682,8 +682,8 @@ export default function InternoClienteDetailPage() {
                     onChange={(e) => setPlanDraft(e.target.value as PlanId)}
                     className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50/80 px-3 text-[13px] font-medium text-slate-900 outline-none transition-colors focus:border-ov-pink/50 focus:ring-2 focus:ring-ov-pink/25 dark:border-slate-600 dark:bg-slate-950/80 dark:text-slate-100"
                   >
-                    <option value="free">Prueba (15 días)</option>
-                    <option value="basic">Basic</option>
+                    <option value="free">Lite (prueba 15 días)</option>
+                    <option value="basic">Estándar</option>
                     <option value="pro">Pro</option>
                   </select>
                 </label>
