@@ -9,6 +9,7 @@ import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissio
 import type { ReactNode } from "react";
 import { navItems, navPathIsActive, type NavItem } from "./app-nav-data";
 import { OvilerWordmark } from "./OvilerWordmark";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 
 const SIDEBAR_COLLAPSED_KEY = "nou.sidebar.collapsedSections";
 
@@ -35,7 +36,7 @@ function writeCollapsedToStorage(set: Set<string>) {
 
 export default function AppSidebar() {
   const pathname = usePathname();
-  const supabase = createClient();
+  const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
   const [user, setUser] = useState<{
     name: string;
     email: string;
@@ -46,6 +47,7 @@ export default function AppSidebar() {
 
   useEffect(() => {
     (async () => {
+      const supabase = createClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return;
       const { data: userData } = await supabase
@@ -55,18 +57,19 @@ export default function AppSidebar() {
         .single();
       if (userData) setUser(userData as typeof user);
     })();
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
-    (async () => {
+    const loadBranch = async () => {
+      const supabase = createClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return;
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", authUser.id).limit(1).single();
-      if (!ub?.branch_id) return;
+      const resolvedBranchId = await resolveActiveBranchId(supabase, authUser.id);
+      if (!resolvedBranchId) return;
       const { data: branchData } = await supabase
         .from("branches")
         .select("name, logo_url, show_expenses, sales_mode")
-        .eq("id", ub.branch_id)
+        .eq("id", resolvedBranchId)
         .single();
       if (branchData) {
         setBranch({
@@ -76,12 +79,24 @@ export default function AppSidebar() {
           sales_mode: (branchData as { sales_mode?: string }).sales_mode,
         });
       }
-    })();
-  }, [supabase]);
+    };
+    const handleBranchChange = () => {
+      void loadBranch();
+    };
+    void loadBranch();
+    if (typeof window !== "undefined") {
+      window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
+      }
+    };
+  }, [pathname]);
 
   const role = (user?.role ?? null) as AppRole | null;
   const customPermissions = user?.permissions ?? null;
-  const displayNavItems = navItems
+  const appNavItems = navItems
     .filter((item) => canAccessNavModule(role, item.label, customPermissions))
     .map((item) => ({
       ...item,
@@ -91,6 +106,30 @@ export default function AppSidebar() {
       }),
     }))
     .filter((item) => (item.items?.length ?? 0) > 0);
+  const internalNavItems: NavItem[] = [
+    {
+      label: "BACKOFFICE",
+      href: "/interno",
+      icon: (
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      ),
+      items: [
+        {
+          label: "Clientes plataforma",
+          href: "/interno",
+          icon: (
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
+            </svg>
+          ),
+          description: "Activación y gestión de licencias",
+        },
+      ],
+    },
+  ];
+  const displayNavItems = isInterno ? internalNavItems : appNavItems;
 
   const [collapsedModules, setCollapsedModules] = useState<Set<string>>(() => new Set());
   const [collapsedReady, setCollapsedReady] = useState(false);
@@ -223,49 +262,47 @@ export default function AppSidebar() {
         <div className="shrink-0 border-b border-slate-800/80 px-3 py-3.5">
           <Link
             href="/dashboard"
-            className={
-              branch
-                ? "mx-auto flex w-full max-w-full min-w-0 items-center justify-center gap-3.5 rounded-xl px-2 py-2 outline-offset-2 transition-colors hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35 sm:gap-4"
-                : "mx-auto flex w-full items-center justify-center rounded-xl px-2 py-2 outline-offset-2 transition-colors hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35"
-            }
-            title={branch ? `Berea Comercios · ${branch.name}` : "Berea Comercios"}
+            className="mx-auto flex w-full items-center justify-center rounded-xl px-2 py-2 outline-offset-2 transition-colors hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35"
+            title={isInterno ? "Bernabé BackOffice" : "Bernabé Comercios"}
           >
             <span className="min-w-0 shrink-0">
               <OvilerWordmark
                 variant="onDark"
-                className="text-[1.2rem] leading-none sm:text-[1.38rem] lg:text-[1.52rem]"
+                companyName="Bernabé"
+                productLine={isInterno ? "BackOffice" : "Comercios"}
+                className="text-[1.2rem] font-bold leading-none sm:text-[1.38rem] lg:text-[1.52rem]"
               />
             </span>
-            {branch ? (
-              <>
-                <span
-                  className="h-10 w-px shrink-0 rounded-full bg-white/20 sm:h-11"
-                  aria-hidden
-                />
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-white/[0.06] shadow-none sm:h-11 sm:w-11">
-                  {branch.logo_url ? (
-                    <img
-                      src={branch.logo_url}
-                      alt=""
-                      width={44}
-                      height={44}
-                      className="h-full w-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <span className="text-[14px] font-bold text-white/75 sm:text-[15px]">
-                      {(branch.name || "?").slice(0, 1).toUpperCase()}
-                    </span>
-                  )}
-                </div>
-              </>
-            ) : null}
           </Link>
         </div>
 
         <nav
           className="sidebar-nav-scroll min-h-0 flex-1 overflow-y-auto px-1 py-2 [scrollbar-color:rgba(255,255,255,0.18)_transparent] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/[0.16] [&::-webkit-scrollbar-thumb:hover]:bg-white/[0.26]"
         >
+          {!isInterno && branch ? (
+            <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/15 bg-white/[0.06]">
+                {branch.logo_url ? (
+                  <img
+                    src={branch.logo_url}
+                    alt=""
+                    width={32}
+                    height={32}
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="text-[12px] font-bold text-white/75">
+                    {(branch.name || "?").slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Negocio</p>
+                <p className="truncate text-[12px] font-medium text-white/85">{branch.name}</p>
+              </div>
+            </div>
+          ) : null}
           <div className="space-y-0">{displayNavItems.map((item, idx) => moduleBlock(item, idx > 0))}</div>
         </nav>
       </div>

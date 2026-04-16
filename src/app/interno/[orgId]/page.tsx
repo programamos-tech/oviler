@@ -14,6 +14,11 @@ import {
   MdWorkspacePremium,
 } from "react-icons/md";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
+import {
+  workspaceFilterSelectClass,
+  workspaceFormInputClass,
+} from "@/lib/workspace-field-classes";
 import { formatLastSeenLabel, isUserOnline, ONLINE_WINDOW_MS } from "@/lib/presence";
 import DatePickerCard from "@/app/components/DatePickerCard";
 import {
@@ -84,6 +89,15 @@ const PLAN_CLASS: Record<string, string> = {
   basic: "font-semibold text-slate-800 dark:text-slate-100",
   pro: "font-semibold text-violet-600 dark:text-violet-400",
 };
+
+const internalInputClass = workspaceFormInputClass;
+const internalSelectClass = workspaceFilterSelectClass;
+const internalTextareaClass =
+  "resize-y rounded-xl border border-slate-200 bg-slate-50/90 px-3 py-2.5 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none transition-[border-color,background-color,box-shadow] " +
+  "focus:border-slate-900/25 focus:bg-white focus:ring-2 focus:ring-slate-900/10 " +
+  "dark:border-zinc-700/50 dark:bg-zinc-950/60 dark:text-zinc-100 dark:[color-scheme:dark] dark:placeholder:text-zinc-500 " +
+  "dark:focus:border-zinc-500 dark:focus:bg-zinc-900 dark:focus:ring-0 dark:focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] " +
+  "dark:focus-visible:ring-1 dark:focus-visible:ring-zinc-500/30 dark:focus-visible:ring-offset-0 dark:focus-visible:ring-offset-transparent";
 
 function planLabel(p: string) {
   return PLAN_CATALOG[normalizePlanType(p)].label;
@@ -371,20 +385,28 @@ export default function InternoClienteDetailPage() {
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
         <Breadcrumb
           items={[
-            { label: "Clientes NOU", href: "/interno" },
+            { label: "Bernabé backOffice", href: "/interno" },
             { label: breadcrumbTitle },
           ]}
         />
         <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <MdDomain className="h-6 w-6 shrink-0 text-ov-pink dark:text-ov-pink-muted" aria-hidden />
-              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
-                {organization.name}
-              </h1>
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                <WorkspaceCharacterAvatar
+                  seed={`${organization.name}-${organization.id}-org`}
+                  size={88}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="min-w-0">
+                <h1 className="truncate text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+                  {organization.name}
+                </h1>
+                <p className="mt-0.5 font-mono text-[11px] text-slate-500 dark:text-slate-500">ID: {organization.id}</p>
+              </div>
             </div>
-            <p className="mt-1 font-mono text-[11px] text-slate-500 dark:text-slate-500">ID: {organization.id}</p>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-slate-500 dark:text-slate-400 sm:text-[13px]">
+            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-slate-500 dark:text-slate-400 sm:text-[13px]">
               <span className="inline-flex items-center gap-1">
                 <MdSchedule className="h-4 w-4 shrink-0" aria-hidden />
                 {formatDate(organization.created_at)} · {formatTime(organization.created_at)}
@@ -406,7 +428,7 @@ export default function InternoClienteDetailPage() {
             <Link
               href="/interno"
               className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              title="Volver a clientes NOU"
+              title="Volver a Bernabé backOffice"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -680,7 +702,7 @@ export default function InternoClienteDetailPage() {
                   <select
                     value={planDraft}
                     onChange={(e) => setPlanDraft(e.target.value as PlanId)}
-                    className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50/80 px-3 text-[13px] font-medium text-slate-900 outline-none transition-colors focus:border-ov-pink/50 focus:ring-2 focus:ring-ov-pink/25 dark:border-slate-600 dark:bg-slate-950/80 dark:text-slate-100"
+                    className={internalSelectClass}
                   >
                     <option value="free">Lite (prueba 15 días)</option>
                     <option value="basic">Estándar</option>
@@ -872,7 +894,7 @@ export default function InternoClienteDetailPage() {
                         status: e.target.value as BillingFormState["status"],
                       }))
                     }
-                    className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50/80 px-3 text-[13px] font-medium text-slate-900 outline-none focus:border-ov-pink/50 focus:ring-2 focus:ring-ov-pink/25 dark:border-slate-600 dark:bg-slate-950/80 dark:text-slate-100"
+                    className={internalSelectClass}
                   >
                     <option value="paid">Al día (pagó)</option>
                     <option value="pending">Pendiente</option>
@@ -892,7 +914,7 @@ export default function InternoClienteDetailPage() {
                       const n = parseInt(e.target.value, 10);
                       if (!Number.isNaN(n)) setBillingForm((f) => ({ ...f, months: Math.min(120, Math.max(1, n)) }));
                     }}
-                    className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50/80 px-3 text-[13px] text-slate-900 outline-none focus:border-ov-pink/50 focus:ring-2 focus:ring-ov-pink/25 dark:border-slate-600 dark:bg-slate-950/80 dark:text-slate-100"
+                    className={internalInputClass}
                   />
                 </label>
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
@@ -941,7 +963,7 @@ export default function InternoClienteDetailPage() {
                   onChange={(e) => setBillingForm((f) => ({ ...f, notes: e.target.value }))}
                   rows={3}
                   placeholder="Referencia de pago, valor, acuerdos…"
-                  className="resize-y rounded-xl border border-slate-300 bg-slate-50/80 px-3 py-2.5 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-ov-pink/50 focus:ring-2 focus:ring-ov-pink/25 dark:border-slate-600 dark:bg-slate-950/80 dark:text-slate-100 dark:placeholder:text-slate-500"
+                className={internalTextareaClass}
                 />
               </label>
 

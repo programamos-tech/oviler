@@ -8,7 +8,7 @@ import { workspaceFormInputClass, workspaceFormInputCompactClass } from "@/lib/w
 
 const inputClass = workspaceFormInputClass;
 const labelClass = "mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300";
-const sectionTitleClass = "text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400";
+const sectionTitleClass = "text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500";
 const cardClass = "rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7";
 const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
 
@@ -258,7 +258,7 @@ function ConfigurarSucursalContent() {
         <div className="mt-1 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-              Configuración de cuenta
+              Configurar sucursal
             </h1>
             <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Logo, NIT, nombre, dirección, teléfono, tipo de factura e impuestos.
@@ -276,54 +276,51 @@ function ConfigurarSucursalContent() {
         </div>
       </header>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
         <div className="space-y-4">
           <div className={cardClass}>
-            <p className={sectionTitleClass}>
-              Logo
-            </p>
-            <div className="mt-3 flex items-center gap-4">
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
-                {logoPreview ? (
-                  <img src={logoPreview} alt="Vista previa logo" className="h-full w-full object-cover" />
-                ) : logoUrl ? (
-                  <img src={logoUrl} alt="Logo sucursal" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-[12px] font-medium text-slate-400">Sin logo</span>
-                )}
+            <p className={sectionTitleClass}>Datos de la sucursal</p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className={labelClass}>Logo</label>
+                <div className="flex items-center gap-4">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+                    {logoPreview ? (
+                      <img src={logoPreview} alt="Vista previa logo" className="h-full w-full object-cover" />
+                    ) : logoUrl ? (
+                      <img src={logoUrl} alt="Logo sucursal" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-[11px] font-medium text-slate-400">Sin logo</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (logoPreview) URL.revokeObjectURL(logoPreview);
+                        if (file) {
+                          setLogoFile(file);
+                          setLogoPreview(URL.createObjectURL(file));
+                        } else {
+                          setLogoFile(null);
+                          setLogoPreview(null);
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                      Logo para facturas y reportes. Elige una imagen y guarda los cambios.
+                    </p>
+                  </div>
+                </div>
               </div>
               <div>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (logoPreview) URL.revokeObjectURL(logoPreview);
-                    if (file) {
-                      setLogoFile(file);
-                      setLogoPreview(URL.createObjectURL(file));
-                    } else {
-                      setLogoFile(null);
-                      setLogoPreview(null);
-                    }
-                    e.target.value = "";
-                  }}
-                />
-                <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-                  Logo de la sucursal para facturas y reportes. Elige una imagen y guarda los cambios.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className={cardClass}>
-            <p className={sectionTitleClass}>
-              Datos de la sucursal
-            </p>
-            <div className="mt-3 space-y-3">
-              <div>
-                <label className={labelClass}>Nombre de la sucursal <span className={requiredMarkClass}>*</span></label>
+                <label className={labelClass}>
+                  Nombre de la sucursal <span className={requiredMarkClass}>*</span>
+                </label>
                 <input
                   value={branchName}
                   onChange={(e) => setBranchName(e.target.value)}
@@ -362,51 +359,48 @@ function ConfigurarSucursalContent() {
                   disabled={loading}
                 />
               </div>
-            </div>
-          </div>
-
-          <div className={cardClass}>
-            <p className={sectionTitleClass}>
-              Impresión de facturas
-            </p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-              Define cómo se imprimirá la factura al dar &quot;Imprimir&quot; en el detalle de la venta.
-            </p>
-            <div className="mt-3 space-y-2">
-              <label className="flex cursor-pointer items-center gap-2">
-                <input
-                  type="radio"
-                  name="invoice_print_type"
-                  value="tirilla"
-                  checked={invoicePrintType === "tirilla"}
-                  onChange={() => setInvoicePrintType("tirilla")}
-                  disabled={loading}
-                  className="h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
-                />
-                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  Tirilla (papel térmico)
-                </span>
-              </label>
-              <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
-                Papel estrecho (80 mm), ideal para impresoras térmicas.
-              </p>
-              <label className="mt-2 flex cursor-pointer items-center gap-2">
-                <input
-                  type="radio"
-                  name="invoice_print_type"
-                  value="block"
-                  checked={invoicePrintType === "block"}
-                  onChange={() => setInvoicePrintType("block")}
-                  disabled={loading}
-                  className="h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
-                />
-                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  Hoja de block (carta / A4)
-                </span>
-              </label>
-              <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
-                Hoja tamaño carta o A4, con encabezado legal y detalle completo.
-              </p>
+              <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+                <p className={sectionTitleClass}>Impresión de facturas</p>
+                <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
+                  Define cómo se imprimirá la factura al dar &quot;Imprimir&quot; en el detalle de la venta.
+                </p>
+                <div className="mt-3 space-y-2">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="radio"
+                      name="invoice_print_type"
+                      value="tirilla"
+                      checked={invoicePrintType === "tirilla"}
+                      onChange={() => setInvoicePrintType("tirilla")}
+                      disabled={loading}
+                      className="h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
+                    />
+                    <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                      Tirilla (papel térmico)
+                    </span>
+                  </label>
+                  <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
+                    Papel estrecho (80 mm), ideal para impresoras térmicas.
+                  </p>
+                  <label className="mt-2 flex cursor-pointer items-center gap-2">
+                    <input
+                      type="radio"
+                      name="invoice_print_type"
+                      value="block"
+                      checked={invoicePrintType === "block"}
+                      onChange={() => setInvoicePrintType("block")}
+                      disabled={loading}
+                      className="h-4 w-4 border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
+                    />
+                    <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                      Hoja de block (carta / A4)
+                    </span>
+                  </label>
+                  <p className="ml-6 text-[12px] text-slate-500 dark:text-slate-400">
+                    Hoja tamaño carta o A4, con encabezado legal y detalle completo.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -657,9 +651,7 @@ function ConfigurarSucursalContent() {
             </p>
           </div>
           )}
-        </div>
 
-        <div className="space-y-4">
           {showAdvancedSettings && (
           <div className={cardClass}>
             <div className="flex items-center justify-between gap-2">
@@ -1069,29 +1061,50 @@ function ConfigurarSucursalContent() {
               )}
             </div>
           </div>
+        </div>
 
-          {/* Resumen y Guardar en la misma columna */}
+        <div className="space-y-4">
           <div className={cardClass}>
-            <p className={sectionTitleClass}>
-              Resumen
-            </p>
-            <p className="mt-3 text-[13px] text-slate-600 dark:text-slate-400">
-              Los cambios se aplican solo a esta sucursal. Ventas, inventario y numeración son independientes por sucursal.
-            </p>
-            <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
+            <p className={sectionTitleClass}>Resumen</p>
+            <div className="mt-3 space-y-3 text-[13px]">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Sucursal</p>
+                <p className="mt-1 text-slate-600 dark:text-slate-400">{branchName.trim() || "—"}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">NIT</p>
+                <p className="mt-1 text-slate-600 dark:text-slate-400">{nit.trim() || "—"}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Factura</p>
+                <p className="mt-1 text-slate-600 dark:text-slate-400">
+                  {invoicePrintType === "tirilla" ? "Tirilla (papel térmico)" : "Hoja de block (carta / A4)"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl bg-white px-5 py-5 dark:bg-slate-900 sm:px-6 sm:py-6">
+            <div className="space-y-3">
+              <div className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
+                <p className="font-semibold text-slate-700 dark:text-slate-100">Paso final</p>
+                <p className="mt-1">
+                  Guarda los cambios para aplicarlos a esta sucursal. Ventas, inventario y numeración son independientes por sucursal.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={loading || saving || !branchId}
-                className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-50"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-50"
               >
                 {saving ? "Guardando…" : "Guardar cambios"}
               </button>
-              {saveSuccess && (
-                <p className="mt-3 text-center text-[13px] font-medium text-emerald-600 dark:text-emerald-400" role="status">
+              {saveSuccess ? (
+                <p className="text-center text-[13px] font-medium text-emerald-600 dark:text-emerald-400" role="status">
                   Cambios guardados correctamente.
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

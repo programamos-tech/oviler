@@ -376,8 +376,10 @@ export default function NewProductPage() {
   }
 
   const inputClass =
-    "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
+    "h-10 w-full rounded-lg border border-slate-200 bg-slate-50/90 px-4 text-[14px] font-medium text-slate-800 outline-none transition-[border-color,background-color,box-shadow] placeholder:text-slate-400 focus:border-slate-900/25 focus:bg-white focus:ring-2 focus:ring-slate-900/10 dark:border-zinc-700/50 dark:bg-zinc-950/60 dark:text-zinc-100 dark:[color-scheme:dark] dark:focus:border-zinc-500 dark:focus:bg-zinc-900 dark:focus:ring-0 dark:focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] dark:focus-visible:ring-1 dark:focus-visible:ring-zinc-500/30 dark:focus-visible:ring-offset-0 dark:focus-visible:ring-offset-transparent dark:placeholder:text-zinc-500";
   const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
+  const cardClass = "rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800";
+  const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
 
   if (planLoading) {
     return (
@@ -400,10 +402,10 @@ export default function NewProductPage() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <header className="space-y-2">
+    <form onSubmit={handleSubmit} className="mx-auto min-w-0 max-w-[1600px] space-y-6">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
         <Breadcrumb items={[{ label: "Inventario", href: "/inventario" }, { label: "Nuevo producto" }]} />
-        <div className="flex items-start justify-between gap-4">
+        <div className="mt-3 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
               Nuevo producto
@@ -443,14 +445,14 @@ export default function NewProductPage() {
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
         {/* Columna izquierda: Información básica + Control de stock */}
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Información básica
             </p>
             <div className="mt-3 space-y-3">
               <div>
                 <label className={labelClass}>
-                  Nombre del producto <span className="text-ov-pink">*</span>
+                  Nombre del producto <span className={requiredMarkClass}>*</span>
                 </label>
                 <input
                   placeholder="Nombre del producto"
@@ -461,7 +463,7 @@ export default function NewProductPage() {
               </div>
               <div>
                 <label className={labelClass}>
-                  Referencia <span className="text-ov-pink">*</span>
+                  Referencia <span className={requiredMarkClass}>*</span>
                 </label>
                 <input
                   placeholder="REF-001"
@@ -475,7 +477,7 @@ export default function NewProductPage() {
                 <textarea
                   rows={2}
                   placeholder="Descripción detallada del producto (opcional)"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50/90 px-4 py-3 text-[14px] font-medium text-slate-800 outline-none transition-[border-color,background-color,box-shadow] placeholder:text-slate-400 focus:border-slate-900/25 focus:bg-white focus:ring-2 focus:ring-slate-900/10 dark:border-zinc-700/50 dark:bg-zinc-950/60 dark:text-zinc-100 dark:[color-scheme:dark] dark:focus:border-zinc-500 dark:focus:bg-zinc-900 dark:focus:ring-0 dark:focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] dark:focus-visible:ring-1 dark:focus-visible:ring-zinc-500/30 dark:focus-visible:ring-offset-0 dark:focus-visible:ring-offset-transparent dark:placeholder:text-zinc-500"
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                 />
@@ -516,7 +518,7 @@ export default function NewProductPage() {
                   </select>
                   {categories.length === 0 && (
                     <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-                      <Link href="/inventario/categorias" className="font-medium text-ov-pink hover:underline">
+                      <Link href="/inventario/categorias" className="font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">
                         Configura tus categorías
                       </Link>{" "}
                       en Inventario para usarlas aquí.
@@ -527,7 +529,7 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Control de stock
             </p>
@@ -548,14 +550,14 @@ export default function NewProductPage() {
                     setSelectedLocationId("");
                   }
                 }}
-                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
               />
               <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Sin ubicación específica</span>
             </label>
             {!sinUbicacion && warehouses.length > 0 ? (
               <div className="mt-3 space-y-3">
                 <div>
-                  <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Bodega</label>
+                  <label className="mb-1 block text-[12px] font-medium text-slate-500 dark:text-slate-400">Bodega</label>
                   <select
                     className={inputClass}
                     value={selectedWarehouseId}
@@ -633,7 +635,7 @@ export default function NewProductPage() {
                     {standsForAisle.length === 0 && (
                       <p className="mt-1.5 text-[12px] text-amber-600 dark:text-amber-400">
                         No hay estantes en este pasillo.{" "}
-                        <Link href="/inventario/ubicaciones" className="font-medium underline hover:no-underline">
+                      <Link href="/inventario/ubicaciones" className="font-medium text-[color:var(--shell-sidebar)] underline hover:no-underline dark:text-zinc-300">
                           Crea estantes y niveles en Ubicaciones
                         </Link>
                         .
@@ -660,7 +662,7 @@ export default function NewProductPage() {
                     {locationsForStand.length === 0 && (
                       <p className="mt-1.5 text-[12px] text-amber-600 dark:text-amber-400">
                         No hay niveles en este estante.{" "}
-                        <Link href="/inventario/ubicaciones" className="font-medium underline hover:no-underline">
+                        <Link href="/inventario/ubicaciones" className="font-medium text-[color:var(--shell-sidebar)] underline hover:no-underline dark:text-zinc-300">
                           Configura los niveles en Ubicaciones
                         </Link>
                         .
@@ -677,7 +679,7 @@ export default function NewProductPage() {
             )}
             {warehouses.length === 0 && (
               <p className="mt-3 text-[12px] text-slate-500 dark:text-slate-400">
-                <Link href="/inventario/ubicaciones" className="font-medium text-ov-pink hover:underline">
+                <Link href="/inventario/ubicaciones" className="font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">
                   Crea bodegas y ubicaciones
                 </Link>{" "}
                 para asignar el producto a un estante o celda al crearlo.
@@ -712,7 +714,7 @@ export default function NewProductPage() {
 
         {/* Columna derecha: Información financiera + Resumen + Paso final */}
         <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Información financiera
             </p>
@@ -723,7 +725,7 @@ export default function NewProductPage() {
                     type="checkbox"
                     checked={aplicarIva}
                     onChange={(e) => setAplicarIva(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30"
+                    className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
                   />
                   <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Aplicar IVA (19%)</span>
                 </label>
@@ -737,7 +739,7 @@ export default function NewProductPage() {
             <div className="mt-3 space-y-3">
               <div>
                 <label className={labelClass}>
-                  {responsableIva ? "Costo de compra (base sin IVA)" : "Costo de compra"} <span className="text-ov-pink">*</span>
+                  {responsableIva ? "Costo de compra (base sin IVA)" : "Costo de compra"} <span className={requiredMarkClass}>*</span>
                 </label>
                 <div className="flex rounded-lg border border-slate-300 dark:border-slate-700">
                   <span className="flex items-center rounded-l-lg border-r border-slate-300 bg-slate-50 px-3 text-[14px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">$</span>
@@ -747,7 +749,7 @@ export default function NewProductPage() {
                     value={baseCosto}
                     onChange={handleBaseCostoChange}
                     placeholder="0"
-                    className="h-10 flex-1 rounded-r-lg border-0 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:bg-slate-800 dark:text-slate-200"
+                    className="h-10 flex-1 rounded-r-lg border-0 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 dark:bg-slate-800 dark:text-slate-200 dark:focus:ring-zinc-500/30"
                   />
                 </div>
                 {aplicarIva && (
@@ -758,7 +760,7 @@ export default function NewProductPage() {
               </div>
               <div>
                 <label className={labelClass}>
-                  {responsableIva ? "Precio de venta (base sin IVA)" : "Precio de venta"} <span className="text-ov-pink">*</span>
+                  {responsableIva ? "Precio de venta (base sin IVA)" : "Precio de venta"} <span className={requiredMarkClass}>*</span>
                 </label>
                 <div className="flex rounded-lg border border-slate-300 dark:border-slate-700">
                   <span className="flex items-center rounded-l-lg border-r border-slate-300 bg-slate-50 px-3 text-[14px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">$</span>
@@ -768,7 +770,7 @@ export default function NewProductPage() {
                     value={basePrecio}
                     onChange={handleBasePrecioChange}
                     placeholder="0"
-                    className="h-10 flex-1 rounded-r-lg border-0 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:bg-slate-800 dark:text-slate-200"
+                    className="h-10 flex-1 rounded-r-lg border-0 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 dark:bg-slate-800 dark:text-slate-200 dark:focus:ring-zinc-500/30"
                   />
                 </div>
                 {aplicarIva && (
@@ -783,7 +785,7 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Resumen del producto
             </p>
@@ -821,7 +823,7 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={cardClass}>
             <div className="space-y-3">
               <div className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
                 <p className="font-bold text-slate-700 dark:text-slate-100">Paso final</p>
@@ -832,7 +834,7 @@ export default function NewProductPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? "Creando…" : "Crear producto"}
               </button>

@@ -152,12 +152,26 @@ export default function InventoryPage() {
         const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
         if (!ub?.branch_id || cancelled) return;
 
+        const { data: invScope } = await supabase
+          .from("inventory")
+          .select("product_id")
+          .eq("branch_id", ub.branch_id);
+        const scopedProductIds = [...new Set((invScope ?? []).map((r) => r.product_id).filter(Boolean))];
+        if (scopedProductIds.length === 0) {
+          setProducts([]);
+          setTotalCount(0);
+          setStockByProduct({});
+          setLoading(false);
+          return;
+        }
+
         const from = (page - 1) * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
         let q = supabase
           .from("products")
           .select("id, name, sku, category_id, base_price, base_cost, apply_iva, description", { count: "exact" })
           .eq("organization_id", userRow.organization_id)
+          .in("id", scopedProductIds)
           .order("name", { ascending: true })
           .range(from, to);
         const qTrim = effectiveSearchQuery.trim();

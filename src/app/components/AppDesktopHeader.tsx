@@ -16,8 +16,8 @@ import { workspaceFilterSearchPillClass } from "@/lib/workspace-field-classes";
 
 export default function AppDesktopHeader() {
   const pathname = usePathname();
+  const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
   const router = useRouter();
-  const supabase = createClient();
   const [search, setSearch] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -33,6 +33,7 @@ export default function AppDesktopHeader() {
 
   useEffect(() => {
     (async () => {
+      const supabase = createClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) {
         setUser(null);
@@ -61,7 +62,7 @@ export default function AppDesktopHeader() {
         setAuthMeta(null);
       }
     })();
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -116,13 +117,13 @@ export default function AppDesktopHeader() {
         </form>
 
         <div className="order-2 flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2 lg:order-none">
-          {user?.email?.toLowerCase() === "programamos.st@gmail.com" ? (
+          {user?.email?.toLowerCase() === "bernabe@tech.com" ? (
             <Link
-              href="/interno"
+              href={isInterno ? "/dashboard" : "/interno"}
               className="hidden h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 xl:inline-flex"
-              title="Ir al panel interno"
+              title={isInterno ? "Volver a la plataforma" : "Ir a BackOffice"}
             >
-              Panel interno
+              {isInterno ? "Volver a la plataforma" : "BackOffice"}
             </Link>
           ) : null}
           {trialActive && trialEndsAt ? (
@@ -188,7 +189,7 @@ export default function AppDesktopHeader() {
             </svg>
           </Link>
 
-          <Link href="/sucursales/configurar" className={iconBtn} title="Configuración" aria-label="Configuración">
+          <Link href="/cuenta" className={iconBtn} title="Cuenta" aria-label="Cuenta">
             <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -238,7 +239,7 @@ export default function AppDesktopHeader() {
                   type="button"
                   onClick={() => {
                     setUserMenuOpen(false);
-                    router.push("/sucursales/configurar");
+                    router.push("/cuenta");
                   }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
@@ -252,6 +253,7 @@ export default function AppDesktopHeader() {
                   type="button"
                   onClick={async () => {
                     setUserMenuOpen(false);
+                    const supabase = createClient();
                     await supabase.auth.signOut();
                     router.push("/login");
                     router.refresh();

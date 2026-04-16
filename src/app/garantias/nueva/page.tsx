@@ -139,7 +139,7 @@ function NewWarrantyContent() {
 
   // Cargar sale_id desde parámetro si existe
   useEffect(() => {
-    if (saleIdParam) {
+    if (saleIdParam && branchId) {
       const supabase = createClient();
       let cancelled = false;
       (async () => {
@@ -147,6 +147,7 @@ function NewWarrantyContent() {
           .from("sales")
           .select("id, invoice_number, created_at, total, customer_id, customers(name)")
           .eq("id", saleIdParam)
+          .eq("branch_id", branchId)
           .single();
         if (cancelled) return;
         if (saleData) {
@@ -160,7 +161,7 @@ function NewWarrantyContent() {
       })();
       return () => { cancelled = true; };
     }
-  }, [saleIdParam]);
+  }, [saleIdParam, branchId]);
 
   // Buscar clientes (para flujo por producto)
   useEffect(() => {
@@ -272,13 +273,23 @@ function NewWarrantyContent() {
 
   // Buscar productos (para flujo por producto - producto con garantía)
   useEffect(() => {
-    if (!warrantyBySale && productSearch.trim() && !selectedProduct) {
+    if (!warrantyBySale && productSearch.trim() && !selectedProduct && branchId) {
       const supabase = createClient();
       let cancelled = false;
       const timeoutId = setTimeout(async () => {
+        const { data: inv } = await supabase
+          .from("inventory")
+          .select("product_id")
+          .eq("branch_id", branchId);
+        const scopedProductIds = [...new Set((inv ?? []).map((r) => r.product_id).filter(Boolean))];
+        if (scopedProductIds.length === 0) {
+          setProductResults([]);
+          return;
+        }
         const { data } = await supabase
           .from("products")
           .select("id, name, sku, base_price, apply_iva")
+          .in("id", scopedProductIds)
           .or(`name.ilike.%${productSearch.trim()}%,sku.ilike.%${productSearch.trim()}%`)
           .order("name")
           .limit(10);
@@ -288,11 +299,11 @@ function NewWarrantyContent() {
       return () => { cancelled = true; clearTimeout(timeoutId); };
     }
     setProductResults([]);
-  }, [warrantyBySale, productSearch, selectedProduct]);
+  }, [warrantyBySale, productSearch, selectedProduct, branchId]);
 
   // Buscar ventas
   useEffect(() => {
-    if (!saleSearch.trim() || selectedSale) {
+    if (!saleSearch.trim() || selectedSale || !branchId) {
       setSaleResults([]);
       return;
     }
@@ -302,6 +313,7 @@ function NewWarrantyContent() {
       const { data } = await supabase
         .from("sales")
         .select("id, invoice_number, created_at, total, customer_id, customers(name)")
+        .eq("branch_id", branchId)
         .ilike("invoice_number", `%${saleSearch.trim()}%`)
         .order("created_at", { ascending: false })
         .limit(10);
@@ -322,7 +334,7 @@ function NewWarrantyContent() {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [saleSearch, selectedSale]);
+  }, [saleSearch, selectedSale, branchId]);
 
   // Cargar ítems de la venta seleccionada
   useEffect(() => {
@@ -376,6 +388,20 @@ function NewWarrantyContent() {
       const { data } = await supabase
         .from("products")
         .select("id, name, sku, base_price, apply_iva")
+        .in(
+          "id",
+          [
+            ...new Set(
+              (
+                (
+                  await supabase.from("inventory").select("product_id").eq("branch_id", branchId)
+                ).data ?? []
+              )
+                .map((r) => r.product_id)
+                .filter(Boolean)
+            ),
+          ]
+        )
         .or(`name.ilike.%${replacementProductSearch.trim()}%,sku.ilike.%${replacementProductSearch.trim()}%`)
         .order("name", { ascending: true })
         .limit(10);

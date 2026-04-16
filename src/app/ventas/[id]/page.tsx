@@ -14,6 +14,9 @@ import {
   getStatusClass,
   getStatusListChipClass,
   getPaymentListChipClass,
+  getPedidoPaymentMethodChipClass,
+  getPedidoPaymentStateChipClass,
+  getPedidoOrderStatusButtonSurfaceClass,
   getDocumentCopy,
   orderStatusOptionMatchesSale,
   type SalesMode,
@@ -981,6 +984,19 @@ export default function SaleDetailPage() {
     return hasSet && getEffectiveQty(it) === it.quantity && it.quantity > 0;
   });
 
+  const pedidoVisual = sale.is_delivery;
+  const orderStatusBtnSurfaceClass = pedidoVisual
+    ? canOpenStatusDropdown
+      ? allLinesAlisted
+        ? "border-emerald-400 bg-emerald-50/50 text-slate-800 hover:bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-slate-200 dark:hover:bg-emerald-950/50"
+        : getPedidoOrderStatusButtonSurfaceClass(sale.status)
+      : getPedidoOrderStatusButtonSurfaceClass(sale.status)
+    : canOpenStatusDropdown
+      ? allLinesAlisted
+        ? "border-emerald-400 bg-emerald-50/50 text-slate-800 hover:bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-slate-200 dark:hover:bg-emerald-950/50"
+        : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+      : `border-transparent ${statusClass} bg-slate-100 dark:bg-slate-800`;
+
   return (
     <div
       className={`min-w-0 space-y-6 print:space-y-4 ${invoicePrintType === "tirilla" ? "print-invoice-tirilla" : ""}`}
@@ -1239,7 +1255,9 @@ export default function SaleDetailPage() {
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Método de pago</p>
               <div className="mt-1">
-                <span className={getPaymentListChipClass()}>{paymentLabel}</span>
+                <span className={pedidoVisual ? getPedidoPaymentMethodChipClass(sale.payment_method) : getPaymentListChipClass()}>
+                  {paymentLabel}
+                </span>
               </div>
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
@@ -1254,7 +1272,15 @@ export default function SaleDetailPage() {
                     Pendiente · ver crédito
                   </Link>
                 ) : (
-                  <span className={getStatusListChipClass(paymentStatusKey)}>{paymentStatusLabel}</span>
+                  <span
+                    className={
+                      pedidoVisual
+                        ? getPedidoPaymentStateChipClass(paymentStatusKey as "pending" | "completed" | "cancelled")
+                        : getStatusListChipClass(paymentStatusKey)
+                    }
+                  >
+                    {paymentStatusLabel}
+                  </span>
                 )}
               </div>
             </div>
@@ -1288,7 +1314,13 @@ export default function SaleDetailPage() {
                       )}
                     </span>
                   )}
-                  <span className={getStatusListChipClass(deliveryPaymentStatusKey)}>
+                  <span
+                    className={
+                      pedidoVisual
+                        ? getPedidoPaymentStateChipClass(deliveryPaymentStatusKey as "pending" | "completed" | "cancelled")
+                        : getStatusListChipClass(deliveryPaymentStatusKey)
+                    }
+                  >
                     {markingDeliveryPaid ? "Guardando…" : deliveryPaymentStatusLabel}
                   </span>
                 </label>
@@ -1328,7 +1360,7 @@ export default function SaleDetailPage() {
                   <p className="mt-2 text-[12px] text-slate-600 dark:text-slate-400">
                     <Link
                       href={`/sucursales/configurar?branchId=${encodeURIComponent(sale.branch_id)}`}
-                      className="font-semibold text-ov-pink hover:text-ov-pink-hover underline-offset-2 hover:underline dark:text-ov-pink-muted"
+                      className="font-semibold text-[color:var(--shell-sidebar)] underline underline-offset-2 decoration-[color:var(--shell-sidebar)]/45 hover:opacity-90 dark:text-zinc-200 dark:decoration-zinc-400/80"
                     >
                       Crear domiciliarios
                     </Link>
@@ -1347,7 +1379,7 @@ export default function SaleDetailPage() {
                         : "Elige transportador arriba antes de Despachado."}{" "}
                       <Link
                         href={`/sucursales/configurar?branchId=${encodeURIComponent(sale.branch_id)}`}
-                        className="whitespace-nowrap font-medium text-ov-pink underline decoration-ov-pink/35 underline-offset-2 hover:text-ov-pink-hover hover:decoration-ov-pink-hover dark:text-ov-pink-muted dark:decoration-ov-pink-muted/45"
+                        className="whitespace-nowrap font-medium text-[color:var(--shell-sidebar)] underline decoration-[color:var(--shell-sidebar)]/40 underline-offset-2 hover:underline dark:text-zinc-200 dark:decoration-zinc-400/80"
                       >
                         Gestionar
                       </Link>
@@ -1399,13 +1431,7 @@ export default function SaleDetailPage() {
                 type="button"
                 onClick={() => canOpenStatusDropdown && setStatusDropdownOpen((v) => !v)}
                 disabled={updatingStatus || !canOpenStatusDropdown}
-                className={`mt-0.5 inline-flex min-h-[1.75rem] w-full min-w-[120px] items-center justify-between gap-1.5 rounded-lg border px-3 py-1.5 text-left text-[13px] font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ov-pink/30 disabled:cursor-default disabled:opacity-80 sm:w-auto ${allLinesAlisted ? "estado-listo-animar " : ""}${
-                  canOpenStatusDropdown
-                    ? allLinesAlisted
-                      ? "border-emerald-400 bg-emerald-50/50 text-slate-800 hover:bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-slate-200 dark:hover:bg-emerald-950/50"
-                      : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                    : `border-transparent ${statusClass} bg-slate-100 dark:bg-slate-800`
-                }`}
+                className={`mt-0.5 inline-flex min-h-[1.75rem] w-full min-w-[120px] items-center justify-between gap-1.5 rounded-lg border px-3 py-1.5 text-left text-[13px] font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ov-pink/30 disabled:cursor-default disabled:opacity-80 sm:w-auto ${allLinesAlisted ? "estado-listo-animar " : ""}${orderStatusBtnSurfaceClass}`}
                 aria-expanded={statusDropdownOpen}
                 aria-haspopup="listbox"
                 aria-label={doc.stateHeading}
@@ -1440,9 +1466,11 @@ export default function SaleDetailPage() {
                         }}
                         className={`block w-full px-4 py-2 text-left text-[13px] font-medium ${
                           orderStatusOptionMatchesSale(sale.status, opt.value)
-                            ? "bg-ov-pink/10 text-ov-pink dark:bg-ov-pink/20 dark:text-ov-pink-muted"
+                            ? opt.value === "cancelled"
+                              ? "bg-red-50 text-red-800 dark:bg-red-950/55 dark:text-red-100"
+                              : "bg-ov-pink/10 text-slate-900 dark:bg-zinc-600 dark:text-white"
                             : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                        } ${opt.value === "cancelled" ? "text-red-600 dark:text-red-400" : ""}`}
+                        } ${opt.value === "cancelled" && !orderStatusOptionMatchesSale(sale.status, opt.value) ? "text-red-600 dark:text-red-400" : ""}`}
                       >
                         {opt.label}
                       </button>

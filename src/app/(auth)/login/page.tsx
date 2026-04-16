@@ -14,6 +14,7 @@ const labelClass = "mb-2 block text-[13px] font-medium text-zinc-400";
 function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const supabase = createClient();
   const searchParams = useSearchParams();
 
@@ -124,7 +125,11 @@ function LoginContent() {
           href="/"
           className="inline-block w-fit outline-offset-4 focus-visible:rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-500"
         >
-          <OvilerWordmark variant="onDark" className="text-[clamp(1.75rem,4vw,2.5rem)]" />
+          <OvilerWordmark
+            variant="onDark"
+            companyName="Bernabé"
+            className="text-[clamp(1.75rem,4vw,2.5rem)] font-bold"
+          />
         </Link>
 
         <h1 className="mt-10 text-3xl font-semibold tracking-tight text-white sm:text-[2rem]">Bienvenido de nuevo</h1>
@@ -162,16 +167,51 @@ function LoginContent() {
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="••••••••"
-              className={inputClass}
-              required
-              disabled={loading}
-              autoComplete="current-password"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                className={`${inputClass} pr-11`}
+                required
+                disabled={loading}
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center text-zinc-400 transition-colors hover:text-zinc-200"
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                {showPassword ? (
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-3-11-7 1.011-2.024 2.365-3.65 3.955-4.842m3.207-1.482A10.055 10.055 0 0112 5c5 0 9 3 11 7a11.58 11.58 0 01-1.674 2.533M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 9L3 3"
+                    />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           <button

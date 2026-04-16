@@ -1,7 +1,7 @@
 /** Título de página para la barra superior (desktop), según la ruta. */
 export function workspaceTitleFromPath(pathname: string): string {
   if (pathname === "/dashboard" || pathname === "/" || pathname.startsWith("/sucursales/reportes")) return "Reportes";
-  if (pathname.startsWith("/interno")) return "Interno";
+  if (pathname.startsWith("/interno")) return "Bernabé backOffice";
   if (pathname.startsWith("/ventas/nueva")) return "Nueva venta";
   if (pathname.startsWith("/ventas/") && pathname !== "/ventas") return "Detalle de venta";
   if (pathname.startsWith("/ventas")) return "Ventas";
@@ -34,7 +34,8 @@ export function workspaceTitleFromPath(pathname: string): string {
   if (pathname.startsWith("/roles")) return "Roles";
   if (pathname.startsWith("/actividades")) return "Actividades";
   if (pathname.startsWith("/sucursales/nueva")) return "Nueva sucursal";
-  if (pathname.startsWith("/sucursales/configurar")) return "Configuración de cuenta";
+  if (pathname.startsWith("/cuenta")) return "Cuenta";
+  if (pathname.startsWith("/sucursales/configurar")) return "Configurar sucursal";
   if (pathname.startsWith("/sucursales")) return "Sucursales";
   return "Panel";
 }

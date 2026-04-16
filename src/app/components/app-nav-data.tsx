@@ -206,7 +206,7 @@ export const navItems: NavItem[] = [
           icon: <NavIconBuilding />,
           items: [
             { label: "Sucursales", href: "/sucursales", icon: <IconList />, description: "Sucursales de la organización" },
-            { label: "Cuenta", href: "/sucursales/configurar", icon: <IconSettings />, description: "Datos y ajustes de sucursal" },
+            { label: "Cuenta", href: "/cuenta", icon: <IconSettings />, description: "Perfil del propietario y avatar" },
           ],
         },
       ]

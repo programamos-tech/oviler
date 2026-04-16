@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { licensePeriodEndIso } from "@/lib/internal-billing";
 import { normalizeUnlockCodeInput, verifyUnlockCode } from "@/lib/license-unlock-code";
+import { limitsRowForPlan } from "@/lib/plan-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
   }
 
-  const orgUpdates: Record<string, string> = {
+  const orgUpdates: Record<string, string | null | number> = {
     subscription_status: "active",
   };
 
@@ -99,6 +100,16 @@ export async function POST(request: Request) {
       nextIso = new Date(Date.now() + 14 * 86400000).toISOString();
     }
     orgUpdates.trial_ends_at = nextIso;
+  }
+
+  // Si la organización sigue en plan Lite al activar código, pásala a Estándar.
+  if (org.plan_type === "free") {
+    const standardLimits = limitsRowForPlan("basic");
+    orgUpdates.plan_type = standardLimits.plan_type;
+    orgUpdates.max_products = standardLimits.max_products;
+    orgUpdates.max_users = standardLimits.max_users;
+    orgUpdates.max_branches = standardLimits.max_branches;
+    orgUpdates.trial_ends_at = null;
   }
 
   const { error: upOrgErr } = await admin.from("organizations").update(orgUpdates).eq("id", orgId);

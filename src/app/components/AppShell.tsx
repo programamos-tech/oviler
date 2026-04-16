@@ -124,15 +124,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
-  if (isInterno) {
-    return (
-      <main className="relative min-h-screen flex-1 py-4 sm:py-6 lg:py-6">
-        <PresenceHeartbeat />
-        <div className="mx-auto min-w-0 max-w-[1600px] px-4 sm:px-6 lg:px-8">{children}</div>
-      </main>
-    );
-  }
-
   if (isAccessBlockedPage) {
     return (
       <main className="relative min-h-screen flex-1 py-6 sm:py-10">

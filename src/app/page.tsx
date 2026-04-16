@@ -29,7 +29,7 @@ export default function LandingPage() {
       <header className="fixed top-0 z-50 w-full border-b border-zinc-800/80 bg-zinc-950/75 backdrop-blur-md">
         <div className="mx-auto flex min-h-14 max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:min-h-16 sm:px-6 lg:px-8">
           <Link href="/" className="inline-flex min-w-0 items-center outline-offset-4 focus-visible:rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-500">
-            <OvilerWordmark variant="onDark" className="text-[1.45rem] sm:text-[1.6rem]" />
+            <OvilerWordmark variant="onDark" companyName="Bernabé" className="text-[1.45rem] font-bold sm:text-[1.6rem]" />
           </Link>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
             <a

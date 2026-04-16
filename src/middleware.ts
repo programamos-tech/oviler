@@ -47,8 +47,17 @@ export async function middleware(request: NextRequest) {
 
   if (isInternalRoute) {
     // #region agent log
+    let profileEmail: string | null = null
+    if (user) {
+      const { data: profileRow } = await supabase
+        .from('users')
+        .select('email')
+        .eq('id', user.id)
+        .maybeSingle()
+      profileEmail = (profileRow as { email?: string | null } | null)?.email ?? null
+    }
     const allowedSize = getNouInternalAllowlistSize()
-    const staffOk = user ? isNouInternalStaff(user.email) : false
+    const staffOk = user ? (isNouInternalStaff(user.email) || isNouInternalStaff(profileEmail)) : false
     const payload = {
       sessionId: 'b5a8bd',
       location: 'middleware.ts:internal-gate',
@@ -60,6 +69,7 @@ export async function middleware(request: NextRequest) {
         hasUser: Boolean(user),
         hasEmail: Boolean(user?.email),
         emailLen: user?.email?.length ?? 0,
+        hasProfileEmail: Boolean(profileEmail),
         allowedSize,
         staffOk,
       },

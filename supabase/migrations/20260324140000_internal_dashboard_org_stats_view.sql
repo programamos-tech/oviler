@@ -1,5 +1,7 @@
 -- Vista solo para uso con service_role (panel interno NOU). Agrega conteos por organización.
-CREATE OR REPLACE VIEW internal_dashboard_org_stats AS
+-- DROP evita error 42P16 si la vista remota ya existía con otras columnas (CREATE OR REPLACE no puede quitar columnas).
+DROP VIEW IF EXISTS public.internal_dashboard_org_stats CASCADE;
+CREATE VIEW public.internal_dashboard_org_stats AS
 SELECT
   o.id,
   o.name,

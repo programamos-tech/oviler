@@ -12,11 +12,13 @@
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.95.3",
     "@xyflow/react": "^12.10.1",
+    "lucide-react": "^0.544.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-icons": "^5.5.0",
-    "react-nice-avatar": "^1.5.0"
+    "react-nice-avatar": "^1.5.0",
+    "recharts": "^2.15.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

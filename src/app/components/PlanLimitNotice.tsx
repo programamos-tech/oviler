@@ -43,7 +43,7 @@ export function PlanLimitHeaderNote({
 }) {
   const planName = customerFacingPlanName(planId ?? undefined);
   const wa = commercialLicenseWhatsAppUrl(commercialLicenseWhatsAppPrefill(planName));
-  const micro = upgradeMicroLine(kind);
+  const micro = upgradeMicroLine(kind, planId);
   return (
     <div
       className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-snug text-zinc-500 dark:text-zinc-500 ${className}`}

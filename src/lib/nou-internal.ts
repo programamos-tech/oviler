@@ -18,14 +18,17 @@ export function getNouInternalAllowlistSize(): number {
 }
 
 export function isNouInternalStaff(email: string | undefined | null): boolean {
-  const allowed = parseNouInternalEmailSet();
-  if (allowed.size === 0) return false;
   if (!email) return false;
-  return allowed.has(email.trim().toLowerCase());
+  const e = email.trim().toLowerCase();
+  const configured = process.env.NOU_SUPERADMIN_EMAIL?.trim().toLowerCase();
+  if (configured && e === configured) return true;
+  if (e === DEFAULT_SUPERADMIN_LICENSE_EMAIL) return true;
+  const allowed = parseNouInternalEmailSet();
+  return allowed.has(e);
 }
 
 /** Email dueño NOU: no requiere activar clave de licencia ni bloqueo por trial/suscripción. */
-const DEFAULT_SUPERADMIN_LICENSE_EMAIL = "programamos.st@gmail.com";
+const DEFAULT_SUPERADMIN_LICENSE_EMAIL = "bernabe@tech.com";
 
 /**
  * Exención de licencia (modal "Activa tu licencia") y de `/acceso-bloqueado` por trial/suspensión.

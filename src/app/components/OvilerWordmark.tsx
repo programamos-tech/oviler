@@ -27,7 +27,7 @@ function BereaLogoMark({
 export function OvilerWordmark({
   className,
   variant = "onLight",
-  companyName = "Berea",
+  companyName = "Bernabé",
   productLine = "Comercios",
   /** Solo ícono (/ceiling.png), sin texto Berea / línea / producto */
   markOnly = false,

@@ -6,6 +6,7 @@ import Breadcrumb from "@/app/components/Breadcrumb";
 import { InfoTip } from "@/app/components/InfoTip";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { workspaceFormInputClass } from "@/lib/workspace-field-classes";
 
 const DEFAULT_CONCEPTS = [
   "Pago servicios",
@@ -131,8 +132,8 @@ export default function NewExpensePage() {
 
   const amountNum = parseFloat(amount.replace(/\./g, "").replace(",", ".")) || 0;
   const paymentLabel = paymentMethod === "cash" ? "Efectivo" : "Transferencia";
-  const inputClass =
-    "h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 text-[13px] font-medium text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-zinc-500";
+  const inputClass = `${workspaceFormInputClass} dark:accent-zinc-500`;
+  const textareaClass = `${workspaceFormInputClass.replace("h-10 ", "min-h-[5.5rem] py-3 ")} resize-y`;
   const labelClass = "mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300";
   const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
 
@@ -250,7 +251,7 @@ export default function NewExpensePage() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Detalle adicional si lo necesitas"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-[13px] font-medium text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-zinc-500"
+                  className={textareaClass}
                 />
               </div>
             </div>

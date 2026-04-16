@@ -134,6 +134,7 @@ export function canAccessPath(
   if (path === "/" || path.startsWith("/login") || path.startsWith("/registro") || path.startsWith("/onboarding")) {
     return true;
   }
+  if (hasPathPrefix(path, "/cuenta")) return true;
 
   const p = resolvePermissions(role, customPermissions);
   const can = (key: PermissionKey) => p.has(key);
@@ -194,6 +195,7 @@ export function canAccessNavModule(
   if (label === "CONFIGURACIÓN" || label === "CONFIGURACION") {
     return (
       canAccessPath(role, "/sucursales", customPermissions) ||
+      canAccessPath(role, "/cuenta", customPermissions) ||
       canAccessPath(role, "/sucursales/configurar", customPermissions)
     );
   }
@@ -201,7 +203,7 @@ export function canAccessNavModule(
     return canAccessPath(role, "/inventario/ubicaciones", customPermissions);
   }
   if (label === "Cuenta") {
-    return canAccessPath(role, "/sucursales/configurar", customPermissions);
+    return canAccessPath(role, "/cuenta", customPermissions);
   }
 
   const p = resolvePermissions(role, customPermissions);

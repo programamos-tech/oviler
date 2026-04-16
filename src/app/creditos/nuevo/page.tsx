@@ -329,22 +329,32 @@ function NuevoCreditoForm() {
   }, [orgId, branchId]);
 
   useEffect(() => {
-    if (!orgId) return;
+    if (!orgId || !branchId) return;
     const q = productSearch.trim();
     if (!q) return;
     const t = setTimeout(async () => {
       const supabase = createClient();
+      const { data: inv } = await supabase
+        .from("inventory")
+        .select("product_id")
+        .eq("branch_id", branchId);
+      const scopedProductIds = [...new Set((inv ?? []).map((r) => r.product_id).filter(Boolean))];
+      if (scopedProductIds.length === 0) {
+        setProductResults([]);
+        return;
+      }
       const { data } = await supabase
         .from("products")
         .select("id, name, sku, base_price, base_cost, apply_iva")
         .eq("organization_id", orgId)
+        .in("id", scopedProductIds)
         .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
         .order("name")
         .limit(5);
       setProductResults((data ?? []) as ProductOption[]);
     }, 300);
     return () => clearTimeout(t);
-  }, [orgId, productSearch]);
+  }, [orgId, branchId, productSearch]);
 
   const handleProductInputFocus = useCallback(() => {
     if (productSearch.trim() === "") fetchInitialProducts();

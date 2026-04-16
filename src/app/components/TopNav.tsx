@@ -17,14 +17,15 @@ import { OvilerWordmark } from "./OvilerWordmark";
 import { bereaPlanUpgradeWhatsAppUrl, programamosWhatsAppUrl } from "@/lib/programamos-contact";
 import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 
 const TOP_ICON_BTN =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-50";
 
 export default function TopNav() {
   const pathname = usePathname();
+  const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
   const router = useRouter();
-  const supabase = createClient();
   const [navSearch, setNavSearch] = useState("");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -45,6 +46,7 @@ export default function TopNav() {
 
   useEffect(() => {
     async function loadUser() {
+      const supabase = createClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
         const { data: userData } = await supabase
@@ -76,7 +78,7 @@ export default function TopNav() {
       }
     }
     loadUser();
-  }, [supabase]);
+  }, []);
 
   const trialActive = orgTrial != null && isFreeTrialActive(orgTrial);
   const trialEndsAt = orgTrial?.trial_ends_at ?? "";
@@ -91,15 +93,27 @@ export default function TopNav() {
 
   useEffect(() => {
     async function loadBranch() {
+      const supabase = createClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return;
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", authUser.id).limit(1).single();
-      if (!ub?.branch_id) return;
-      const { data: branchData } = await supabase.from("branches").select("name, logo_url, show_expenses, sales_mode").eq("id", ub.branch_id).single();
+      const resolvedBranchId = await resolveActiveBranchId(supabase, authUser.id);
+      if (!resolvedBranchId) return;
+      const { data: branchData } = await supabase.from("branches").select("name, logo_url, show_expenses, sales_mode").eq("id", resolvedBranchId).single();
       if (branchData) setBranch({ name: branchData.name, logo_url: branchData.logo_url ?? null, show_expenses: branchData.show_expenses !== false, sales_mode: (branchData as { sales_mode?: string }).sales_mode });
     }
-    loadBranch();
-  }, [supabase]);
+    const handleBranchChange = () => {
+      void loadBranch();
+    };
+    void loadBranch();
+    if (typeof window !== "undefined") {
+      window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
+      }
+    };
+  }, [pathname]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -165,10 +179,14 @@ export default function TopNav() {
                 ? "flex min-w-0 max-w-[min(100%,22rem)] shrink items-center gap-2 rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900/25 dark:focus-visible:outline-[color:var(--shell-sidebar)]"
                 : "flex min-w-0 shrink items-center rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900/25 dark:focus-visible:outline-[color:var(--shell-sidebar)]"
             }
-            title={branch?.name ? `Berea Comercios · ${branch.name}` : "Berea Comercios"}
+            title={branch?.name ? `Bernabé Comercios · ${branch.name}` : "Bernabé Comercios"}
           >
             <span className="min-w-0 flex-1 overflow-hidden">
-              <OvilerWordmark variant="onLight" className="w-full min-w-0 text-[1.05rem] sm:text-[1.1rem]" />
+              <OvilerWordmark
+                variant="onLight"
+                companyName="Bernabé"
+                className="w-full min-w-0 text-[1.05rem] font-bold sm:text-[1.1rem]"
+              />
             </span>
             {branch ? (
               <>
@@ -374,13 +392,13 @@ export default function TopNav() {
               </svg>
             </a>
           ) : null}
-          {user?.email?.toLowerCase() === "programamos.st@gmail.com" ? (
+          {user?.email?.toLowerCase() === "bernabe@tech.com" ? (
             <Link
-              href="/interno"
+              href={isInterno ? "/dashboard" : "/interno"}
               className="hidden h-8 items-center rounded-lg border border-ov-pink/35 bg-ov-pink/[0.08] px-3 text-[12px] font-semibold text-ov-pink transition-colors hover:bg-ov-pink/[0.16] sm:inline-flex"
-              title="Ir al panel interno"
+              title={isInterno ? "Volver a la plataforma" : "Ir a BackOffice"}
             >
-              Panel interno
+              {isInterno ? "Volver a la plataforma" : "BackOffice"}
             </Link>
           ) : null}
           {trialActive && trialEndsAt ? (
@@ -459,7 +477,7 @@ export default function TopNav() {
                   type="button"
                   onClick={() => {
                     setUserMenuOpen(false);
-                    router.push("/sucursales/configurar");
+                    router.push("/cuenta");
                   }}
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
@@ -473,6 +491,7 @@ export default function TopNav() {
                   type="button"
                   onClick={async () => {
                     setUserMenuOpen(false);
+                    const supabase = createClient();
                     await supabase.auth.signOut();
                     router.push("/login");
                     router.refresh();
@@ -539,7 +558,7 @@ export default function TopNav() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </Link>
-          <Link href="/sucursales/configurar" className={TOP_ICON_BTN} title="Configuración" aria-label="Configuración">
+          <Link href="/cuenta" className={TOP_ICON_BTN} title="Cuenta" aria-label="Cuenta">
             <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />

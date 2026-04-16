@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import { navPathIsActive } from "./app-nav-data";
 
 const SHOW_BODEGA_IN_SIDEBAR = false;
@@ -191,7 +192,7 @@ const masItems = [
         },
         {
           label: "Cuenta",
-          href: "/sucursales/configurar",
+          href: "/cuenta",
           icon: IconCog,
           items: [],
         },
@@ -258,21 +259,33 @@ export default function BottomNav() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const loadBranchState = async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) return;
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) return;
-      const { data: branch } = await supabase.from("branches").select("show_expenses").eq("id", ub.branch_id).single();
+      const resolvedBranchId = await resolveActiveBranchId(supabase, user.id);
+      if (!resolvedBranchId || cancelled) return;
+      const { data: branch } = await supabase.from("branches").select("show_expenses").eq("id", resolvedBranchId).single();
       const { data: me } = await supabase.from("users").select("role, permissions").eq("id", user.id).single();
       if (!cancelled && branch) {
         setShowExpenses(branch.show_expenses !== false);
         setUserRole((me?.role ?? null) as AppRole | null);
         setUserPermissions((me as { permissions?: string[] | null } | null)?.permissions ?? null);
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    const handleBranchChange = () => {
+      void loadBranchState();
+    };
+    void loadBranchState();
+    if (typeof window !== "undefined") {
+      window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
+    }
+    return () => {
+      cancelled = true;
+      if (typeof window !== "undefined") {
+        window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
+      }
+    };
   }, []);
 
   useEffect(() => {

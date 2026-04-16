@@ -170,6 +170,55 @@ export function getPaymentListChipClass(): string {
   return `${LIST_CHIP_BASE} border-slate-200/90 bg-slate-50/95 text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200`;
 }
 
+/** Forma de pago en detalle de pedido con envío: colores suaves por canal. */
+export function getPedidoPaymentMethodChipClass(method: string): string {
+  const m = String(method || "").toLowerCase();
+  if (m === "cash") {
+    return `${LIST_CHIP_BASE} border-emerald-200/90 bg-emerald-50/95 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/35 dark:text-emerald-100`;
+  }
+  if (m === "transfer") {
+    return `${LIST_CHIP_BASE} border-sky-200/90 bg-sky-50/95 text-sky-950 dark:border-sky-800/55 dark:bg-sky-950/35 dark:text-sky-100`;
+  }
+  if (m === "mixed") {
+    return `${LIST_CHIP_BASE} border-violet-200/90 bg-violet-50/95 text-violet-950 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-100`;
+  }
+  return getPaymentListChipClass();
+}
+
+/** Pago del pedido / envío: pendiente (ámbar), pagado (verde), cancelado (rojo). */
+export function getPedidoPaymentStateChipClass(state: "pending" | "completed" | "cancelled"): string {
+  if (state === "cancelled") {
+    return `${LIST_CHIP_BASE} border-red-200/90 bg-red-50/90 text-red-800 dark:border-red-900/55 dark:bg-red-950/35 dark:text-red-200`;
+  }
+  if (state === "completed") {
+    return `${LIST_CHIP_BASE} border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/45 dark:bg-emerald-950/30 dark:text-emerald-100`;
+  }
+  return `${LIST_CHIP_BASE} border-amber-200/90 bg-amber-50/95 text-amber-950 dark:border-amber-900/45 dark:bg-amber-950/25 dark:text-amber-100`;
+}
+
+/**
+ * Superficie del selector de estado del pedido (modo envío): cada fase con color propio.
+ * Usar solo cuando el pedido tiene envío (`is_delivery`).
+ */
+export function getPedidoOrderStatusButtonSurfaceClass(status: string): string {
+  if (status === "cancelled") {
+    return "border-red-200/90 bg-red-50/90 text-red-900 hover:bg-red-50 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-100 dark:hover:bg-red-950/45";
+  }
+  if (status === "completed" || status === "delivered") {
+    return "border-emerald-300 bg-emerald-50 text-emerald-950 hover:bg-emerald-50/90 dark:border-emerald-700/60 dark:bg-emerald-950/40 dark:text-emerald-50 dark:hover:bg-emerald-950/55";
+  }
+  if (status === "pending") {
+    return "border-sky-200 bg-sky-50 text-sky-950 hover:bg-sky-50/90 dark:border-sky-800/60 dark:bg-sky-950/35 dark:text-sky-100 dark:hover:bg-sky-950/45";
+  }
+  if (status === "preparing" || status === "packing") {
+    return "border-amber-200 bg-amber-50 text-amber-950 hover:bg-amber-50/90 dark:border-amber-900/45 dark:bg-amber-950/25 dark:text-amber-100 dark:hover:bg-amber-950/35";
+  }
+  if (status === "on_the_way") {
+    return "border-indigo-200 bg-indigo-50 text-indigo-950 hover:bg-indigo-50/90 dark:border-indigo-800/50 dark:bg-indigo-950/35 dark:text-indigo-100 dark:hover:bg-indigo-950/45";
+  }
+  return "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700";
+}
+
 export const COPY = {
   sales: {
     sectionTitle: "Ventas",

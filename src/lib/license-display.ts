@@ -30,7 +30,18 @@ export function upgradeContextLine(kind: "branches" | "users" | "products"): str
 }
 
 /** Una línea muy corta para cabeceras (junto al CTA), sin párrafo largo. */
-export function upgradeMicroLine(kind: "branches" | "users" | "products"): string {
+export function upgradeMicroLine(
+  kind: "branches" | "users" | "products",
+  planType?: PlanId | string | null
+): string {
+  const id = normalizePlanType(planType ?? "");
+
+  if (id === "basic") {
+    if (kind === "branches") return "Estándar: 3 sucursales · amplía con Pro.";
+    if (kind === "users") return "Estándar: 8 usuarios · amplía con Pro.";
+    return "Tope de referencias del plan Estándar · amplía con Pro.";
+  }
+
   if (kind === "branches") return "Lite: 1 sucursal · amplía con Estándar o Pro.";
   if (kind === "users") return "Lite: 1 usuario · amplía con Estándar o Pro.";
   return "Tope de referencias del plan · amplía con Estándar o Pro.";

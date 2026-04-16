@@ -36,11 +36,11 @@ export default function Notifications({ tone = "dark" }: { tone?: "dark" | "ligh
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const supabase = createClient();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const loadNotifications = useCallback(async () => {
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     const user = auth.user;
     if (!user) return;
@@ -176,7 +176,7 @@ export default function Notifications({ tone = "dark" }: { tone?: "dark" | "ligh
       .slice(0, 40);
 
     setNotifications(mapped.map(({ createdAt, ...n }) => n));
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     loadNotifications();

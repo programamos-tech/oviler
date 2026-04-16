@@ -1,26 +1,28 @@
 "use client";
 
 import { useState, useEffect, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { resolveActiveBranchId } from "@/lib/active-branch";
 import DatePickerCard from "@/app/components/DatePickerCard";
 import { creditRowPending } from "@/app/creditos/credit-ui";
 import { cashTransferFromLine, addCreditPaymentSplits as addCreditPaymentsToCashTransfer } from "@/lib/cash-transfer-from-line";
 import { InfoTip } from "@/app/components/InfoTip";
+import { IncomeTrendChart } from "@/app/components/IncomeTrendChart";
 import {
-  MdOutlineAttachMoney,
-  MdOutlineTrendingDown,
-  MdOutlinePayments,
-  MdOutlineAccountBalance,
-  MdOutlineCancel,
-  MdOutlineCreditCard,
-  MdOutlineVerifiedUser,
-  MdOutlineInventory2,
-  MdOutlineShowChart,
-  MdOutlineSavings,
-  MdOutlineArrowUpward,
-  MdOutlineArrowDownward,
-} from "react-icons/md";
+  ArrowDown,
+  ArrowUp,
+  Banknote,
+  CircleDollarSign,
+  CircleX,
+  CreditCard,
+  Landmark,
+  LineChart,
+  Package,
+  PiggyBank,
+  ShieldCheck,
+  TrendingDown,
+} from "lucide-react";
 
 type DashboardData = {
   totalIncome: number; // Total neto en caja/banco (después de egresos)
@@ -62,7 +64,7 @@ type DashboardData = {
 
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
-/** Color único para iconos Material del resumen (verde shell = sidebar). */
+/** Color único para iconos del resumen (verde shell = sidebar). */
 const DASHBOARD_ICON_CLASS = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
 
 /** Días mostrados en la tendencia de ingresos (siempre anclada a “hoy” calendario). */
@@ -70,6 +72,14 @@ const INCOME_TREND_DAY_COUNT = 15;
 
 function formatTrendAxisDay(d: Date): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Clave estable día calendario local (evita desalineos con toDateString / zona). */
+function localDayKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function emptyIncomeTrendDays(): { day: string; sales: number }[] {
@@ -195,7 +205,7 @@ function HeroDeltaInline({ cur, prev, hide }: { cur: number; prev: number; hide:
           className="inline-flex items-center gap-0.5 text-sm font-semibold text-[color:var(--shell-sidebar)] dark:text-zinc-300"
           title="Sin día anterior comparable"
         >
-          <MdOutlineArrowUpward className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden strokeWidth={2.25} />
           Nuevo
         </span>
       );
@@ -212,9 +222,9 @@ function HeroDeltaInline({ cur, prev, hide }: { cur: number; prev: number; hide:
       title="vs. día anterior"
     >
       {up ? (
-        <MdOutlineArrowUpward className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden strokeWidth={2.25} />
       ) : (
-        <MdOutlineArrowDownward className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden strokeWidth={2.25} />
       )}
       <span>
         {up ? "+" : ""}
@@ -326,33 +336,6 @@ function DashboardKpiCard({
 
 const IVA_RATE = 0.19;
 
-/** Curva suave (cúbicas) para la tendencia de ingresos en viewBox normalizado. */
-function buildSalesTrendLine(values: number[]): string {
-  const n = values.length;
-  if (n === 0) return "";
-  const maxVal = Math.max(...values, 1);
-  const vbW = 280;
-  const vbH = 88;
-  const padX = 6;
-  const padY = 10;
-  const padB = 14;
-  const innerW = vbW - padX * 2;
-  const innerH = vbH - padY - padB;
-  const pts = values.map((v, i) => ({
-    x: padX + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW),
-    y: padY + innerH * (1 - v / maxVal),
-  }));
-  if (n === 1) return `M ${pts[0].x} ${pts[0].y}`;
-  let d = `M ${pts[0].x} ${pts[0].y}`;
-  for (let i = 0; i < n - 1; i++) {
-    const p0 = pts[i];
-    const p1 = pts[i + 1];
-    const dx = (p1.x - p0.x) / 3;
-    d += ` C ${p0.x + dx} ${p0.y} ${p1.x - dx} ${p1.y} ${p1.x} ${p1.y}`;
-  }
-  return d;
-}
-
 function getDayBounds(date: Date): { start: string; end: string } {
   const year = date.getFullYear();
   const month = date.getMonth();
@@ -397,6 +380,8 @@ function warrantySaleLineTotal(
 }
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams();
+  const queryBranchId = searchParams.get("branchId");
   type DateFilterMode = "today" | "range";
 
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>("today");
@@ -427,15 +412,15 @@ export default function DashboardPage() {
         if (!cancelled) setBranchResolved(true);
         return;
       }
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
+      const resolvedBranchId = await resolveActiveBranchId(supabase, user.id, queryBranchId);
       if (cancelled) return;
-      setBranchId(ub?.branch_id ?? null);
+      setBranchId(resolvedBranchId);
       setBranchResolved(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [queryBranchId]);
 
   useEffect(() => {
     if (!branchId) {
@@ -462,10 +447,9 @@ export default function DashboardPage() {
     const trendWindowStart = new Date();
     trendWindowStart.setHours(0, 0, 0, 0);
     trendWindowStart.setDate(trendWindowStart.getDate() - (INCOME_TREND_DAY_COUNT - 1));
-    const trendWindowEnd = new Date();
-    trendWindowEnd.setHours(23, 59, 59, 999);
-    const trendWindowStartIso = trendWindowStart.toISOString();
-    const trendWindowEndIso = trendWindowEnd.toISOString();
+    const trendWindowEndDay = new Date();
+    trendWindowEndDay.setHours(0, 0, 0, 0);
+    const { start: trendWindowStartIso, end: trendWindowEndIso } = getRangeBounds(trendWindowStart, trendWindowEndDay);
 
     const creditPaySelect =
       "amount, payment_method, amount_cash, amount_transfer, payment_source, created_at, customer_credits!inner(branch_id, public_ref, sale_id, total_amount)";
@@ -800,7 +784,7 @@ export default function DashboardPage() {
           if (s.payment_pending) return;
           const saleDate = new Date(s.created_at);
           saleDate.setHours(0, 0, 0, 0);
-          const key = saleDate.toDateString();
+          const key = localDayKey(saleDate);
           const deliveryFee = Number(s.delivery_fee) || 0;
           const storeIncome = Number(s.total) - deliveryFee; // Solo ingresos tienda (sin delivery)
           byDay[key] = (byDay[key] ?? 0) + storeIncome;
@@ -810,14 +794,14 @@ export default function DashboardPage() {
         if (!isCreditPaymentCashInflow(p)) return;
         const d = new Date(p.created_at);
         d.setHours(0, 0, 0, 0);
-        const key = d.toDateString();
+        const key = localDayKey(d);
         byDay[key] = (byDay[key] ?? 0) + Number(p.amount);
       });
       const last15Days: { day: string; sales: number }[] = [];
       for (let i = 0; i < INCOME_TREND_DAY_COUNT; i++) {
         const d = new Date(trendWindowStart);
         d.setDate(d.getDate() + i);
-        const key = d.toDateString();
+        const key = localDayKey(d);
         last15Days.push({
           day: formatTrendAxisDay(d),
           sales: byDay[key] ?? 0,
@@ -1171,26 +1155,10 @@ export default function DashboardPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               {periodLabel}
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2 sm:flex-nowrap">
-              <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-                Reportes
-              </h1>
-              <span className="hidden items-center gap-0.5 whitespace-nowrap text-[13px] font-normal tracking-tight text-slate-500 lg:inline-flex dark:text-slate-400">
-                <svg className="h-3 w-3 text-slate-400 dark:text-slate-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
-                  <path d="M11.3 1.046a1 1 0 00-1.78-.14l-5 8A1 1 0 005.36 10H9l-1.3 7.954a1 1 0 001.78.14l5-8A1 1 0 0013.64 9H10l1.3-7.954z" />
-                </svg>
-                powered by{" "}
-                <a
-                  href={programamosWhatsAppUrl("Hola programamos, te escribo desde Berea Comercios...")}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-semibold text-slate-600 underline-offset-2 hover:text-[color:var(--shell-sidebar)] hover:underline dark:text-slate-300 dark:hover:text-zinc-300"
-                >
-                  programamos.st
-                </a>
-              </span>
-            </div>
-            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <h1 className="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+              Reportes
+            </h1>
+            <p className="mt-1 whitespace-nowrap text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Ventas y caja por sucursal y período.
             </p>
           </div>
@@ -1317,7 +1285,7 @@ export default function DashboardPage() {
                   prevNumeric={data.prevPeriodNetTotal}
                   showDelta={showHeroDeltas}
                   hideSensitive={hideSensitiveInfo}
-                  icon={<MdOutlineAttachMoney aria-hidden />}
+                  icon={<CircleDollarSign aria-hidden strokeWidth={2} />}
                   infoTip={
                     <>
                       Cobros de ventas y abonos a crédito del período, menos todos los egresos registrados. Es el dinero
@@ -1332,7 +1300,7 @@ export default function DashboardPage() {
                   prevNumeric={data.prevPeriodNetCash}
                   showDelta={showHeroDeltas}
                   hideSensitive={hideSensitiveInfo}
-                  icon={<MdOutlinePayments aria-hidden />}
+                  icon={<Banknote aria-hidden strokeWidth={2} />}
                   infoTip={
                     <>Ingresos en efectivo del período menos egresos que pagaste en efectivo.</>
                   }
@@ -1344,7 +1312,7 @@ export default function DashboardPage() {
                   prevNumeric={data.prevPeriodNetTransfer}
                   showDelta={showHeroDeltas}
                   hideSensitive={hideSensitiveInfo}
-                  icon={<MdOutlineAccountBalance aria-hidden />}
+                  icon={<Landmark aria-hidden strokeWidth={2} />}
                   infoTip={
                     <>Ingresos por transferencia del período menos egresos pagados por transferencia.</>
                   }
@@ -1355,7 +1323,7 @@ export default function DashboardPage() {
 
               <DashboardReportSection eyebrow="Salidas y ajustes" gridClass="sm:grid-cols-3">
               <DashboardKpiCard
-                icon={<MdOutlineTrendingDown aria-hidden title="Salidas de dinero del período" />}
+                icon={<TrendingDown aria-hidden strokeWidth={2} />}
                 label="Egresos"
                 value={formatSensitiveValue(totalExpensesDay)}
                 infoTip={
@@ -1366,7 +1334,7 @@ export default function DashboardPage() {
                 }
               />
               <DashboardKpiCard
-                icon={<MdOutlineCancel aria-hidden title="Facturas canceladas en el período" />}
+                icon={<CircleX aria-hidden strokeWidth={2} />}
                 label="Facturas anuladas"
                 value={
                   data.cancelledInvoices > 0
@@ -1376,7 +1344,7 @@ export default function DashboardPage() {
                 infoTip={<>Cantidad de facturas canceladas en el período y suma de sus montos.</>}
               />
               <DashboardKpiCard
-                icon={<MdOutlineVerifiedUser aria-hidden title="Garantías creadas en el período" />}
+                icon={<ShieldCheck aria-hidden strokeWidth={2} />}
                 label="Garantías"
                 value={formatSensitiveValue(data.warrantiesCount, "number")}
                 infoTip={
@@ -1392,7 +1360,7 @@ export default function DashboardPage() {
 
             <DashboardReportSection eyebrow="Inventario y resultado" gridClass="sm:grid-cols-2 lg:grid-cols-4">
               <DashboardKpiCard
-                icon={<MdOutlineInventory2 aria-hidden title="Inventario valorizado a costo" />}
+                icon={<Package aria-hidden strokeWidth={2} />}
                 label="Stock total"
                 value={formatSensitiveValue(data.totalStockInvestment)}
                 infoTip={
@@ -1403,7 +1371,7 @@ export default function DashboardPage() {
                 }
               />
               <DashboardKpiCard
-                icon={<MdOutlineShowChart aria-hidden title="Margen: precio de venta menos costo del producto" />}
+                icon={<LineChart aria-hidden strokeWidth={2} />}
                 label="Margen bruto"
                 value={formatSensitiveValue(data.grossProfit)}
                 infoTip={
@@ -1414,7 +1382,7 @@ export default function DashboardPage() {
                 }
               />
               <DashboardKpiCard
-                icon={<MdOutlineSavings aria-hidden title="Mismo neto en caja que el bloque superior" />}
+                icon={<PiggyBank aria-hidden strokeWidth={2} />}
                 label="Resultado en caja"
                 value={formatSensitiveValue(data.netProfit)}
                 infoTip={
@@ -1425,7 +1393,7 @@ export default function DashboardPage() {
                 }
               />
               <DashboardKpiCard
-                icon={<MdOutlineCreditCard aria-hidden title="Saldo pendiente en créditos a clientes" />}
+                icon={<CreditCard aria-hidden strokeWidth={2} />}
                 label="Créditos"
                 value={formatSensitiveValue(data.outstandingCredits)}
                 infoTip={<>Saldo pendiente por cobrar en ventas a crédito (esta sucursal).</>}
@@ -1436,72 +1404,25 @@ export default function DashboardPage() {
             <section className="rounded-3xl bg-white px-5 py-6 sm:px-8 sm:py-7 dark:bg-slate-900">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tendencia de ingresos</p>
               <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Últimos {INCOME_TREND_DAY_COUNT} días · ingresos por día
+                Últimos {INCOME_TREND_DAY_COUNT} días calendario · ingreso tienda + abonos (sin fee envío), por día local.
+                La línea punteada es el promedio diario sobre esos días (incluye días en $0).
               </p>
-              <div className="relative mt-4 h-52 sm:h-56">
-            {(() => {
-              const maxSales = Math.max(...data.last15Days.map((d) => d.sales), 1);
-              const ticks = [1, 0.8, 0.6, 0.4, 0.2, 0].map((r) => Math.round(maxSales * r));
-              const salesValues = data.last15Days.map((d) => d.sales);
-              const linePath = buildSalesTrendLine(salesValues);
-              return (
-                <>
-                  <div className="absolute left-0 top-0 flex h-[calc(100%-1.5rem)] flex-col justify-between pr-2 text-[10px] font-medium text-slate-400 dark:text-slate-500 sm:pr-3">
-                    {ticks.map((v, i) => (
-                      <span key={i}>
-                        {hideSensitiveInfo
-                          ? "***"
-                          : v === 0
-                            ? "$0"
-                            : v >= 1000000
-                              ? `$${(v / 1000000).toFixed(1)}M`
-                              : `$${(v / 1000).toFixed(0)}k`}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="relative ml-9 h-[calc(100%-1.5rem)] sm:ml-11">
-                    <svg
-                      viewBox="0 0 280 88"
-                      className="h-full w-full max-w-full text-[color:var(--shell-sidebar)] dark:text-zinc-300"
-                      preserveAspectRatio="xMidYMid meet"
-                      role="img"
-                      aria-label={`Gráfico de ingresos de los últimos ${INCOME_TREND_DAY_COUNT} días`}
-                    >
-                      {linePath ? (
-                        <path
-                          d={linePath}
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      ) : null}
-                    </svg>
-                  </div>
-                  <div className="absolute bottom-0 left-9 right-0 flex justify-between gap-px sm:left-11">
-                    {data.last15Days.map((day, i) => (
-                      <div key={i} className="relative min-w-0 flex-1 text-center">
-                        <span className="block truncate text-[8px] font-medium text-slate-500 dark:text-slate-400 sm:text-[9px]">
-                          {day.day}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-          <div className="mt-4 flex flex-col gap-2 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+              <div
+                className="relative mt-4 min-h-[220px] h-56 w-full min-w-0 sm:h-60"
+                role="region"
+                aria-label={`Gráfico de ingresos de los últimos ${INCOME_TREND_DAY_COUNT} días`}
+              >
+                <IncomeTrendChart days={data.last15Days} hideSensitiveInfo={hideSensitiveInfo} />
+              </div>
+          <div className="mt-4 flex flex-col gap-2 text-center sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-4 sm:text-left sm:whitespace-nowrap">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Promedio diario:{" "}
+              Promedio diario ({INCOME_TREND_DAY_COUNT} días calendario, con $0):{" "}
               <span className="font-bold text-slate-900 dark:text-slate-50">
                 {hideSensitiveInfo
                   ? "***"
                   : (() => {
                       const total = data.last15Days.reduce((a, d) => a + d.sales, 0);
-                      const daysWithSales = data.last15Days.filter((d) => d.sales > 0).length;
-                      return daysWithSales > 0 ? `$${Math.round(total / daysWithSales).toLocaleString("es-CO")}` : "$0";
+                      return `$${Math.round(total / INCOME_TREND_DAY_COUNT).toLocaleString("es-CO")}`;
                     })()}
               </span>
             </div>

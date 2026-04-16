@@ -26,7 +26,13 @@ async function requireStaff() {
   if (!user) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  if (!isNouInternalStaff(user.email)) {
+  const { data: profileRow } = await supabase
+    .from("users")
+    .select("email")
+    .eq("id", user.id)
+    .maybeSingle();
+  const profileEmail = (profileRow as { email?: string | null } | null)?.email ?? null;
+  if (!isNouInternalStaff(user.email) && !isNouInternalStaff(profileEmail)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   return { user };
