@@ -40,14 +40,90 @@ function salePrice(p: ProductRow): number {
 
 type StockFilter = "all" | "sin-stock" | "bajo" | "con-stock";
 
+/** Sobre qué cantidad aplican «Sin stock» / «Stock bajo» / «Con stock». */
+type StockScope = "total" | "local" | "bodega";
+
+type StockSplit = { local: number; bodega: number };
+
+function stockForScope(split: StockSplit | undefined, scope: StockScope): number {
+  const s = split ?? { local: 0, bodega: 0 };
+  if (scope === "local") return s.local;
+  if (scope === "bodega") return s.bodega;
+  return s.local + s.bodega;
+}
+
+/** Valor del único select «Estado»: `all` o `sin-stock|bajo|con-stock` + `:` + alcance. */
+function parseStockStatusOption(v: string): { kind: StockFilter; scope: StockScope } {
+  if (v === "all") return { kind: "all", scope: "total" };
+  const parts = v.split(":");
+  if (parts.length !== 2) return { kind: "all", scope: "total" };
+  const [k, s] = parts;
+  if (k !== "sin-stock" && k !== "bajo" && k !== "con-stock") return { kind: "all", scope: "total" };
+  if (s !== "total" && s !== "local" && s !== "bodega") return { kind: "all", scope: "total" };
+  return { kind: k as StockFilter, scope: s as StockScope };
+}
+
+function StockEstadoSelect({
+  id,
+  value,
+  onChange,
+  hasBodega,
+  className,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  hasBodega: boolean | null;
+  className: string;
+}) {
+  return (
+    <select
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={className}
+      aria-label="Estado de stock"
+    >
+      <option value="all">Todos</option>
+      {hasBodega === true ? (
+        <>
+          <optgroup label="Sin stock">
+            <option value="sin-stock:total">Total (local + bodega)</option>
+            <option value="sin-stock:local">Solo en local</option>
+            <option value="sin-stock:bodega">Solo en bodega</option>
+          </optgroup>
+          <optgroup label="Stock bajo (1–10)">
+            <option value="bajo:total">Total (local + bodega)</option>
+            <option value="bajo:local">Solo en local</option>
+            <option value="bajo:bodega">Solo en bodega</option>
+          </optgroup>
+          <optgroup label="Con stock (más de 10)">
+            <option value="con-stock:total">Total (local + bodega)</option>
+            <option value="con-stock:local">Solo en local</option>
+            <option value="con-stock:bodega">Solo en bodega</option>
+          </optgroup>
+        </>
+      ) : (
+        <>
+          <option value="sin-stock:total">Sin stock</option>
+          <option value="bajo:total">Stock bajo</option>
+          <option value="con-stock:total">Con stock</option>
+        </>
+      )}
+    </select>
+  );
+}
+
 export default function InventoryPage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
-  const [stockByProduct, setStockByProduct] = useState<Record<string, number>>({});
+  const [stockSplitByProduct, setStockSplitByProduct] = useState<Record<string, StockSplit>>({});
+  const [hasBodega, setHasBodega] = useState<boolean | null>(null);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [effectiveSearchQuery, setEffectiveSearchQuery] = useState("");
-  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  /** Estado de stock + alcance (local / bodega / total) en un solo valor. */
+  const [stockStatusOption, setStockStatusOption] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -144,6 +220,9 @@ export default function InventoryPage() {
         const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
         if (!ub?.branch_id || cancelled) return;
 
+        const { data: branchRow } = await supabase.from("branches").select("has_bodega").eq("id", ub.branch_id).single();
+        if (!cancelled) setHasBodega(branchRow?.has_bodega !== false);
+
         const { data: invScope } = await supabase
           .from("inventory")
           .select("product_id")
@@ -152,7 +231,7 @@ export default function InventoryPage() {
         if (scopedProductIds.length === 0) {
           setProducts([]);
           setTotalCount(0);
-          setStockByProduct({});
+          setStockSplitByProduct({});
           setLoading(false);
           return;
         }
@@ -180,29 +259,34 @@ export default function InventoryPage() {
 
         const productIds = (productsData ?? []).map((p) => p.id);
         if (productIds.length === 0) {
-          setStockByProduct({});
+          setStockSplitByProduct({});
           setLoading(false);
           return;
         }
 
         const { data: invData } = await supabase
           .from("inventory")
-          .select("product_id, quantity")
+          .select("product_id, quantity, location")
           .eq("branch_id", ub.branch_id)
           .in("product_id", productIds);
 
-        const byProduct: Record<string, number> = {};
+        const splitBy: Record<string, StockSplit> = {};
         if (invData) {
           for (const row of invData) {
-            byProduct[row.product_id] = (byProduct[row.product_id] ?? 0) + (row.quantity ?? 0);
+            const pid = row.product_id;
+            const q = row.quantity ?? 0;
+            const loc = (row as { location?: string | null }).location;
+            if (!splitBy[pid]) splitBy[pid] = { local: 0, bodega: 0 };
+            if (loc === "bodega") splitBy[pid].bodega += q;
+            else splitBy[pid].local += q;
           }
         }
-        if (!cancelled) setStockByProduct(byProduct);
+        if (!cancelled) setStockSplitByProduct(splitBy);
       } catch (_) {
         if (!cancelled) {
           setProducts([]);
           setTotalCount(0);
-          setStockByProduct({});
+          setStockSplitByProduct({});
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -211,17 +295,34 @@ export default function InventoryPage() {
     return () => { cancelled = true; };
   }, [refreshKey, page, effectiveSearchQuery, categoryFilter]);
 
+  useEffect(() => {
+    if (hasBodega !== false) return;
+    setStockStatusOption((prev) => {
+      if (prev === "all") return prev;
+      const [, scope] = prev.split(":");
+      if (scope === "total" || !scope) return prev;
+      const kind = prev.split(":")[0];
+      if (kind === "sin-stock" || kind === "bajo" || kind === "con-stock") return `${kind}:total`;
+      return "all";
+    });
+  }, [hasBodega]);
+
+  const stockStatusParsed = parseStockStatusOption(stockStatusOption);
+  const effectiveStockScope: StockScope = hasBodega === true ? stockStatusParsed.scope : "total";
+
   const filteredProducts = products.filter((p) => {
-    const stock = stockByProduct[p.id] ?? 0;
+    const split = stockSplitByProduct[p.id];
+    const stock = stockForScope(split, effectiveStockScope);
     const matchSearch =
       !searchQuery.trim() ||
       p.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
       (p.sku?.toLowerCase().includes(searchQuery.trim().toLowerCase()) ?? false);
+    const k = stockStatusParsed.kind;
     const matchStock =
-      stockFilter === "all" ||
-      (stockFilter === "sin-stock" && stock === 0) ||
-      (stockFilter === "bajo" && stock > 0 && stock <= 10) ||
-      (stockFilter === "con-stock" && stock > 10);
+      k === "all" ||
+      (k === "sin-stock" && stock === 0) ||
+      (k === "bajo" && stock > 0 && stock <= 10) ||
+      (k === "con-stock" && stock > 10);
     const matchCategory = !categoryFilter || p.category_id === categoryFilter;
     return matchSearch && matchStock && matchCategory;
   });
@@ -276,7 +377,7 @@ export default function InventoryPage() {
   })();
   const actionIconClass =
     "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[color:var(--shell-sidebar)] dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-zinc-300";
-  const SHOW_TRANSFER_OPTION = false;
+  const SHOW_TRANSFER_OPTION = true;
   const stockStatusChip = (stock: number) => {
     if (stock === 0) {
       return {
@@ -301,6 +402,16 @@ export default function InventoryPage() {
   const filterSearchClass = workspaceFilterSearchPillClass;
   const filterSelectClass = workspaceFilterSelectClass;
   const filterLabelClass = workspaceFilterLabelClass;
+
+  /** Grid alineado encabezado + filas: 8 cols con bodega (local + bodega separados), 7 sin. */
+  const desktopInventoryHeaderGrid =
+    hasBodega === true
+      ? "grid grid-cols-[minmax(120px,1.35fr)_minmax(72px,0.78fr)_minmax(96px,0.95fr)_minmax(48px,0.34fr)_minmax(48px,0.34fr)_minmax(82px,0.68fr)_minmax(96px,0.78fr)_minmax(124px,auto)] gap-x-3 sm:gap-x-5 items-center px-4 sm:px-5 py-3"
+      : "grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(90px,0.8fr)_minmax(115px,0.9fr)_minmax(140px,auto)] gap-x-6 items-center px-5 py-3";
+  const desktopInventoryRowGrid =
+    hasBodega === true
+      ? "grid grid-cols-[minmax(120px,1.35fr)_minmax(72px,0.78fr)_minmax(96px,0.95fr)_minmax(48px,0.34fr)_minmax(48px,0.34fr)_minmax(82px,0.68fr)_minmax(96px,0.78fr)_minmax(124px,auto)] gap-x-3 sm:gap-x-5 items-center px-4 sm:px-5 py-4"
+      : "grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(90px,0.8fr)_minmax(115px,0.9fr)_minmax(140px,auto)] gap-x-6 items-center px-5 py-4";
 
   return (
     <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
@@ -382,18 +493,17 @@ export default function InventoryPage() {
                   className={filterSearchClass}
                 />
               </div>
-              <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
-                <label className={filterLabelClass}>Estado</label>
-                <select
-                  value={stockFilter}
-                  onChange={(e) => { setStockFilter(e.target.value as StockFilter); setPage(1); }}
+              <div className="w-full shrink-0 space-y-1.5 md:min-w-[10rem] md:w-[12.5rem] lg:w-[13rem]">
+                <label className={filterLabelClass} htmlFor="inv-stock-status-empty">
+                  Estado
+                </label>
+                <StockEstadoSelect
+                  id="inv-stock-status-empty"
+                  value={stockStatusOption}
+                  onChange={(v) => { setStockStatusOption(v); setPage(1); }}
+                  hasBodega={hasBodega}
                   className={filterSelectClass}
-                >
-                  <option value="all">Todos</option>
-                  <option value="sin-stock">Sin stock</option>
-                  <option value="bajo">Stock bajo</option>
-                  <option value="con-stock">Con stock</option>
-                </select>
+                />
               </div>
               <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
                 <label className={filterLabelClass}>Categoría</label>
@@ -421,7 +531,7 @@ export default function InventoryPage() {
               <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
                 {isDatabaseEmpty
                   ? "Crea tu primer producto para verlo aquí."
-                  : "Ajusta el nombre o código, la categoría o el estado de stock (la lista respeta los filtros de esta página)."}
+                  : "Ajusta la búsqueda, el estado de stock o la categoría."}
               </p>
               {isDatabaseEmpty ? (
                 planSnapshot && !planSnapshot.canCreateProduct ? (
@@ -457,18 +567,17 @@ export default function InventoryPage() {
                   className={filterSearchClass}
                 />
               </div>
-              <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
-                <label className={filterLabelClass}>Estado</label>
-                <select
-                  value={stockFilter}
-                  onChange={(e) => { setStockFilter(e.target.value as StockFilter); setPage(1); }}
+              <div className="w-full shrink-0 space-y-1.5 md:min-w-[10rem] md:w-[12.5rem] lg:w-[13rem]">
+                <label className={filterLabelClass} htmlFor="inv-stock-status">
+                  Estado
+                </label>
+                <StockEstadoSelect
+                  id="inv-stock-status"
+                  value={stockStatusOption}
+                  onChange={(v) => { setStockStatusOption(v); setPage(1); }}
+                  hasBodega={hasBodega}
                   className={filterSelectClass}
-                >
-                  <option value="all">Todos</option>
-                  <option value="sin-stock">Sin stock</option>
-                  <option value="bajo">Stock bajo</option>
-                  <option value="con-stock">Con stock</option>
-                </select>
+                />
               </div>
               <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
                 <label className={filterLabelClass}>Categoría</label>
@@ -491,19 +600,27 @@ export default function InventoryPage() {
             <div className="hidden overflow-hidden rounded-2xl border border-slate-100 bg-white dark:border-zinc-800/80 dark:bg-zinc-950/30 xl:block">
               {/* Títulos de columna */}
               <div
-                className="grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(90px,0.8fr)_minmax(115px,0.9fr)_minmax(140px,auto)] gap-x-6 items-center px-5 py-3 bg-slate-50 border-b border-slate-200 dark:border-zinc-800/80 dark:bg-zinc-900/40"
+                className={`${desktopInventoryHeaderGrid} bg-slate-50 border-b border-slate-200 dark:border-zinc-800/80 dark:bg-zinc-900/40`}
                 aria-hidden
               >
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Producto</div>
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Código</div>
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Categoría</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Stock</div>
+                {hasBodega === true ? (
+                  <>
+                    <div className="min-w-0 text-right sm:text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Local</div>
+                    <div className="min-w-0 text-right sm:text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Bodega</div>
+                  </>
+                ) : (
+                  <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Stock</div>
+                )}
                 <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Estado</div>
                 <div className="min-w-0 w-full text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Precio</div>
                 <div className="min-w-0 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Acciones</div>
               </div>
               {filteredProducts.map((p, index) => {
-                const stock = stockByProduct[p.id] ?? 0;
+                const split = stockSplitByProduct[p.id] ?? { local: 0, bodega: 0 };
+                const stock = stockForScope(split, effectiveStockScope);
                 const price = salePrice(p);
                 const stockStatus = stockStatusChip(stock);
                 const isSelected = index === selectedIndex;
@@ -515,7 +632,7 @@ export default function InventoryPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/inventario/${p.id}`)}
-                    className={`grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(90px,0.8fr)_minmax(115px,0.9fr)_minmax(140px,auto)] gap-x-6 items-center px-5 py-4 cursor-pointer transition-colors border-b border-slate-100 dark:border-zinc-800/60 ${
+                    className={`${desktopInventoryRowGrid} cursor-pointer transition-colors border-b border-slate-100 dark:border-zinc-800/60 ${
                       isLast ? "border-b-0" : ""
                     } ${
                       isSelected
@@ -532,9 +649,20 @@ export default function InventoryPage() {
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{stock} {stock === 1 ? "unidad" : "unidades"}</p>
-                  </div>
+                  {hasBodega === true ? (
+                    <>
+                      <div className="min-w-0 text-right sm:text-left">
+                        <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{split.local}</p>
+                      </div>
+                      <div className="min-w-0 text-right sm:text-left">
+                        <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{split.bodega}</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{stock}</p>
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <span className={stockStatus.className}>{stockStatus.label}</span>
                   </div>
@@ -565,7 +693,7 @@ export default function InventoryPage() {
                         <Link href={`/inventario/transferir?productId=${p.id}`} className={actionIconClass} aria-label="Transferir">
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
                         </Link>
-                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Transferir stock a otra sucursal</span>
+                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Transferir entre local y bodega</span>
                       </span>
                     )}
                   </div>
@@ -577,7 +705,8 @@ export default function InventoryPage() {
             {/* Mobile: tarjetas apiladas (misma lista, otra vista) */}
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:hidden">
               {filteredProducts.map((p, index) => {
-                const stock = stockByProduct[p.id] ?? 0;
+                const split = stockSplitByProduct[p.id] ?? { local: 0, bodega: 0 };
+                const stock = stockForScope(split, effectiveStockScope);
                 const price = salePrice(p);
                 const stockStatus = stockStatusChip(stock);
                 const isSelected = index === selectedIndex;
@@ -598,7 +727,23 @@ export default function InventoryPage() {
                       <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Producto</span><p className="truncate text-right text-[15px] font-medium text-slate-900 dark:text-slate-50">{p.name}</p></div>
                       <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Código</span><p className="text-[13px] font-medium text-slate-700 dark:text-slate-200">{p.sku || "—"}</p></div>
                       <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Categoría</span><p className="text-[13px] font-medium text-slate-700 dark:text-slate-200">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock</span><p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{stock} {stock === 1 ? "unidad" : "unidades"}</p></div>
+                      {hasBodega === true ? (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock local</span>
+                            <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{split.local}</p>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock bodega</span>
+                            <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{split.bodega}</p>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock</span>
+                          <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{stock}</p>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Estado</span><span className={stockStatus.className}>{stockStatus.label}</span></div>
                       <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Precio</span><p className="text-[15px] font-medium tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(price)}</p></div>
                       <div
@@ -644,7 +789,7 @@ export default function InventoryPage() {
                               </svg>
                             </Link>
                             <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 dark:bg-slate-700">
-                              Transferir
+                              Local ↔ bodega
                             </span>
                           </span>
                         )}

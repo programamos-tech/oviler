@@ -38,6 +38,9 @@ export default function ProductDetailPage() {
   const id = params?.id as string | undefined;
   const [product, setProduct] = useState<Product | null>(null);
   const [stock, setStock] = useState<number>(0);
+  const [stockLocal, setStockLocal] = useState<number>(0);
+  const [stockBodega, setStockBodega] = useState<number>(0);
+  const [hasBodega, setHasBodega] = useState<boolean | null>(null);
   const [stockReserved, setStockReserved] = useState<number>(0);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [locationRows, setLocationRows] = useState<{ quantity: number; path: string; locationId: string }[]>([]);
@@ -46,7 +49,7 @@ export default function ProductDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const SHOW_TRANSFER_OPTION = false;
+  const SHOW_TRANSFER_OPTION = true;
 
   useEffect(() => {
     if (!id) return;
@@ -95,10 +98,13 @@ export default function ProductDetailPage() {
       const branchId = ub.branch_id;
       if (!cancelled) setBranchId(branchId);
 
+      const { data: branchRow } = await supabase.from("branches").select("has_bodega").eq("id", branchId).single();
+      if (!cancelled) setHasBodega(branchRow?.has_bodega !== false);
+
       const STATUSES_THAT_RESERVE = ["pending", "preparing", "packing"];
 
       const [invRes, reservedRes] = await Promise.all([
-        supabase.from("inventory").select("quantity").eq("product_id", id).eq("branch_id", branchId),
+        supabase.from("inventory").select("quantity, location").eq("product_id", id).eq("branch_id", branchId),
         supabase
           .from("sale_items")
           .select("quantity, sales!inner(branch_id, status)")
@@ -107,8 +113,20 @@ export default function ProductDetailPage() {
           .in("sales.status", STATUSES_THAT_RESERVE),
       ]);
 
-      const total = (invRes.data ?? []).reduce((s, r) => s + (r.quantity ?? 0), 0);
-      if (!cancelled) setStock(total);
+      let local = 0;
+      let bodega = 0;
+      for (const r of invRes.data ?? []) {
+        const q = r.quantity ?? 0;
+        const loc = (r as { location?: string }).location;
+        if (loc === "bodega") bodega += q;
+        else local += q;
+      }
+      const total = local + bodega;
+      if (!cancelled) {
+        setStock(total);
+        setStockLocal(local);
+        setStockBodega(bodega);
+      }
 
       const reserved = (reservedRes.data ?? []).reduce((sum, row) => {
         const raw = row as { quantity: number; sales: { branch_id: string; status: string } | { branch_id: string; status: string }[] | null };
@@ -320,12 +338,30 @@ export default function ProductDetailPage() {
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Precio de venta</p>
               <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50 sm:text-xl">$ {formatMoney(price)}</p>
             </div>
-            <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Stock en sucursal</p>
-              <p className={`mt-1 text-lg font-semibold sm:text-xl ${stockColorClass}`}>
-                {stock} unidades
-              </p>
-            </div>
+            {hasBodega ? (
+              <>
+                <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Stock total</p>
+                  <p className={`mt-1 text-lg font-semibold sm:text-xl ${stockColorClass}`}>{stock} unidades</p>
+                  <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">Local + bodega</p>
+                </div>
+                <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Stock local</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50 sm:text-xl">{stockLocal} unidades</p>
+                  <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">Punto de venta / mostrador</p>
+                </div>
+                <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Stock bodega</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50 sm:text-xl">{stockBodega} unidades</p>
+                  <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">Almacén de la sucursal</p>
+                </div>
+              </>
+            ) : (
+              <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Stock en sucursal</p>
+                <p className={`mt-1 text-lg font-semibold sm:text-xl ${stockColorClass}`}>{stock} unidades</p>
+              </div>
+            )}
             <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Stock reservado</p>
               <p className="mt-1 text-lg font-semibold text-amber-700 dark:text-amber-300 sm:text-xl">
@@ -445,10 +481,19 @@ export default function ProductDetailPage() {
                   Gestionar ubicaciones
                 </Link>
               </>
+            ) : hasBodega === true && stockBodega === 0 ? (
+              <p className="mt-3 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                No hay unidades en bodega en esta sucursal. Cuando ingreses stock en bodega (alta o ajuste), podrás asignar una ubicación en estante desde{" "}
+                <Link href="/inventario/ubicaciones" className="font-semibold text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">Ubicaciones bodega</Link>.
+              </p>
+            ) : hasBodega === true ? (
+              <p className="mt-3 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                Sin ubicación específica en estante. El stock en bodega ({stockBodega} und) está en inventario general. Puedes asignar una ubicación al actualizar el stock o desde{" "}
+                <Link href="/inventario/ubicaciones" className="font-semibold text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">Ubicaciones bodega</Link>.
+              </p>
             ) : (
               <p className="mt-3 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Sin ubicación específica. El stock ({stock} und) está en inventario general. Puedes asignar una ubicación al actualizar el stock o desde{" "}
-                <Link href="/inventario/ubicaciones" className="font-semibold text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">Ubicaciones bodega</Link>.
+                Sin ubicación en estante. El inventario ({stock} und) está en esta sucursal. Si activas bodega en la sucursal, podrás separar local y bodega.
               </p>
             )}
         </div>

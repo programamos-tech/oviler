@@ -36,7 +36,9 @@ export default function NewProductPage() {
   const [marca, setMarca] = useState("");
   const [categoria, setCategoria] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
-  const [stockInicial, setStockInicial] = useState(0);
+  const [stockLocal, setStockLocal] = useState(0);
+  const [stockBodega, setStockBodega] = useState(0);
+  const [hasBodega, setHasBodega] = useState<boolean | null>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
@@ -210,11 +212,25 @@ export default function NewProductPage() {
       if (!user || cancelled) return;
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
       if (!ub?.branch_id || cancelled) return;
-      const { data: branch } = await supabase.from("branches").select("responsable_iva").eq("id", ub.branch_id).single();
-      if (!cancelled) setResponsableIva(!!branch?.responsable_iva);
+      const { data: branch } = await supabase.from("branches").select("responsable_iva, has_bodega").eq("id", ub.branch_id).single();
+      if (!cancelled) {
+        setResponsableIva(!!branch?.responsable_iva);
+        setHasBodega(branch?.has_bodega !== false);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (hasBodega && stockBodega === 0) {
+      setSinUbicacion(true);
+      setSelectedWarehouseId("");
+      setSelectedZoneId("");
+      setSelectedAisleId("");
+      setSelectedStandId("");
+      setSelectedLocationId("");
+    }
+  }, [hasBodega, stockBodega]);
 
   const floorIdsForWarehouse = selectedWarehouseId ? floors.filter((f) => f.warehouse_id === selectedWarehouseId).map((f) => f.id) : [];
   const zonesForWarehouse = zones.filter((z) => floorIdsForWarehouse.includes(z.floor_id));
@@ -255,6 +271,10 @@ export default function NewProductPage() {
     const sku = referencia.trim();
     if (!name || !sku) {
       setError("Nombre y referencia son obligatorios.");
+      return;
+    }
+    if (hasBodega === null) {
+      setError("Espera a que cargue la configuración de la sucursal e inténtalo de nuevo.");
       return;
     }
     const cost = numBaseCosto;
@@ -330,29 +350,79 @@ export default function NewProductPage() {
       await supabase.from("products").update({ image_url: urlData.publicUrl }).eq("id", product.id);
     }
 
-    const qty = Math.max(0, Number(stockInicial) || 0);
+    const ql = Math.max(0, Number(stockLocal) || 0);
+    const qb = hasBodega ? Math.max(0, Number(stockBodega) || 0) : 0;
     const locationIdToUse = sinUbicacion ? "" : selectedLocationId;
-    if (locationIdToUse) {
-      const { error: locErr } = await supabase.from("inventory_locations").insert({
-        product_id: product.id,
-        location_id: locationIdToUse,
-        quantity: qty,
-      });
-      if (locErr) {
-        setError(locErr.message || "Producto creado pero falló asignar ubicación.");
+
+    if (hasBodega) {
+      if (qb > 0 && !sinUbicacion && warehouses.length > 0 && !locationIdToUse) {
+        setError("Elige un nivel en bodega o marca «Sin ubicación específica».");
         setSaving(false);
         return;
       }
-    } else if (qty > 0) {
-      const { error: invError } = await supabase.from("inventory").insert({
-        product_id: product.id,
-        branch_id: ub.branch_id,
-        quantity: qty,
-      });
-      if (invError) {
-        setError(invError.message || "Producto creado pero falló el stock inicial.");
-        setSaving(false);
-        return;
+      if (ql > 0) {
+        const { error: invLocalErr } = await supabase.from("inventory").insert({
+          product_id: product.id,
+          branch_id: ub.branch_id,
+          location: "local",
+          quantity: ql,
+        });
+        if (invLocalErr) {
+          setError(invLocalErr.message || "Producto creado pero falló el stock en local.");
+          setSaving(false);
+          return;
+        }
+      }
+      if (qb > 0) {
+        if (locationIdToUse) {
+          const { error: locErr } = await supabase.from("inventory_locations").insert({
+            product_id: product.id,
+            location_id: locationIdToUse,
+            quantity: qb,
+          });
+          if (locErr) {
+            setError(locErr.message || "Producto creado pero falló asignar ubicación en bodega.");
+            setSaving(false);
+            return;
+          }
+        } else {
+          const { error: invBodErr } = await supabase.from("inventory").insert({
+            product_id: product.id,
+            branch_id: ub.branch_id,
+            location: "bodega",
+            quantity: qb,
+          });
+          if (invBodErr) {
+            setError(invBodErr.message || "Producto creado pero falló el stock en bodega.");
+            setSaving(false);
+            return;
+          }
+        }
+      }
+    } else {
+      const qty = ql;
+      if (locationIdToUse) {
+        const { error: locErr } = await supabase.from("inventory_locations").insert({
+          product_id: product.id,
+          location_id: locationIdToUse,
+          quantity: qty,
+        });
+        if (locErr) {
+          setError(locErr.message || "Producto creado pero falló asignar ubicación.");
+          setSaving(false);
+          return;
+        }
+      } else if (qty > 0) {
+        const { error: invError } = await supabase.from("inventory").insert({
+          product_id: product.id,
+          branch_id: ub.branch_id,
+          quantity: qty,
+        });
+        if (invError) {
+          setError(invError.message || "Producto creado pero falló el stock inicial.");
+          setSaving(false);
+          return;
+        }
       }
     }
 
@@ -533,182 +603,257 @@ export default function NewProductPage() {
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Control de stock
             </p>
-            <label className="mt-3 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
-              Ubicación en bodega (opcional)
-            </label>
-            <label className="mt-2 flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={sinUbicacion}
-                onChange={(e) => {
-                  setSinUbicacion(e.target.checked);
-                  if (e.target.checked) {
-                    setSelectedWarehouseId("");
-                    setSelectedZoneId("");
-                    setSelectedAisleId("");
-                    setSelectedStandId("");
-                    setSelectedLocationId("");
-                  }
-                }}
-                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
-              />
-              <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Sin ubicación específica</span>
-            </label>
-            {!sinUbicacion && warehouses.length > 0 ? (
-              <div className="mt-3 space-y-3">
-                <div>
-                  <label className="mb-1 block text-[12px] font-medium text-slate-500 dark:text-slate-400">Bodega</label>
-                  <select
-                    className={inputClass}
-                    value={selectedWarehouseId}
-                    onChange={(e) => {
-                      setSelectedWarehouseId(e.target.value);
-                      setSelectedZoneId("");
-                      setSelectedAisleId("");
-                      setSelectedStandId("");
-                      setSelectedLocationId("");
-                    }}
-                  >
-                    <option value="">Elegir bodega…</option>
-                    {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>{w.name}</option>
-                    ))}
-                  </select>
-                </div>
-                {selectedWarehouseId && (
+            {hasBodega === null && (
+              <p className="mt-3 text-[13px] text-slate-500 dark:text-slate-400">Cargando sucursal…</p>
+            )}
+            {hasBodega !== null && hasBodega && (
+              <>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Zona</label>
-                    <select
-                      className={inputClass}
-                      value={selectedZoneId}
+                    <label className={labelClass}>Stock en local (mostrador)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={stockLocal === 0 ? "" : stockLocal}
                       onChange={(e) => {
-                        setSelectedZoneId(e.target.value);
+                        const v = e.target.value;
+                        if (v === "") {
+                          setStockLocal(0);
+                          return;
+                        }
+                        const num = parseInt(v.replace(/^0+/, ""), 10);
+                        if (!Number.isNaN(num) && num >= 0) setStockLocal(num);
+                      }}
+                      placeholder="0"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Stock en bodega</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={stockBodega === 0 ? "" : stockBodega}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "") {
+                          setStockBodega(0);
+                          return;
+                        }
+                        const num = parseInt(v.replace(/^0+/, ""), 10);
+                        if (!Number.isNaN(num) && num >= 0) setStockBodega(num);
+                      }}
+                      placeholder="0"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+                <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-[13px] font-medium text-slate-700 dark:bg-slate-800/60 dark:text-slate-200">
+                  Total inicial:{" "}
+                  <span className="font-bold tabular-nums text-slate-900 dark:text-slate-50">
+                    {stockLocal + stockBodega} {stockLocal + stockBodega === 1 ? "unidad" : "unidades"}
+                  </span>{" "}
+                  (local + bodega)
+                </p>
+                <p className="mt-2 text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                  Indica cuántas unidades quedan en el punto de venta y cuántas en bodega. Si hay stock en bodega, puedes asignar una ubicación en estante abajo.
+                </p>
+              </>
+            )}
+            {hasBodega !== null && !hasBodega && (
+              <>
+                <label className="mt-3 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
+                  Cantidad en inventario
+                </label>
+                <div className="mt-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={stockLocal === 0 ? "" : stockLocal}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "") {
+                        setStockLocal(0);
+                        return;
+                      }
+                      const num = parseInt(v.replace(/^0+/, ""), 10);
+                      if (!Number.isNaN(num) && num >= 0) setStockLocal(num);
+                    }}
+                    placeholder="0"
+                    className={inputClass}
+                  />
+                </div>
+                <p className="mt-2 text-[13px] font-medium text-slate-600 dark:text-slate-400">
+                  Stock inicial del producto al darlo de alta.
+                </p>
+              </>
+            )}
+            {hasBodega !== null && (!hasBodega || stockBodega > 0) && (
+              <>
+                <label className="mt-4 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
+                  {hasBodega ? "Ubicación del stock en bodega (opcional)" : "Ubicación en bodega (opcional)"}
+                </label>
+                <p className="mb-2 text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                  {hasBodega
+                    ? "Solo aplica a las unidades que ingresaste en bodega. Si no eliges estante, quedan en inventario general de bodega."
+                    : "Crea bodegas y ubicaciones para asignar el producto a un estante o celda al crearlo."}
+                </p>
+                <label className="mt-2 flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={sinUbicacion}
+                    onChange={(e) => {
+                      setSinUbicacion(e.target.checked);
+                      if (e.target.checked) {
+                        setSelectedWarehouseId("");
+                        setSelectedZoneId("");
                         setSelectedAisleId("");
                         setSelectedStandId("");
                         setSelectedLocationId("");
-                      }}
-                    >
-                      <option value="">Elegir zona…</option>
-                      {zonesForWarehouse.map((z) => (
-                        <option key={z.id} value={z.id}>{z.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {selectedZoneId && (
-                  <div>
-                    <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Pasillo</label>
-                    <select
-                      className={inputClass}
-                      value={selectedAisleId}
-                      onChange={(e) => {
-                        setSelectedAisleId(e.target.value);
-                        setSelectedStandId("");
-                        setSelectedLocationId("");
-                      }}
-                    >
-                      <option value="">Elegir pasillo…</option>
-                      {aislesForZone.map((a) => (
-                        <option key={a.id} value={a.id}>{a.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {selectedAisleId && (
-                  <div>
-                    <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Estante</label>
-                    <select
-                      className={inputClass}
-                      value={selectedStandId}
-                      onChange={(e) => {
-                        setSelectedStandId(e.target.value);
-                        setSelectedLocationId("");
-                      }}
-                    >
-                      <option value="">Elegir estante…</option>
-                      {standsForAisle.map((st) => (
-                        <option key={st.id} value={st.id}>
-                          {st.name}{st.code ? ` (${st.code})` : ""}
-                        </option>
-                      ))}
-                    </select>
-                    {standsForAisle.length === 0 && (
-                      <p className="mt-1.5 text-[12px] text-amber-600 dark:text-amber-400">
-                        No hay estantes en este pasillo.{" "}
-                      <Link href="/inventario/ubicaciones" className="font-medium text-[color:var(--shell-sidebar)] underline hover:no-underline dark:text-zinc-300">
-                          Crea estantes y niveles en Ubicaciones
-                        </Link>
-                        .
-                      </p>
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-zinc-400/40 dark:focus:ring-zinc-500/35"
+                  />
+                  <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Sin ubicación específica</span>
+                </label>
+                {!sinUbicacion && warehouses.length > 0 ? (
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <label className="mb-1 block text-[12px] font-medium text-slate-500 dark:text-slate-400">Bodega</label>
+                      <select
+                        className={inputClass}
+                        value={selectedWarehouseId}
+                        onChange={(e) => {
+                          setSelectedWarehouseId(e.target.value);
+                          setSelectedZoneId("");
+                          setSelectedAisleId("");
+                          setSelectedStandId("");
+                          setSelectedLocationId("");
+                        }}
+                      >
+                        <option value="">Elegir bodega…</option>
+                        {warehouses.map((w) => (
+                          <option key={w.id} value={w.id}>{w.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {selectedWarehouseId && (
+                      <div>
+                        <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Zona</label>
+                        <select
+                          className={inputClass}
+                          value={selectedZoneId}
+                          onChange={(e) => {
+                            setSelectedZoneId(e.target.value);
+                            setSelectedAisleId("");
+                            setSelectedStandId("");
+                            setSelectedLocationId("");
+                          }}
+                        >
+                          <option value="">Elegir zona…</option>
+                          {zonesForWarehouse.map((z) => (
+                            <option key={z.id} value={z.id}>{z.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {selectedZoneId && (
+                      <div>
+                        <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Pasillo</label>
+                        <select
+                          className={inputClass}
+                          value={selectedAisleId}
+                          onChange={(e) => {
+                            setSelectedAisleId(e.target.value);
+                            setSelectedStandId("");
+                            setSelectedLocationId("");
+                          }}
+                        >
+                          <option value="">Elegir pasillo…</option>
+                          {aislesForZone.map((a) => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {selectedAisleId && (
+                      <div>
+                        <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Estante</label>
+                        <select
+                          className={inputClass}
+                          value={selectedStandId}
+                          onChange={(e) => {
+                            setSelectedStandId(e.target.value);
+                            setSelectedLocationId("");
+                          }}
+                        >
+                          <option value="">Elegir estante…</option>
+                          {standsForAisle.map((st) => (
+                            <option key={st.id} value={st.id}>
+                              {st.name}{st.code ? ` (${st.code})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {standsForAisle.length === 0 && (
+                          <p className="mt-1.5 text-[12px] text-amber-600 dark:text-amber-400">
+                            No hay estantes en este pasillo.{" "}
+                            <Link href="/inventario/ubicaciones" className="font-medium text-[color:var(--shell-sidebar)] underline hover:no-underline dark:text-zinc-300">
+                              Crea estantes y niveles en Ubicaciones
+                            </Link>
+                            .
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {selectedStandId && (
+                      <div>
+                        <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Nivel</label>
+                        <select
+                          className={inputClass}
+                          value={selectedLocationId}
+                          onChange={(e) => setSelectedLocationId(e.target.value)}
+                          aria-invalid={!sinUbicacion && !selectedLocationId ? true : undefined}
+                        >
+                          <option value="">Elegir nivel…</option>
+                          {locationsForStand.map((loc) => (
+                            <option key={loc.id} value={loc.id}>
+                              Nivel {loc.level}{loc.name ? ` — ${loc.name}` : ""}{loc.code ? ` (${loc.code})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {locationsForStand.length === 0 && (
+                          <p className="mt-1.5 text-[12px] text-amber-600 dark:text-amber-400">
+                            No hay niveles en este estante.{" "}
+                            <Link href="/inventario/ubicaciones" className="font-medium text-[color:var(--shell-sidebar)] underline hover:no-underline dark:text-zinc-300">
+                              Configura los niveles en Ubicaciones
+                            </Link>
+                            .
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
+                ) : null}
+                {selectedLocationId && locationPath && (
+                  <p className="mt-3 flex flex-wrap items-center gap-1 rounded-lg bg-slate-50 py-2 px-3 text-[13px] dark:bg-slate-800/50">
+                    <LocationPathWithIcons path={locationPath} iconClass="text-[13px]" />
+                  </p>
                 )}
-                {selectedStandId && (
-                  <div>
-                    <label className="mb-1 block text-[12px] font-medium text-slate-600 dark:text-slate-400">Nivel</label>
-                    <select
-                      className={inputClass}
-                      value={selectedLocationId}
-                      onChange={(e) => setSelectedLocationId(e.target.value)}
-                      aria-invalid={!sinUbicacion && !selectedLocationId ? true : undefined}
-                    >
-                      <option value="">Elegir nivel…</option>
-                      {locationsForStand.map((loc) => (
-                        <option key={loc.id} value={loc.id}>
-                          Nivel {loc.level}{loc.name ? ` — ${loc.name}` : ""}{loc.code ? ` (${loc.code})` : ""}
-                        </option>
-                      ))}
-                    </select>
-                    {locationsForStand.length === 0 && (
-                      <p className="mt-1.5 text-[12px] text-amber-600 dark:text-amber-400">
-                        No hay niveles en este estante.{" "}
-                        <Link href="/inventario/ubicaciones" className="font-medium text-[color:var(--shell-sidebar)] underline hover:no-underline dark:text-zinc-300">
-                          Configura los niveles en Ubicaciones
-                        </Link>
-                        .
-                      </p>
-                    )}
-                  </div>
+                {warehouses.length === 0 && (
+                  <p className="mt-3 text-[12px] text-slate-500 dark:text-slate-400">
+                    <Link href="/inventario/ubicaciones" className="font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">
+                      Crea bodegas y ubicaciones
+                    </Link>{" "}
+                    para asignar el producto a un estante o celda al crearlo.
+                  </p>
                 )}
-              </div>
-            ) : null}
-            {selectedLocationId && locationPath && (
-              <p className="mt-3 flex flex-wrap items-center gap-1 rounded-lg bg-slate-50 py-2 px-3 text-[13px] dark:bg-slate-800/50">
-                <LocationPathWithIcons path={locationPath} iconClass="text-[13px]" />
+              </>
+            )}
+            {hasBodega === true && stockBodega === 0 && (
+              <p className="mt-4 text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                Cuando indiques unidades en bodega, se habilitará la asignación a estante o celda.
               </p>
             )}
-            {warehouses.length === 0 && (
-              <p className="mt-3 text-[12px] text-slate-500 dark:text-slate-400">
-                <Link href="/inventario/ubicaciones" className="font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">
-                  Crea bodegas y ubicaciones
-                </Link>{" "}
-                para asignar el producto a un estante o celda al crearlo.
-              </p>
-            )}
-            <label className="mt-4 mb-1 block text-[13px] font-bold text-slate-700 dark:text-slate-300">
-              Cantidad en inventario
-            </label>
-            <div className="mt-2">
-              <input
-                type="number"
-                min={0}
-                value={stockInicial === 0 ? "" : stockInicial}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === "") {
-                    setStockInicial(0);
-                    return;
-                  }
-                  const num = parseInt(v.replace(/^0+/, ""), 10);
-                  if (!Number.isNaN(num) && num >= 0) setStockInicial(num);
-                }}
-                placeholder="0"
-                className={inputClass}
-              />
-            </div>
-            <p className="mt-2 text-[13px] font-medium text-slate-600 dark:text-slate-400">
-              Stock inicial del producto al darlo de alta.
-            </p>
           </div>
         </div>
 
@@ -798,9 +943,22 @@ export default function NewProductPage() {
                   {categoria && <p><span className="font-medium text-slate-700 dark:text-slate-300">Categoría:</span> {categories.find((c) => c.id === categoria)?.name ?? "—"}</p>}
                   {selectedLocationId && locationPath && (
                     <p className="flex flex-col gap-0.5">
-                      <span className="font-medium text-slate-700 dark:text-slate-300">Ubicación:</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{hasBodega ? "Ubicación bodega:" : "Ubicación:"}</span>
                       <LocationPathWithIcons path={locationPath} iconClass="text-[13px]" />
                     </p>
+                  )}
+                  {hasBodega === null && (
+                    <p><span className="font-medium text-slate-700 dark:text-slate-300">Stock inicial:</span> …</p>
+                  )}
+                  {hasBodega === true && (
+                    <>
+                      <p><span className="font-medium text-slate-700 dark:text-slate-300">Stock local:</span> {stockLocal} {stockLocal === 1 ? "unidad" : "unidades"}</p>
+                      <p><span className="font-medium text-slate-700 dark:text-slate-300">Stock bodega:</span> {stockBodega} {stockBodega === 1 ? "unidad" : "unidades"}</p>
+                      <p><span className="font-medium text-slate-700 dark:text-slate-300">Total:</span> {stockLocal + stockBodega} {stockLocal + stockBodega === 1 ? "unidad" : "unidades"}</p>
+                    </>
+                  )}
+                  {hasBodega === false && (
+                    <p><span className="font-medium text-slate-700 dark:text-slate-300">Stock inicial:</span> {stockLocal} {stockLocal === 1 ? "unidad" : "unidades"}</p>
                   )}
                 </div>
               </div>
@@ -833,7 +991,7 @@ export default function NewProductPage() {
               </div>
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || hasBodega === null}
                 className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? "Creando…" : "Crear producto"}
