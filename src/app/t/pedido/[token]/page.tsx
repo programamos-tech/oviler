@@ -380,7 +380,8 @@ export default function PedidoPublicPage() {
       </div>
 
       <p className="text-center text-[11px] text-slate-400 dark:text-slate-500">
-        Guarda este enlace para ver el estado de tu pedido. <span className="font-semibold text-ov-pink dark:text-ov-pink-muted">NOU</span>
+        Guarda este enlace para ver el estado de tu pedido.{" "}
+        <span className="font-semibold text-[#1e3522] dark:text-emerald-400/90">Bernabé Comercios</span>
       </p>
     </div>
   );

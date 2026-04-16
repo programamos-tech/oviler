@@ -194,7 +194,7 @@ export default function TopNav() {
                   className="h-9 w-px shrink-0 rounded-full bg-slate-200/90 dark:bg-white/20"
                   aria-hidden
                 />
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
                   {branch.logo_url ? (
                     <img
                       src={branch.logo_url}
@@ -203,7 +203,7 @@ export default function TopNav() {
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500">
+                    <span className="flex h-full w-full items-center justify-center text-[11px] font-bold text-slate-400 dark:text-slate-500">
                       {(branch.name || "L").slice(0, 1).toUpperCase()}
                     </span>
                   )}

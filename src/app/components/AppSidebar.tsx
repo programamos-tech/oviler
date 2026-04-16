@@ -281,7 +281,7 @@ export default function AppSidebar() {
         >
           {!isInterno && branch ? (
             <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/15 bg-white/[0.06]">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
                 {branch.logo_url ? (
                   <img
                     src={branch.logo_url}
@@ -292,7 +292,7 @@ export default function AppSidebar() {
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <span className="text-[12px] font-bold text-white/75">
+                  <span className="flex h-full w-full items-center justify-center text-[12px] font-bold text-white/75">
                     {(branch.name || "?").slice(0, 1).toUpperCase()}
                   </span>
                 )}

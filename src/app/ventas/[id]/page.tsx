@@ -112,6 +112,7 @@ type SaleDetail = {
     nit: string | null;
     address: string | null;
     phone: string | null;
+    logo_url: string | null;
     responsable_iva: boolean;
     invoice_print_type: "tirilla" | "block";
     invoice_cancel_requires_approval?: boolean;
@@ -272,7 +273,7 @@ export default function SaleDetailPage() {
       if (s.branch_id) {
         const { data: branchRow } = await supabase
           .from("branches")
-          .select("name, nit, address, phone, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, sales_mode, organization_id")
+          .select("name, nit, address, phone, logo_url, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, sales_mode, organization_id")
           .eq("id", s.branch_id)
           .single();
         if (!cancelled && branchRow) {
@@ -282,6 +283,7 @@ export default function SaleDetailPage() {
             nit: branchRow.nit ?? null,
             address: branchRow.address ?? null,
             phone: branchRow.phone ?? null,
+            logo_url: branchRow.logo_url ?? null,
             responsable_iva: Boolean(branchRow.responsable_iva),
             invoice_print_type: row.invoice_print_type === "tirilla" ? "tirilla" : "block",
             invoice_cancel_requires_approval: Boolean(row.invoice_cancel_requires_approval),
@@ -790,6 +792,11 @@ export default function SaleDetailPage() {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
+  /** URL segura para atributo src en HTML de impresión */
+  function escAttrUrl(url: string) {
+    return String(url).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  }
+
   function handlePrintDispatch() {
     const docPrint = getDocumentCopy(!!sale?.is_delivery);
     const isTirilla = (sale?.branches?.invoice_print_type ?? "block") === "tirilla";
@@ -823,6 +830,16 @@ export default function SaleDetailPage() {
     }, 0);
     const totalDispatch = subtotalDispatch + deliveryFee;
 
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const defaultBrandMark = origin ? `${origin}/ceiling.png` : "/ceiling.png";
+    const rawBranchLogo = sale?.branches?.logo_url?.trim();
+    const headerLogoSrc =
+      rawBranchLogo && (rawBranchLogo.startsWith("http://") || rawBranchLogo.startsWith("https://"))
+        ? rawBranchLogo
+        : rawBranchLogo
+          ? `${origin}${rawBranchLogo.startsWith("/") ? "" : "/"}${rawBranchLogo}`
+          : defaultBrandMark;
+
     const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -830,46 +847,130 @@ export default function SaleDetailPage() {
   <title>${esc(docPrint.printTitle)} ${esc(invoiceNum)}</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; font-size: ${isTirilla ? "11px" : "13px"}; line-height: 1.4; color: #1e293b; padding: ${isTirilla ? "10px" : "20px"}; max-width: ${isTirilla ? "80mm" : "720px"}; margin: 0 auto; }
-    .nou-header { background: #ff7f50; color: #fff; padding: 16px 20px; margin: -20px -20px 20px -20px; display: flex; align-items: center; justify-content: space-between; }
-    .nou-logo { font-weight: 700; font-size: ${isTirilla ? "14px" : "20px"}; letter-spacing: -0.02em; }
-    .nou-doc { font-size: 11px; opacity: 0.95; text-transform: uppercase; letter-spacing: 0.04em; }
-    h1 { font-size: ${isTirilla ? "13px" : "16px"}; font-weight: 700; margin: 0 0 16px 0; color: #0f172a; border-bottom: 2px solid #ff7f50; padding-bottom: 8px; }
-    .grid { display: grid; grid-template-columns: ${isTirilla ? "1fr" : "1fr 1fr"}; gap: ${isTirilla ? "10px" : "20px"}; margin-bottom: 20px; }
-    .block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: ${isTirilla ? "8px 9px" : "12px 14px"}; }
-    .block-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 600; margin-bottom: 6px; }
-    .block p { margin: 2px 0; font-size: ${isTirilla ? "10px" : "12px"}; }
-    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-    th { text-align: left; padding: ${isTirilla ? "6px 7px" : "10px 12px"}; background: #ff7f50; color: #fff; font-size: ${isTirilla ? "9px" : "11px"}; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; }
+    :root {
+      --inv-ink: #0f172a;
+      --inv-muted: #475569;
+      --inv-border: #cbd5e1;
+      --inv-accent: #1e3522;
+      --inv-total-bg: #1e3522;
+      --inv-table-head: #1e3522;
+    }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: ${isTirilla ? "10px" : "13px"};
+      line-height: 1.45;
+      color: var(--inv-ink);
+      padding: ${isTirilla ? "8px 10px 12px" : "20px"};
+      max-width: ${isTirilla ? "80mm" : "720px"};
+      margin: 0 auto;
+      background: #fff;
+    }
+    /* Cabecera = datos del establecimiento (su factura) */
+    .inv-est {
+      display: flex;
+      flex-wrap: ${isTirilla ? "wrap" : "nowrap"};
+      align-items: ${isTirilla ? "flex-start" : "flex-start"};
+      justify-content: space-between;
+      gap: ${isTirilla ? "8px" : "16px"};
+      padding-bottom: ${isTirilla ? "10px" : "16px"};
+      margin-bottom: ${isTirilla ? "12px" : "18px"};
+      border-bottom: ${isTirilla ? "2px solid #111" : "2px solid var(--inv-accent)"};
+    }
+    .inv-est-main { display: flex; gap: ${isTirilla ? "8px" : "14px"}; min-width: 0; flex: 1; }
+    .inv-logo {
+      width: ${isTirilla ? "44px" : "56px"};
+      height: ${isTirilla ? "44px" : "56px"};
+      object-fit: contain;
+      flex-shrink: 0;
+      border-radius: 6px;
+      border: 1px solid var(--inv-border);
+      background: #fafafa;
+      padding: 3px;
+    }
+    .inv-legal { min-width: 0; flex: 1; }
+    .inv-razon {
+      font-weight: 800;
+      font-size: ${isTirilla ? "12px" : "18px"};
+      letter-spacing: -0.02em;
+      color: var(--inv-ink);
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .inv-line { margin: 3px 0 0; font-size: ${isTirilla ? "9px" : "12px"}; color: var(--inv-ink); word-break: break-word; }
+    .inv-line .lbl { font-weight: 600; color: var(--inv-muted); }
+    .inv-tag {
+      flex-shrink: 0;
+      font-size: ${isTirilla ? "8px" : "10px"};
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--inv-muted);
+      border: 1px solid var(--inv-border);
+      padding: ${isTirilla ? "4px 6px" : "6px 10px"};
+      border-radius: 6px;
+      align-self: flex-start;
+    }
+    h1 {
+      font-size: ${isTirilla ? "12px" : "16px"};
+      font-weight: 700;
+      margin: 0 0 ${isTirilla ? "10px" : "14px"};
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--inv-border);
+      color: var(--inv-ink);
+    }
+    .grid { display: grid; grid-template-columns: ${isTirilla ? "1fr" : "1fr 1fr"}; gap: ${isTirilla ? "10px" : "16px"}; margin-bottom: ${isTirilla ? "12px" : "18px"}; }
+    .block { background: #f8fafc; border: 1px solid var(--inv-border); border-radius: 8px; padding: ${isTirilla ? "8px 9px" : "12px 14px"}; }
+    .block-title { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--inv-muted); font-weight: 700; margin-bottom: 6px; }
+    .block p { margin: 2px 0; font-size: ${isTirilla ? "9px" : "12px"}; color: var(--inv-ink); }
+    .block-compact p { font-size: ${isTirilla ? "9px" : "11px"}; line-height: 1.4; }
+    table { width: 100%; border-collapse: collapse; margin: ${isTirilla ? "10px 0" : "16px 0"}; }
+    th {
+      text-align: left;
+      padding: ${isTirilla ? "5px 4px" : "10px 12px"};
+      background: var(--inv-table-head);
+      color: #fff;
+      font-size: ${isTirilla ? "8px" : "11px"};
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: 600;
+    }
     th.num { text-align: right; }
-    .cell { padding: ${isTirilla ? "6px 7px" : "8px 12px"}; border-bottom: 1px solid #e2e8f0; font-size: ${isTirilla ? "10px" : "12px"}; }
-    .cell.num { text-align: right; }
-    tfoot .cell { font-weight: 700; background: #f1f5f9; border-bottom: none; }
-    tfoot tr:last-child .cell { background: #ff7f50; color: #fff; font-size: ${isTirilla ? "11px" : "14px"}; padding: ${isTirilla ? "7px" : "10px 12px"}; }
-    .totals { margin-top: 16px; text-align: right; }
-    .totals-row { display: flex; justify-content: flex-end; gap: 80px; padding: 4px 0; font-size: 12px; }
-    .totals-row.final { font-weight: 700; font-size: 15px; margin-top: 8px; padding-top: 8px; border-top: 2px solid #ff7f50; }
-    .legal { margin-top: 24px; font-size: ${isTirilla ? "9px" : "10px"}; color: #64748b; line-height: 1.5; }
+    .cell { padding: ${isTirilla ? "5px 4px" : "8px 12px"}; border-bottom: 1px solid #e2e8f0; font-size: ${isTirilla ? "9px" : "12px"}; word-break: break-word; }
+    .cell.num { text-align: right; white-space: nowrap; }
+    tfoot .cell { font-weight: 700; background: #f1f5f9; border-bottom: none; color: var(--inv-ink); }
+    tfoot tr:last-child .cell { background: var(--inv-total-bg); color: #fff; font-size: ${isTirilla ? "10px" : "14px"}; padding: ${isTirilla ? "6px 4px" : "10px 12px"}; }
+    .legal {
+      margin-top: ${isTirilla ? "14px" : "22px"};
+      padding-top: ${isTirilla ? "10px" : "12px"};
+      border-top: 1px dashed var(--inv-border);
+      font-size: ${isTirilla ? "8px" : "10px"};
+      color: var(--inv-muted);
+      line-height: 1.5;
+    }
+    .legal strong { color: var(--inv-ink); }
     @media print {
-      @page { size: ${isTirilla ? "80mm auto" : "auto"}; margin: ${isTirilla ? "0" : "12mm"}; }
+      @page { size: ${isTirilla ? "80mm auto" : "auto"}; margin: ${isTirilla ? "2mm" : "12mm"}; }
     }
   </style>
 </head>
 <body>
-  <div class="nou-header">
-    <span class="nou-logo">NOU Tiendas</span>
-    <span class="nou-doc">${esc(docPrint.printBadge)}</span>
-  </div>
-  <h1>${esc(docPrint.printH1(invoiceNum))}</h1>
-  <div class="grid">
-    <div class="block">
-      <div class="block-title">Emisor (vendedor)</div>
-      <p><strong>${esc(branchName)}</strong></p>
-      ${branchNit ? `<p>NIT: ${esc(branchNit)}</p>` : ""}
-      ${branchAddress ? `<p>${esc(branchAddress)}</p>` : ""}
-      ${branchPhone ? `<p>Tel: ${esc(branchPhone)}</p>` : ""}
-      <p>${esc(regimeText)}</p>
+  <header class="inv-est">
+    <div class="inv-est-main">
+      <img class="inv-logo" src="${escAttrUrl(headerLogoSrc)}" alt="" width="56" height="56" />
+      <div class="inv-legal">
+        <div class="inv-razon">${esc(branchName)}</div>
+        ${branchNit ? `<p class="inv-line"><span class="lbl">NIT:</span> ${esc(branchNit)}</p>` : ""}
+        ${branchAddress ? `<p class="inv-line"><span class="lbl">Dirección:</span> ${esc(branchAddress)}</p>` : ""}
+        ${branchPhone ? `<p class="inv-line"><span class="lbl">Tel.:</span> ${esc(branchPhone)}</p>` : ""}
+        <p class="inv-line">${esc(regimeText)}</p>
+      </div>
     </div>
+    <span class="inv-tag">${esc(docPrint.printBadge)}</span>
+  </header>
+
+  <h1>${esc(docPrint.printH1(invoiceNum))}</h1>
+
+  <div class="grid">
     <div class="block">
       <div class="block-title">Cliente (comprador)</div>
       <p><strong>${esc(customerName)}</strong></p>
@@ -877,12 +978,15 @@ export default function SaleDetailPage() {
       ${addressLine ? `<p>Dirección: ${esc(addressLine)}</p>` : ""}
       ${customerPhone ? `<p>Tel: ${esc(customerPhone)}</p>` : ""}
     </div>
+    <div class="block block-compact">
+      <div class="block-title">Datos del comprobante</div>
+      <p><strong>${esc(docPrint.printNumberLabel)}:</strong> ${esc(invoiceNum)}</p>
+      <p><strong>Fecha de expedición:</strong> ${esc(saleDate)}</p>
+      <p><strong>Forma de pago:</strong> ${esc(paymentLabel)}</p>
+      ${sale?.is_delivery ? `<p><strong>Transportador:</strong> ${esc(transporterLine)}</p>` : ""}
+    </div>
   </div>
-  <div class="block" style="margin-bottom: 16px;">
-    <div class="block-title">Datos del comprobante</div>
-    <p><strong>${esc(docPrint.printNumberLabel)}:</strong> ${esc(invoiceNum)} &nbsp;|&nbsp; <strong>Fecha de expedición:</strong> ${esc(saleDate)} &nbsp;|&nbsp; <strong>Forma de pago:</strong> ${esc(paymentLabel)}</p>
-    ${sale?.is_delivery ? `<p><strong>Transportador:</strong> ${esc(transporterLine)}</p>` : ""}
-  </div>
+
   <table>
     <thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">P. unit.</th><th class="num">Subtotal</th></tr></thead>
     <tbody>${rows}</tbody>
@@ -892,8 +996,11 @@ export default function SaleDetailPage() {
       <tr><td colspan="3" class="cell num">Total</td><td class="cell num">$ ${formatMoney(totalDispatch)}</td></tr>
     </tfoot>
   </table>
+
   <div class="legal">
-    Documento generado por NOU Tiendas. Consérvese como soporte de la operación.
+    Comprobante emitido por <strong>${esc(branchName)}</strong>. Consérvese como soporte de la operación.
+    <br />
+    <strong>Tecnología / software:</strong> Bernabé Comercios.
   </div>
 </body>
 </html>`;
@@ -1029,36 +1136,60 @@ export default function SaleDetailPage() {
           `,
         }}
       />
-      {/* Encabezado legal solo para impresión: datos de la sucursal */}
-      <div className="hidden print:block print:pb-4 print:border-b print:border-slate-300 print:mb-4">
-        <div className="print:text-center print:text-black">
-          <h2 className="print:text-lg print:font-bold print:uppercase print:tracking-tight">
-            {sale.branches?.name ?? "Establecimiento"}
-          </h2>
-          {sale.branches?.nit && (
-            <p className="print:mt-1 print:text-sm">
-              <span className="print:font-semibold">NIT: </span>
-              {sale.branches.nit}
+      {/* Impresión navegador: factura del establecimiento + mención tecnología Bernabé */}
+      <div
+        className={`hidden print:block print:pb-4 print:mb-4 print:border-b print:border-neutral-300 ${
+          invoicePrintType === "tirilla" ? "print:max-w-[80mm] print:mx-auto print:px-1" : ""
+        }`}
+      >
+        <div className="print:flex print:items-start print:gap-3 print:text-black">
+          <img
+            src={sale.branches?.logo_url?.trim() || "/ceiling.png"}
+            alt=""
+            className={`print:shrink-0 print:rounded-md print:border print:border-neutral-300 print:bg-neutral-50 print:object-contain ${
+              invoicePrintType === "tirilla" ? "print:h-11 print:w-11" : "print:h-14 print:w-14"
+            }`}
+          />
+          <div className="print:min-w-0 print:flex-1">
+            <p
+              className={`print:font-extrabold print:leading-tight print:text-neutral-900 ${
+                invoicePrintType === "tirilla" ? "print:text-[13px]" : "print:text-lg"
+              }`}
+            >
+              {sale.branches?.name ?? "Establecimiento"}
             </p>
-          )}
-          {sale.branches?.address && (
-            <p className="print:mt-0.5 print:text-sm">
-              <span className="print:font-semibold">Dirección: </span>
-              {sale.branches.address}
+            {sale.branches?.nit && (
+              <p className={`print:mt-1 print:text-neutral-800 ${invoicePrintType === "tirilla" ? "print:text-[10px]" : "print:text-sm"}`}>
+                <span className="print:font-semibold print:text-neutral-600">NIT: </span>
+                {sale.branches.nit}
+              </p>
+            )}
+            {sale.branches?.address && (
+              <p className={`print:mt-0.5 print:text-neutral-800 ${invoicePrintType === "tirilla" ? "print:text-[10px]" : "print:text-sm"}`}>
+                <span className="print:font-semibold print:text-neutral-600">Dirección: </span>
+                {sale.branches.address}
+              </p>
+            )}
+            {sale.branches?.phone && (
+              <p className={`print:mt-0.5 print:text-neutral-800 ${invoicePrintType === "tirilla" ? "print:text-[10px]" : "print:text-sm"}`}>
+                <span className="print:font-semibold print:text-neutral-600">Tel.: </span>
+                {sale.branches.phone}
+              </p>
+            )}
+            <p className={`print:mt-0.5 print:text-neutral-800 ${invoicePrintType === "tirilla" ? "print:text-[10px]" : "print:text-sm"}`}>
+              <span className="print:font-semibold print:text-neutral-600">Responsable de IVA: </span>
+              {sale.branches?.responsable_iva ? "Sí" : "No"}
             </p>
-          )}
-          {sale.branches?.phone && (
-            <p className="print:mt-0.5 print:text-sm">
-              <span className="print:font-semibold">Teléfono: </span>
-              {sale.branches.phone}
+            <p className={`print:mt-2 print:text-neutral-500 ${invoicePrintType === "tirilla" ? "print:text-[8px]" : "print:text-[10px]"}`}>
+              Tecnología / software: Bernabé Comercios
             </p>
-          )}
-          <p className="print:mt-0.5 print:text-sm">
-            <span className="print:font-semibold">Responsable de IVA: </span>
-            {sale.branches?.responsable_iva ? "Sí" : "No"}
-          </p>
+          </div>
         </div>
-        <p className="print:mt-3 print:text-center print:font-bold print:uppercase print:text-base print:text-black">
+        <p
+          className={`print:mt-4 print:text-center print:font-bold print:uppercase print:text-neutral-900 ${
+            invoicePrintType === "tirilla" ? "print:text-[12px]" : "print:text-base"
+          }`}
+        >
           {doc.hashTitle(displayInvoiceNumber(sale.invoice_number))}
         </p>
       </div>
