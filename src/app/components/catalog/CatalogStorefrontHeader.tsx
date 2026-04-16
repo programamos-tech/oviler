@@ -27,14 +27,14 @@ export function CatalogStorefrontHeader({ branch, cartCount, onOpenCart, searchQ
 
       <div className="relative mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex min-w-0 shrink-0 items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-transparent">
             {branch.logo_url ? (
               <img
                 src={branch.logo_url}
                 alt=""
                 width={44}
                 height={44}
-                className="h-full w-full object-cover"
+                className="max-h-full max-w-full object-contain object-center"
               />
             ) : (
               <span className="flex h-full w-full items-center justify-center text-xs font-bold text-white/70">

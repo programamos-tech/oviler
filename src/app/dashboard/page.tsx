@@ -64,8 +64,9 @@ type DashboardData = {
 
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
-/** Iconos del resumen: acento en oscuro tipo referencia (verde suave, sin cajas). */
-const DASHBOARD_ICON_CLASS = "text-[color:var(--shell-sidebar)] dark:text-emerald-400/90";
+/** Iconos del resumen: marca en claro; en oscuro --shell-sidebar es muy oscuro sobre #121212 → acento legible. */
+const DASHBOARD_ICON_CLASS =
+  "text-[color:var(--shell-sidebar)] dark:text-[color:var(--shell-sidebar-accent)]";
 
 /** Días mostrados en la tendencia de ingresos (siempre anclada a “hoy” calendario). */
 const INCOME_TREND_DAY_COUNT = 15;

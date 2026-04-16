@@ -27,12 +27,18 @@ function BranchLogo({ logoUrl, branchName }: { logoUrl: string | null; branchNam
   const initial = branchName.trim().slice(0, 1).toUpperCase() || "S";
   return (
     <div className="relative shrink-0">
-      <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-xl font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+      <div
+        className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full text-xl font-bold ${
+          showImg
+            ? "bg-transparent"
+            : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+        }`}
+      >
         {showImg ? (
           <img
             src={logoUrl}
             alt=""
-            className="h-full w-full object-cover"
+            className="max-h-full max-w-full object-contain object-center p-0.5"
             referrerPolicy="no-referrer"
             onError={() => setFailed(true)}
           />

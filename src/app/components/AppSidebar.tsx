@@ -280,15 +280,15 @@ export default function AppSidebar() {
           className="sidebar-nav-scroll min-h-0 flex-1 overflow-y-auto px-1 py-2 [scrollbar-color:rgba(255,255,255,0.18)_transparent] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/[0.16] [&::-webkit-scrollbar-thumb:hover]:bg-white/[0.26]"
         >
           {!isInterno && branch ? (
-            <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+            <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-transparent px-2.5 py-2">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-transparent">
                 {branch.logo_url ? (
                   <img
                     src={branch.logo_url}
                     alt=""
-                    width={32}
-                    height={32}
-                    className="h-full w-full object-cover"
+                    width={36}
+                    height={36}
+                    className="max-h-full max-w-full object-contain object-center"
                     referrerPolicy="no-referrer"
                   />
                 ) : (

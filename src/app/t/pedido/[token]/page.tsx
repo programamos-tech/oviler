@@ -257,7 +257,7 @@ export default function PedidoPublicPage() {
               <img
                 src={data.branch.logo_url}
                 alt=""
-                className="h-12 w-12 shrink-0 rounded-xl border border-slate-200 object-cover dark:border-slate-700"
+                className="h-12 w-12 shrink-0 rounded-xl bg-transparent object-contain object-center"
               />
             ) : (
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-[11px] font-medium text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-500">

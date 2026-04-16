@@ -169,12 +169,12 @@ export default function TopNav() {
             {branch ? (
               <>
                 <span className="h-8 w-px shrink-0 rounded-full bg-white/20" aria-hidden />
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-white/15">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-transparent">
                   {branch.logo_url ? (
                     <img
                       src={branch.logo_url}
                       alt=""
-                      className="h-full w-full object-cover"
+                      className="max-h-full max-w-full object-contain object-center"
                       referrerPolicy="no-referrer"
                     />
                   ) : (

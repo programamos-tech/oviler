@@ -417,8 +417,8 @@ export default function SalesPage() {
           </div>
         ) : (
           <div className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 max-md:space-y-3 max-md:rounded-2xl max-md:px-3.5 max-md:py-4 sm:px-7 sm:py-7">
-              <div className="flex min-w-0 flex-col gap-3">
-                <div className="relative min-w-0 w-full">
+              <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
+                <div className="relative min-w-0 w-full lg:min-w-0 lg:flex-1">
                   <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -432,8 +432,8 @@ export default function SalesPage() {
                     className={workspaceFilterSearchPillClass}
                   />
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-                  <div className="grid min-w-0 w-full grid-cols-2 gap-2 sm:max-w-xl sm:gap-3 lg:max-w-2xl lg:gap-4">
+                <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4 lg:ml-auto lg:w-auto lg:shrink-0 lg:flex-row lg:justify-start lg:gap-3">
+                  <div className="grid min-w-0 w-full grid-cols-2 gap-2 sm:max-w-xl sm:gap-3 lg:max-w-none lg:w-auto lg:shrink-0 lg:gap-3">
                     <div className="min-w-0 space-y-1.5">
                       <label htmlFor="ventas-filter-status" className={workspaceFilterLabelClass}>
                         Estado

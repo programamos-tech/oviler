@@ -284,11 +284,17 @@ function ConfigurarSucursalContent() {
               <div>
                 <label className={labelClass}>Logo</label>
                 <div className="flex items-center gap-4">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+                  <div
+                    className={`flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 ${
+                      logoPreview || logoUrl
+                        ? "border-transparent bg-transparent dark:border-transparent dark:bg-transparent"
+                        : "border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
+                    }`}
+                  >
                     {logoPreview ? (
-                      <img src={logoPreview} alt="Vista previa logo" className="h-full w-full object-cover" />
+                      <img src={logoPreview} alt="Vista previa logo" className="max-h-full max-w-full object-contain object-center p-0.5" />
                     ) : logoUrl ? (
-                      <img src={logoUrl} alt="Logo sucursal" className="h-full w-full object-cover" />
+                      <img src={logoUrl} alt="Logo sucursal" className="max-h-full max-w-full object-contain object-center p-0.5" />
                     ) : (
                       <span className="text-[11px] font-medium text-slate-400">Sin logo</span>
                     )}
