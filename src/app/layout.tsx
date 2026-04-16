@@ -21,9 +21,9 @@ const youngSerif = Young_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Bernabé Comercios - Gestiona tu negocio",
+  title: "Bernabe Comercios — Gestiona tu negocio",
   description:
-    "Inventario, ventas, clientes y créditos. Producto Bernabé para tu negocio. Licencia con soporte.",
+    "Inventario, ventas, clientes y créditos. Bernabe Comercios para tu negocio. Licencia con soporte.",
   icons: {
     icon: "/ceiling.png",
     apple: "/ceiling.png",
