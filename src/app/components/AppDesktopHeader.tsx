@@ -120,7 +120,7 @@ export default function AppDesktopHeader() {
           {user?.email?.toLowerCase() === "bernabe@tech.com" ? (
             <Link
               href={isInterno ? "/dashboard" : "/interno"}
-              className="hidden h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 xl:inline-flex"
+              className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               title={isInterno ? "Volver a la plataforma" : "Ir a BackOffice"}
             >
               {isInterno ? "Volver a la plataforma" : "BackOffice"}
@@ -128,7 +128,7 @@ export default function AppDesktopHeader() {
           ) : null}
           {trialActive && trialEndsAt ? (
             <div
-              className="hidden max-w-[200px] min-w-0 items-center xl:flex"
+              className="flex max-w-[200px] min-w-0 items-center"
               title={`${LITE_PLAN_DISPLAY_NAME} · ${trialRemainingLabel(trialEndsAt)} restantes`}
             >
               <span className="inline-flex max-w-full items-center gap-1 truncate rounded-lg border border-nou-200 bg-nou-50 px-2.5 py-1.5 text-[11px] font-semibold text-nou-800 dark:border-nou-400/35 dark:bg-nou-500/15 dark:text-nou-200">

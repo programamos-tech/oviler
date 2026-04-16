@@ -355,22 +355,6 @@ export default function TopNav() {
           })}
         </div>
 
-        {trialActive && trialEndsAt ? (
-          <div
-            className="hidden min-w-0 shrink-0 items-center lg:flex"
-            title={`${LITE_PLAN_DISPLAY_NAME} · ${trialRemainingLabel(trialEndsAt)} restantes`}
-          >
-            <span className="inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-lg border border-nou-200 bg-nou-50 px-2.5 py-1.5 text-[11px] font-semibold leading-none text-nou-800 dark:border-nou-400/35 dark:bg-nou-500/15 dark:text-nou-200">
-              <span className="shrink-0" aria-hidden>
-                ⏱
-              </span>
-              <span className="min-w-0 truncate">
-                {LITE_PLAN_DISPLAY_NAME} · <span className="tabular-nums">{trialRemainingLabel(trialEndsAt)}</span>
-              </span>
-            </span>
-          </div>
-        ) : null}
-
         {/* Right: notificaciones y usuario (visible en mobile, tablet y desktop) */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {orgTrial && normalizePlanType(orgTrial.plan_type ?? "") === "free" ? (
