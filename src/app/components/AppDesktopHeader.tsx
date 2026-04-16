@@ -8,7 +8,7 @@ import Notifications from "./Notifications";
 import { workspaceAvatarSeed } from "./app-nav-data";
 import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { type OrgTrialFields, isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
-import { bereaPlanUpgradeWhatsAppUrl, programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { bernabePlanUpgradeWhatsAppUrl, programamosWhatsAppUrl } from "@/lib/programamos-contact";
 import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
@@ -141,7 +141,7 @@ export default function AppDesktopHeader() {
 
           {orgTrial && normalizePlanType(orgTrial.plan_type ?? "") === "free" ? (
             <a
-              href={bereaPlanUpgradeWhatsAppUrl()}
+              href={bernabePlanUpgradeWhatsAppUrl()}
               target="_blank"
               rel="noopener noreferrer"
               className={iconBtn}

@@ -71,7 +71,7 @@ export default function LandingPage() {
                 <p className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-zinc-700/80 bg-zinc-900/50 px-3 py-1 text-[11px] font-medium text-zinc-400">
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
-                    Berea Comercios · inventario, ventas y clientes
+                    Bernabé Comercios · inventario, ventas y clientes
                   </span>
                   <span className="inline-flex items-center gap-1.5 text-zinc-500">
                     <span aria-hidden>·</span>
@@ -87,7 +87,7 @@ export default function LandingPage() {
                 </h1>
                 <p className="mt-5 text-[15px] leading-relaxed text-zinc-400 sm:text-lg">
                   Controla inventario, registra ventas y haz seguimiento a clientes desde un solo panel.
-                  Implementamos Berea Comercios contigo y capacitamos a tu equipo para usarlo bien desde el primer día.
+                  Implementamos Bernabé Comercios contigo y capacitamos a tu equipo para usarlo bien desde el primer día.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center gap-3">
                   <Link
@@ -104,7 +104,7 @@ export default function LandingPage() {
                   </Link>
                 </div>
                 <p className="mt-4 text-[12px] leading-relaxed text-zinc-500">
-                  Modo prueba con límites reducidos. Plan Estándar o Pro con el equipo Berea por WhatsApp cuando lo necesites.
+                  Modo prueba con límites reducidos. Plan Estándar o Pro con el equipo Bernabé por WhatsApp cuando lo necesites.
                 </p>
               </div>
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { normalizePlanType, type PlanId } from "@/lib/plan-catalog";
 import { planHasModule, type PlanGatedModule } from "@/lib/plan-features";
-import { bereaPlanUpgradeWhatsAppUrl } from "@/lib/programamos-contact";
+import { bernabePlanUpgradeWhatsAppUrl } from "@/lib/programamos-contact";
 
 type Props = {
   gatedModule: PlanGatedModule;
@@ -69,7 +69,7 @@ export default function PlanFeatureGate({ gatedModule, title, description, child
             <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">{title}</h1>
             <p className="mt-2 text-[13px] leading-relaxed text-slate-600 dark:text-slate-400">{description}</p>
             <a
-              href={bereaPlanUpgradeWhatsAppUrl()}
+              href={bernabePlanUpgradeWhatsAppUrl()}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto"

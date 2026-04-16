@@ -14,7 +14,7 @@ export function LandingInventoryMockup() {
   return (
     <LandingMockupFrame
       toolbarExtra={
-        <p className="truncate text-center text-[10px] font-medium text-zinc-500 sm:text-left">berea.app · Inventario</p>
+        <p className="truncate text-center text-[10px] font-medium text-zinc-500 sm:text-left">bernabe.app · Inventario</p>
       }
     >
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">

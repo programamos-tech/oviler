@@ -14,7 +14,7 @@ import { navItems, navPathIsActive, workspaceAvatarSeed } from "./app-nav-data";
 import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
 import { OvilerWordmark } from "./OvilerWordmark";
-import { bereaPlanUpgradeWhatsAppUrl, programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { bernabePlanUpgradeWhatsAppUrl, programamosWhatsAppUrl } from "@/lib/programamos-contact";
 import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
@@ -375,7 +375,7 @@ export default function TopNav() {
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {orgTrial && normalizePlanType(orgTrial.plan_type ?? "") === "free" ? (
             <a
-              href={bereaPlanUpgradeWhatsAppUrl()}
+              href={bernabePlanUpgradeWhatsAppUrl()}
               target="_blank"
               rel="noopener noreferrer"
               className={TOP_ICON_BTN}

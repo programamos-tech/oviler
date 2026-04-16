@@ -120,7 +120,7 @@ export default function RegistroPage() {
 
         <h1 className="mt-10 text-3xl font-semibold tracking-tight text-white sm:text-[2rem]">Solicitar licencia</h1>
         <p className="mt-2 max-w-md text-[15px] leading-relaxed text-zinc-400">
-          Completa el formulario para activar tu licencia Berea Comercios y gestionar inventario y ventas desde un solo panel.
+          Completa el formulario para activar tu licencia Bernabé Comercios y gestionar inventario y ventas desde un solo panel.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-10 w-full max-w-md space-y-6">

@@ -12,7 +12,7 @@ const SATELLITE_SEEDS = [
   "oviler-login-sat-sucursal",
 ];
 
-const CENTER_SEED = "bereacomercios-hub";
+const CENTER_SEED = "bernabecomercios-hub";
 
 export function LoginAvatarCluster({ showCaption = true }: { showCaption?: boolean }) {
   const R = 108;

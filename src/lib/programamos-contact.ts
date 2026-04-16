@@ -8,7 +8,7 @@ export function programamosWhatsAppUrl(prefill: string): string {
 
 export const PROGRAMAMOS_WA_LICENSE =
   programamosWhatsAppUrl(
-    "Hola programamos, escribo desde Berea Comercios para adquirir o renovar la licencia (catálogo en línea y demás módulos)."
+    "Hola programamos, escribo desde Bernabé Comercios para adquirir o renovar la licencia (catálogo en línea y demás módulos)."
   );
 
 /** Licencia comercial — contacto directo (WhatsApp y llamada). */
@@ -17,18 +17,18 @@ export const COMMERCIAL_LICENSE_WA_E164 = "573004934434";
 export const COMMERCIAL_LICENSE_TEL_HREF = `tel:+${COMMERCIAL_LICENSE_WA_E164}`;
 
 export function commercialLicenseWhatsAppUrl(
-  prefill = "Hola, quiero información sobre la licencia comercial de Berea Comercios."
+  prefill = "Hola, quiero información sobre la licencia comercial de Bernabé Comercios."
 ): string {
   return `https://wa.me/${COMMERCIAL_LICENSE_WA_E164}?text=${encodeURIComponent(prefill)}`;
 }
 
 export function commercialLicenseWhatsAppPrefill(planLabelForUser: string): string {
-  return `Hola, quiero información sobre la licencia comercial de Berea Comercios. Mi plan actual: ${planLabelForUser}.`;
+  return `Hola, quiero información sobre la licencia comercial de Bernabé Comercios. Mi plan actual: ${planLabelForUser}.`;
 }
 
 /** WhatsApp programamos: pasar de Lite a Estándar / Pro (precio por definir). */
-export function bereaPlanUpgradeWhatsAppUrl(): string {
+export function bernabePlanUpgradeWhatsAppUrl(): string {
   return programamosWhatsAppUrl(
-    "Hola programamos, uso Berea Comercios con licencia Lite y quiero pasar a plan Estándar o Pro. ¿Me comparten opciones y precios?"
+    "Hola programamos, uso Bernabé Comercios con licencia Lite y quiero pasar a plan Estándar o Pro. ¿Me comparten opciones y precios?"
   );
 }

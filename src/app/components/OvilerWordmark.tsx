@@ -1,8 +1,8 @@
 /**
- * Lockup Berea + producto. Icono PNG (/ceiling.png) a la izquierda de Berea.
+ * Lockup Bernabé + producto. Icono PNG (/ceiling.png) a la izquierda del nombre.
  * En superficies claras el PNG (blanco) se invierte; en oscuro no.
  */
-function BereaLogoMark({
+function BernabeLogoMark({
   className,
   variant = "onLight",
 }: {
@@ -29,7 +29,7 @@ export function OvilerWordmark({
   variant = "onLight",
   companyName = "Bernabé",
   productLine = "Comercios",
-  /** Solo ícono (/ceiling.png), sin texto Berea / línea / producto */
+  /** Solo ícono (/ceiling.png), sin texto de marca / línea / producto */
   markOnly = false,
 }: {
   className?: string;
@@ -41,7 +41,7 @@ export function OvilerWordmark({
   if (markOnly) {
     return (
       <span className={`inline-flex shrink-0 items-center justify-center ${className ?? ""}`.trim()}>
-        <BereaLogoMark variant={variant} className="!h-9 w-auto max-h-9" />
+        <BernabeLogoMark variant={variant} className="!h-9 w-auto max-h-9" />
       </span>
     );
   }
@@ -57,7 +57,7 @@ export function OvilerWordmark({
     >
       <span className="inline-flex shrink-0 items-stretch gap-[0.06em]">
         <span className="flex items-center">
-          <BereaLogoMark variant={variant} />
+          <BernabeLogoMark variant={variant} />
         </span>
         <span
           className={`w-px shrink-0 self-stretch rounded-full ${dividerClass}`}

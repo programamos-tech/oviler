@@ -3,7 +3,7 @@ import Link from "next/link";
 const steps = [
   {
     title: "Implementamos el sistema",
-    body: "Dejamos Berea Comercios alineado con tu operación: sucursales, impuestos y formas de pago.",
+    body: "Dejamos Bernabé Comercios alineado con tu operación: sucursales, impuestos y formas de pago.",
   },
   {
     title: "Importamos tus productos",
@@ -26,7 +26,7 @@ const steps = [
 const LICENSE_START_PRICE = "$799.000";
 
 /**
- * Cierre de landing: implementación + soporte (equipo Berea).
+ * Cierre de landing: implementación + soporte (equipo Bernabé).
  */
 export function LandingImplementationSection() {
   return (
@@ -40,7 +40,7 @@ export function LandingImplementationSection() {
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 lg:items-start">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Implementación Berea</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Implementación Bernabé</p>
             <h2
               id="landing-impl-heading"
               className="mt-3 font-logo text-2xl tracking-tight text-white sm:text-3xl lg:text-[2.1rem] lg:leading-tight"
@@ -48,7 +48,7 @@ export function LandingImplementationSection() {
               Nosotros montamos el sistema, tú sigues vendiendo
             </h2>
             <p className="mt-5 text-[15px] leading-relaxed text-zinc-400 sm:text-[16px]">
-              No es solo software: el equipo Berea implementa Berea Comercios en tu negocio, migra tu información y deja a tu
+              No es solo software: el equipo Bernabé implementa Bernabé Comercios en tu negocio, migra tu información y deja a tu
               gente lista para operar. Soporte durante todo el año para que el sistema acompañe tu ritmo comercial.
             </p>
 

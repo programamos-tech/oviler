@@ -882,10 +882,6 @@ export default function SaleDetailPage() {
       height: ${isTirilla ? "44px" : "56px"};
       object-fit: contain;
       flex-shrink: 0;
-      border-radius: 6px;
-      border: 1px solid var(--inv-border);
-      background: #fafafa;
-      padding: 3px;
     }
     .inv-legal { min-width: 0; flex: 1; }
     .inv-razon {
@@ -1146,7 +1142,7 @@ export default function SaleDetailPage() {
           <img
             src={sale.branches?.logo_url?.trim() || "/ceiling.png"}
             alt=""
-            className={`print:shrink-0 print:rounded-md print:border print:border-neutral-300 print:bg-neutral-50 print:object-contain ${
+            className={`print:shrink-0 print:object-contain ${
               invoicePrintType === "tirilla" ? "print:h-11 print:w-11" : "print:h-14 print:w-14"
             }`}
           />

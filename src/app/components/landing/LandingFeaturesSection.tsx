@@ -173,7 +173,7 @@ export function LandingFeaturesSection() {
             Solicitar licencia
           </Link>
           <p className="text-center text-[13px] text-zinc-500">
-            ¿Ya usas Berea?{" "}
+            ¿Ya usas Bernabé?{" "}
             <Link href="/login" className="font-medium text-emerald-400/95 underline-offset-2 hover:text-emerald-300 hover:underline">
               Inicia sesión
             </Link>
