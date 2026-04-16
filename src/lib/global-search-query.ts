@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { escapeSearchForFilter } from "@/lib/escape-search-for-filter";
 import { canAccessPath, type AppRole } from "@/lib/permissions";
+import { resolveActiveBranchId } from "@/lib/active-branch";
 
 export const GLOBAL_SEARCH_LIMIT = 40;
 
@@ -44,23 +45,15 @@ export async function fetchGlobalSearch(q: string): Promise<GlobalSearchResult> 
     return { products: [], customers: [], canProducts: showInv, canCustomers: showCust };
   }
 
-  const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-  const branchId = ub?.branch_id;
+  const branchId = await resolveActiveBranchId(supabase, user.id);
   const escaped = escapeSearchForFilter(trimmed);
 
   const loadProducts = async (): Promise<ProductHit[]> => {
-    if (!showInv || !branchId) return [];
-    const { data: invScope } = await supabase
-      .from("inventory")
-      .select("product_id")
-      .eq("branch_id", branchId);
-    const scopedIds = [...new Set((invScope ?? []).map((r) => r.product_id).filter(Boolean))];
-    if (scopedIds.length === 0) return [];
+    if (!showInv || !orgId) return [];
     const { data: prods } = await supabase
       .from("products")
       .select("id, name, sku")
       .eq("organization_id", orgId)
-      .in("id", scopedIds)
       .or(`name.ilike.%${escaped}%,sku.ilike.%${escaped}%`)
       .order("name", { ascending: true })
       .limit(GLOBAL_SEARCH_LIMIT);

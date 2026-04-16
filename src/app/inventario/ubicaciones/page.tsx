@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
 
@@ -234,10 +235,10 @@ export default function UbicacionesPage() {
   const loadBranch = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-    if (!ub?.branch_id) return;
-    setBranchId(ub.branch_id);
-    const { data: b } = await supabase.from("branches").select("name").eq("id", ub.branch_id).single();
+    const bid = await resolveActiveBranchId(supabase, user.id);
+    if (!bid) return;
+    setBranchId(bid);
+    const { data: b } = await supabase.from("branches").select("name").eq("id", bid).single();
     if (b) setBranchName(b.name);
   }, [supabase]);
 
@@ -341,6 +342,27 @@ export default function UbicacionesPage() {
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
+  }, [loadBranch]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => {
+      hasAutoSelectedMainWarehouse.current = false;
+      setSelectedWarehouse(null);
+      setSelectedZone(null);
+      setSelectedAisle(null);
+      setSelectedStand(null);
+      setWarehouses([]);
+      setZones([]);
+      setAisles([]);
+      setLocations([]);
+      setMapStructure(null);
+      setLocationStock({});
+      setLoading(true);
+      void loadBranch().finally(() => setLoading(false));
+    };
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
   }, [loadBranch]);
 
   useEffect(() => {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import { workspaceFormInputMdClass } from "@/lib/workspace-field-classes";
 import { logActivity } from "@/lib/activities";
 import { getCopy, getDocumentCopy, type SalesMode } from "../sales-mode";
@@ -255,24 +256,41 @@ export default function NewSalePage() {
     if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [productHighlightIndex, filteredProductResults.length]);
 
-  // Auth + branch
+  // Auth + sucursal activa (misma que sidebar / inventario)
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
-    (async () => {
+    const applyBranch = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) return;
       setUserId(user.id);
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) return;
-      setBranchId(ub.branch_id);
+      const bid = await resolveActiveBranchId(supabase, user.id);
+      if (!bid || cancelled) return;
+      setBranchId(bid);
       const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
       if (userRow?.organization_id) setOrgId(userRow.organization_id);
-      const { data: branch } = await supabase.from("branches").select("name, sales_mode").eq("id", ub.branch_id).single();
+      const { data: branch } = await supabase.from("branches").select("name, sales_mode").eq("id", bid).single();
       if (branch?.name) setBranchName(branch.name);
       if (branch && "sales_mode" in branch) setSalesMode((branch as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales");
-    })();
-    return () => { cancelled = true; };
+    };
+    void applyBranch();
+    const onBranchChange = () => {
+      setCart([]);
+      setProductSearch("");
+      setProductResults([]);
+      setStockByProductId({});
+      setStockLimitProductId(null);
+      void applyBranch();
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranchChange);
+    }
+    return () => {
+      cancelled = true;
+      if (typeof window !== "undefined") {
+        window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranchChange);
+      }
+    };
   }, []);
 
   // Cargar lista inicial de clientes (al hacer foco o Enter con campo vacío)

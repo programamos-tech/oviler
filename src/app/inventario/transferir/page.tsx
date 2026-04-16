@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
 
@@ -40,18 +41,26 @@ function TransferStockContent() {
   const [loadingProduct, setLoadingProduct] = useState(!!productIdFromUrl);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [branchReloadToken, setBranchReloadToken] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => setBranchReloadToken((n) => n + 1);
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
 
   const loadProduct = useCallback(async (productId: string) => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-    if (!ub?.branch_id) return;
+    const bid = await resolveActiveBranchId(supabase, user.id);
+    if (!bid) return;
     const { data: product } = await supabase.from("products").select("id, name, sku").eq("id", productId).single();
     if (!product) return;
     setSelectedProduct({ id: product.id, name: product.name, sku: product.sku });
     setProductSearchQuery(product.name);
-    setBranchId(ub.branch_id);
+    setBranchId(bid);
   }, []);
 
   const refreshLocationStock = useCallback(async (productId: string, bid: string) => {
@@ -79,18 +88,18 @@ function TransferStockContent() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) return;
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) return;
-      const { data: branch } = await supabase.from("branches").select("has_bodega").eq("id", ub.branch_id).single();
+      const bid = await resolveActiveBranchId(supabase, user.id);
+      if (!bid || cancelled) return;
+      const { data: branch } = await supabase.from("branches").select("has_bodega").eq("id", bid).single();
       if (!cancelled) {
         setHasBodega(branch?.has_bodega !== false);
-        setBranchId(ub.branch_id);
+        setBranchId(bid);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [branchReloadToken]);
 
   useEffect(() => {
     if (!productIdFromUrl) {
@@ -105,7 +114,7 @@ function TransferStockContent() {
     return () => {
       cancelled = true;
     };
-  }, [productIdFromUrl, loadProduct]);
+  }, [productIdFromUrl, loadProduct, branchReloadToken]);
 
   useEffect(() => {
     if (!selectedProduct?.id || !branchId || hasBodega !== true) return;

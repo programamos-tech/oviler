@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
 import LocationPathWithIcons from "@/app/components/LocationPathWithIcons";
@@ -49,7 +50,15 @@ export default function ProductDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
   const SHOW_TRANSFER_OPTION = true;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => setActiveBranchEpoch((n) => n + 1);
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -88,14 +97,12 @@ export default function ProductDetailPage() {
         return;
       }
 
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) {
+      const branchId = await resolveActiveBranchId(supabase, user.id);
+      if (!branchId || cancelled) {
         if (!cancelled) setLoading(false);
         setLocationsLoading(false);
         return;
       }
-
-      const branchId = ub.branch_id;
       if (!cancelled) setBranchId(branchId);
 
       const { data: branchRow } = await supabase.from("branches").select("has_bodega").eq("id", branchId).single();
@@ -138,12 +145,15 @@ export default function ProductDetailPage() {
 
       if (!cancelled) setLoading(false);
 
-      const { data: ilData } = await supabase
+      const { data: ilDataRaw } = await supabase
         .from("inventory_locations")
         .select("location_id, quantity")
         .eq("product_id", id);
       if (cancelled) return;
-      const locIds = (ilData ?? []).map((r) => r.location_id).filter(Boolean);
+      const { data: branchLocIds } = await supabase.from("locations").select("id").eq("branch_id", branchId);
+      const allowedLocIds = new Set((branchLocIds ?? []).map((r: { id: string }) => r.id));
+      const ilData = (ilDataRaw ?? []).filter((r) => allowedLocIds.has(r.location_id));
+      const locIds = ilData.map((r) => r.location_id).filter(Boolean);
       if (locIds.length === 0) {
         if (!cancelled) {
           setLocationRows([]);
@@ -181,7 +191,7 @@ export default function ProductDetailPage() {
         .eq("branch_id", branchId);
       if (!cancelled && locs) {
         const rows: { quantity: number; path: string; locationId: string }[] = [];
-        for (const il of ilData ?? []) {
+        for (const il of ilData) {
           const loc = locs.find((l: { id: string }) => l.id === il.location_id) as {
             id: string;
             name: string;
@@ -211,7 +221,7 @@ export default function ProductDetailPage() {
       if (!cancelled) setLocationsLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, activeBranchEpoch]);
 
   async function handleDelete() {
     if (!product?.id) return;

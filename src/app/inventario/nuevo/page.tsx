@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
@@ -56,6 +57,14 @@ export default function NewProductPage() {
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
   const [planSnapshot, setPlanSnapshot] = useState<OrgPlanSnapshot | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
+  const [branchReloadToken, setBranchReloadToken] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => setBranchReloadToken((n) => n + 1);
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -106,9 +115,9 @@ export default function NewProductPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) return;
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) return;
-      const { data: wh } = await supabase.from("warehouses").select("id, name").eq("branch_id", ub.branch_id).order("name");
+      const branchId = await resolveActiveBranchId(supabase, user.id);
+      if (!branchId || cancelled) return;
+      const { data: wh } = await supabase.from("warehouses").select("id, name").eq("branch_id", branchId).order("name");
       if (cancelled || !wh?.length) {
         setWarehouses(wh ?? []);
         setFloors([]);
@@ -202,7 +211,7 @@ export default function NewProductPage() {
       if (!cancelled) setLocations(allLocs);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [branchReloadToken]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -210,16 +219,16 @@ export default function NewProductPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) return;
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) return;
-      const { data: branch } = await supabase.from("branches").select("responsable_iva, has_bodega").eq("id", ub.branch_id).single();
+      const branchId = await resolveActiveBranchId(supabase, user.id);
+      if (!branchId || cancelled) return;
+      const { data: branch } = await supabase.from("branches").select("responsable_iva, has_bodega").eq("id", branchId).single();
       if (!cancelled) {
         setResponsableIva(!!branch?.responsable_iva);
         setHasBodega(branch?.has_bodega !== false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [branchReloadToken]);
 
   useEffect(() => {
     if (hasBodega && stockBodega === 0) {
@@ -297,8 +306,8 @@ export default function NewProductPage() {
       setSaving(false);
       return;
     }
-    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-    if (!ub?.branch_id) {
+    const branchId = await resolveActiveBranchId(supabase, user.id);
+    if (!branchId) {
       setError("No tienes una sucursal asignada.");
       setSaving(false);
       return;
@@ -363,7 +372,7 @@ export default function NewProductPage() {
       if (ql > 0) {
         const { error: invLocalErr } = await supabase.from("inventory").insert({
           product_id: product.id,
-          branch_id: ub.branch_id,
+          branch_id: branchId,
           location: "local",
           quantity: ql,
         });
@@ -388,7 +397,7 @@ export default function NewProductPage() {
         } else {
           const { error: invBodErr } = await supabase.from("inventory").insert({
             product_id: product.id,
-            branch_id: ub.branch_id,
+            branch_id: branchId,
             location: "bodega",
             quantity: qb,
           });
@@ -415,7 +424,7 @@ export default function NewProductPage() {
       } else if (qty > 0) {
         const { error: invError } = await supabase.from("inventory").insert({
           product_id: product.id,
-          branch_id: ub.branch_id,
+          branch_id: branchId,
           quantity: qty,
         });
         if (invError) {
@@ -429,7 +438,7 @@ export default function NewProductPage() {
     try {
       await logActivity(supabase, {
         organizationId: userRow.organization_id,
-        branchId: ub.branch_id,
+        branchId,
         userId: user.id,
         action: "product_created",
         entityType: "product",

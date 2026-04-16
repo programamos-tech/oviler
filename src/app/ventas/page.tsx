@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import {
   workspaceFilterLabelClass,
   workspaceFilterSearchPillClass,
@@ -83,10 +84,21 @@ export default function SalesPage() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [salesMode, setSalesMode] = useState<SalesMode>("sales");
+  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const hasFocusedList = useRef(false);
   const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => {
+      setActiveBranchEpoch((n) => n + 1);
+      setPage(1);
+    };
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -95,10 +107,10 @@ export default function SalesPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) return;
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) return;
+      const branchId = await resolveActiveBranchId(supabase, user.id);
+      if (!branchId || cancelled) return;
 
-      const { data: branchRow } = await supabase.from("branches").select("sales_mode").eq("id", ub.branch_id).single();
+      const { data: branchRow } = await supabase.from("branches").select("sales_mode").eq("id", branchId).single();
       const branchSalesMode: SalesMode =
         branchRow && (branchRow as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales";
       if (!cancelled && branchRow) setSalesMode(branchSalesMode);
@@ -111,7 +123,7 @@ export default function SalesPage() {
           "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_paid, delivery_fee, created_at, channel, payment_proof_url, customers(name), users!user_id(name)",
           { count: "exact" }
         )
-        .eq("branch_id", ub.branch_id)
+        .eq("branch_id", branchId)
         .order("created_at", { ascending: false })
         .range(from, to);
 
@@ -165,7 +177,7 @@ export default function SalesPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [refreshKey, page, searchQuery, statusFilter, paymentFilter]);
+  }, [refreshKey, page, searchQuery, statusFilter, paymentFilter, activeBranchEpoch]);
 
   useEffect(() => {
     setPage(1);

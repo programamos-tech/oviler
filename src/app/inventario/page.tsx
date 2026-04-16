@@ -12,6 +12,7 @@ import {
   workspaceFilterSelectClass,
 } from "@/lib/workspace-field-classes";
 import { escapeSearchForFilter } from "@/lib/escape-search-for-filter";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 const IVA_RATE = 0.19;
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -128,12 +129,13 @@ export default function InventoryPage() {
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [planSnapshot, setPlanSnapshot] = useState<OrgPlanSnapshot | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const hasFocusedList = useRef(false);
-  const prevFetchDepsRef = useRef({ refreshKey: 0, page: 1, categoryFilter: "" });
+  const prevFetchDepsRef = useRef({ refreshKey: 0, page: 1, categoryFilter: "", activeBranchEpoch: 0 });
   const isFirstFetchRef = useRef(true);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -202,14 +204,24 @@ export default function InventoryPage() {
   }, [searchQuery]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => setActiveBranchEpoch((n) => n + 1);
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
+
+  useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
     const prev = prevFetchDepsRef.current;
     const searchOnly =
       !isFirstFetchRef.current &&
-      prev.refreshKey === refreshKey && prev.page === page && prev.categoryFilter === categoryFilter;
+      prev.refreshKey === refreshKey &&
+      prev.page === page &&
+      prev.categoryFilter === categoryFilter &&
+      prev.activeBranchEpoch === activeBranchEpoch;
     isFirstFetchRef.current = false;
-    prevFetchDepsRef.current = { refreshKey, page, categoryFilter };
+    prevFetchDepsRef.current = { refreshKey, page, categoryFilter, activeBranchEpoch };
     if (!searchOnly) setLoading(true);
     (async () => {
       try {
@@ -217,24 +229,19 @@ export default function InventoryPage() {
         if (!user || cancelled) return;
         const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
         if (!userRow?.organization_id || cancelled) return;
-        const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-        if (!ub?.branch_id || cancelled) return;
-
-        const { data: branchRow } = await supabase.from("branches").select("has_bodega").eq("id", ub.branch_id).single();
-        if (!cancelled) setHasBodega(branchRow?.has_bodega !== false);
-
-        const { data: invScope } = await supabase
-          .from("inventory")
-          .select("product_id")
-          .eq("branch_id", ub.branch_id);
-        const scopedProductIds = [...new Set((invScope ?? []).map((r) => r.product_id).filter(Boolean))];
-        if (scopedProductIds.length === 0) {
-          setProducts([]);
-          setTotalCount(0);
-          setStockSplitByProduct({});
-          setLoading(false);
+        const branchId = await resolveActiveBranchId(supabase, user.id);
+        if (!branchId || cancelled) {
+          if (!cancelled) {
+            setProducts([]);
+            setTotalCount(0);
+            setStockSplitByProduct({});
+            setLoading(false);
+          }
           return;
         }
+
+        const { data: branchRow } = await supabase.from("branches").select("has_bodega").eq("id", branchId).single();
+        if (!cancelled) setHasBodega(branchRow?.has_bodega !== false);
 
         const from = (page - 1) * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
@@ -242,7 +249,6 @@ export default function InventoryPage() {
           .from("products")
           .select("id, name, sku, category_id, base_price, base_cost, apply_iva, description", { count: "exact" })
           .eq("organization_id", userRow.organization_id)
-          .in("id", scopedProductIds)
           .order("name", { ascending: true })
           .range(from, to);
         const qTrim = effectiveSearchQuery.trim();
@@ -267,7 +273,7 @@ export default function InventoryPage() {
         const { data: invData } = await supabase
           .from("inventory")
           .select("product_id, quantity, location")
-          .eq("branch_id", ub.branch_id)
+          .eq("branch_id", branchId)
           .in("product_id", productIds);
 
         const splitBy: Record<string, StockSplit> = {};
@@ -293,7 +299,7 @@ export default function InventoryPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [refreshKey, page, effectiveSearchQuery, categoryFilter]);
+  }, [refreshKey, page, effectiveSearchQuery, categoryFilter, activeBranchEpoch]);
 
   useEffect(() => {
     if (hasBodega !== false) return;

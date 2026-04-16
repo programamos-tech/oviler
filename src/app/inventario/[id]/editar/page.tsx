@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { resolveActiveBranchId } from "@/lib/active-branch";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
 
@@ -48,16 +49,16 @@ export default function EditProductPage() {
       const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
       if (!userRow?.organization_id || cancelled) return;
 
-      const [categoriesRes, branchRes, productRes] = await Promise.all([
+      const [categoriesRes, productRes] = await Promise.all([
         supabase.from("categories").select("id, name").eq("organization_id", userRow.organization_id).order("name", { ascending: true }),
-        supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single(),
         supabase.from("products").select("id, name, sku, description, brand, category_id, base_cost, base_price, apply_iva, image_url").eq("id", id).single(),
       ]);
 
       if (cancelled) return;
       setCategories(categoriesRes.data ?? []);
-      if (branchRes.data?.branch_id) {
-        const { data: branch } = await supabase.from("branches").select("responsable_iva").eq("id", branchRes.data.branch_id).single();
+      const activeBranchId = await resolveActiveBranchId(supabase, user.id);
+      if (activeBranchId) {
+        const { data: branch } = await supabase.from("branches").select("responsable_iva").eq("id", activeBranchId).single();
         if (!cancelled) setResponsableIva(!!branch?.responsable_iva);
       }
       const p = productRes.data;
@@ -123,14 +124,9 @@ export default function EditProductPage() {
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const [userRowRes, ubRes] = user
-      ? await Promise.all([
-          supabase.from("users").select("organization_id").eq("id", user.id).single(),
-          supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single(),
-        ])
-      : [{ data: null }, { data: null }];
+    const userRowRes = user ? await supabase.from("users").select("organization_id").eq("id", user.id).single() : { data: null };
     const userRow = userRowRes.data;
-    const branchId = ubRes.data?.branch_id ?? null;
+    const branchId = user ? await resolveActiveBranchId(supabase, user.id) : null;
 
     let nextImageUrl: string | null | undefined = imageUrl;
     if (productImageFile && userRow?.organization_id) {
