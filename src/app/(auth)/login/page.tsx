@@ -24,6 +24,10 @@ function LoginContent() {
       setError(
         "Tu cuenta no está vinculada a ninguna organización. Si ya tenías una cuenta, pide al administrador que en Supabase (tabla users) asigne tu organization_id. Si prefieres un registro nuevo, usa «Solicitar licencia»."
       );
+    } else if (err === "inactive") {
+      setError(
+        "Tu cuenta está desactivada. No puedes iniciar sesión hasta que un administrador la reactive."
+      );
     }
   }, [searchParams]);
 
@@ -74,7 +78,7 @@ function LoginContent() {
       if (data.user) {
         const { data: userData, error: userError } = await supabase
           .from("users")
-          .select("organization_id")
+          .select("organization_id, status")
           .eq("id", data.user.id)
           .single();
 
@@ -97,6 +101,15 @@ function LoginContent() {
           setError(
             "Tu cuenta no está vinculada a ninguna organización (organization_id vacío en la tabla users). " +
             "En Supabase asigna tu organization_id en la tabla users. Si prefieres un registro nuevo, usa «Solicitar licencia»."
+          );
+          setLoading(false);
+          return;
+        }
+
+        if (userData.status === "inactive") {
+          await supabase.auth.signOut();
+          setError(
+            "Tu cuenta está desactivada. No puedes iniciar sesión hasta que un administrador la reactive."
           );
           setLoading(false);
           return;

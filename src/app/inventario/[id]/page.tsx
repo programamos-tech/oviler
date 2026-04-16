@@ -41,6 +41,7 @@ export default function ProductDetailPage() {
   const [stockReserved, setStockReserved] = useState<number>(0);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [locationRows, setLocationRows] = useState<{ quantity: number; path: string; locationId: string }[]>([]);
+  const [locationsLoading, setLocationsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -51,56 +52,73 @@ export default function ProductDetailPage() {
     if (!id) return;
     const supabase = createClient();
     let cancelled = false;
+    setLocationsLoading(true);
     (async () => {
-      const { data: p, error } = await supabase
-        .from("products")
-        .select("id, name, sku, category_id, brand, description, base_price, base_cost, apply_iva")
-        .eq("id", id)
-        .single();
+      const [{ data: p, error: productError }, { data: authData }] = await Promise.all([
+        supabase
+          .from("products")
+          .select("id, name, sku, category_id, brand, description, base_price, base_cost, apply_iva, categories(name)")
+          .eq("id", id)
+          .single(),
+        supabase.auth.getUser(),
+      ]);
 
-      if (error || !p || cancelled) {
+      if (productError || !p || cancelled) {
         if (!cancelled) setNotFound(true);
         setLoading(false);
+        setLocationsLoading(false);
         return;
       }
-      let productData: Product = p as Product;
-      if (p.category_id) {
-        const { data: cat } = await supabase.from("categories").select("name").eq("id", p.category_id).single();
-        if (!cancelled && cat) productData = { ...productData, category_name: cat.name };
-      }
+
+      const catRow = p.categories as { name: string } | { name: string }[] | null | undefined;
+      const categoryName = Array.isArray(catRow) ? catRow[0]?.name : catRow?.name;
+      const productData: Product = {
+        ...(p as Product),
+        category_name: categoryName ?? undefined,
+      };
       if (!cancelled) setProduct(productData);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
+      const user = authData.user;
+      if (!user || cancelled) {
+        if (!cancelled) setLoading(false);
+        setLocationsLoading(false);
+        return;
+      }
+
       const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) return;
+      if (!ub?.branch_id || cancelled) {
+        if (!cancelled) setLoading(false);
+        setLocationsLoading(false);
+        return;
+      }
 
-      const { data: inv } = await supabase
-        .from("inventory")
-        .select("quantity")
-        .eq("product_id", id)
-        .eq("branch_id", ub.branch_id);
+      const branchId = ub.branch_id;
+      if (!cancelled) setBranchId(branchId);
 
-      const total = (inv ?? []).reduce((s, r) => s + (r.quantity ?? 0), 0);
+      const STATUSES_THAT_RESERVE = ["pending", "preparing", "packing"];
+
+      const [invRes, reservedRes] = await Promise.all([
+        supabase.from("inventory").select("quantity").eq("product_id", id).eq("branch_id", branchId),
+        supabase
+          .from("sale_items")
+          .select("quantity, sales!inner(branch_id, status)")
+          .eq("product_id", id)
+          .eq("sales.branch_id", branchId)
+          .in("sales.status", STATUSES_THAT_RESERVE),
+      ]);
+
+      const total = (invRes.data ?? []).reduce((s, r) => s + (r.quantity ?? 0), 0);
       if (!cancelled) setStock(total);
 
-      if (!cancelled && ub.branch_id) setBranchId(ub.branch_id);
-
-      // Stock reservado: solo ventas que aún no han descontado stock (pendientes, en alistamiento, alistadas).
-      // Completadas y despachadas ya descontaron, no cuentan como reservado.
-      const STATUSES_THAT_RESERVE = ["pending", "preparing", "packing"];
-      const { data: reservedRows } = await supabase
-        .from("sale_items")
-        .select("quantity, sales!inner(branch_id, status)")
-        .eq("product_id", id);
-      const reserved = (reservedRows ?? []).reduce((sum, row) => {
+      const reserved = (reservedRes.data ?? []).reduce((sum, row) => {
         const raw = row as { quantity: number; sales: { branch_id: string; status: string } | { branch_id: string; status: string }[] | null };
         const s = Array.isArray(raw.sales) ? raw.sales[0] ?? null : raw.sales;
-        if (!s || s.branch_id !== ub?.branch_id || s.status === "cancelled") return sum;
-        if (!STATUSES_THAT_RESERVE.includes(s.status)) return sum; // ya pagado/despachado = ya descontado
+        if (!s || s.status === "cancelled") return sum;
         return sum + (Number(raw.quantity) || 0);
       }, 0);
       if (!cancelled) setStockReserved(reserved);
+
+      if (!cancelled) setLoading(false);
 
       const { data: ilData } = await supabase
         .from("inventory_locations")
@@ -108,10 +126,17 @@ export default function ProductDetailPage() {
         .eq("product_id", id);
       if (cancelled) return;
       const locIds = (ilData ?? []).map((r) => r.location_id).filter(Boolean);
-      if (locIds.length > 0) {
-        const { data: locs } = await supabase
-          .from("locations")
-          .select(`
+      if (locIds.length === 0) {
+        if (!cancelled) {
+          setLocationRows([]);
+          setLocationsLoading(false);
+        }
+        return;
+      }
+
+      const { data: locs } = await supabase
+        .from("locations")
+        .select(`
             id,
             name,
             code,
@@ -134,40 +159,38 @@ export default function ProductDetailPage() {
               )
             )
           `)
-          .in("id", locIds)
-          .eq("branch_id", ub.branch_id);
-        if (!cancelled && locs) {
-          const rows: { quantity: number; path: string; locationId: string }[] = [];
-          for (const il of ilData ?? []) {
-            const loc = locs.find((l: { id: string }) => l.id === il.location_id) as {
-              id: string;
+        .in("id", locIds)
+        .eq("branch_id", branchId);
+      if (!cancelled && locs) {
+        const rows: { quantity: number; path: string; locationId: string }[] = [];
+        for (const il of ilData ?? []) {
+          const loc = locs.find((l: { id: string }) => l.id === il.location_id) as {
+            id: string;
+            name: string;
+            level?: number;
+            stands?: {
               name: string;
-              level?: number;
-              stands?: {
+              aisles?: {
                 name: string;
-                aisles?: {
+                zones?: {
                   name: string;
-                  zones?: {
-                    name: string;
-                    floors?: { name: string; level?: number; warehouses?: { name: string } };
-                  };
+                  floors?: { name: string; level?: number; warehouses?: { name: string } };
                 };
               };
-            } | undefined;
-            const stand = loc?.stands;
-            if (!stand?.aisles) continue;
-            const a = stand.aisles;
-            const z = a.zones;
-            const f = z?.floors;
-            const w = f?.warehouses;
-            const path = [w?.name, z?.name, a?.name, stand?.name, loc?.level != null ? `Nivel ${loc.level}` : loc?.name].filter(Boolean).join(" → ");
-            rows.push({ quantity: il.quantity, path, locationId: loc!.id });
-          }
-          setLocationRows(rows);
+            };
+          } | undefined;
+          const stand = loc?.stands;
+          if (!stand?.aisles) continue;
+          const a = stand.aisles;
+          const z = a.zones;
+          const f = z?.floors;
+          const w = f?.warehouses;
+          const path = [w?.name, z?.name, a?.name, stand?.name, loc?.level != null ? `Nivel ${loc.level}` : loc?.name].filter(Boolean).join(" → ");
+          rows.push({ quantity: il.quantity, path, locationId: loc!.id });
         }
+        setLocationRows(rows);
       }
-
-      setLoading(false);
+      if (!cancelled) setLocationsLoading(false);
     })();
     return () => { cancelled = true; };
   }, [id]);
@@ -347,7 +370,9 @@ export default function ProductDetailPage() {
               <div className="flex flex-col gap-1">
                 <dt className="font-medium text-slate-500 dark:text-slate-400">Ubicación</dt>
                 <dd className="font-semibold text-slate-800 dark:text-slate-100">
-                  {locationRows.length > 0 ? (
+                  {locationsLoading ? (
+                    <span className="font-medium text-slate-400 dark:text-slate-500">Cargando…</span>
+                  ) : locationRows.length > 0 ? (
                     <LocationPathWithIcons path={locationRows.map((r) => r.path).join("; ")} iconClass="text-[13px]" />
                   ) : (
                     <span className="font-medium text-slate-500 dark:text-slate-400">Sin ubicación específica</span>
@@ -373,7 +398,9 @@ export default function ProductDetailPage() {
             <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
               Dónde está el producto en esta sucursal.
             </p>
-            {locationRows.length > 0 ? (
+            {locationsLoading ? (
+              <p className="mt-3 text-[13px] font-medium text-slate-400 dark:text-slate-500">Cargando ubicaciones…</p>
+            ) : locationRows.length > 0 ? (
               <>
                 <ul className="mt-3 space-y-2">
                   {locationRows.map((row, i) => (

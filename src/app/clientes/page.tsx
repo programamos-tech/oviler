@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { workspaceFilterSearchPillClass } from "@/lib/workspace-field-classes";
@@ -47,6 +47,16 @@ export default function CustomersPage() {
   const fetchRequestId = useRef(0);
   const prevDebouncedSearch = useRef<string | undefined>(undefined);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const qp = searchParams.get("q");
+    if (typeof qp === "string" && qp.trim()) {
+      const t = qp.trim();
+      setSearchInput(t);
+      setDebouncedSearch(t);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {

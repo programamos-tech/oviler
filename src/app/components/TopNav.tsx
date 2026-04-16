@@ -18,6 +18,7 @@ import { bernabePlanUpgradeWhatsAppUrl, programamosWhatsAppUrl } from "@/lib/pro
 import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+import { GlobalSearchCombobox } from "@/app/components/GlobalSearchCombobox";
 
 const TOP_ICON_BTN =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-50";
@@ -26,7 +27,6 @@ export default function TopNav() {
   const pathname = usePathname();
   const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
   const router = useRouter();
-  const [navSearch, setNavSearch] = useState("");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{
@@ -145,14 +145,6 @@ export default function TopNav() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [router]);
-
-  const submitNavSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = navSearch.trim();
-    if (!q) return;
-    router.push(`/inventario?q=${encodeURIComponent(q)}`);
-    setNavSearch("");
-  };
 
   const role = (user?.role ?? null) as AppRole | null;
   const customPermissions = user?.permissions ?? null;
@@ -495,27 +487,11 @@ export default function TopNav() {
 
       <div className="border-t border-slate-100 px-4 pb-2.5 pt-2 dark:border-slate-800 sm:px-6">
         <div className="mx-auto flex max-w-[1600px] items-center gap-2">
-          <form onSubmit={submitNavSearch} className="min-w-0 flex-1" role="search">
-            <div className="relative">
-              <svg
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                type="search"
-                value={navSearch}
-                onChange={(e) => setNavSearch(e.target.value)}
-                placeholder="Buscar productos, SKU…"
-                className="h-9 w-full rounded-full border border-slate-200 bg-slate-50/90 py-1.5 pl-9 pr-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-900/25 focus:bg-white focus:ring-2 focus:ring-slate-900/10 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:focus:border-zinc-500"
-                aria-label="Buscar"
-              />
-            </div>
-          </form>
+          <GlobalSearchCombobox
+            formClassName="min-w-0 flex-1"
+            inputClassName="h-9 w-full rounded-full border border-slate-200 bg-slate-50/90 py-1.5 pl-9 pr-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-900/25 focus:bg-white focus:ring-2 focus:ring-slate-900/10 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:focus:border-zinc-500"
+            searchIconLeftClass="left-3"
+          />
           <Link
             href="/ventas/nueva"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-[color:var(--shell-sidebar)] dark:hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:hidden"

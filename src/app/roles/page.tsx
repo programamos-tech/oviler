@@ -7,6 +7,7 @@ import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar"
 import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
 import { PlanLimitHeaderNote, PLAN_LIMIT_DISABLED_BUTTON_CLASS } from "@/app/components/PlanLimitNotice";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
+import { PRODUCT_DISPLAY_NAME, PRODUCT_INTERNAL_NAME } from "@/lib/permissions";
 
 interface Role {
   id: string;
@@ -121,8 +122,9 @@ export default function RolesPage() {
   }, []);
   const getRoleColor = (color: string) => {
     const colors: Record<string, string> = {
-      emerald: "border border-slate-400/50 bg-slate-200/80 text-[color:var(--shell-sidebar)] dark:border-zinc-600/40 dark:bg-zinc-700/40 dark:text-zinc-300",
-      blue: "border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
+      emerald:
+        "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/45 dark:bg-emerald-950/25 dark:text-emerald-300",
+      blue: "border border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/45 dark:bg-blue-950/25 dark:text-blue-300",
       purple: "border border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/50 dark:bg-violet-950/25 dark:text-violet-300",
       orange: "border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/45 dark:bg-amber-950/25 dark:text-amber-300",
     };
@@ -143,7 +145,8 @@ export default function RolesPage() {
               Usuarios y roles
             </h1>
             <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Gestiona colaboradores, roles y permisos. Define quién puede hacer qué en NOU Tiendas.
+              Gestiona colaboradores, roles y permisos en {PRODUCT_DISPLAY_NAME}{" "}
+              <span className="text-slate-400 dark:text-slate-500">({PRODUCT_INTERNAL_NAME})</span>.
             </p>
           </div>
           <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
@@ -174,6 +177,57 @@ export default function RolesPage() {
           </div>
         </div>
       </header>
+
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
+        <details className="group">
+          <summary className="cursor-pointer list-none text-[13px] font-semibold text-slate-800 dark:text-slate-100 [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-2">
+              Quién puede hacer qué en {PRODUCT_DISPLAY_NAME}
+              <svg
+                className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </span>
+          </summary>
+          <div className="mt-3 space-y-3 text-[13px] leading-relaxed text-slate-600 dark:text-slate-400">
+            <p>
+              <strong className="font-semibold text-slate-800 dark:text-slate-200">{PRODUCT_DISPLAY_NAME}</strong> es el
+              producto que usas en el negocio; en documentación interna también se llama{" "}
+              <strong className="font-semibold text-slate-800 dark:text-slate-200">{PRODUCT_INTERNAL_NAME}</strong>. Cada
+              colaborador tiene un <strong className="font-semibold">rol</strong> (Dueño, Administrador, Cajero o Inventario)
+              con permisos por defecto; al editar un usuario puedes marcar permisos concretos y sustituir ese paquete.
+            </p>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                <strong className="text-slate-800 dark:text-slate-200">Dueño:</strong> acceso completo a módulos y
+                permisos (incluye usuarios, sucursales, inventario, ventas, créditos, catálogo, etc.).
+              </li>
+              <li>
+                <strong className="text-slate-800 dark:text-slate-200">Administrador:</strong> ventas, clientes, egresos,
+                inventario (productos, stock, transferencias, bodega, merma), créditos y actividades. Por defecto{" "}
+                <strong className="font-semibold">no</strong> incluye gestión de colaboradores ni de sucursales, salvo que
+                actives esos permisos al editarlo.
+              </li>
+              <li>
+                <strong className="text-slate-800 dark:text-slate-200">Cajero:</strong> ventas, clientes, egresos,
+                consulta de inventario, créditos y actividades; orientado a caja y operación diaria sin inventario avanzado
+                por defecto.
+              </li>
+              <li>
+                <strong className="text-slate-800 dark:text-slate-200">Inventario</strong> (rol técnico{" "}
+                <code className="rounded bg-slate-100 px-1 text-[12px] dark:bg-slate-800">delivery</code>): inventario y
+                bodega (productos, categorías, stock, transferencias, ubicaciones, merma) y actividades; por defecto sin
+                ventas ni clientes.
+              </li>
+            </ul>
+          </div>
+        </details>
+      </div>
 
       {loading ? (
         <div className="min-h-[280px] animate-pulse rounded-3xl bg-white dark:bg-slate-900" aria-hidden />

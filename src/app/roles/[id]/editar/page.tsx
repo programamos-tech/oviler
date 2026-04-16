@@ -86,7 +86,7 @@ export default function EditEmployeePage() {
       }
       const u = user as { name: string; email: string; role: string; status: string | null; avatar_url?: string | null; permissions?: string[] | null };
       setNombre(u.name ?? "");
-      setEmail(u.email ?? "");
+      setEmail((u.email ?? "").trim());
       setUsername(suggestUsername(u.name ?? ""));
       setRol(u.role && ROLES.some((r) => r.id === u.role) ? u.role : "cashier");
       setPermissions(withRequiredPermissions((u.permissions ?? ROLE_DEFAULT_PERMISSIONS[u.role] ?? ROLE_DEFAULT_PERMISSIONS.cashier) as string[]));
@@ -119,38 +119,36 @@ export default function EditEmployeePage() {
       alert("El nombre es obligatorio.");
       return;
     }
-    if (!email.trim()) {
+    const emailNorm = email.trim().toLowerCase();
+    if (!emailNorm) {
       alert("El correo es obligatorio.");
       return;
     }
     setUploading(true);
-    const supabase = createClient();
-
-    const updatePayload: { name: string; email: string; role: string; status: string; updated_at: string; avatar_url: string; permissions: string[] } = {
-      name: nameTrim,
-      email: email.trim(),
-      role: rol || "cashier",
-      status,
-      updated_at: new Date().toISOString(),
-      avatar_url: `avatar:${avatarVariant}`,
-      permissions: withRequiredPermissions(permissions),
-    };
-
-    const { data: updated, error } = await supabase
-      .from("users")
-      .update(updatePayload)
-      .eq("id", id)
-      .select("id");
-    setUploading(false);
-    if (error) {
-      alert("No se pudieron guardar los cambios: " + (error.message ?? ""));
-      return;
+    try {
+      const res = await fetch("/api/admin/update-collaborator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          target_user_id: id,
+          name: nameTrim,
+          email: emailNorm,
+          role: rol || "cashier",
+          status,
+          avatar_url: `avatar:${avatarVariant}`,
+          permissions: withRequiredPermissions(permissions),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        alert(data.error ?? "No se pudieron guardar los cambios.");
+        return;
+      }
+      router.push("/roles");
+    } finally {
+      setUploading(false);
     }
-    if (!updated?.length) {
-      alert("No se pudo actualizar (permisos o usuario no encontrado). Revisa que exista la política UPDATE en la tabla users.");
-      return;
-    }
-    router.push("/roles");
   }
 
   if (loading) {
@@ -268,63 +266,9 @@ export default function EditEmployeePage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <label className={labelClass.replace("mb-2", "mb-0")}>Permisos</label>
-                  <button
-                    type="button"
-                    onClick={() => setPermissions(withRequiredPermissions([...(ROLE_DEFAULT_PERMISSIONS[rol] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]))}
-                    className="text-[12px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
-                  >
-                    Restaurar por rol
-                  </button>
-                </div>
-                <div className="rounded-2xl border border-slate-200 p-3 dark:border-slate-700">
-                  {Array.from(new Set(PERMISSION_OPTIONS.map((p) => p.group))).map((group) => (
-                    <div key={group} className="mb-3 last:mb-0">
-                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{group}</p>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {PERMISSION_OPTIONS.filter((p) => p.group === group).map((perm) => {
-                          const checked = permissions.includes(perm.key);
-                          return (
-                            <label key={perm.key} className="flex items-center gap-2 text-[13px] text-slate-700 dark:text-slate-300">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(e) => {
-                                  setPermissions((prev) => {
-                                    if (perm.key === REQUIRED_PERMISSION && !e.target.checked) return prev;
-                                    return withRequiredPermissions(
-                                      e.target.checked
-                                        ? Array.from(new Set([...prev, perm.key]))
-                                        : prev.filter((k) => k !== perm.key)
-                                    );
-                                  });
-                                }}
-                                disabled={perm.key === REQUIRED_PERMISSION}
-                                className="h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-slate-400/50 dark:border-slate-600"
-                              />
-                              <span>{perm.label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Estado</label>
-                <select value={status} onChange={(e) => setStatus(e.target.value as "active" | "inactive")} className={inputClass} disabled={loading}>
-                  <option value="active">Activo</option>
-                  <option value="inactive">Inactivo</option>
-                </select>
-              </div>
             </div>
           </div>
-        </div>
 
-        <div className="space-y-4">
           <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
               Resumen
@@ -344,6 +288,101 @@ export default function EditEmployeePage() {
                   {ROLES.find((r) => r.id === rol)?.name ?? "—"}
                 </p>
               </div>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Estado</p>
+                <p className="mt-1 text-slate-600 dark:text-slate-400">
+                  {status === "active" ? "Activo" : "Inactivo"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                Permisos
+              </p>
+              <button
+                type="button"
+                onClick={() => setPermissions(withRequiredPermissions([...(ROLE_DEFAULT_PERMISSIONS[rol] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]))}
+                className="shrink-0 text-[12px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
+              >
+                Restaurar por rol
+              </button>
+            </div>
+            <div className="max-h-[min(60vh,520px)] overflow-y-auto rounded-2xl border border-slate-200 p-3 dark:border-slate-700">
+              {Array.from(new Set(PERMISSION_OPTIONS.map((p) => p.group))).map((group) => (
+                <div key={group} className="mb-3 last:mb-0">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{group}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {PERMISSION_OPTIONS.filter((p) => p.group === group).map((perm) => {
+                      const checked = permissions.includes(perm.key);
+                      return (
+                        <label key={perm.key} className="flex items-center gap-2 text-[13px] text-slate-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setPermissions((prev) => {
+                                if (perm.key === REQUIRED_PERMISSION && !e.target.checked) return prev;
+                                return withRequiredPermissions(
+                                  e.target.checked
+                                    ? Array.from(new Set([...prev, perm.key]))
+                                    : prev.filter((k) => k !== perm.key)
+                                );
+                              });
+                            }}
+                            disabled={perm.key === REQUIRED_PERMISSION}
+                            className="h-4 w-4 shrink-0 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-slate-400/50 dark:border-slate-600"
+                          />
+                          <span>{perm.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+              Estado de acceso
+            </p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+              Activo puede iniciar sesión; inactivo no podrá entrar hasta que lo reactives.
+            </p>
+            <div
+              className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-100/90 p-1 dark:bg-slate-800/60"
+              role="group"
+              aria-label="Activar o desactivar colaborador"
+            >
+              <button
+                type="button"
+                onClick={() => setStatus("active")}
+                disabled={loading}
+                className={`rounded-lg px-3 py-2.5 text-center text-[13px] font-semibold transition-all ${
+                  status === "active"
+                    ? "bg-white text-emerald-800 shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-emerald-300"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                Activo
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatus("inactive")}
+                disabled={loading}
+                className={`rounded-lg px-3 py-2.5 text-center text-[13px] font-semibold transition-all ${
+                  status === "inactive"
+                    ? "bg-white text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-slate-200"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                Inactivo
+              </button>
             </div>
           </div>
 

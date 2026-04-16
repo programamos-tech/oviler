@@ -41,6 +41,19 @@ function suggestUsername(fullName: string): string {
   return short.slice(0, 8);
 }
 
+/** Mensajes de Supabase/API en inglés → español para la UI */
+function collaboratorErrorMessage(raw: string | undefined | null): string {
+  if (raw == null || String(raw).trim() === "") return "No se pudo crear el colaborador.";
+  const s = String(raw).trim();
+  if (/A user with this email address has already been registered/i.test(s)) {
+    return "Ya existe un usuario registrado con este correo electrónico.";
+  }
+  if (/User already registered|Email address.*already|already been registered|already exists|duplicate user/i.test(s)) {
+    return "Este correo ya está registrado.";
+  }
+  return s;
+}
+
 export default function NewEmployeePage() {
   const [nombre, setNombre] = useState("");
   const [username, setUsername] = useState("");
@@ -53,6 +66,8 @@ export default function NewEmployeePage() {
   const [error, setError] = useState<string | null>(null);
   const [planSnapshot, setPlanSnapshot] = useState<OrgPlanSnapshot | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [branchId, setBranchId] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -70,11 +85,20 @@ export default function NewEmployeePage() {
         setPlanLoading(false);
         return;
       }
-      const snap = await loadOrgPlanSnapshot(supabase, me.organization_id);
-      if (!cancelled) {
-        setPlanSnapshot(snap);
-        setPlanLoading(false);
-      }
+      const [snap, branchesRes, myUb] = await Promise.all([
+        loadOrgPlanSnapshot(supabase, me.organization_id),
+        supabase.from("branches").select("id, name").eq("organization_id", me.organization_id).order("name"),
+        supabase.from("user_branches").select("branch_id").eq("user_id", authUser.id).limit(1).maybeSingle(),
+      ]);
+      if (cancelled) return;
+      setPlanSnapshot(snap);
+      const list = (branchesRes.data ?? []) as { id: string; name: string }[];
+      setBranches(list);
+      const preferred = myUb.data?.branch_id;
+      const initial =
+        preferred && list.some((b) => b.id === preferred) ? preferred : list[0]?.id ?? "";
+      setBranchId(initial);
+      setPlanLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -101,6 +125,10 @@ export default function NewEmployeePage() {
       setError("La contraseña inicial debe tener al menos 6 caracteres.");
       return;
     }
+    if (!branchId || !branches.some((b) => b.id === branchId)) {
+      setError("Selecciona la sucursal a la que quedará asignado el colaborador.");
+      return;
+    }
     const roleToUse = rol && ROLES.some((r) => r.id === rol) ? rol : "cashier";
     setError(null);
     setUploading(true);
@@ -117,17 +145,6 @@ export default function NewEmployeePage() {
       setError("No se pudo obtener la organización.");
       return;
     }
-    const { data: myBranch } = await supabase
-      .from("user_branches")
-      .select("branch_id")
-      .eq("user_id", authUser.id)
-      .limit(1)
-      .single();
-    if (!myBranch?.branch_id) {
-      setUploading(false);
-      setError("No tienes una sucursal activa asignada para crear colaboradores.");
-      return;
-    }
     try {
       const createRes = await fetch("/api/admin/create-user", {
         method: "POST",
@@ -137,11 +154,12 @@ export default function NewEmployeePage() {
           password,
           name: nameTrim,
           organization_id: me.organization_id,
+          branch_id: branchId,
         }),
       });
       const createData = await createRes.json().catch(() => ({}));
       if (!createRes.ok) {
-        setError(createData.error || "No se pudo crear el colaborador.");
+        setError(collaboratorErrorMessage(createData.error));
         setUploading(false);
         return;
       }
@@ -157,12 +175,8 @@ export default function NewEmployeePage() {
         permissions: withRequiredPermissions(permissions),
       };
       await supabase.from("users").update(updatePayload).eq("id", newUserId);
-      await supabase.from("user_branches").upsert(
-        { user_id: newUserId, branch_id: myBranch.branch_id },
-        { onConflict: "user_id,branch_id" }
-      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error inesperado");
+      setError(collaboratorErrorMessage(err instanceof Error ? err.message : "Error inesperado"));
       setUploading(false);
       return;
     }
@@ -224,11 +238,6 @@ export default function NewEmployeePage() {
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Datos del colaborador
             </p>
-            {error && (
-              <div className="mt-3 rounded-lg bg-red-50 p-3 text-[13px] text-red-700 dark:bg-red-900/20 dark:text-red-400">
-                {error}
-              </div>
-            )}
             <div className="mt-3 space-y-3">
               <div>
                 <label className={labelClass}>Avatar</label>
@@ -321,58 +330,94 @@ export default function NewEmployeePage() {
                 </select>
               </div>
               <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <label className={labelClass.replace("mb-2", "mb-0")}>Permisos</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const roleKey = rol && ROLES.some((r) => r.id === rol) ? rol : "cashier";
-                      setPermissions(withRequiredPermissions([...(ROLE_DEFAULT_PERMISSIONS[roleKey] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]));
-                    }}
-                    className="text-[12px] font-medium text-ov-pink hover:underline"
-                  >
-                    Restaurar por rol
-                  </button>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-                  {Array.from(new Set(PERMISSION_OPTIONS.map((p) => p.group))).map((group) => (
-                    <div key={group} className="mb-3 last:mb-0">
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{group}</p>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {PERMISSION_OPTIONS.filter((p) => p.group === group).map((perm) => {
-                          const checked = permissions.includes(perm.key);
-                          return (
-                            <label key={perm.key} className="flex items-center gap-2 text-[13px] text-slate-700 dark:text-slate-300">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(e) => {
-                                  setPermissions((prev) => {
-                                    if (perm.key === REQUIRED_PERMISSION && !e.target.checked) return prev;
-                                    return withRequiredPermissions(
-                                      e.target.checked
-                                        ? Array.from(new Set([...prev, perm.key]))
-                                        : prev.filter((k) => k !== perm.key)
-                                    );
-                                  });
-                                }}
-                                disabled={perm.key === REQUIRED_PERMISSION}
-                                className="h-4 w-4 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30 dark:border-slate-600"
-                              />
-                              <span>{perm.label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <label className={labelClass}>
+                  Sucursal <span className="text-ov-pink">*</span>
+                </label>
+                {branches.length === 0 ? (
+                  <p className="rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-[13px] font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                    No hay sucursales en la organización.{" "}
+                    <Link href="/sucursales/nueva" className="font-semibold underline underline-offset-2">
+                      Crea una sucursal
+                    </Link>{" "}
+                    antes de registrar colaboradores.
+                  </p>
+                ) : (
+                  <>
+                    <select
+                      value={branchId}
+                      onChange={(e) => setBranchId(e.target.value)}
+                      className={inputClass}
+                      required
+                    >
+                      <option value="">Seleccionar sucursal</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                      El colaborador trabajará con datos de inventario, ventas y clientes de esta sucursal.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         <div className="space-y-4">
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                Permisos
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  const roleKey = rol && ROLES.some((r) => r.id === rol) ? rol : "cashier";
+                  setPermissions(withRequiredPermissions([...(ROLE_DEFAULT_PERMISSIONS[roleKey] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]));
+                }}
+                className="shrink-0 text-[12px] font-medium text-ov-pink hover:underline"
+              >
+                Restaurar por rol
+              </button>
+            </div>
+            <div className="max-h-[min(60vh,520px)] overflow-y-auto rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+              {Array.from(new Set(PERMISSION_OPTIONS.map((p) => p.group))).map((group) => (
+                <div key={group} className="mb-3 last:mb-0">
+                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{group}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {PERMISSION_OPTIONS.filter((p) => p.group === group).map((perm) => {
+                      const checked = permissions.includes(perm.key);
+                      return (
+                        <label key={perm.key} className="flex items-center gap-2 text-[13px] text-slate-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setPermissions((prev) => {
+                                if (perm.key === REQUIRED_PERMISSION && !e.target.checked) return prev;
+                                return withRequiredPermissions(
+                                  e.target.checked
+                                    ? Array.from(new Set([...prev, perm.key]))
+                                    : prev.filter((k) => k !== perm.key)
+                                );
+                              });
+                            }}
+                            disabled={perm.key === REQUIRED_PERMISSION}
+                            className="h-4 w-4 shrink-0 rounded border-slate-300 text-ov-pink focus:ring-ov-pink/30 dark:border-slate-600"
+                          />
+                          <span>{perm.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Resumen
@@ -392,6 +437,12 @@ export default function NewEmployeePage() {
                   {ROLES.find((r) => r.id === rol)?.name ?? "—"}
                 </p>
               </div>
+              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
+                <p className="font-bold text-slate-800 dark:text-slate-100">Sucursal</p>
+                <p className="mt-1 text-slate-600 dark:text-slate-400">
+                  {branches.find((b) => b.id === branchId)?.name ?? "—"}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -403,10 +454,18 @@ export default function NewEmployeePage() {
                   Al confirmar se creará el colaborador.
                 </p>
               </div>
+              {error ? (
+                <div
+                  className="rounded-lg border border-red-200 bg-red-50 p-3 text-[13px] font-medium text-red-800 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
+                  role="alert"
+                >
+                  {error}
+                </div>
+              ) : null}
               <button
                 type="button"
                 onClick={handleCreate}
-                disabled={uploading}
+                disabled={uploading || branches.length === 0 || !branchId}
                 className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
               >
                 {uploading ? "Guardando…" : "Crear colaborador"}

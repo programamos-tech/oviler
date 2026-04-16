@@ -13,12 +13,12 @@ import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
 import { workspaceFilterSearchPillClass } from "@/lib/workspace-field-classes";
+import { GlobalSearchCombobox } from "@/app/components/GlobalSearchCombobox";
 
 export default function AppDesktopHeader() {
   const pathname = usePathname();
   const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
   const router = useRouter();
-  const [search, setSearch] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const [user, setUser] = useState<{
@@ -76,45 +76,17 @@ export default function AppDesktopHeader() {
   const trialActive = orgTrial != null && isFreeTrialActive(orgTrial);
   const trialEndsAt = orgTrial?.trial_ends_at ?? "";
 
-  const submitSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = search.trim();
-    if (!q) return;
-    router.push(`/inventario?q=${encodeURIComponent(q)}`);
-    setSearch("");
-  };
-
   const iconBtn =
     "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-50";
 
   return (
     <header className="sticky top-0 z-30 hidden min-h-[3.75rem] shrink-0 border-b border-slate-200/80 bg-white/85 text-slate-800 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur-md dark:border-zinc-800/80 dark:bg-zinc-950/90 dark:text-zinc-100 dark:shadow-[0_1px_0_rgba(0,0,0,0.35)] lg:block">
       <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-4 py-2.5 sm:px-6 lg:flex-row lg:items-center lg:justify-end lg:gap-6 lg:px-8">
-        <form
-          onSubmit={submitSearch}
-          className="order-3 flex w-full min-w-0 flex-1 justify-center lg:order-none lg:max-w-3xl"
-          role="search"
-        >
-          <div className="relative w-full">
-            <svg
-              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-zinc-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar productos, SKU…"
-              className={workspaceFilterSearchPillClass}
-              aria-label="Buscar en el panel"
-            />
-          </div>
-        </form>
+        <GlobalSearchCombobox
+          formClassName="order-3 flex w-full min-w-0 flex-1 justify-center lg:order-none lg:max-w-3xl"
+          inputClassName={workspaceFilterSearchPillClass}
+          searchIconLeftClass="left-3.5"
+        />
 
         <div className="order-2 flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2 lg:order-none">
           {user?.email?.toLowerCase() === "bernabe@tech.com" ? (

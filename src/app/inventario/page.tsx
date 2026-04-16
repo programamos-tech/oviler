@@ -11,18 +11,10 @@ import {
   workspaceFilterSearchPillClass,
   workspaceFilterSelectClass,
 } from "@/lib/workspace-field-classes";
+import { escapeSearchForFilter } from "@/lib/escape-search-for-filter";
 const IVA_RATE = 0.19;
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
-
-/** Escapa el término de búsqueda para el filtro .or(ilike) de Supabase (evita romper la query con % _ \ o coma). */
-function escapeSearchForFilter(s: string): string {
-  return s
-    .replace(/\\/g, "\\\\")
-    .replace(/%/g, "\\%")
-    .replace(/_/g, "\\_")
-    .replace(/,/g, " "); // la coma en .or() separa condiciones; reemplazamos para no romper la query
-}
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);

@@ -29,6 +29,9 @@ export default function CuentaPage() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string | null>(null);
   const [avatarVariant, setAvatarVariant] = useState<AvatarVariant>("beam");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,8 +62,23 @@ export default function CuentaPage() {
 
   async function handleSave() {
     setSaveSuccess(false);
+    setPasswordError(null);
     const nameTrim = name.trim();
     if (!nameTrim) return;
+
+    const pw = newPassword.trim();
+    const pw2 = confirmPassword.trim();
+    if (pw || pw2) {
+      if (pw.length < 6) {
+        setPasswordError("La nueva contraseña debe tener al menos 6 caracteres.");
+        return;
+      }
+      if (pw !== pw2) {
+        setPasswordError("Las contraseñas nuevas no coinciden.");
+        return;
+      }
+    }
+
     setSaving(true);
 
     const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -78,8 +96,30 @@ export default function CuentaPage() {
       })
       .eq("id", authUser.id);
 
+    if (error) {
+      setSaving(false);
+      return;
+    }
+
+    if (pw) {
+      const { error: pwErr } = await supabase.auth.updateUser({ password: pw });
+      if (pwErr) {
+        setSaving(false);
+        const msg = pwErr.message ?? "";
+        if (/same as the old password|must be different/i.test(msg)) {
+          setPasswordError("La nueva contraseña debe ser distinta a la anterior.");
+        } else if (/weak|strength/i.test(msg)) {
+          setPasswordError("Elige una contraseña más segura.");
+        } else {
+          setPasswordError(msg || "No se pudo actualizar la contraseña.");
+        }
+        return;
+      }
+      setNewPassword("");
+      setConfirmPassword("");
+    }
+
     setSaving(false);
-    if (error) return;
     setSaveSuccess(true);
   }
 
@@ -174,6 +214,44 @@ export default function CuentaPage() {
                 <label className={labelClass}>Rol</label>
                 <input value={workspaceRoleLabel(role)} className={inputClass} disabled readOnly />
               </div>
+
+              <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
+                <p className={`${sectionTitleClass} mb-3`}>Contraseña</p>
+                <p className="mb-3 text-[12px] text-slate-500 dark:text-slate-400">
+                  Solo si quieres cambiarla: escribe la nueva dos veces. Si no, deja los campos vacíos.
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label className={labelClass}>Nueva contraseña</label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      autoComplete="new-password"
+                      placeholder="Mínimo 6 caracteres"
+                      className={inputClass}
+                      disabled={saving}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Confirmar nueva contraseña</label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      autoComplete="new-password"
+                      placeholder="Repite la contraseña"
+                      className={inputClass}
+                      disabled={saving}
+                    />
+                  </div>
+                </div>
+                {passwordError ? (
+                  <p className="mt-2 text-[13px] font-medium text-red-600 dark:text-red-400" role="alert">
+                    {passwordError}
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -201,7 +279,9 @@ export default function CuentaPage() {
             <div className="space-y-3">
               <div className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
                 <p className="font-semibold text-slate-700 dark:text-slate-100">Paso final</p>
-                <p className="mt-1">Guarda los cambios para aplicar las modificaciones.</p>
+                <p className="mt-1">
+                  Guarda nombre, avatar y, si la completaste, la nueva contraseña de tu sesión.
+                </p>
               </div>
               <button
                 type="button"

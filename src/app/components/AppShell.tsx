@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import TopNav from "./TopNav";
@@ -30,6 +31,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [unlockSuccess, setUnlockSuccess] = useState<string | null>(null);
   const [unlockPeriodEnd, setUnlockPeriodEnd] = useState<string | null>(null);
+  const [unlockSignOutBusy, setUnlockSignOutBusy] = useState(false);
 
   useEffect(() => {
     if (isAuth || isLanding || isInterno || isCatalogStorefront) {
@@ -41,19 +43,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
     let cancelled = false;
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) {
-        setCheckedAccess(true);
-        return;
-      }
-      const { data: me } = await supabase.from("users").select("role, permissions").eq("id", user.id).single();
-      if (cancelled) return;
-      const meRow = me as { role?: string | null; permissions?: string[] | null } | null;
-      const allowed = canAccessPath((meRow?.role ?? null) as AppRole | null, pathname, meRow?.permissions ?? null);
-      setIsAllowed(allowed);
-      setCheckedAccess(true);
-      if (!allowed) {
-        router.replace("/dashboard");
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user || cancelled) {
+          return;
+        }
+        const { data: me } = await supabase.from("users").select("role, permissions").eq("id", user.id).single();
+        if (cancelled) return;
+        const meRow = me as { role?: string | null; permissions?: string[] | null } | null;
+        const allowed = canAccessPath((meRow?.role ?? null) as AppRole | null, pathname, meRow?.permissions ?? null);
+        setIsAllowed(allowed);
+        // Si no puede ver esta ruta, ir a Cuenta (siempre permitida). Antes se redirigía a /dashboard y, estando ya ahí, quedaba pantalla en blanco (return null).
+        if (!allowed) {
+          router.replace("/cuenta");
+        }
+      } catch (e) {
+        console.error("[AppShell] Error comprobando permisos", e);
+        if (!cancelled) setIsAllowed(true);
+      } finally {
+        if (!cancelled) setCheckedAccess(true);
       }
     })();
 
@@ -124,6 +134,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
+  async function signOutAndGoToLogin() {
+    if (unlockSignOutBusy) return;
+    setUnlockSignOutBusy(true);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push("/login");
+      router.refresh();
+    } finally {
+      setUnlockSignOutBusy(false);
+    }
+  }
+
   if (isAccessBlockedPage) {
     return (
       <main className="relative min-h-screen flex-1 py-6 sm:py-10">
@@ -144,7 +167,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return <main className="min-h-screen" aria-busy="true" />;
   }
 
-  if (!isAllowed) return null;
+  if (!isAllowed) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--shell-workspace)] p-6 text-center dark:bg-[var(--shell-workspace-dark)]">
+        <p className="max-w-md text-sm text-slate-600 dark:text-slate-400">
+          No tienes permiso para ver esta sección. Si necesitas acceso, pídeselo al administrador de tu organización.
+        </p>
+        <Link
+          href="/cuenta"
+          className="rounded-xl bg-ov-pink px-4 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-ov-pink-hover"
+        >
+          Ir a mi cuenta
+        </Link>
+      </main>
+    );
+  }
 
   return (
     <>
@@ -201,6 +238,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 {unlockBusy ? "Validando..." : "Activar licencia"}
               </button>
             </form>
+            <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-600">
+              <p className="text-center text-[13px] text-slate-600 dark:text-slate-400">
+                ¿Iniciaste sesión con la cuenta equivocada?
+              </p>
+              <button
+                type="button"
+                onClick={signOutAndGoToLogin}
+                disabled={unlockSignOutBusy}
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white py-2.5 text-[13px] font-semibold text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              >
+                {unlockSignOutBusy ? "Cerrando sesión…" : "Cerrar sesión e iniciar con otra cuenta"}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -70,6 +70,12 @@ const DASHBOARD_ICON_CLASS = "text-[color:var(--shell-sidebar)] dark:text-zinc-3
 /** Días mostrados en la tendencia de ingresos (siempre anclada a “hoy” calendario). */
 const INCOME_TREND_DAY_COUNT = 15;
 
+/** Reporte completo: rango de fechas, bloque inventario/resultado y gráfica de tendencia. Cajero solo ve día a día. */
+function hasFullDashboardReports(role: string | null | undefined): boolean {
+  const r = String(role ?? "").toLowerCase();
+  return r === "owner" || r === "admin" || r === "delivery";
+}
+
 function formatTrendAxisDay(d: Date): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
@@ -398,6 +404,7 @@ export default function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [branchResolved, setBranchResolved] = useState(false);
+  const [dashboardRole, setDashboardRole] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const today = new Date();
@@ -409,18 +416,33 @@ export default function DashboardPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) {
-        if (!cancelled) setBranchResolved(true);
+        if (!cancelled) {
+          setBranchResolved(true);
+          setDashboardRole(null);
+        }
         return;
       }
-      const resolvedBranchId = await resolveActiveBranchId(supabase, user.id, queryBranchId);
+      const [resolvedBranchId, profileRes] = await Promise.all([
+        resolveActiveBranchId(supabase, user.id, queryBranchId),
+        supabase.from("users").select("role").eq("id", user.id).maybeSingle(),
+      ]);
       if (cancelled) return;
       setBranchId(resolvedBranchId);
+      setDashboardRole(((profileRes.data as { role?: string } | null)?.role as string | undefined) ?? "cashier");
       setBranchResolved(true);
     })();
     return () => {
       cancelled = true;
     };
   }, [queryBranchId]);
+
+  const reportsFullAccess = hasFullDashboardReports(dashboardRole);
+
+  useEffect(() => {
+    if (!reportsFullAccess && dateFilterMode === "range") {
+      setDateFilterMode("today");
+    }
+  }, [reportsFullAccess, dateFilterMode]);
 
   useEffect(() => {
     if (!branchId) {
@@ -435,11 +457,12 @@ export default function DashboardPage() {
     const supabase = createClient();
     let cancelled = false;
     setLoading(true);
+    const dateMode = reportsFullAccess ? dateFilterMode : "today";
     const { start, end } =
-      dateFilterMode === "today"
+      dateMode === "today"
         ? getDayBounds(selectedDay)
         : getRangeBounds(dateFrom, dateTo);
-    const anchorForPrevDay = dateFilterMode === "today" ? selectedDay : dateTo;
+    const anchorForPrevDay = dateMode === "today" ? selectedDay : dateTo;
     const dayBeforeRef = new Date(anchorForPrevDay);
     dayBeforeRef.setDate(dayBeforeRef.getDate() - 1);
     const { start: yStart, end: yEnd } = getDayBounds(dayBeforeRef);
@@ -455,6 +478,7 @@ export default function DashboardPage() {
       "amount, payment_method, amount_cash, amount_transfer, payment_source, created_at, customer_credits!inner(branch_id, public_ref, sale_id, total_amount)";
 
     (async () => {
+      try {
       const [
         { data: salesDay },
         { data: salesPrevDay },
@@ -1053,10 +1077,15 @@ export default function DashboardPage() {
         lastTransferSale: lastTransferSaleDisplay,
         outstandingCredits,
       });
-      setLoading(false);
+      } catch (err) {
+        console.error("[dashboard] Error cargando datos", err);
+        if (!cancelled) setDashboardData(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => { cancelled = true; };
-  }, [branchId, branchResolved, dateFilterMode, selectedDay, dateFrom, dateTo, refreshKey]);
+  }, [branchId, branchResolved, dateFilterMode, selectedDay, dateFrom, dateTo, refreshKey, reportsFullAccess]);
 
   const formatDate = (date: Date) => {
     const today = new Date();
@@ -1094,8 +1123,9 @@ export default function DashboardPage() {
     if (from.getTime() === to.getTime()) return fmt(from);
     return sameYear ? `${fmt(from, true)} - ${fmt(to)}` : `${fmt(from)} - ${fmt(to)}`;
   };
+  const effectiveDateMode = reportsFullAccess ? dateFilterMode : "today";
   const periodLabel =
-    dateFilterMode === "today" ? formatDate(selectedDay) : formatRange(dateFrom, dateTo);
+    effectiveDateMode === "today" ? formatDate(selectedDay) : formatRange(dateFrom, dateTo);
 
   const data = dashboardData ?? {
     totalIncome: 0,
@@ -1144,8 +1174,8 @@ export default function DashboardPage() {
   };
 
   const showHeroDeltas =
-    dateFilterMode === "today" ||
-    (dateFilterMode === "range" && dateFrom.getTime() === dateTo.getTime());
+    effectiveDateMode === "today" ||
+    (effectiveDateMode === "range" && dateFrom.getTime() === dateTo.getTime());
 
   return (
     <div className="mx-auto min-w-0 max-w-[1600px] space-y-10 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
@@ -1159,36 +1189,47 @@ export default function DashboardPage() {
               Reportes
             </h1>
             <p className="mt-1 whitespace-nowrap text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Ventas y caja por sucursal y período.
+              {reportsFullAccess
+                ? "Ventas y caja por sucursal y período."
+                : "Ventas y caja del día (vista diaria)."}
             </p>
           </div>
           <div className="w-full lg:overflow-x-auto">
             <div className="flex flex-wrap items-center gap-2 lg:min-w-max lg:flex-nowrap lg:justify-end">
-              <div className="grid w-full grid-cols-2 rounded-xl bg-slate-100/90 p-1 sm:w-auto dark:bg-slate-800/60">
-                <button
-                  type="button"
-                  onClick={() => setDateFilterMode("today")}
-                  className={`rounded-lg px-3 py-2 text-center text-[12px] font-semibold transition-all ${
-                    dateFilterMode === "today"
-                      ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
-                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                  }`}
+              {reportsFullAccess ? (
+                <div className="grid w-full grid-cols-2 rounded-xl bg-slate-100/90 p-1 sm:w-auto dark:bg-slate-800/60">
+                  <button
+                    type="button"
+                    onClick={() => setDateFilterMode("today")}
+                    className={`rounded-lg px-3 py-2 text-center text-[12px] font-semibold transition-all ${
+                      dateFilterMode === "today"
+                        ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
+                        : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    Hoy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDateFilterMode("range")}
+                    className={`rounded-lg px-3 py-2 text-center text-[12px] font-semibold transition-all ${
+                      dateFilterMode === "range"
+                        ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
+                        : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    Rango
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="w-full rounded-xl bg-slate-100/90 px-3 py-2 text-center text-[12px] font-semibold text-[color:var(--shell-sidebar)] sm:w-auto dark:bg-slate-800/60 dark:text-zinc-300"
+                  title="Tu rol solo permite ver el reporte por día"
                 >
-                  Hoy
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDateFilterMode("range")}
-                  className={`rounded-lg px-3 py-2 text-center text-[12px] font-semibold transition-all ${
-                    dateFilterMode === "range"
-                      ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
-                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                  }`}
-                >
-                  Rango
-                </button>
-              </div>
-              {dateFilterMode === "today" ? (
+                  Solo día
+                </div>
+              )}
+              {effectiveDateMode === "today" ? (
                 <div className="w-full sm:w-[220px]">
                   <DatePickerCard
                     id="dashboard-date-today-header"
@@ -1262,7 +1303,11 @@ export default function DashboardPage() {
       </header>
 
       {loading ? (
-        <div className="min-h-[300px] animate-pulse rounded-3xl bg-white dark:bg-slate-900" aria-hidden />
+        <div
+          className="min-h-[300px] animate-pulse rounded-3xl border border-slate-200 bg-slate-100/90 dark:border-slate-700 dark:bg-slate-800/60"
+          aria-busy
+          aria-label="Cargando reportes"
+        />
       ) : (
         <>
           <div className="space-y-8">
@@ -1358,49 +1403,54 @@ export default function DashboardPage() {
 
               <div className="my-9 h-px bg-slate-100 sm:my-10 dark:bg-slate-800" aria-hidden />
 
-            <DashboardReportSection eyebrow="Inventario y resultado" gridClass="sm:grid-cols-2 lg:grid-cols-4">
-              <DashboardKpiCard
-                icon={<Package aria-hidden strokeWidth={2} />}
-                label="Stock total"
-                value={formatSensitiveValue(data.totalStockInvestment)}
-                infoTip={
-                  <>
-                    Cantidad en bodega × costo del producto en el catálogo. No usa la tabla de egresos: es el valor del
-                    inventario al costo cargado en cada producto.
-                  </>
-                }
-              />
-              <DashboardKpiCard
-                icon={<LineChart aria-hidden strokeWidth={2} />}
-                label="Margen bruto"
-                value={formatSensitiveValue(data.grossProfit)}
-                infoTip={
-                  <>
-                    Suma de (precio de venta − costo del producto) × cantidad en líneas de ventas cobradas. Conviene tener el
-                    costo actualizado en el catálogo para que refleje la realidad.
-                  </>
-                }
-              />
-              <DashboardKpiCard
-                icon={<PiggyBank aria-hidden strokeWidth={2} />}
-                label="Resultado en caja"
-                value={formatSensitiveValue(data.netProfit)}
-                infoTip={
-                  <>
-                    Cobros más abonos, menos egresos del período. Coincide con «Neto en caja del período» en el bloque
-                    superior.
-                  </>
-                }
-              />
-              <DashboardKpiCard
-                icon={<CreditCard aria-hidden strokeWidth={2} />}
-                label="Créditos"
-                value={formatSensitiveValue(data.outstandingCredits)}
-                infoTip={<>Saldo pendiente por cobrar en ventas a crédito (esta sucursal).</>}
-              />
-            </DashboardReportSection>
+            {reportsFullAccess ? (
+              <>
+                <DashboardReportSection eyebrow="Inventario y resultado" gridClass="sm:grid-cols-2 lg:grid-cols-4">
+                  <DashboardKpiCard
+                    icon={<Package aria-hidden strokeWidth={2} />}
+                    label="Stock total"
+                    value={formatSensitiveValue(data.totalStockInvestment)}
+                    infoTip={
+                      <>
+                        Cantidad en bodega × costo del producto en el catálogo. No usa la tabla de egresos: es el valor del
+                        inventario al costo cargado en cada producto.
+                      </>
+                    }
+                  />
+                  <DashboardKpiCard
+                    icon={<LineChart aria-hidden strokeWidth={2} />}
+                    label="Margen bruto"
+                    value={formatSensitiveValue(data.grossProfit)}
+                    infoTip={
+                      <>
+                        Suma de (precio de venta − costo del producto) × cantidad en líneas de ventas cobradas. Conviene tener el
+                        costo actualizado en el catálogo para que refleje la realidad.
+                      </>
+                    }
+                  />
+                  <DashboardKpiCard
+                    icon={<PiggyBank aria-hidden strokeWidth={2} />}
+                    label="Resultado en caja"
+                    value={formatSensitiveValue(data.netProfit)}
+                    infoTip={
+                      <>
+                        Cobros más abonos, menos egresos del período. Coincide con «Neto en caja del período» en el bloque
+                        superior.
+                      </>
+                    }
+                  />
+                  <DashboardKpiCard
+                    icon={<CreditCard aria-hidden strokeWidth={2} />}
+                    label="Créditos"
+                    value={formatSensitiveValue(data.outstandingCredits)}
+                    infoTip={<>Saldo pendiente por cobrar en ventas a crédito (esta sucursal).</>}
+                  />
+                </DashboardReportSection>
+              </>
+            ) : null}
             </div>
 
+            {reportsFullAccess ? (
             <section className="rounded-3xl bg-white px-5 py-6 sm:px-8 sm:py-7 dark:bg-slate-900">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tendencia de ingresos</p>
               <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
@@ -1434,6 +1484,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+            ) : null}
       </div>
         </>
       )}

@@ -41,6 +41,23 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Cuenta desactivada en app: cerrar sesión y enviar a login (no puede usar la app)
+  if (user) {
+    const { data: statusRow } = await supabase
+      .from('users')
+      .select('status')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (statusRow?.status === 'inactive') {
+      await supabase.auth.signOut()
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.search = ''
+      url.searchParams.set('error', 'inactive')
+      return redirectWithCookies(url, cookiesFromSetAll)
+    }
+  }
+
   const pathStr = request.nextUrl.pathname
   const path = pathStr
   const isInternalRoute = path.startsWith('/interno') || path.startsWith('/api/internal')

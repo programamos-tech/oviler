@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:seed:bernabe": "sh -c 'test -z \"$DATABASE_URL\" && echo \"Define DATABASE_URL (Settings → Database en Supabase o .env local)\" && exit 1; psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f supabase/seed_bernabe_100_products_100_customers.sql'"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

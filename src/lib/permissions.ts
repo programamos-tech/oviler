@@ -1,4 +1,27 @@
+/**
+ * Permisos y roles — Bernabé Comercios
+ * =====================================
+ * **Nombre comercial:** Bernabé Comercios (lo que ven los comercios en pantalla).
+ * **Nombre interno / código:** a veces referido como «NOU Tiendas»; es el mismo producto.
+ *
+ * Cada usuario tiene un `role` en `public.users` (`owner` | `admin` | `cashier` | `delivery`) y opcionalmente
+ * `permissions[]` que **sustituyen** el paquete por defecto del rol si vienen informados.
+ *
+ * Resumen de paquetes por defecto (`ROLE_DEFAULT_PERMISSIONS`):
+ * - **owner (Dueño):** todos los permisos de `PERMISSION_OPTIONS` (incluye roles, sucursales, ventas, inventario, etc.).
+ * - **admin (Administrador):** operación amplia: ventas, clientes, egresos, inventario completo, créditos, actividades.
+ *   Por defecto **sin** `roles.*` ni `branches.*` (no gestiona colaboradores ni sucursales salvo permisos personalizados).
+ * - **cashier (Cajero):** ventas, clientes, egresos, solo **consulta** de inventario (`inventory.view`), créditos, actividades.
+ * - **delivery (Inventario):** solo permisos del grupo Inventario + actividades; sin ventas/clientes/créditos por defecto.
+ *
+ * La navegación y el acceso a rutas se resuelven con `canAccessPath` / `canAccessNavModule` según estos permisos.
+ */
+
 export type AppRole = "owner" | "admin" | "cashier" | "delivery" | string;
+
+/** Nombre comercial del producto (UI). El mismo software se denomina internamente «NOU Tiendas» en algunos textos. */
+export const PRODUCT_DISPLAY_NAME = "Bernabé Comercios";
+export const PRODUCT_INTERNAL_NAME = "NOU Tiendas";
 export type PermissionKey =
   | "dashboard.view"
   | "sales.view"
@@ -151,6 +174,8 @@ export function canAccessPath(
   if (hasPathPrefix(path, "/roles")) return path.endsWith("/nuevo") || hasPathPrefix(path, "/roles/") ? can("roles.manage") : can("roles.view");
   if (hasPathPrefix(path, "/sucursales")) return path.endsWith("/nueva") || hasPathPrefix(path, "/sucursales/configurar") ? can("branches.manage") : can("branches.view");
   if (hasPathPrefix(path, "/actividades")) return can("activities.view");
+
+  if (hasPathPrefix(path, "/buscar")) return can("inventory.view") || can("customers.view");
 
   if (hasPathPrefix(path, "/inventario")) {
     if (!can("inventory.view")) return false;
