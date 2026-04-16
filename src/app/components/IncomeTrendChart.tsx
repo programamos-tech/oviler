@@ -34,6 +34,64 @@ function useIsDarkClass(): boolean {
   return dark;
 }
 
+/** Fewer x-axis labels on narrow viewports so dates stay readable. */
+function useChartLayout(): {
+  /** recharts XAxis interval: 0 = all ticks, n = show every (n+1)th */
+  xInterval: number;
+  xTickFontSize: number;
+  chartBottom: number;
+  chartLeft: number;
+  yAxisWidth: number;
+  dotRadius: number;
+} {
+  const [layout, setLayout] = useState<"sm" | "md" | "lg">("sm");
+  useEffect(() => {
+    const mqMd = window.matchMedia("(min-width: 640px)");
+    const mqLg = window.matchMedia("(min-width: 1024px)");
+    const sync = () => {
+      if (mqLg.matches) setLayout("lg");
+      else if (mqMd.matches) setLayout("md");
+      else setLayout("sm");
+    };
+    sync();
+    mqMd.addEventListener("change", sync);
+    mqLg.addEventListener("change", sync);
+    return () => {
+      mqMd.removeEventListener("change", sync);
+      mqLg.removeEventListener("change", sync);
+    };
+  }, []);
+
+  if (layout === "sm") {
+    return {
+      xInterval: 2,
+      xTickFontSize: 9,
+      chartBottom: 6,
+      chartLeft: 0,
+      yAxisWidth: 38,
+      dotRadius: 3,
+    };
+  }
+  if (layout === "md") {
+    return {
+      xInterval: 1,
+      xTickFontSize: 10,
+      chartBottom: 4,
+      chartLeft: 2,
+      yAxisWidth: 44,
+      dotRadius: 3.5,
+    };
+  }
+  return {
+    xInterval: 0,
+    xTickFontSize: 10,
+    chartBottom: 2,
+    chartLeft: 2,
+    yAxisWidth: 48,
+    dotRadius: 3.5,
+  };
+}
+
 export function IncomeTrendChart({
   days,
   hideSensitiveInfo,
@@ -47,13 +105,21 @@ export function IncomeTrendChart({
     () => days.map((d) => ({ fecha: d.day, ingresos: d.sales })),
     [days]
   );
+  const layout = useChartLayout();
   const total = useMemo(() => days.reduce((a, d) => a + d.sales, 0), [days]);
   const avg = days.length > 0 ? total / days.length : 0;
   const dataMax = useMemo(
     () => (days.length > 0 ? Math.max(...days.map((d) => d.sales), 0) : 0),
     [days]
   );
-  const yMax = useMemo(() => Math.max(dataMax, avg, 1) * 1.08, [dataMax, avg]);
+  const rawMax = Math.max(dataMax, avg, 0);
+  /** All-zero series: single $0 tick. Otherwise avoid [0,~1] domains that duplicate $0/$1 after rounding. */
+  const { yDomain, yTicks } = useMemo(() => {
+    if (rawMax === 0) return { yDomain: [0, 1] as [number, number], yTicks: [0] as number[] };
+    let top = rawMax * 1.08;
+    if (top < 2) top = Math.max(2, Math.ceil(rawMax * 2));
+    return { yDomain: [0, top] as [number, number], yTicks: undefined as number[] | undefined };
+  }, [rawMax]);
 
   const gridStroke = isDark ? "rgba(148, 163, 184, 0.18)" : "rgba(148, 163, 184, 0.35)";
   const axisTick = isDark ? "#94a3b8" : "#64748b";
@@ -66,7 +132,12 @@ export function IncomeTrendChart({
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={chartData}
-          margin={{ top: 10, right: 14, left: 2, bottom: 2 }}
+          margin={{
+            top: 12,
+            right: layout.xInterval >= 2 ? 10 : 14,
+            left: layout.chartLeft,
+            bottom: layout.chartBottom + 22,
+          }}
         >
           <defs>
             <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
@@ -77,18 +148,25 @@ export function IncomeTrendChart({
           <CartesianGrid strokeDasharray="4 4" stroke={gridStroke} vertical={false} />
           <XAxis
             dataKey="fecha"
-            tick={{ fill: axisTick, fontSize: 10, fontWeight: 500 }}
+            tick={{
+              fill: axisTick,
+              fontSize: layout.xTickFontSize,
+              fontWeight: 500,
+            }}
             tickLine={false}
             axisLine={{ stroke: gridStroke }}
-            interval={0}
-            height={28}
+            interval={layout.xInterval}
+            minTickGap={layout.xInterval >= 2 ? 28 : 12}
+            tickMargin={6}
+            height={layout.xInterval >= 2 ? 30 : 26}
           />
           <YAxis
-            tick={{ fill: axisTick, fontSize: 10, fontWeight: 500 }}
+            tick={{ fill: axisTick, fontSize: layout.xTickFontSize, fontWeight: 500 }}
             tickLine={false}
             axisLine={{ stroke: gridStroke }}
-            width={48}
-            domain={[0, yMax]}
+            width={layout.yAxisWidth}
+            domain={yDomain}
+            ticks={yTicks}
             tickFormatter={(v) => (hideSensitiveInfo ? "***" : formatCompactCurrency(Number(v)))}
           />
           {!hideSensitiveInfo && avg > 0 ? (
@@ -129,12 +207,12 @@ export function IncomeTrendChart({
             fill={`url(#${gradId})`}
             fillOpacity={1}
             dot={{
-              r: 3.5,
-              strokeWidth: 2,
+              r: layout.dotRadius,
+              strokeWidth: 1.75,
               stroke: "var(--shell-sidebar, #0f172a)",
               fill: isDark ? "#0f172a" : "#ffffff",
             }}
-            activeDot={{ r: 5, strokeWidth: 2 }}
+            activeDot={{ r: layout.dotRadius + 1.75, strokeWidth: 2 }}
             isAnimationActive={false}
           />
         </AreaChart>

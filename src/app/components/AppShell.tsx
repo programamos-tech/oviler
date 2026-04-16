@@ -187,7 +187,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <PresenceHeartbeat />
       <AppSidebar />
-      <div className="relative flex min-h-screen flex-1 flex-col bg-[var(--shell-workspace)] dark:bg-[var(--shell-workspace-dark)] lg:pl-[260px]">
+      <div className="relative flex min-h-screen min-w-0 max-w-full flex-1 flex-col overflow-x-hidden bg-[var(--shell-workspace)] dark:bg-[var(--shell-workspace-dark)] lg:pl-[260px]">
         <div
           className="pointer-events-none absolute inset-0 z-0 dark-app-canvas-glow opacity-0 dark:opacity-100"
           aria-hidden
@@ -201,7 +201,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         ) : null}
-        <main className="relative z-[1] flex-1 py-4 pb-20 font-sans sm:py-6 md:pb-6 lg:py-6">
+        <main className="relative z-[1] min-w-0 flex-1 overflow-x-hidden py-4 pb-20 font-sans sm:py-6 lg:py-6">
           <div className="mx-auto min-w-0 max-w-[1600px] px-4 sm:px-6 lg:px-8">{children}</div>
         </main>
         <BottomNav />

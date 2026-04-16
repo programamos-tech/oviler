@@ -4,13 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { getCopy } from "@/app/ventas/sales-mode";
 import Notifications from "./Notifications";
-import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
 import FreeTrialWelcomeModal from "./FreeTrialWelcomeModal";
 import { isTrialWelcomeDismissedThisSession, markTrialWelcomeDismissedThisSession } from "@/lib/trial-welcome-storage";
 import { type OrgTrialFields, isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
-import { navItems, navPathIsActive, workspaceAvatarSeed } from "./app-nav-data";
+import { workspaceAvatarSeed } from "./app-nav-data";
 import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
 import { OvilerWordmark } from "./OvilerWordmark";
@@ -20,14 +18,16 @@ import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import { GlobalSearchCombobox } from "@/app/components/GlobalSearchCombobox";
 
-const TOP_ICON_BTN =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-50";
+/** Iconos en la barra superior móvil (fondo #080910, mismo tono que el sidebar) */
+const MOBILE_NAV_ICON =
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/75 transition-colors hover:bg-white/12 hover:text-white";
+const MOBILE_NAV_PLUS =
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#080910] shadow-[0_1px_3px_rgba(0,0,0,0.35)] transition-colors hover:bg-white/90";
 
 export default function TopNav() {
   const pathname = usePathname();
   const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
   const router = useRouter();
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{
     name: string;
@@ -37,11 +37,10 @@ export default function TopNav() {
     permissions?: string[] | null;
     organization_id?: string | null;
   } | null>(null);
-  const [branch, setBranch] = useState<{ name: string; logo_url: string | null; show_expenses?: boolean; sales_mode?: string } | null>(null);
+  const [branch, setBranch] = useState<{ name: string; logo_url: string | null } | null>(null);
   const [orgTrial, setOrgTrial] = useState<OrgTrialFields | null>(null);
   const [authMeta, setAuthMeta] = useState<Record<string, unknown> | null>(null);
   const [trialModalOpen, setTrialModalOpen] = useState(false);
-  const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -98,8 +97,8 @@ export default function TopNav() {
       if (!authUser) return;
       const resolvedBranchId = await resolveActiveBranchId(supabase, authUser.id);
       if (!resolvedBranchId) return;
-      const { data: branchData } = await supabase.from("branches").select("name, logo_url, show_expenses, sales_mode").eq("id", resolvedBranchId).single();
-      if (branchData) setBranch({ name: branchData.name, logo_url: branchData.logo_url ?? null, show_expenses: branchData.show_expenses !== false, sales_mode: (branchData as { sales_mode?: string }).sales_mode });
+      const { data: branchData } = await supabase.from("branches").select("name, logo_url").eq("id", resolvedBranchId).single();
+      if (branchData) setBranch({ name: branchData.name, logo_url: branchData.logo_url ?? null });
     }
     const handleBranchChange = () => {
       void loadBranch();
@@ -146,47 +145,31 @@ export default function TopNav() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [router]);
 
-  const role = (user?.role ?? null) as AppRole | null;
-  const customPermissions = user?.permissions ?? null;
-  const displayNavItems = navItems
-    .filter((item) => canAccessNavModule(role, item.label, customPermissions))
-    .map((item) => ({
-      ...item,
-      items: item.items?.filter((subItem) => {
-        if (branch && branch.show_expenses === false && subItem.href.startsWith("/egresos")) return false;
-        return canAccessPath(role, subItem.href, customPermissions);
-      }),
-    }))
-    .filter((item) => (item.items?.length ?? 0) > 0);
-
   return (
-    <nav className="sticky top-0 z-50 flex flex-col border-b border-slate-200/90 bg-white/90 text-slate-800 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/95 dark:text-zinc-100 dark:shadow-none lg:hidden">
-      <div className="mx-auto flex h-14 min-h-[3.5rem] w-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+    <nav className="sticky top-0 z-50 flex min-w-0 max-w-full flex-col overflow-x-hidden border-b border-white/10 bg-[#080910] pt-[env(safe-area-inset-top,0px)] text-white shadow-[0_4px_24px_rgba(0,0,0,0.35)] lg:hidden">
+      <div className="mx-auto flex h-14 min-h-[3.5rem] w-full min-w-0 max-w-[1600px] items-center justify-between gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
         {/* Marca producto + logo sucursal */}
-        <div className="flex min-w-0 flex-1 items-center justify-start gap-3">
+        <div className="flex min-w-0 flex-1 items-center justify-start gap-2.5 sm:gap-3">
           <Link
             href="/dashboard"
             className={
               branch
-                ? "flex min-w-0 max-w-[min(100%,22rem)] shrink items-center gap-2 rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900/25 dark:focus-visible:outline-[color:var(--shell-sidebar)]"
-                : "flex min-w-0 shrink items-center rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900/25 dark:focus-visible:outline-[color:var(--shell-sidebar)]"
+                ? "flex min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-2 rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35"
+                : "flex min-w-0 shrink items-center rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35"
             }
             title={branch?.name ? `Bernabé Comercios · ${branch.name}` : "Bernabé Comercios"}
           >
             <span className="min-w-0 flex-1 overflow-hidden">
               <OvilerWordmark
-                variant="onLight"
+                variant="onDark"
                 companyName="Bernabé"
-                className="w-full min-w-0 text-[1.05rem] font-bold sm:text-[1.1rem]"
+                className="w-full min-w-0 text-[1.02rem] font-bold sm:text-[1.08rem]"
               />
             </span>
             {branch ? (
               <>
-                <span
-                  className="h-9 w-px shrink-0 rounded-full bg-slate-200/90 dark:bg-white/20"
-                  aria-hidden
-                />
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+                <span className="h-8 w-px shrink-0 rounded-full bg-white/20" aria-hidden />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-white/15">
                   {branch.logo_url ? (
                     <img
                       src={branch.logo_url}
@@ -195,7 +178,7 @@ export default function TopNav() {
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <span className="flex h-full w-full items-center justify-center text-[11px] font-bold text-slate-400 dark:text-slate-500">
+                    <span className="flex h-full w-full items-center justify-center text-[11px] font-bold text-white/55">
                       {(branch.name || "L").slice(0, 1).toUpperCase()}
                     </span>
                   )}
@@ -205,156 +188,14 @@ export default function TopNav() {
           </Link>
         </div>
 
-        {/* Tablet (md–lg): menú arriba solo con iconos, separados. Desktop (lg+): solo texto, sin iconos */}
-        <div className="hidden items-center gap-2 md:flex md:gap-3 lg:gap-1 xl:gap-2">
-          {displayNavItems.map((item) => {
-            const hasDropdown = item.items && item.items.length > 0;
-            const isItemActive =
-              navPathIsActive(pathname, item.href) ||
-              (item.items?.some((sub) => navPathIsActive(pathname, sub.href)) ?? false);
-            const isOpen = openDropdown === item.label;
-            const navLabel = item.label;
-
-            return (
-              <div
-                key={item.label}
-                className="group relative"
-                ref={(el) => {
-                  dropdownRefs.current[item.label] = el;
-                }}
-                onMouseEnter={() => {
-                  if (hasDropdown) {
-                    setOpenDropdown(item.label);
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  // Solo cerrar si el mouse realmente salió del contenedor y no entró al modal
-                  if (hasDropdown) {
-                    const relatedTarget = e.relatedTarget;
-                    const dropdownEl = dropdownRefs.current[item.label];
-                    const leftToNonNode = relatedTarget != null && !(relatedTarget instanceof Node);
-                    if (dropdownEl && (!relatedTarget || leftToNonNode || !dropdownEl.contains(relatedTarget as Node))) {
-                      setOpenDropdown(null);
-                    }
-                  }
-                }}
-              >
-                {hasDropdown ? (
-                  <>
-                    <Link
-                      href={item.href}
-                      title={navLabel}
-                      aria-label={navLabel}
-                      className={`flex items-center gap-1 rounded-lg px-2 py-2 text-[13px] font-medium transition-colors md:px-3 md:py-2.5 lg:px-4 lg:py-2 xl:text-[14px] ${
-                        isItemActive
-                          ? "bg-slate-200/70 text-[color:var(--shell-sidebar)] ring-1 ring-[color:var(--shell-sidebar-accent)] dark:bg-white/10 dark:text-zinc-300 dark:ring-zinc-500/35"
-                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50"
-                      }`}
-                    >
-                      <span className="lg:hidden">{item.icon}</span>
-                      <span className="hidden lg:inline">{navLabel}</span>
-                      <svg
-                        className={`hidden h-3 w-3 shrink-0 lg:block transition-transform ${isOpen ? "rotate-180" : ""}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </Link>
-                    {isOpen && (
-                      <>
-                        {/* Puente invisible para que el hover no se pierda al bajar el ratón al dropdown */}
-                        <div className="absolute left-0 top-full z-50 h-2 w-80" aria-hidden />
-                        <div 
-                          className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-800"
-                          onMouseEnter={() => setOpenDropdown(item.label)}
-                          onMouseLeave={(e) => {
-                            const relatedTarget = e.relatedTarget as HTMLElement;
-                            const dropdownEl = dropdownRefs.current[item.label];
-                            if (dropdownEl && relatedTarget && !dropdownEl.contains(relatedTarget)) {
-                              setOpenDropdown(null);
-                            }
-                          }}
-                        >
-                        <div className="space-y-1">
-                          {item.items?.map((subItem) => {
-                            const isSubItemActive = navPathIsActive(pathname, subItem.href);
-                            const salesCopy =
-                              (subItem.href === "/ventas" || subItem.href === "/ventas/nueva") && branch?.sales_mode
-                                ? getCopy(branch.sales_mode as "sales" | "orders")
-                                : null;
-                            const subLabel =
-                              salesCopy && subItem.href === "/ventas"
-                                ? salesCopy.sectionTitle
-                                : salesCopy && subItem.href === "/ventas/nueva"
-                                  ? salesCopy.newButton
-                                  : subItem.label;
-                            const subDescription = salesCopy && subItem.href === "/ventas" ? (branch?.sales_mode === "orders" ? "Lista de todos los pedidos" : "Lista de todas las ventas") : salesCopy && subItem.href === "/ventas/nueva" ? (branch?.sales_mode === "orders" ? "Registrar nuevo pedido" : "Registrar nueva venta") : subItem.description;
-                            return (
-                              <Link
-                                key={subItem.href}
-                                href={subItem.href}
-                                onClick={() => setOpenDropdown(null)}
-                                className={`flex items-start gap-3 rounded-lg px-4 py-3 transition-colors ${
-                                  isSubItemActive
-                                    ? "bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-50"
-                                    : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-50"
-                                }`}
-                              >
-                                <div className="shrink-0 flex items-center justify-center text-slate-500 dark:text-slate-400">
-                                  {subItem.icon ?? <span className="h-6 w-6" />}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className={`text-[14px] font-semibold leading-tight ${isSubItemActive ? "text-slate-900 dark:text-slate-50" : "text-slate-900 dark:text-slate-100"}`}>
-                                    {subLabel}
-                                  </div>
-                                  {(subDescription ?? subItem.description) && (
-                                    <div className={`mt-0.5 text-[12px] leading-tight ${
-                                      isSubItemActive
-                                        ? "text-slate-600 dark:text-slate-300"
-                                        : "text-slate-500 dark:text-slate-400"
-                                    }`}>
-                                      {subDescription ?? subItem.description}
-                                    </div>
-                                  )}
-                                </div>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <Link
-                    href={item.href}
-                    title={navLabel}
-                    aria-label={navLabel}
-                    className={`flex items-center gap-1 rounded-lg px-2 py-2 text-[13px] font-medium transition-colors md:px-3 md:py-2.5 lg:px-4 lg:py-2 xl:text-[14px] ${
-                      isItemActive
-                        ? "bg-slate-200/70 text-[color:var(--shell-sidebar)] ring-1 ring-[color:var(--shell-sidebar-accent)] dark:bg-white/10 dark:text-zinc-300 dark:ring-zinc-500/35"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50"
-                    }`}
-                  >
-                    <span className="lg:hidden">{item.icon}</span>
-                    <span className="hidden lg:inline">{navLabel}</span>
-                  </Link>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Right: notificaciones y usuario (visible en mobile, tablet y desktop) */}
-        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        {/* Right: controles tipo web; la navegación por módulos va en BottomNav en móvil/tablet */}
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
           {orgTrial && normalizePlanType(orgTrial.plan_type ?? "") === "free" ? (
             <a
               href={bernabePlanUpgradeWhatsAppUrl()}
               target="_blank"
               rel="noopener noreferrer"
-              className={TOP_ICON_BTN}
+              className={MOBILE_NAV_ICON}
               title="Adquirir plan Estándar o Pro"
               aria-label="Adquirir plan Estándar o Pro"
             >
@@ -371,7 +212,7 @@ export default function TopNav() {
           {user?.email?.toLowerCase() === "bernabe@tech.com" ? (
             <Link
               href={isInterno ? "/dashboard" : "/interno"}
-              className="hidden h-8 items-center rounded-lg border border-ov-pink/35 bg-ov-pink/[0.08] px-3 text-[12px] font-semibold text-ov-pink transition-colors hover:bg-ov-pink/[0.16] sm:inline-flex"
+              className="hidden h-8 items-center rounded-lg border border-white/20 bg-white/[0.07] px-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-white/[0.12] sm:inline-flex"
               title={isInterno ? "Volver a la plataforma" : "Ir a BackOffice"}
             >
               {isInterno ? "Volver a la plataforma" : "BackOffice"}
@@ -382,7 +223,7 @@ export default function TopNav() {
               className="flex min-w-0 items-center lg:hidden"
               title={`${LITE_PLAN_DISPLAY_NAME} · ${trialRemainingLabel(trialEndsAt)} restantes`}
             >
-              <span className="inline-flex max-w-[130px] items-center truncate rounded-lg border border-nou-200 bg-nou-50 px-2 py-1 text-[10px] font-semibold text-nou-800 dark:border-nou-400/35 dark:bg-nou-500/15 dark:text-nou-200">
+              <span className="inline-flex max-w-[130px] items-center truncate rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[10px] font-semibold text-white/90">
                 <span className="mr-0.5 shrink-0" aria-hidden>
                   ⏱
                 </span>
@@ -394,7 +235,7 @@ export default function TopNav() {
           ) : null}
           <Link
             href="/ventas/nueva"
-            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-[color:var(--shell-sidebar)] dark:hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:flex"
+            className={`${MOBILE_NAV_PLUS} hidden sm:flex`}
             title="Nueva venta"
             aria-label="Nueva venta"
           >
@@ -402,16 +243,16 @@ export default function TopNav() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </Link>
-          <Notifications tone="light" />
+          <Notifications tone="dark" />
           <div className="relative" ref={userMenuRef}>
             <button
               type="button"
               onClick={() => setUserMenuOpen((o) => !o)}
-              className="flex items-center gap-1.5 rounded-lg px-2 py-2 text-slate-800 hover:bg-slate-50 dark:text-white/90 dark:hover:bg-white/10"
+              className="flex max-w-[11rem] items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-white hover:bg-white/10 sm:max-w-none sm:px-2"
               aria-label="Perfil"
               aria-expanded={userMenuOpen}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/15">
                 {user?.avatar_url && !user.avatar_url.startsWith("avatar:") ? (
                   <img
                     src={user.avatar_url}
@@ -428,18 +269,18 @@ export default function TopNav() {
                 )}
               </div>
               <div className="hidden min-w-0 flex-col text-left leading-tight sm:flex">
-                <span className="max-w-[140px] truncate text-[13px] font-medium text-slate-800 dark:text-slate-100 lg:max-w-[180px]">
+                <span className="max-w-[140px] truncate text-[13px] font-medium text-white lg:max-w-[180px]">
                   {workspaceUserDisplayName(user, authMeta)}
                 </span>
-                <span className="max-w-[140px] truncate text-[11px] font-medium text-slate-500 dark:text-slate-400 lg:max-w-[180px]">
+                <span className="max-w-[140px] truncate text-[11px] font-medium text-white/50 lg:max-w-[180px]">
                   {workspaceRoleLabel(user?.role)}
                 </span>
               </div>
-              <span className="max-w-[100px] truncate text-[13px] font-medium text-slate-800 dark:text-slate-100 sm:hidden">
+              <span className="max-w-[5.5rem] truncate text-[12px] font-medium text-white/90 sm:hidden">
                 {workspaceUserDisplayName(user, authMeta)}
               </span>
               <svg
-                className={`h-4 w-4 shrink-0 text-slate-400 transition-transform dark:text-white/50 ${userMenuOpen ? "rotate-180" : ""}`}
+                className={`h-4 w-4 shrink-0 text-white/45 transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -485,45 +326,48 @@ export default function TopNav() {
         </div>
       </div>
 
-      <div className="border-t border-slate-100 px-4 pb-2.5 pt-2 dark:border-slate-800 sm:px-6">
-        <div className="mx-auto flex max-w-[1600px] items-center gap-2">
+      {/*
+        Móvil (max-sm): 2 franjas — (1) marca+acciones (2) buscador e iconos en una fila.
+        Desde sm y mientras el sidebar está oculto (hasta lg): 3 franjas — (1) marca+acciones (2) buscador ancho completo (3) ayuda/actividades/cuenta.
+      */}
+      <div className="border-t border-white/10 px-4 pb-2.5 pt-2 sm:px-6 sm:pb-2">
+        <div className="mx-auto flex max-w-[1600px] min-w-0 flex-row items-center gap-1.5 sm:flex-col sm:items-stretch sm:gap-2 sm:pt-0.5">
           <GlobalSearchCombobox
-            formClassName="min-w-0 flex-1"
-            inputClassName="h-9 w-full rounded-full border border-slate-200 bg-slate-50/90 py-1.5 pl-9 pr-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-900/25 focus:bg-white focus:ring-2 focus:ring-slate-900/10 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:focus:border-zinc-500"
+            formClassName="min-w-0 flex-1 sm:w-full sm:flex-none"
+            inputClassName="h-9 w-full min-w-0 rounded-full border border-white/15 bg-white/[0.07] py-1.5 pl-9 pr-2.5 text-[13px] text-white outline-none placeholder:text-white/40 focus:border-white/30 focus:bg-white/[0.1] focus:ring-2 focus:ring-white/15 sm:h-10 sm:pl-9"
             searchIconLeftClass="left-3"
+            searchIconClassName="text-white/45"
           />
-          <Link
-            href="/ventas/nueva"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm transition-colors hover:bg-slate-800 dark:bg-[color:var(--shell-sidebar)] dark:hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:hidden"
-            aria-label="Nueva venta"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </Link>
-          <a
-            href={programamosWhatsAppUrl("Hola programamos, te escribo desde Oviler…")}
-            target="_blank"
-            rel="noreferrer"
-            className={TOP_ICON_BTN}
-            title="Ayuda"
-            aria-label="Ayuda"
-          >
-            <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </a>
-          <Link href="/actividades" className={TOP_ICON_BTN} title="Actividades" aria-label="Actividades">
-            <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </Link>
-          <Link href="/cuenta" className={TOP_ICON_BTN} title="Cuenta" aria-label="Cuenta">
-            <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </Link>
+          <div className="flex shrink-0 items-center justify-end gap-0.5 sm:w-full sm:justify-center sm:gap-2 sm:border-t sm:border-white/10 sm:pt-2">
+            <a
+              href={programamosWhatsAppUrl("Hola programamos, te escribo desde Oviler…")}
+              target="_blank"
+              rel="noreferrer"
+              className={MOBILE_NAV_ICON}
+              title="Ayuda"
+              aria-label="Ayuda"
+            >
+              <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </a>
+            <Link href="/actividades" className={MOBILE_NAV_ICON} title="Actividades" aria-label="Actividades">
+              <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </Link>
+            <Link href="/cuenta" className={MOBILE_NAV_ICON} title="Cuenta" aria-label="Cuenta">
+              <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </Link>
+            <Link href="/ventas/nueva" className={`${MOBILE_NAV_PLUS} sm:hidden`} aria-label="Nueva venta">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </Link>
+          </div>
         </div>
       </div>
 

@@ -64,19 +64,11 @@ type SaleRow = {
 
 type StatusFilter = "all" | "completed" | "cancelled" | "pending" | "preparing" | "on_the_way" | "delivered";
 type PaymentFilter = "all" | "cash" | "transfer" | "mixed";
-type ChannelFilter = "all" | "pos" | "web_catalog";
-
 const PAYMENT_FILTER_OPTIONS: { value: PaymentFilter; label: string }[] = [
   { value: "all", label: "Todas" },
   { value: "cash", label: "Efectivo" },
   { value: "transfer", label: "Transferencia" },
   { value: "mixed", label: "Mixto" },
-];
-
-const CHANNEL_FILTER_OPTIONS: { value: ChannelFilter; label: string }[] = [
-  { value: "all", label: "Todos" },
-  { value: "pos", label: "Mostrador / POS" },
-  { value: "web_catalog", label: "Catálogo" },
 ];
 
 export default function SalesPage() {
@@ -85,7 +77,6 @@ export default function SalesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
-  const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -139,7 +130,6 @@ export default function SalesPage() {
         }
       }
       if (paymentFilter !== "all") q = q.eq("payment_method", paymentFilter);
-      if (channelFilter !== "all") q = q.eq("channel", channelFilter);
 
       const { data: salesData, error: queryError, count } = await q;
       if (cancelled) return;
@@ -175,11 +165,11 @@ export default function SalesPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [refreshKey, page, searchQuery, statusFilter, paymentFilter, channelFilter]);
+  }, [refreshKey, page, searchQuery, statusFilter, paymentFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, statusFilter, paymentFilter, channelFilter]);
+  }, [searchQuery, statusFilter, paymentFilter]);
 
   useEffect(() => {
     setSelectedIndex((i) => Math.min(i, Math.max(0, sales.length - 1)));
@@ -240,8 +230,8 @@ export default function SalesPage() {
   })();
 
   const paginationBar = showPagination && (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-white px-5 py-4 dark:bg-slate-900">
-      <p className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-3xl bg-white px-5 py-4 max-md:rounded-2xl max-md:px-3.5 max-md:py-3 dark:bg-slate-900 md:gap-3">
+      <p className="text-[12px] font-medium text-slate-600 max-md:leading-snug dark:text-slate-400 md:text-[13px]">
         {totalCount} {totalCount === 1 ? "registro" : "registros"}
         {totalPages > 1 && (
           <>
@@ -305,14 +295,12 @@ export default function SalesPage() {
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
     statusFilter !== "all" ||
-    paymentFilter !== "all" ||
-    channelFilter !== "all";
+    paymentFilter !== "all";
 
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
     setPaymentFilter("all");
-    setChannelFilter("all");
     setPage(1);
   };
 
@@ -365,24 +353,24 @@ export default function SalesPage() {
   };
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-4 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100 md:space-y-8">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none max-md:rounded-xl max-md:px-3 max-md:py-3.5 sm:px-6 sm:py-6">
+        <div className="flex flex-col gap-4 max-md:gap-2.5 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">{copy.sectionTitle}</h1>
-            <p className="mt-1 whitespace-nowrap text-left text-[13px] font-medium leading-snug text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-left text-[13px] font-medium leading-snug text-slate-500 max-md:mt-0.5 max-md:text-[12px] max-md:leading-relaxed dark:text-slate-400">
               Gestiona facturas de mostrador y pedidos con envío desde un solo lugar.
             </p>
           </div>
           <div className="w-full lg:overflow-x-auto">
-            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:min-w-max lg:flex-nowrap lg:items-center lg:justify-end">
+            <div className="grid w-full grid-cols-2 gap-2 lg:flex lg:min-w-max lg:flex-nowrap lg:items-center lg:justify-end">
               <button
                 type="button"
                 onClick={() => {
                   setLoading(true);
                   setRefreshKey((k) => k + 1);
                 }}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:w-auto dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex h-9 w-full max-md:h-8 items-center justify-center gap-1.5 rounded-xl bg-slate-100/90 px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 max-md:text-[12px] max-md:font-semibold sm:w-auto sm:gap-2 sm:px-4 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -391,7 +379,7 @@ export default function SalesPage() {
               </button>
               <Link
                 href="/ventas/nueva"
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto"
+                className="inline-flex h-9 w-full max-md:h-8 items-center justify-center gap-1.5 rounded-xl bg-[color:var(--shell-sidebar)] px-3 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] max-md:text-[12px] max-md:font-semibold sm:w-auto sm:gap-2 sm:px-4"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -428,9 +416,9 @@ export default function SalesPage() {
             </button>
           </div>
         ) : (
-          <div className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
-              <div className="flex min-w-0 flex-col gap-3 md:flex-row md:flex-nowrap md:items-end md:gap-2 md:overflow-x-auto md:pb-0.5 md:[scrollbar-width:thin] lg:gap-3 lg:overflow-visible xl:gap-3">
-                <div className="relative min-w-0 md:min-w-[14rem] md:flex-1">
+          <div className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 max-md:space-y-3 max-md:rounded-2xl max-md:px-3.5 max-md:py-4 sm:px-7 sm:py-7">
+              <div className="flex min-w-0 flex-col gap-3">
+                <div className="relative min-w-0 w-full">
                   <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -440,70 +428,58 @@ export default function SalesPage() {
                     type="search"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar por número de factura o cliente…"
+                    placeholder="Factura, cliente…"
                     className={workspaceFilterSearchPillClass}
                   />
                 </div>
-                <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
-                  <label htmlFor="ventas-filter-status" className={workspaceFilterLabelClass}>
-                    Estado
-                  </label>
-                  <select
-                    id="ventas-filter-status"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                    className={workspaceFilterSelectClass}
-                  >
-                    {statusFilterOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+                  <div className="grid min-w-0 w-full grid-cols-2 gap-2 sm:max-w-xl sm:gap-3 lg:max-w-2xl lg:gap-4">
+                    <div className="min-w-0 space-y-1.5">
+                      <label htmlFor="ventas-filter-status" className={workspaceFilterLabelClass}>
+                        Estado
+                      </label>
+                      <select
+                        id="ventas-filter-status"
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                        className={workspaceFilterSelectClass}
+                      >
+                        {statusFilterOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-0 space-y-1.5">
+                      <label htmlFor="ventas-filter-payment" className={workspaceFilterLabelClass}>
+                        <span className="sm:hidden">Pago</span>
+                        <span className="hidden sm:inline">Forma de pago</span>
+                      </label>
+                      <select
+                        id="ventas-filter-payment"
+                        value={paymentFilter}
+                        onChange={(e) => setPaymentFilter(e.target.value as PaymentFilter)}
+                        className={workspaceFilterSelectClass}
+                      >
+                        {PAYMENT_FILTER_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {hasActiveFilters ? (
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="shrink-0 self-start text-left text-[13px] font-medium text-[color:var(--shell-sidebar)] underline-offset-2 hover:underline sm:self-end dark:text-zinc-300"
+                    >
+                      Limpiar filtros
+                    </button>
+                  ) : null}
                 </div>
-                <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
-                  <label htmlFor="ventas-filter-payment" className={workspaceFilterLabelClass}>
-                    Forma de pago
-                  </label>
-                  <select
-                    id="ventas-filter-payment"
-                    value={paymentFilter}
-                    onChange={(e) => setPaymentFilter(e.target.value as PaymentFilter)}
-                    className={workspaceFilterSelectClass}
-                  >
-                    {PAYMENT_FILTER_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
-                  <label htmlFor="ventas-filter-channel" className={workspaceFilterLabelClass}>
-                    Canal
-                  </label>
-                  <select
-                    id="ventas-filter-channel"
-                    value={channelFilter}
-                    onChange={(e) => setChannelFilter(e.target.value as ChannelFilter)}
-                    className={workspaceFilterSelectClass}
-                  >
-                    {CHANNEL_FILTER_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {hasActiveFilters && (
-                  <button
-                    type="button"
-                    onClick={clearFilters}
-                    className="shrink-0 self-end whitespace-nowrap pb-2 text-left text-[13px] font-medium text-[color:var(--shell-sidebar)] underline-offset-2 hover:underline md:self-auto md:pb-2.5 dark:text-zinc-300"
-                  >
-                    Limpiar filtros
-                  </button>
-                )}
               </div>
 
             {totalCount === 0 && !hasActiveFilters ? (
@@ -525,7 +501,7 @@ export default function SalesPage() {
                   Ningún documento coincide con la búsqueda o los filtros
                 </p>
                 <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                  Prueba con otro término o ajusta estado, pago o canal.
+                  Prueba con otro término o ajusta estado o forma de pago.
                 </p>
               </div>
             ) : (
@@ -597,7 +573,7 @@ export default function SalesPage() {
             </div>
 
             {/* Mobile: tarjetas (estilo clientes) */}
-            <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-2 xl:hidden">
+            <div className="grid grid-cols-1 gap-4 pt-1 max-md:gap-2.5 sm:grid-cols-2 xl:hidden">
               {sales.map((s, index) => {
                 const isSelected = index === selectedIndex;
                 const customerName = s.customers?.name ?? "Cliente final";
@@ -608,13 +584,13 @@ export default function SalesPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/ventas/${s.id}`)}
-                    className={`cursor-pointer rounded-2xl border border-slate-100 bg-slate-50/40 px-5 py-4 transition-[border-color,background-color,box-shadow] duration-150 dark:border-slate-800 dark:bg-slate-800/25 ${
+                    className={`cursor-pointer rounded-2xl border border-slate-100 bg-slate-50/40 px-5 py-4 max-md:px-3.5 max-md:py-3 transition-[border-color,background-color,box-shadow] duration-150 dark:border-slate-800 dark:bg-slate-800/25 ${
                       isSelected
                         ? "ring-2 ring-slate-400/55 hover:border-slate-200 hover:bg-white hover:shadow-md dark:hover:border-slate-600 dark:hover:bg-slate-800/55 dark:hover:shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
                         : "hover:border-slate-200 hover:bg-white hover:shadow-md dark:hover:border-slate-600 dark:hover:bg-slate-800/50 dark:hover:shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
                     }`}
                   >
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3 max-md:gap-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Factura / pedido</span>
                         <div className="flex min-w-0 items-center gap-2">

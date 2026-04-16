@@ -282,20 +282,20 @@ export default function InventoryPage() {
       return {
         label: "Sin stock",
         className:
-          "inline-flex max-w-full items-center rounded-full border border-red-200/90 bg-red-50/90 px-2 py-0.5 text-[12px] font-medium text-red-800 dark:border-red-900/55 dark:bg-red-950/35 dark:text-red-200",
+          "inline-flex max-w-full items-center rounded-full border border-red-300/90 bg-red-50 px-2 py-0.5 text-[12px] font-semibold text-red-800 dark:border-red-800/70 dark:bg-red-950/45 dark:text-red-200",
       };
     }
     if (stock <= 10) {
       return {
         label: "Stock bajo",
         className:
-          "inline-flex max-w-full items-center rounded-full border border-amber-200/80 bg-amber-50/70 px-2 py-0.5 text-[12px] font-medium text-amber-950 dark:border-amber-900/45 dark:bg-amber-950/25 dark:text-amber-100",
+          "inline-flex max-w-full items-center rounded-full border border-amber-300/80 bg-amber-50 px-2 py-0.5 text-[12px] font-semibold text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/35 dark:text-amber-100",
       };
     }
     return {
       label: "Con stock",
       className:
-        "inline-flex max-w-full items-center rounded-full border border-nou-200 bg-nou-50 px-2 py-0.5 text-[12px] font-medium text-nou-900 dark:border-emerald-900/45 dark:bg-emerald-950/30 dark:text-emerald-100",
+        "inline-flex max-w-full items-center rounded-full border border-emerald-300/80 bg-emerald-50 px-2 py-0.5 text-[12px] font-semibold text-emerald-900 dark:border-emerald-700/55 dark:bg-emerald-950/40 dark:text-emerald-200",
     };
   };
   const filterSearchClass = workspaceFilterSearchPillClass;
@@ -601,12 +601,52 @@ export default function InventoryPage() {
                       <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock</span><p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{stock} {stock === 1 ? "unidad" : "unidades"}</p></div>
                       <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Estado</span><span className={stockStatus.className}>{stockStatus.label}</span></div>
                       <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Precio</span><p className="text-[15px] font-medium tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(price)}</p></div>
-                      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-                        <span className="inline-flex gap-1 text-[13px] font-medium text-ov-pink" onClick={(e) => e.stopPropagation()}><Link href={`/inventario/${p.id}`} className="hover:underline" title="Ver detalle del producto">Ver detalle</Link><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></span>
-                        <span onClick={(e) => e.stopPropagation()}><Link href={`/inventario/${p.id}/editar`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Editar nombre, precio, categoría y más">Editar</Link></span>
-                        <span onClick={(e) => e.stopPropagation()}><Link href={`/inventario/actualizar-stock?productId=${p.id}`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Ajustar o contar el stock de este producto">Ajustar stock</Link></span>
+                      <div
+                        className="flex flex-nowrap items-center justify-end gap-0.5 pt-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="relative inline-flex group/tooltip">
+                          <Link href={`/inventario/${p.id}`} className={actionIconClass} aria-label="Ver detalle" title="Ver detalle del producto">
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          </Link>
+                          <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 dark:bg-slate-700">
+                            Ver detalle
+                          </span>
+                        </span>
+                        <span className="relative inline-flex group/tooltip">
+                          <Link href={`/inventario/${p.id}/editar`} className={actionIconClass} aria-label="Editar" title="Editar producto">
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                            </svg>
+                          </Link>
+                          <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 dark:bg-slate-700">
+                            Editar
+                          </span>
+                        </span>
+                        <span className="relative inline-flex group/tooltip">
+                          <Link href={`/inventario/actualizar-stock?productId=${p.id}`} className={actionIconClass} aria-label="Ajustar stock" title="Ajustar stock">
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                          </Link>
+                          <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 dark:bg-slate-700">
+                            Ajustar stock
+                          </span>
+                        </span>
                         {SHOW_TRANSFER_OPTION && (
-                          <span onClick={(e) => e.stopPropagation()}><Link href={`/inventario/transferir?productId=${p.id}`} className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:underline" title="Transferir stock a otra sucursal">Transferir</Link></span>
+                          <span className="relative inline-flex group/tooltip">
+                            <Link href={`/inventario/transferir?productId=${p.id}`} className={actionIconClass} aria-label="Transferir" title="Transferir stock">
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                              </svg>
+                            </Link>
+                            <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 dark:bg-slate-700">
+                              Transferir
+                            </span>
+                          </span>
                         )}
                       </div>
                     </div>

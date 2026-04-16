@@ -108,6 +108,28 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* Barra inferior móvil: scroll horizontal contenido; barra fina para ratón */
+.bottom-nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+}
+.bottom-nav-scroll::-webkit-scrollbar {
+  height: 5px;
+}
+.bottom-nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.bottom-nav-scroll::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.5);
+}
+.dark .bottom-nav-scroll {
+  scrollbar-color: rgba(161, 161, 170, 0.4) transparent;
+}
+.dark .bottom-nav-scroll::-webkit-scrollbar-thumb {
+  background: rgba(161, 161, 170, 0.35);
+}
+
 /* Dark mode: capas frías (azul / pizarra), alineado a UI tipo Bernabé */
 @media (prefers-color-scheme: dark) {
   .dark\:bg-slate-900 { --tw-bg-opacity: 1; background-color: rgb(22 24 31 / var(--tw-bg-opacity)) !important; }

@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
 import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
-import { navPathIsActive } from "./app-nav-data";
 
 const SHOW_BODEGA_IN_SIDEBAR = false;
 const SHOW_SUCURSALES_MODULE = true;
@@ -132,6 +131,12 @@ const masItems = [
       { label: "Nuevo crédito", href: "/creditos/nuevo", icon: IconPlus },
     ],
   },
+  {
+    label: "Egresos",
+    href: "/egresos",
+    icon: IconEgresos,
+    items: [],
+  },
   ...(SHOW_CIERRES_MODULE
     ? [
         {
@@ -198,21 +203,26 @@ const masItems = [
         },
       ]
     : []),
-  {
-    label: "Egresos",
-    href: "/egresos",
-    icon: IconEgresos,
-    items: [],
-  },
 ];
 
-const tabs = [
+const primaryTabs = [
   { label: "Reportes", href: "/dashboard", icon: HomeIcon },
   { label: "Ventas", href: "/ventas", icon: CartIcon },
   { label: "Clientes", href: "/clientes", icon: UsersIcon },
   { label: "Productos", href: "/inventario", icon: BoxIcon },
-  { label: "Más", href: "#", icon: MoreIcon, isMore: true },
-];
+] as const;
+
+function masIconToNavIcon(MasIcon: ComponentType<object>) {
+  return function NavIcon({ active }: { active: boolean }) {
+    return (
+      <span
+        className={`flex h-6 w-6 shrink-0 items-center justify-center text-current transition-opacity [&_svg]:h-6 [&_svg]:w-6 [&_svg]:shrink-0 ${active ? "opacity-100" : "opacity-80"}`}
+      >
+        <MasIcon />
+      </span>
+    );
+  };
+}
 
 function HomeIcon({ active }: { active: boolean }) {
   return (
@@ -242,17 +252,8 @@ function BoxIcon({ active }: { active: boolean }) {
     </svg>
   );
 }
-function MoreIcon({ active }: { active: boolean }) {
-  return (
-    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-  );
-}
-
 export default function BottomNav() {
   const pathname = usePathname();
-  const [masOpen, setMasOpen] = useState(false);
   const [showExpenses, setShowExpenses] = useState<boolean | null>(null);
   const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [userPermissions, setUserPermissions] = useState<string[] | null>(null);
@@ -288,158 +289,63 @@ export default function BottomNav() {
     };
   }, []);
 
-  useEffect(() => {
-    setMasOpen(false);
-  }, [pathname]);
+  const displayMasItems = useMemo(
+    () =>
+      (showExpenses === false ? masItems.filter((g) => g.label !== "Egresos") : masItems)
+        .filter((group) => canAccessNavModule(userRole, group.label, userPermissions))
+        .map((group) => ({
+          ...group,
+          items: (group.items ?? []).filter((sub) => canAccessPath(userRole, sub.href, userPermissions)),
+        }))
+        .filter((group) => canAccessPath(userRole, group.href, userPermissions) || (group.items?.length ?? 0) > 0),
+    [showExpenses, userRole, userPermissions]
+  );
 
-  const displayMasItems = (showExpenses === false ? masItems.filter((g) => g.label !== "Egresos") : masItems)
-    .filter((group) => canAccessNavModule(userRole, group.label, userPermissions))
-    .map((group) => ({
-      ...group,
-      items: (group.items ?? []).filter((sub) => canAccessPath(userRole, sub.href, userPermissions)),
-    }))
-    .filter((group) => canAccessPath(userRole, group.href, userPermissions) || (group.items?.length ?? 0) > 0);
-
-  useEffect(() => {
-    if (masOpen) document.body.style.overflow = "hidden";
-    else document.body.style.overflow = "";
-    return () => { document.body.style.overflow = ""; };
-  }, [masOpen]);
+  const bottomNavItems = useMemo(() => {
+    const primary = primaryTabs
+      .filter((t) => canAccessPath(userRole, t.href, userPermissions))
+      .map((t) => ({ label: t.label, href: t.href, Icon: t.icon }));
+    const extra = displayMasItems.map((g) => ({
+      label: g.label,
+      href: g.href,
+      Icon: masIconToNavIcon(g.icon),
+    }));
+    return [...primary, ...extra];
+  }, [userRole, userPermissions, displayMasItems]);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/sucursales/reportes" || pathname === "/";
     return href !== "#" && pathname.startsWith(href);
   };
 
-  const isMoreRoutesActive = (path: string) => {
-    if (path.startsWith("/garantias")) return true;
-    if (path.startsWith("/creditos")) return true;
-    if (path.startsWith("/cierre-caja")) return true;
-    if (path.startsWith("/egresos")) return true;
-    if (path.startsWith("/catalogo")) return true;
-    if (path.startsWith("/roles")) return true;
-    if (path.startsWith("/actividades")) return true;
-    if (path.startsWith("/sucursales")) return true;
-    return false;
-  };
-
   return (
-    <>
-      <nav
-        className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-around border-t border-slate-200/90 bg-white/95 pb-[env(safe-area-inset-bottom)] pt-2 text-slate-700 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95 dark:text-zinc-200 md:hidden"
-        aria-label="Navegación principal"
-      >
-        {tabs.map((tab) => {
-          const active = tab.isMore ? isMoreRoutesActive(pathname) : isActive(tab.href);
-          const tabLabel = tab.label;
-          if (tab.isMore) {
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-30 min-w-0 max-w-full border-t border-slate-200/90 bg-white/95 pb-[env(safe-area-inset-bottom)] pt-2 text-slate-700 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95 dark:text-zinc-200 lg:hidden"
+      aria-label="Navegación principal"
+    >
+      {/* Scroll horizontal en el contenedor; fila interna centrada cuando cabe (w-max min-w-full). */}
+      <div className="bottom-nav-scroll w-full min-w-0 touch-pan-x overflow-x-auto overflow-y-hidden overscroll-x-contain px-2 pb-1">
+        <div className="flex w-max min-w-full snap-x snap-mandatory flex-nowrap items-end justify-center gap-0.5">
+          {bottomNavItems.map((item) => {
+            const active = isActive(item.href);
+            const Icon = item.Icon;
             return (
-              <button
-                key={tab.label}
-                type="button"
-                onClick={() => setMasOpen(true)}
-                className={`flex flex-col items-center gap-0.5 rounded-lg px-3 py-1 transition-colors ${
+              <Link
+                key={`${item.href}-${item.label}`}
+                href={item.href}
+                className={`flex min-w-[4.5rem] max-w-[5.25rem] shrink-0 snap-start flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center transition-colors sm:min-w-[4.75rem] ${
                   active ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : "text-slate-400 dark:text-slate-500"
                 }`}
-                aria-label="Más opciones"
+                aria-current={active ? "page" : undefined}
+                aria-label={item.label}
               >
-                <tab.icon active={active} />
-                <span className="text-[10px] font-medium">{tab.label}</span>
-              </button>
+                <Icon active={active} />
+                <span className="line-clamp-2 w-full text-[10px] font-medium leading-tight">{item.label}</span>
+              </Link>
             );
-          }
-          return (
-            <Link
-              key={tab.label}
-              href={tab.href}
-              className={`flex flex-col items-center gap-0.5 rounded-lg px-3 py-1 transition-colors ${
-                active ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : "text-slate-400 dark:text-slate-500"
-              }`}
-              aria-label={tabLabel}
-            >
-              <tab.icon active={active} />
-              <span className="text-[10px] font-medium">{tabLabel}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Sheet "Más" */}
-      <div
-        className={`fixed inset-0 z-40 md:hidden ${masOpen ? "visible" : "invisible pointer-events-none"}`}
-        aria-hidden={!masOpen}
-      >
-        <div
-          className="absolute inset-0 bg-slate-900/40 dark:bg-slate-950/60"
-          onClick={() => setMasOpen(false)}
-        />
-        <div
-          className={`absolute bottom-0 left-0 right-0 max-h-[70vh] overflow-y-auto rounded-t-2xl border-t border-slate-200 bg-white shadow-2xl transition-transform duration-200 ease-out dark:border-slate-800 dark:bg-slate-900 ${
-            masOpen ? "translate-y-0" : "translate-y-full"
-          }`}
-          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-        >
-          <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
-            <span className="text-[13px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Más
-            </span>
-            <button
-              type="button"
-              onClick={() => setMasOpen(false)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-              aria-label="Cerrar"
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="py-3">
-            {displayMasItems.map((group) => {
-              const GroupIcon = group.icon;
-              return (
-                <div key={group.label} className="mb-4 px-3">
-                  <p className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                    {group.label}
-                  </p>
-                  <div className="space-y-0.5">
-                    <Link
-                      href={group.href}
-                      onClick={() => setMasOpen(false)}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium ${
-                        navPathIsActive(pathname, group.href)
-                          ? "bg-ov-pink/10 text-ov-pink-hover dark:bg-ov-pink/20 dark:text-ov-pink-muted"
-                          : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                      }`}
-                    >
-                      <GroupIcon />
-                      {group.items?.length ? group.items[0]?.label ?? group.label : group.label}
-                    </Link>
-                    {group.items?.slice(1).map((sub) => {
-                      const SubIcon = sub.icon;
-                      return (
-                        <Link
-                          key={sub.href}
-                          href={sub.href}
-                          onClick={() => setMasOpen(false)}
-                          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 pl-5 text-[14px] font-medium ${
-                            navPathIsActive(pathname, sub.href)
-                              ? "bg-ov-pink/10 text-ov-pink-hover dark:bg-ov-pink/20 dark:text-ov-pink-muted"
-                              : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                          }`}
-                        >
-                          {SubIcon ? <SubIcon /> : <IconList />}
-                          {sub.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          })}
         </div>
       </div>
-    </>
+    </nav>
   );
 }

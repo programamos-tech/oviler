@@ -258,29 +258,59 @@ export default function ProductDetailPage() {
               {product.sku || "—"}{product.category_name ? ` · ${product.category_name}` : ""}{product.brand ? ` · ${product.brand}` : ""}
             </p>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 print:hidden sm:pt-0.5">
+          <div className="flex min-w-0 w-full max-w-full shrink-0 flex-nowrap items-center justify-end gap-1.5 overflow-x-auto overflow-y-visible pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] print:hidden sm:w-auto sm:max-w-none sm:gap-2 sm:overflow-visible sm:pb-0 sm:pt-0.5 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/70 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600/60">
             <Link
               href="/inventario"
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
               title="Volver a inventario"
+              aria-label="Volver a inventario"
             >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </Link>
-            <Link href={`/inventario/${product.id}/editar`} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]">
-              Editar
+            <Link
+              href={`/inventario/${product.id}/editar`}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[color:var(--shell-sidebar)] text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+              title="Editar producto"
+              aria-label="Editar producto"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+              </svg>
             </Link>
-            <Link href={`/inventario/actualizar-stock?productId=${product.id}`} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10">
-              Ajustar stock
+            <Link
+              href={`/inventario/actualizar-stock?productId=${product.id}`}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+              title="Ajustar stock"
+              aria-label="Ajustar stock"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
             </Link>
             {SHOW_TRANSFER_OPTION && (
-              <Link href={`/inventario/transferir?productId=${product.id}`} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10">
-                Transferir
+              <Link
+                href={`/inventario/transferir?productId=${product.id}`}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+                title="Transferir stock"
+                aria-label="Transferir stock"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                </svg>
               </Link>
             )}
-            <button type="button" onClick={() => setDeleteOpen(true)} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-slate-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30">
-              Eliminar
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-red-600 transition-colors hover:bg-red-50 dark:border-slate-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
+              title="Eliminar producto"
+              aria-label="Eliminar producto"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
             </button>
           </div>
         </div>
@@ -289,7 +319,6 @@ export default function ProductDetailPage() {
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Precio de venta</p>
               <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50 sm:text-xl">$ {formatMoney(price)}</p>
-              {product.apply_iva && <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">incl. IVA 19%</p>}
             </div>
             <div className="sm:border-l sm:border-slate-100 sm:pl-6 dark:sm:border-slate-800">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Stock en sucursal</p>

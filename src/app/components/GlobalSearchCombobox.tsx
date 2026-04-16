@@ -15,6 +15,8 @@ type Props = {
   formClassName?: string;
   /** Clase horizontal del icono lupa (`left-3` o `left-3.5`, etc.) */
   searchIconLeftClass?: string;
+  /** Color del icono lupa (por defecto gris; p. ej. en navbar oscuro `text-white/45`) */
+  searchIconClassName?: string;
   placeholder?: string;
 };
 
@@ -22,6 +24,7 @@ export function GlobalSearchCombobox({
   inputClassName,
   formClassName = "min-w-0 flex-1",
   searchIconLeftClass = "left-3",
+  searchIconClassName,
   placeholder = "Productos, SKU o clientes…",
 }: Props) {
   const router = useRouter();
@@ -148,7 +151,7 @@ export function GlobalSearchCombobox({
     <form onSubmit={onSubmit} className={formClassName} role="search">
       <div className="relative w-full">
         <svg
-          className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-zinc-500 ${searchIconLeftClass}`}
+          className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 ${searchIconClassName ?? "text-slate-400 dark:text-zinc-500"} ${searchIconLeftClass}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

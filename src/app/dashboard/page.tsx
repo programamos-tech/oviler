@@ -64,8 +64,8 @@ type DashboardData = {
 
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
-/** Color único para iconos del resumen (verde shell = sidebar). */
-const DASHBOARD_ICON_CLASS = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
+/** Iconos del resumen: acento en oscuro tipo referencia (verde suave, sin cajas). */
+const DASHBOARD_ICON_CLASS = "text-[color:var(--shell-sidebar)] dark:text-emerald-400/90";
 
 /** Días mostrados en la tendencia de ingresos (siempre anclada a “hoy” calendario). */
 const INCOME_TREND_DAY_COUNT = 15;
@@ -260,21 +260,22 @@ function DashboardHeroMetric({
   infoTip?: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3.5">
+    <div className="flex min-w-0 items-center gap-2.5 sm:items-start sm:gap-3.5">
       <span
-        className={`inline-flex shrink-0 items-center justify-center leading-none [&>svg]:h-[22px] [&>svg]:w-[22px] ${DASHBOARD_ICON_CLASS}`}
+        className={`inline-flex shrink-0 items-center justify-center leading-none sm:mt-0.5 [&>svg]:h-5 [&>svg]:w-5 sm:[&>svg]:h-6 sm:[&>svg]:w-6 ${DASHBOARD_ICON_CLASS}`}
       >
         {icon}
       </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-start gap-1">
-          <p className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+      {/* Móvil: mismo patrón que Salidas (etiqueta + i | valor). sm+: número debajo (web). */}
+      <div className="flex min-w-0 flex-1 flex-row flex-nowrap items-center justify-between gap-2 sm:flex-col sm:items-stretch sm:justify-start sm:gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1 sm:flex-initial">
+          <p className="min-w-0 truncate text-[10px] font-semibold uppercase leading-snug tracking-[0.08em] text-slate-500 sm:truncate-none dark:text-slate-400">
             {label}
           </p>
           {infoTip ? <InfoTip ariaLabel={`${label}: más información`}>{infoTip}</InfoTip> : null}
         </div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-          <span className="text-xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+        <div className="flex min-w-0 shrink-0 flex-wrap items-baseline justify-end gap-x-1.5 gap-y-0.5 sm:justify-start">
+          <span className="text-right text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 sm:text-left sm:text-xl lg:text-2xl">
             {valueStr}
           </span>
           {showDelta ? <HeroDeltaInline cur={numericValue} prev={prevNumeric} hide={hideSensitive} /> : null}
@@ -284,21 +285,27 @@ function DashboardHeroMetric({
   );
 }
 
-/** Bloque de reporte con título tipo sidebar + rejilla de mini-tarjetas. */
+/** Bloque de reporte: rejilla plana, sin tarjetas (solo tipografía + espacio). */
 function DashboardReportSection({
   eyebrow,
   gridClass,
   children,
 }: {
   eyebrow: string;
-  /** ej. `sm:grid-cols-3` o `sm:grid-cols-2 lg:grid-cols-4` */
+  /** Columnas y gaps; incluir breakpoints (ej. `grid-cols-2 sm:grid-cols-3`) */
   gridClass: string;
   children: ReactNode;
 }) {
   return (
-    <section className="pt-0">
-      <p className="mb-5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{eyebrow}</p>
-      <div className={`grid grid-cols-1 gap-x-6 gap-y-8 sm:gap-x-8 sm:gap-y-9 ${gridClass}`}>{children}</div>
+    <section className="mt-10 pt-0 sm:mt-14">
+      <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 sm:mb-5 sm:text-[11px]">
+        {eyebrow}
+      </p>
+      <div
+        className={`grid grid-cols-1 gap-x-4 gap-y-3 sm:gap-x-5 sm:gap-y-4 lg:gap-x-6 lg:gap-y-5 ${gridClass}`}
+      >
+        {children}
+      </div>
     </section>
   );
 }
@@ -308,7 +315,7 @@ function DashboardKpiCard({
   label,
   value,
   infoTip,
-  valueClassName = "text-lg sm:text-xl",
+  valueClassName = "text-lg sm:text-xl lg:text-2xl",
 }: {
   icon: ReactNode;
   label: string;
@@ -317,21 +324,22 @@ function DashboardKpiCard({
   valueClassName?: string;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 py-0.5">
+    <div className="flex min-w-0 items-center gap-2.5 sm:items-start sm:gap-3.5">
       <span
-        className={`mt-0.5 inline-flex shrink-0 items-center justify-center leading-none [&>svg]:h-5 [&>svg]:w-5 ${DASHBOARD_ICON_CLASS}`}
+        className={`inline-flex shrink-0 items-center justify-center leading-none sm:mt-0.5 [&>svg]:h-5 [&>svg]:w-5 sm:[&>svg]:h-6 sm:[&>svg]:w-6 ${DASHBOARD_ICON_CLASS}`}
       >
         {icon}
       </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <p className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+      {/* Móvil: etiqueta + valor en una fila. sm+: columna tipo tarjeta (referencia limpia). */}
+      <div className="flex min-w-0 flex-1 flex-row flex-nowrap items-center justify-between gap-2 sm:flex-col sm:items-stretch sm:justify-start sm:gap-0">
+        <div className="flex min-w-0 flex-1 items-center gap-1 sm:min-h-0 sm:flex-initial">
+          <p className="min-w-0 truncate text-[10px] font-semibold uppercase leading-snug tracking-[0.08em] text-slate-500 sm:truncate-none sm:whitespace-normal sm:leading-snug dark:text-slate-400">
             {label}
           </p>
           {infoTip ? <InfoTip ariaLabel={`${label}: más información`}>{infoTip}</InfoTip> : null}
         </div>
         <p
-          className={`mt-1.5 font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 ${valueClassName}`}
+          className={`shrink-0 text-right font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 sm:mt-3 sm:text-left ${valueClassName}`}
         >
           {value}
         </p>
@@ -1179,29 +1187,29 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto min-w-0 max-w-[1600px] space-y-10 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <header className="min-w-0 rounded-2xl bg-white px-4 py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-5 sm:py-4">
+        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               {periodLabel}
             </p>
-            <h1 className="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+            <h1 className="mt-0.5 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-lg">
               Reportes
             </h1>
-            <p className="mt-1 whitespace-nowrap text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500 dark:text-slate-400 sm:text-[13px]">
               {reportsFullAccess
                 ? "Ventas y caja por sucursal y período."
                 : "Ventas y caja del día (vista diaria)."}
             </p>
           </div>
-          <div className="w-full lg:overflow-x-auto">
-            <div className="flex flex-wrap items-center gap-2 lg:min-w-max lg:flex-nowrap lg:justify-end">
+          <div className="min-w-0 lg:max-w-[min(100%,52rem)] lg:flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 lg:flex-nowrap lg:justify-end">
               {reportsFullAccess ? (
-                <div className="grid w-full grid-cols-2 rounded-xl bg-slate-100/90 p-1 sm:w-auto dark:bg-slate-800/60">
+                <div className="inline-grid shrink-0 grid-cols-2 rounded-lg bg-slate-100/90 p-0.5 dark:bg-slate-800/60">
                   <button
                     type="button"
                     onClick={() => setDateFilterMode("today")}
-                    className={`rounded-lg px-3 py-2 text-center text-[12px] font-semibold transition-all ${
+                    className={`rounded-md px-2.5 py-1.5 text-center text-[11px] font-semibold transition-all sm:px-3 sm:py-2 sm:text-[12px] ${
                       dateFilterMode === "today"
                         ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
                         : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
@@ -1212,7 +1220,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => setDateFilterMode("range")}
-                    className={`rounded-lg px-3 py-2 text-center text-[12px] font-semibold transition-all ${
+                    className={`rounded-md px-2.5 py-1.5 text-center text-[11px] font-semibold transition-all sm:px-3 sm:py-2 sm:text-[12px] ${
                       dateFilterMode === "range"
                         ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
                         : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
@@ -1223,67 +1231,67 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div
-                  className="w-full rounded-xl bg-slate-100/90 px-3 py-2 text-center text-[12px] font-semibold text-[color:var(--shell-sidebar)] sm:w-auto dark:bg-slate-800/60 dark:text-zinc-300"
+                  className="shrink-0 rounded-lg bg-slate-100/90 px-2.5 py-1.5 text-center text-[11px] font-semibold text-[color:var(--shell-sidebar)] sm:text-[12px] dark:bg-slate-800/60 dark:text-zinc-300"
                   title="Tu rol solo permite ver el reporte por día"
                 >
                   Solo día
                 </div>
               )}
               {effectiveDateMode === "today" ? (
-                <div className="w-full sm:w-[220px]">
+                <div className="min-w-0 flex-1 sm:max-w-[200px] lg:max-w-[220px]">
                   <DatePickerCard
                     id="dashboard-date-today-header"
                     value={selectedDay}
                     onChange={(d) => d && setSelectedDay(d)}
                     max={today}
                     allowClear={false}
-                    size="md"
+                    size="sm"
                     fullWidth
                     aria-label="Seleccionar día"
                   />
                 </div>
               ) : (
-                <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
-                  <div className="w-full sm:w-[220px]">
-                    <DatePickerCard
-                      id="dashboard-date-from-header"
-                      value={dateFrom}
-                      onChange={(d) => d && setDateFrom(d)}
-                      max={dateTo}
-                      allowClear={false}
-                      size="md"
-                      fullWidth
-                      aria-label="Fecha desde"
-                    />
-                  </div>
-                  <div className="w-full sm:w-[220px]">
-                    <DatePickerCard
-                      id="dashboard-date-to-header"
-                      value={dateTo}
-                      onChange={(d) => d && setDateTo(d)}
-                      min={dateFrom}
-                      max={today}
-                      allowClear={false}
-                      size="md"
-                      fullWidth
-                      aria-label="Fecha hasta"
-                    />
-                  </div>
+                <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+                  <DatePickerCard
+                    id="dashboard-date-from-header"
+                    value={dateFrom}
+                    onChange={(d) => d && setDateFrom(d)}
+                    max={dateTo}
+                    allowClear={false}
+                    size="sm"
+                    fullWidth={false}
+                    aria-label="Fecha desde"
+                  />
+                  <span className="shrink-0 text-[12px] font-medium text-slate-400 dark:text-slate-500" aria-hidden>
+                    —
+                  </span>
+                  <DatePickerCard
+                    id="dashboard-date-to-header"
+                    value={dateTo}
+                    onChange={(d) => d && setDateTo(d)}
+                    min={dateFrom}
+                    max={today}
+                    allowClear={false}
+                    size="sm"
+                    fullWidth={false}
+                    aria-label="Fecha hasta"
+                  />
                 </div>
               )}
               <button
                 type="button"
                 onClick={() => setRefreshKey((k) => k + 1)}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:w-auto dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                title="Actualizar datos"
+                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-slate-100/90 px-2.5 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:h-9 sm:gap-2 sm:rounded-xl sm:px-3 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Actualizar
+                <span className="sr-only sm:not-sr-only">Actualizar</span>
               </button>
               <button
                 onClick={() => setHideSensitiveInfo(!hideSensitiveInfo)}
-                className="inline-flex h-9 w-full items-center justify-center rounded-xl bg-slate-100/90 text-slate-600 transition-colors hover:bg-slate-200/70 sm:w-9 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100/90 text-slate-600 transition-colors hover:bg-slate-200/70 sm:h-9 sm:w-9 sm:rounded-xl dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 title={hideSensitiveInfo ? "Mostrar información" : "Ocultar información sensible"}
               >
               {hideSensitiveInfo ? (
@@ -1304,16 +1312,16 @@ export default function DashboardPage() {
 
       {loading ? (
         <div
-          className="min-h-[300px] animate-pulse rounded-3xl border border-slate-200 bg-slate-100/90 dark:border-slate-700 dark:bg-slate-800/60"
+          className="min-h-[300px] animate-pulse rounded-3xl bg-slate-100/90 dark:bg-[#121212]"
           aria-busy
           aria-label="Cargando reportes"
         />
       ) : (
         <>
-          <div className="space-y-8">
-            <div className="rounded-3xl bg-white px-5 py-7 sm:px-8 sm:py-9 dark:bg-slate-900">
-              <div className="mb-6 flex flex-wrap items-center gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <div className="space-y-5 sm:space-y-6">
+            <div className="rounded-3xl bg-white px-4 py-6 sm:px-7 sm:py-8 lg:px-8 lg:py-9 dark:bg-[#121212]">
+              <div className="mb-4 flex flex-wrap items-center gap-2 sm:mb-5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 sm:text-[11px]">
                   Resumen del período
                 </p>
                 <InfoTip ariaLabel="Qué muestra el resumen del período">
@@ -1322,7 +1330,7 @@ export default function DashboardPage() {
                   cada producto. Son dos lecturas distintas a un balance contable formal.
                 </InfoTip>
               </div>
-              <div className="grid grid-cols-1 gap-8 sm:gap-10 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-stretch sm:gap-4 lg:gap-5">
                 <DashboardHeroMetric
                   label="Neto en caja del período"
                   valueStr={formatSensitiveValue(data.totalIncome)}
@@ -1364,8 +1372,6 @@ export default function DashboardPage() {
                 />
               </div>
 
-              <div className="my-9 h-px bg-slate-100 sm:my-10 dark:bg-slate-800" aria-hidden />
-
               <DashboardReportSection eyebrow="Salidas y ajustes" gridClass="sm:grid-cols-3">
               <DashboardKpiCard
                 icon={<TrendingDown aria-hidden strokeWidth={2} />}
@@ -1400,8 +1406,6 @@ export default function DashboardPage() {
                 }
               />
             </DashboardReportSection>
-
-              <div className="my-9 h-px bg-slate-100 sm:my-10 dark:bg-slate-800" aria-hidden />
 
             {reportsFullAccess ? (
               <>
@@ -1451,12 +1455,8 @@ export default function DashboardPage() {
             </div>
 
             {reportsFullAccess ? (
-            <section className="rounded-3xl bg-white px-5 py-6 sm:px-8 sm:py-7 dark:bg-slate-900">
+            <section className="rounded-3xl bg-white px-5 py-6 sm:px-8 sm:py-7 dark:bg-[#121212]">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tendencia de ingresos</p>
-              <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Últimos {INCOME_TREND_DAY_COUNT} días calendario · ingreso tienda + abonos (sin fee envío), por día local.
-                La línea punteada es el promedio diario sobre esos días (incluye días en $0).
-              </p>
               <div
                 className="relative mt-4 min-h-[220px] h-56 w-full min-w-0 sm:h-60"
                 role="region"
