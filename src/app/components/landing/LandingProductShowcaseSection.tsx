@@ -26,7 +26,7 @@ export function LandingProductShowcaseSection() {
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-zinc-400 sm:text-base">
             Vistas reales del flujo de trabajo: desde el detalle de una factura hasta la cartera y el stock. Todo integrado en
-            Bernabé Comercios — capturas ilustrativas.
+            Berea Comercios — capturas ilustrativas.
           </p>
         </div>
 

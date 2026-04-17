@@ -115,12 +115,17 @@ export default function RegistroPage() {
           href="/"
           className="inline-block w-fit outline-offset-4 focus-visible:rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-500"
         >
-          <OvilerWordmark variant="onDark" className="text-[clamp(1.75rem,4vw,2.5rem)]" />
+          <OvilerWordmark
+            variant="onDark"
+            companyName="Berea"
+            logoSrc="/laptop.png"
+            className="text-[clamp(1.75rem,4vw,2.5rem)] font-bold"
+          />
         </Link>
 
         <h1 className="mt-10 text-3xl font-semibold tracking-tight text-white sm:text-[2rem]">Solicitar licencia</h1>
         <p className="mt-2 max-w-md text-[15px] leading-relaxed text-zinc-400">
-          Completa el formulario para activar tu licencia Bernabé Comercios y gestionar inventario y ventas desde un solo panel.
+          Completa el formulario para activar tu licencia Berea Comercios y gestionar inventario y ventas desde un solo panel.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-10 w-full max-w-md space-y-6">

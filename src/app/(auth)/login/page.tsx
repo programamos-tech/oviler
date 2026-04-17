@@ -140,7 +140,8 @@ function LoginContent() {
         >
           <OvilerWordmark
             variant="onDark"
-            companyName="Bernabé"
+            companyName="Berea"
+            logoSrc="/laptop.png"
             className="text-[clamp(1.75rem,4vw,2.5rem)] font-bold"
           />
         </Link>

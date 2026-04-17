@@ -43,7 +43,12 @@ export function CatalogStorefrontHeader({ branch, cartCount, onOpenCart, searchQ
             )}
           </div>
           <div className="min-w-0">
-            <OvilerWordmark variant="onDark" className="text-[1.35rem] sm:text-[1.5rem]" />
+            <OvilerWordmark
+              variant="onDark"
+              companyName="Berea"
+              logoSrc="/laptop.png"
+              className="text-[1.35rem] font-bold sm:text-[1.5rem]"
+            />
             <p className="truncate text-[10px] font-medium uppercase tracking-[0.08em] text-white/70">
               {branch.name}
             </p>

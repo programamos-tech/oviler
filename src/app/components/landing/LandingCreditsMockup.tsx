@@ -14,7 +14,7 @@ export function LandingCreditsMockup() {
   return (
     <LandingMockupFrame
       toolbarExtra={
-        <p className="truncate text-center text-[10px] font-medium text-zinc-500 sm:text-left">bernabe.app · Créditos</p>
+        <p className="truncate text-center text-[10px] font-medium text-zinc-500 sm:text-left">berea.app · Créditos</p>
       }
     >
       <div className="mb-4 flex flex-wrap items-end justify-between gap-2">

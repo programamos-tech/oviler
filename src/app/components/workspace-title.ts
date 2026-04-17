@@ -1,7 +1,7 @@
 /** Título de página para la barra superior (desktop), según la ruta. */
 export function workspaceTitleFromPath(pathname: string): string {
   if (pathname === "/dashboard" || pathname === "/" || pathname.startsWith("/sucursales/reportes")) return "Reportes";
-  if (pathname.startsWith("/interno")) return "Bernabé backOffice";
+  if (pathname.startsWith("/interno")) return "Berea backOffice";
   if (pathname.startsWith("/ventas/nueva")) return "Nueva venta";
   if (pathname.startsWith("/ventas/") && pathname !== "/ventas") return "Detalle de venta";
   if (pathname.startsWith("/ventas")) return "Ventas";

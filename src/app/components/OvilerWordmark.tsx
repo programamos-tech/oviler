@@ -1,21 +1,27 @@
+const DEFAULT_LOGO_SRC = "/ceiling.png";
+
 /**
- * Lockup Bernabé + producto. Icono PNG (/ceiling.png) a la izquierda del nombre.
- * En superficies claras el PNG (blanco) se invierte; en oscuro no.
+ * Lockup marca + producto. Por defecto icono `/ceiling.png`; en superficies claras se invierte.
+ * Con `logoSrc` personalizado no se aplica inversión (p. ej. ilustraciones a color).
  */
-function BernabeLogoMark({
+function BrandLogoMark({
   className,
   variant = "onLight",
+  src = DEFAULT_LOGO_SRC,
 }: {
   className?: string;
   variant?: "onLight" | "onDark";
+  src?: string;
 }) {
-  const imgClass =
-    variant === "onDark"
+  const custom = src !== DEFAULT_LOGO_SRC;
+  const imgClass = custom
+    ? "h-[1.584em] w-auto shrink-0 pointer-events-none select-none object-contain"
+    : variant === "onDark"
       ? "h-[1.584em] w-auto shrink-0 pointer-events-none select-none object-contain"
       : "h-[1.584em] w-auto shrink-0 invert dark:invert-0 pointer-events-none select-none object-contain";
   return (
     <img
-      src="/ceiling.png"
+      src={src}
       alt=""
       width={58}
       height={58}
@@ -29,42 +35,39 @@ export function OvilerWordmark({
   variant = "onLight",
   companyName = "Bernabé",
   productLine = "Comercios",
-  /** Solo ícono (/ceiling.png), sin texto de marca / línea / producto */
+  /** Ruta del PNG del lockup; por defecto `/ceiling.png` */
+  logoSrc,
+  /** Solo ícono, sin texto de marca / línea / producto */
   markOnly = false,
 }: {
   className?: string;
   variant?: "onLight" | "onDark";
   companyName?: string;
   productLine?: string;
+  logoSrc?: string;
   markOnly?: boolean;
 }) {
+  const logo = logoSrc ?? DEFAULT_LOGO_SRC;
+
   if (markOnly) {
     return (
       <span className={`inline-flex shrink-0 items-center justify-center ${className ?? ""}`.trim()}>
-        <BernabeLogoMark variant={variant} className="!h-9 w-auto max-h-9" />
+        <BrandLogoMark src={logo} variant={variant} className="!h-9 w-auto max-h-9" />
       </span>
     );
   }
 
   const titleColor = variant === "onDark" ? "text-white" : "text-slate-900 dark:text-white";
   const productMuted = variant === "onDark" ? "text-white/80" : "text-slate-500 dark:text-white/75";
-  const dividerClass =
-    variant === "onDark" ? "bg-white/25" : "bg-slate-900/20 dark:bg-white/25";
 
   return (
     <span
-      className={`flex min-w-0 max-w-full items-stretch text-left sm:max-w-[15rem] ${titleColor} ${className ?? ""}`.trim()}
+      className={`flex min-w-0 max-w-full items-center gap-[0.32em] text-left sm:max-w-[15rem] ${titleColor} ${className ?? ""}`.trim()}
     >
-      <span className="inline-flex shrink-0 items-stretch gap-[0.06em]">
-        <span className="flex items-center">
-          <BernabeLogoMark variant={variant} />
-        </span>
-        <span
-          className={`w-px shrink-0 self-stretch rounded-full ${dividerClass}`}
-          aria-hidden
-        />
+      <span className="inline-flex shrink-0 items-center">
+        <BrandLogoMark src={logo} variant={variant} />
       </span>
-      <span className="flex min-w-0 flex-1 flex-col items-start justify-center gap-[0.16em] pl-[0.32em] leading-none">
+      <span className="flex min-w-0 flex-1 flex-col items-start justify-center gap-[0.16em] leading-none">
         <span className="w-full truncate font-logo tracking-tight">{companyName}</span>
         {productLine ? (
           <span

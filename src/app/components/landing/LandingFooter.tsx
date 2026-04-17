@@ -12,11 +12,11 @@ export function LandingFooter() {
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-md">
             <Link href="/" className="inline-flex outline-offset-4 focus-visible:rounded-lg">
-              <OvilerWordmark variant="onDark" companyName="Bernabé" className="text-[1.35rem] font-bold" />
+              <OvilerWordmark variant="onDark" companyName="Berea" logoSrc="/laptop.png" className="text-[1.35rem] font-bold" />
             </Link>
             <p className="mt-4 text-[13px] leading-relaxed text-zinc-500">
               Software de gestión para comercios: inventario, ventas, clientes y reportes en un solo lugar. Implementación y
-              acompañamiento con el equipo Bernabé.
+              acompañamiento con el equipo Berea.
             </p>
             <p className="mt-3 inline-flex items-center gap-2 text-[13px] font-medium text-zinc-400">
               <svg
@@ -73,7 +73,7 @@ export function LandingFooter() {
 
         <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-zinc-800/60 pt-8 sm:flex-row">
           <p className="text-center text-[12px] text-zinc-600 sm:text-left">
-            © {new Date().getFullYear()} Bernabé Comercios. Todos los derechos reservados.
+            © {new Date().getFullYear()} Berea Comercios. Todos los derechos reservados.
           </p>
           <p className="max-w-sm text-center text-[12px] leading-relaxed text-zinc-600 sm:text-right">
             Desde Sincelejo, Colombia — licencias, implementación y soporte para comercios en todo el país.

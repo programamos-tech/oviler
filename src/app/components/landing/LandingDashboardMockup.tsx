@@ -1,7 +1,7 @@
 import { LandingMockupFrame } from "@/app/components/landing/LandingMockupFrame";
 
 /**
- * Vista decorativa del panel (solo landing): sugiere cómo se ve Bernabé Comercios por dentro.
+ * Vista decorativa del panel (solo landing): sugiere cómo se ve Berea Comercios por dentro.
  */
 export function LandingDashboardMockup() {
   const rows = [
@@ -15,7 +15,7 @@ export function LandingDashboardMockup() {
     <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
       <LandingMockupFrame
         toolbarExtra={
-          <p className="truncate text-center text-[10px] font-medium text-zinc-500 sm:text-left">bernabe.app · Panel</p>
+          <p className="truncate text-center text-[10px] font-medium text-zinc-500 sm:text-left">berea.app · Panel</p>
         }
       >
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">

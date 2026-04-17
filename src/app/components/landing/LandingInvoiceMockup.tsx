@@ -13,7 +13,7 @@ export function LandingInvoiceMockup() {
   return (
     <LandingMockupFrame
       toolbarExtra={
-        <p className="truncate text-center text-[10px] font-medium text-zinc-500 sm:text-left">bernabe.app · Ventas · Factura</p>
+        <p className="truncate text-center text-[10px] font-medium text-zinc-500 sm:text-left">berea.app · Ventas · Factura</p>
       }
     >
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">

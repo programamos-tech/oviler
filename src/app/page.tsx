@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { OvilerWordmark } from "@/app/components/OvilerWordmark";
 import { LandingDashboardMockup } from "@/app/components/landing/LandingDashboardMockup";
@@ -18,6 +19,16 @@ const landingNavBtnPrimary =
 const LANDING_CALL_TEL = "+573002061711";
 const LANDING_CALL_DISPLAY = "300 206 1711";
 
+export const metadata: Metadata = {
+  title: "Berea Comercios — Gestiona tu negocio",
+  description:
+    "Inventario, ventas, clientes y créditos. Berea Comercios para tu negocio. Licencia con soporte.",
+  icons: {
+    icon: "/laptop.png",
+    apple: "/laptop.png",
+  },
+};
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -29,7 +40,12 @@ export default function LandingPage() {
       <header className="fixed top-0 z-50 w-full border-b border-zinc-800/80 bg-zinc-950/75 backdrop-blur-md">
         <div className="mx-auto flex min-h-14 max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:min-h-16 sm:px-6 lg:px-8">
           <Link href="/" className="inline-flex min-w-0 items-center outline-offset-4 focus-visible:rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-500">
-            <OvilerWordmark variant="onDark" companyName="Bernabé" className="text-[1.45rem] font-bold sm:text-[1.6rem]" />
+            <OvilerWordmark
+              variant="onDark"
+              companyName="Berea"
+              logoSrc="/laptop.png"
+              className="text-[1.45rem] font-bold sm:text-[1.6rem]"
+            />
           </Link>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
             <a
@@ -71,7 +87,7 @@ export default function LandingPage() {
                 <p className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-zinc-700/80 bg-zinc-900/50 px-3 py-1 text-[11px] font-medium text-zinc-400">
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
-                    Bernabé Comercios · inventario, ventas y clientes
+                    Berea Comercios · inventario, ventas y clientes
                   </span>
                   <span className="inline-flex items-center gap-1.5 text-zinc-500">
                     <span aria-hidden>·</span>
@@ -87,7 +103,7 @@ export default function LandingPage() {
                 </h1>
                 <p className="mt-5 text-[15px] leading-relaxed text-zinc-400 sm:text-lg">
                   Controla inventario, registra ventas y haz seguimiento a clientes desde un solo panel.
-                  Implementamos Bernabé Comercios contigo y capacitamos a tu equipo para usarlo bien desde el primer día.
+                  Implementamos Berea Comercios contigo y capacitamos a tu equipo para usarlo bien desde el primer día.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center gap-3">
                   <Link
@@ -104,7 +120,7 @@ export default function LandingPage() {
                   </Link>
                 </div>
                 <p className="mt-4 text-[12px] leading-relaxed text-zinc-500">
-                  Modo prueba con límites reducidos. Plan Estándar o Pro con el equipo Bernabé por WhatsApp cuando lo necesites.
+                  Modo prueba con límites reducidos. Plan Estándar o Pro con el equipo Berea por WhatsApp cuando lo necesites.
                 </p>
               </div>
 

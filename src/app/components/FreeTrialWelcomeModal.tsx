@@ -58,7 +58,7 @@ export default function FreeTrialWelcomeModal({ open, trialEndsAt, onClose }: Pr
               id="trial-welcome-title"
               className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50"
             >
-              Licencia {LITE_PLAN_DISPLAY_NAME} · Bernabé Comercios
+              Licencia {LITE_PLAN_DISPLAY_NAME} · Berea Comercios
             </h2>
             <p className="mt-2 text-[14px] leading-relaxed text-slate-600 dark:text-slate-400">
               Te quedan <span className="font-semibold text-slate-900 dark:text-slate-100">{remaining}</span> para usar la

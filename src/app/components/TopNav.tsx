@@ -157,12 +157,13 @@ export default function TopNav() {
                 ? "flex min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-2 rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35"
                 : "flex min-w-0 shrink items-center rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35"
             }
-            title={branch?.name ? `Bernabé Comercios · ${branch.name}` : "Bernabé Comercios"}
+            title={branch?.name ? `Berea Comercios · ${branch.name}` : "Berea Comercios"}
           >
             <span className="min-w-0 flex-1 overflow-hidden">
               <OvilerWordmark
                 variant="onDark"
-                companyName="Bernabé"
+                companyName="Berea"
+                logoSrc="/laptop.png"
                 className="w-full min-w-0 text-[1.02rem] font-bold sm:text-[1.08rem]"
               />
             </span>

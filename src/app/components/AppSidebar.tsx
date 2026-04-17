@@ -263,12 +263,13 @@ export default function AppSidebar() {
           <Link
             href="/dashboard"
             className="mx-auto flex w-full items-center justify-center rounded-xl px-2 py-2 outline-offset-2 transition-colors hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35"
-            title={isInterno ? "Bernabé BackOffice" : "Bernabé Comercios"}
+            title={isInterno ? "Berea BackOffice" : "Berea Comercios"}
           >
             <span className="min-w-0 shrink-0">
               <OvilerWordmark
                 variant="onDark"
-                companyName="Bernabé"
+                companyName="Berea"
+                logoSrc="/laptop.png"
                 productLine={isInterno ? "BackOffice" : "Comercios"}
                 className="text-[1.2rem] font-bold leading-none sm:text-[1.38rem] lg:text-[1.52rem]"
               />
