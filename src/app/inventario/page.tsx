@@ -159,43 +159,37 @@ export default function InventoryPage() {
       if (!user || cancelled) return;
       const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
       if (!userRow?.organization_id || cancelled) return;
-      const snap = await loadOrgPlanSnapshot(supabase, userRow.organization_id);
-      if (!cancelled) setPlanSnapshot(snap);
+      const [snap, allCats] = await Promise.all([
+        loadOrgPlanSnapshot(supabase, userRow.organization_id),
+        (async () => {
+          const PAGE = 1000;
+          const out: CategoryOption[] = [];
+          let from = 0;
+          while (true) {
+            const { data: cats } = await supabase
+              .from("categories")
+              .select("id, name")
+              .eq("organization_id", userRow.organization_id)
+              .order("display_order", { ascending: true })
+              .order("name", { ascending: true })
+              .range(from, from + PAGE - 1);
+            if (cancelled) return [];
+            if (!cats?.length) break;
+            out.push(...(cats as CategoryOption[]));
+            if (cats.length < PAGE) break;
+            from += PAGE;
+          }
+          return out;
+        })(),
+      ]);
+      if (!cancelled) {
+        setPlanSnapshot(snap);
+        setCategories(allCats);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    const supabase = createClient();
-    let cancelled = false;
-    const PAGE = 1000; // Supabase devuelve máx 1000 filas por consulta por defecto
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
-      const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
-      if (!userRow?.organization_id || cancelled) return;
-
-      const allCats: CategoryOption[] = [];
-      let from = 0;
-      while (true) {
-        const { data: cats } = await supabase
-          .from("categories")
-          .select("id, name")
-          .eq("organization_id", userRow.organization_id)
-          .order("display_order", { ascending: true })
-          .order("name", { ascending: true })
-          .range(from, from + PAGE - 1);
-        if (cancelled) return;
-        if (!cats?.length) break;
-        allCats.push(...(cats as CategoryOption[]));
-        if (cats.length < PAGE) break;
-        from += PAGE;
-      }
-      if (!cancelled) setCategories(allCats);
-    })();
-    return () => { cancelled = true; };
   }, [refreshKey]);
 
   useEffect(() => {
@@ -227,9 +221,11 @@ export default function InventoryPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user || cancelled) return;
-        const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
-        if (!userRow?.organization_id || cancelled) return;
-        const branchId = await resolveActiveBranchId(supabase, user.id);
+        const [userRes, branchId] = await Promise.all([
+          supabase.from("users").select("organization_id").eq("id", user.id).single(),
+          resolveActiveBranchId(supabase, user.id),
+        ]);
+        if (!userRes.data?.organization_id || cancelled) return;
         if (!branchId || cancelled) {
           if (!cancelled) {
             setProducts([]);
@@ -239,27 +235,29 @@ export default function InventoryPage() {
           }
           return;
         }
-
-        const { data: branchRow } = await supabase.from("branches").select("has_bodega").eq("id", branchId).single();
-        if (!cancelled) setHasBodega(branchRow?.has_bodega !== false);
+        const orgId = userRes.data.organization_id;
 
         const from = (page - 1) * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
-        let q = supabase
+        let productQ = supabase
           .from("products")
           .select("id, name, sku, category_id, base_price, base_cost, apply_iva, description", { count: "exact" })
-          .eq("organization_id", userRow.organization_id)
+          .eq("organization_id", orgId)
           .order("name", { ascending: true })
           .range(from, to);
         const qTrim = effectiveSearchQuery.trim();
         if (qTrim) {
           const escaped = escapeSearchForFilter(qTrim);
-          q = q.or(`name.ilike.%${escaped}%,sku.ilike.%${escaped}%`);
+          productQ = productQ.or(`name.ilike.%${escaped}%,sku.ilike.%${escaped}%`);
         }
-        if (categoryFilter) q = q.eq("category_id", categoryFilter);
+        if (categoryFilter) productQ = productQ.eq("category_id", categoryFilter);
 
-        const { data: productsData, count } = await q;
+        const [
+          { data: branchRow },
+          { data: productsData, count },
+        ] = await Promise.all([supabase.from("branches").select("has_bodega").eq("id", branchId).single(), productQ]);
         if (cancelled) return;
+        if (!cancelled) setHasBodega(branchRow?.has_bodega !== false);
         setProducts(productsData ?? []);
         setTotalCount(count ?? 0);
 
@@ -288,7 +286,7 @@ export default function InventoryPage() {
           }
         }
         if (!cancelled) setStockSplitByProduct(splitBy);
-      } catch (_) {
+      } catch {
         if (!cancelled) {
           setProducts([]);
           setTotalCount(0);

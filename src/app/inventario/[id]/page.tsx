@@ -43,7 +43,6 @@ export default function ProductDetailPage() {
   const [stockBodega, setStockBodega] = useState<number>(0);
   const [hasBodega, setHasBodega] = useState<boolean | null>(null);
   const [stockReserved, setStockReserved] = useState<number>(0);
-  const [branchId, setBranchId] = useState<string | null>(null);
   const [locationRows, setLocationRows] = useState<{ quantity: number; path: string; locationId: string }[]>([]);
   const [locationsLoading, setLocationsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -64,6 +63,7 @@ export default function ProductDetailPage() {
     if (!id) return;
     const supabase = createClient();
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocationsLoading(true);
     (async () => {
       const [{ data: p, error: productError }, { data: authData }] = await Promise.all([
@@ -97,28 +97,29 @@ export default function ProductDetailPage() {
         return;
       }
 
-      const branchId = await resolveActiveBranchId(supabase, user.id);
-      if (!branchId || cancelled) {
+      const activeBranch = await resolveActiveBranchId(supabase, user.id);
+      if (!activeBranch || cancelled) {
         if (!cancelled) setLoading(false);
         setLocationsLoading(false);
         return;
       }
-      if (!cancelled) setBranchId(branchId);
-
-      const { data: branchRow } = await supabase.from("branches").select("has_bodega").eq("id", branchId).single();
-      if (!cancelled) setHasBodega(branchRow?.has_bodega !== false);
-
       const STATUSES_THAT_RESERVE = ["pending", "preparing", "packing"];
 
-      const [invRes, reservedRes] = await Promise.all([
-        supabase.from("inventory").select("quantity, location").eq("product_id", id).eq("branch_id", branchId),
+      const [{ data: branchRow }, invRes, reservedRes] = await Promise.all([
+        supabase.from("branches").select("has_bodega").eq("id", activeBranch).single(),
+        supabase
+          .from("inventory")
+          .select("quantity, location")
+          .eq("product_id", id)
+          .eq("branch_id", activeBranch),
         supabase
           .from("sale_items")
           .select("quantity, sales!inner(branch_id, status)")
           .eq("product_id", id)
-          .eq("sales.branch_id", branchId)
+          .eq("sales.branch_id", activeBranch)
           .in("sales.status", STATUSES_THAT_RESERVE),
       ]);
+      if (!cancelled) setHasBodega(branchRow?.has_bodega !== false);
 
       let local = 0;
       let bodega = 0;
@@ -150,7 +151,7 @@ export default function ProductDetailPage() {
         .select("location_id, quantity")
         .eq("product_id", id);
       if (cancelled) return;
-      const { data: branchLocIds } = await supabase.from("locations").select("id").eq("branch_id", branchId);
+      const { data: branchLocIds } = await supabase.from("locations").select("id").eq("branch_id", activeBranch);
       const allowedLocIds = new Set((branchLocIds ?? []).map((r: { id: string }) => r.id));
       const ilData = (ilDataRaw ?? []).filter((r) => allowedLocIds.has(r.location_id));
       const locIds = ilData.map((r) => r.location_id).filter(Boolean);
@@ -188,7 +189,7 @@ export default function ProductDetailPage() {
             )
           `)
         .in("id", locIds)
-        .eq("branch_id", branchId);
+        .eq("branch_id", activeBranch);
       if (!cancelled && locs) {
         const rows: { quantity: number; path: string; locationId: string }[] = [];
         for (const il of ilData) {

@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
@@ -51,7 +51,6 @@ const DISPOSITION_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 export default function MermaPage() {
-  const router = useRouter();
   const [defectiveProducts, setDefectiveProducts] = useState<DefectiveProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dispositionFilter, setDispositionFilter] = useState<string>("pending");
@@ -59,6 +58,14 @@ export default function MermaPage() {
   const [showDispositionModal, setShowDispositionModal] = useState<string | null>(null);
   const [selectedDisposition, setSelectedDisposition] = useState<"returned_to_supplier" | "destroyed" | "repaired" | null>(null);
   const [dispositionNotes, setDispositionNotes] = useState("");
+  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => setActiveBranchEpoch((n) => n + 1);
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -66,14 +73,18 @@ export default function MermaPage() {
     setLoading(true);
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
-      const { data: ub } = await supabase
-        .from("user_branches")
-        .select("branch_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .single();
-      if (!ub?.branch_id || cancelled) return;
+      if (!user || cancelled) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
+      const currentBranch = await resolveActiveBranchId(supabase, user.id);
+      if (!currentBranch || cancelled) {
+        if (!cancelled) {
+          setDefectiveProducts([]);
+          setLoading(false);
+        }
+        return;
+      }
 
       let q = supabase
         .from("defective_products")
@@ -87,7 +98,7 @@ export default function MermaPage() {
             sales(invoice_number)
           )
         `)
-        .eq("branch_id", ub.branch_id)
+        .eq("branch_id", currentBranch)
         .order("received_at", { ascending: false });
 
       if (dispositionFilter !== "all") {
@@ -107,7 +118,7 @@ export default function MermaPage() {
     return () => {
       cancelled = true;
     };
-  }, [dispositionFilter]);
+  }, [dispositionFilter, activeBranchEpoch]);
 
   const handleUpdateDisposition = async () => {
     if (!showDispositionModal || !selectedDisposition) return;
@@ -141,8 +152,8 @@ export default function MermaPage() {
       setShowDispositionModal(null);
       setSelectedDisposition(null);
       setDispositionNotes("");
-    } catch (error: any) {
-      alert("Error al actualizar la disposición: " + error.message);
+    } catch (error: unknown) {
+      alert("Error al actualizar la disposición: " + (error instanceof Error ? error.message : String(error)));
     } finally {
       setUpdatingId(null);
     }

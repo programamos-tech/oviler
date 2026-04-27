@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 
 const inputClass =
   "h-9 w-full rounded-lg border border-slate-200 bg-slate-50/90 px-3 text-[13px] text-slate-800 outline-none focus:border-[color:var(--shell-sidebar)] focus:ring-2 focus:ring-slate-400/35 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:focus:border-zinc-500";
@@ -23,9 +24,19 @@ export default function ConfiguracionCatalogoPage() {
   const [paymentBancolombia, setPaymentBancolombia] = useState("");
   const [paymentLlave, setPaymentLlave] = useState("");
   const [publicOrigin, setPublicOrigin] = useState("");
+  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
 
   useEffect(() => {
+    // Sincronizar origen público con window (no disponible al prerender)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPublicOrigin(typeof window !== "undefined" ? window.location.origin : "");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => setActiveBranchEpoch((n) => n + 1);
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
   }, []);
 
   useEffect(() => {
@@ -40,8 +51,8 @@ export default function ConfiguracionCatalogoPage() {
         return;
       }
 
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) {
+      const currentBranch = await resolveActiveBranchId(supabase, user.id);
+      if (!currentBranch || cancelled) {
         setLoading(false);
         setError("No encontramos una sucursal asociada a tu usuario.");
         return;
@@ -50,7 +61,7 @@ export default function ConfiguracionCatalogoPage() {
       const { data: branch, error: branchError } = await supabase
         .from("branches")
         .select("id, catalog_enabled, catalog_slug, catalog_delivery_fee_cop, payment_nequi, payment_bancolombia, payment_llave")
-        .eq("id", ub.branch_id)
+        .eq("id", currentBranch)
         .single();
 
       if (branchError || !branch || cancelled) {
@@ -82,7 +93,7 @@ export default function ConfiguracionCatalogoPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeBranchEpoch]);
 
   const sanitizedSlug = useMemo(
     () =>
