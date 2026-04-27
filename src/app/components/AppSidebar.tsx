@@ -45,32 +45,40 @@ export default function AppSidebar() {
   } | null>(null);
   const [branch, setBranch] = useState<{ name: string; logo_url: string | null; show_expenses?: boolean; sales_mode?: string } | null>(null);
 
+  /** Un solo getUser; perfil y sucursal en paralelo tras auth (menos espera al entrar al panel). */
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+    const loadUserAndBranch = async () => {
       const supabase = createClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
-      const { data: userData } = await supabase
-        .from("users")
-        .select("name, email, role, permissions")
-        .eq("id", authUser.id)
-        .single();
-      if (userData) setUser(userData as typeof user);
-    })();
-  }, []);
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      if (!authUser || cancelled) return;
 
-  useEffect(() => {
-    const loadBranch = async () => {
-      const supabase = createClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
-      const resolvedBranchId = await resolveActiveBranchId(supabase, authUser.id);
-      if (!resolvedBranchId) return;
+      const [userRes, resolvedBranchId] = await Promise.all([
+        supabase
+          .from("users")
+          .select("name, email, role, permissions")
+          .eq("id", authUser.id)
+          .single(),
+        resolveActiveBranchId(supabase, authUser.id),
+      ]);
+      if (cancelled) return;
+
+      if (userRes.data) {
+        setUser(userRes.data as typeof user);
+      }
+
+      if (!resolvedBranchId) {
+        setBranch(null);
+        return;
+      }
       const { data: branchData } = await supabase
         .from("branches")
         .select("name, logo_url, show_expenses, sales_mode")
         .eq("id", resolvedBranchId)
         .single();
+      if (cancelled) return;
       if (branchData) {
         setBranch({
           name: branchData.name,
@@ -78,18 +86,23 @@ export default function AppSidebar() {
           show_expenses: branchData.show_expenses !== false,
           sales_mode: (branchData as { sales_mode?: string }).sales_mode,
         });
+      } else {
+        setBranch(null);
       }
     };
-    const handleBranchChange = () => {
-      void loadBranch();
+
+    const onBranchChanged = () => {
+      void loadUserAndBranch();
     };
-    void loadBranch();
+
+    void loadUserAndBranch();
     if (typeof window !== "undefined") {
-      window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
+      window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranchChanged);
     }
     return () => {
+      cancelled = true;
       if (typeof window !== "undefined") {
-        window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
+        window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranchChanged);
       }
     };
   }, [pathname]);

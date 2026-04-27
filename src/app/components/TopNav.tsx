@@ -12,7 +12,7 @@ import { workspaceAvatarSeed } from "./app-nav-data";
 import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
 import { OvilerWordmark } from "./OvilerWordmark";
-import { bernabePlanUpgradeWhatsAppUrl, programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { bernabePlanUpgradeWhatsAppUrl, workspaceHelpWhatsAppUrl } from "@/lib/programamos-contact";
 import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
@@ -341,7 +341,7 @@ export default function TopNav() {
           />
           <div className="flex shrink-0 items-center justify-end gap-0.5 sm:w-full sm:justify-center sm:gap-2 sm:border-t sm:border-white/10 sm:pt-2">
             <a
-              href={programamosWhatsAppUrl("Hola programamos, te escribo desde Oviler…")}
+              href={workspaceHelpWhatsAppUrl()}
               target="_blank"
               rel="noreferrer"
               className={MOBILE_NAV_ICON}

@@ -6,6 +6,13 @@ export function programamosWhatsAppUrl(prefill: string): string {
   return `https://wa.me/${WA_PHONE}?text=${text}`;
 }
 
+/** Icono de ayuda (WhatsApp) en el navbar / header del workspace. */
+export function workspaceHelpWhatsAppUrl(): string {
+  return programamosWhatsAppUrl(
+    "Hola Andrés Russ, te escribo desde Berea Comercios y necesito ayuda con…"
+  );
+}
+
 export const PROGRAMAMOS_WA_LICENSE =
   programamosWhatsAppUrl(
     "Hola programamos, escribo desde Bernabé Comercios para adquirir o renovar la licencia (catálogo en línea y demás módulos)."

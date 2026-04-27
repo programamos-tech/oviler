@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchWithSalesMode } from "@/lib/active-branch";
 import {
   workspaceFilterLabelClass,
   workspaceFilterSearchPillClass,
@@ -76,6 +76,8 @@ export default function SalesPage() {
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  /** Evita un refetch por tecla al buscar (menos carga y sensación más fluida). */
+  const [searchQueryDebounced, setSearchQueryDebounced] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
   const [page, setPage] = useState(1);
@@ -101,83 +103,105 @@ export default function SalesPage() {
   }, []);
 
   useEffect(() => {
+    const t = setTimeout(() => setSearchQueryDebounced(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
     setLoading(true);
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
-      const branchId = await resolveActiveBranchId(supabase, user.id);
-      if (!branchId || cancelled) return;
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
 
-      const { data: branchRow } = await supabase.from("branches").select("sales_mode").eq("id", branchId).single();
-      const branchSalesMode: SalesMode =
-        branchRow && (branchRow as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales";
-      if (!cancelled && branchRow) setSalesMode(branchSalesMode);
-
-      const from = (page - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      let q = supabase
-        .from("sales")
-        .select(
-          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_paid, delivery_fee, created_at, channel, payment_proof_url, customers(name), users!user_id(name)",
-          { count: "exact" }
-        )
-        .eq("branch_id", branchId)
-        .order("created_at", { ascending: false })
-        .range(from, to);
-
-      const qTrim = searchQuery.trim();
-      if (qTrim) {
-        const esc = qTrim.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-        q = q.or(`invoice_number.ilike.%${esc}%,customers.name.ilike.%${esc}%`);
-      }
-      if (statusFilter !== "all") {
-        if (branchSalesMode === "orders" && statusFilter === "preparing") {
-          q = q.in("status", ["preparing", "packing"]);
-        } else if (branchSalesMode === "orders" && statusFilter === "completed") {
-          q = q.in("status", ["completed", "delivered"]);
-        } else {
-          q = q.eq("status", statusFilter);
+        const { branchId, salesMode: branchSalesMode } = await resolveActiveBranchWithSalesMode(supabase, user.id);
+        if (cancelled) return;
+        if (!branchId) {
+          setLoadError(null);
+          setSales([]);
+          setTotalCount(0);
+          return;
         }
-      }
-      if (paymentFilter !== "all") q = q.eq("payment_method", paymentFilter);
 
-      const { data: salesData, error: queryError, count } = await q;
-      if (cancelled) return;
-      if (queryError) {
-        setLoadError(queryError.message);
-        setSales([]);
-        setTotalCount(0);
-      } else {
-        setLoadError(null);
-        setSales(((salesData ?? []) as Array<{
-          id: string;
-          branch_id: string;
-          user_id: string;
-          customer_id: string | null;
-          invoice_number: string;
-          total: number;
-          payment_method: string;
-          status: string;
-          payment_pending?: boolean;
-          is_delivery: boolean;
-          delivery_paid: boolean;
-          delivery_fee: number | null;
-          created_at: string;
-          customers: { name: string }[] | { name: string } | null;
-          users: { name: string }[] | { name: string } | null;
-        }>).map((s) => ({
-          ...s,
-          customers: Array.isArray(s.customers) ? (s.customers[0] || null) : s.customers,
-          users: Array.isArray(s.users) ? (s.users[0] || null) : s.users,
-        })) as SaleRow[]);
-        setTotalCount(count ?? 0);
+        if (!cancelled) setSalesMode(branchSalesMode);
+
+        const from = (page - 1) * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        let q = supabase
+          .from("sales")
+          .select(
+            "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_paid, delivery_fee, created_at, channel, payment_proof_url, customers(name), users!user_id(name)",
+            { count: "exact" }
+          )
+          .eq("branch_id", branchId)
+          .order("created_at", { ascending: false })
+          .range(from, to);
+
+        const qTrim = searchQueryDebounced.trim();
+        if (qTrim) {
+          const esc = qTrim.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+          q = q.or(`invoice_number.ilike.%${esc}%,customers.name.ilike.%${esc}%`);
+        }
+        if (statusFilter !== "all") {
+          if (branchSalesMode === "orders" && statusFilter === "preparing") {
+            q = q.in("status", ["preparing", "packing"]);
+          } else if (branchSalesMode === "orders" && statusFilter === "completed") {
+            q = q.in("status", ["completed", "delivered"]);
+          } else {
+            q = q.eq("status", statusFilter);
+          }
+        }
+        if (paymentFilter !== "all") q = q.eq("payment_method", paymentFilter);
+
+        const { data: salesData, error: queryError, count } = await q;
+        if (cancelled) return;
+        if (queryError) {
+          setLoadError(queryError.message);
+          setSales([]);
+          setTotalCount(0);
+        } else {
+          setLoadError(null);
+          setSales(((salesData ?? []) as Array<{
+            id: string;
+            branch_id: string;
+            user_id: string;
+            customer_id: string | null;
+            invoice_number: string;
+            total: number;
+            payment_method: string;
+            status: string;
+            payment_pending?: boolean;
+            is_delivery: boolean;
+            delivery_paid: boolean;
+            delivery_fee: number | null;
+            created_at: string;
+            customers: { name: string }[] | { name: string } | null;
+            users: { name: string }[] | { name: string } | null;
+          }>).map((s) => ({
+            ...s,
+            customers: Array.isArray(s.customers) ? (s.customers[0] || null) : s.customers,
+            users: Array.isArray(s.users) ? (s.users[0] || null) : s.users,
+          })) as SaleRow[]);
+          setTotalCount(count ?? 0);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setLoadError(e instanceof Error ? e.message : "Error inesperado al cargar ventas");
+          setSales([]);
+          setTotalCount(0);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     })();
-    return () => { cancelled = true; };
-  }, [refreshKey, page, searchQuery, statusFilter, paymentFilter, activeBranchEpoch]);
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey, page, searchQueryDebounced, statusFilter, paymentFilter, activeBranchEpoch]);
 
   useEffect(() => {
     setPage(1);

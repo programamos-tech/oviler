@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
 import {
@@ -58,9 +59,25 @@ export default function CreditosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
   const [statusFilter, setStatusFilter] = useState<CreditStatusFilter>("all");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
   const fetchRequestId = useRef(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => {
+      setActiveBranchEpoch((n) => n + 1);
+    };
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -74,8 +91,8 @@ export default function CreditosPage() {
         if (!cancelled && reqId === fetchRequestId.current) setLoading(false);
         return;
       }
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).maybeSingle();
-      if (!ub?.branch_id || cancelled || reqId !== fetchRequestId.current) {
+      const currentBranch = await resolveActiveBranchId(supabase, user.id);
+      if (!currentBranch || cancelled || reqId !== fetchRequestId.current) {
         if (!cancelled && reqId === fetchRequestId.current) {
           setBranchId(null);
           setRows([]);
@@ -84,11 +101,11 @@ export default function CreditosPage() {
         return;
       }
       if (cancelled || reqId !== fetchRequestId.current) return;
-      setBranchId(ub.branch_id);
+      setBranchId(currentBranch);
       const { data, error: qErr } = await supabase
         .from("customer_credits")
         .select("id, customer_id, total_amount, amount_paid, due_date, status, cancelled_at, customers(id, name)")
-        .eq("branch_id", ub.branch_id)
+        .eq("branch_id", currentBranch)
         .order("created_at", { ascending: false });
       if (cancelled || reqId !== fetchRequestId.current) return;
       if (qErr) {
@@ -102,7 +119,7 @@ export default function CreditosPage() {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [refreshKey, activeBranchEpoch]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, CreditRow[]>();
@@ -142,13 +159,13 @@ export default function CreditosPage() {
       });
     }
     out.sort((a, b) => a.name.localeCompare(b.name, "es"));
-    const q = search.trim().toLowerCase();
+    const q = searchDebounced.trim().toLowerCase();
     let next = !q ? out : out.filter((g) => g.name.toLowerCase().includes(q) || g.customerId.toLowerCase().includes(q));
     if (statusFilter !== "all") {
       next = next.filter((g) => g.aggregateStatus === statusFilter);
     }
     return next;
-  }, [rows, search, statusFilter]);
+  }, [rows, searchDebounced, statusFilter]);
 
   const actionIconClass =
     "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-[color:var(--shell-sidebar)] dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-zinc-300";

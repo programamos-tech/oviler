@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { resolveActiveBranchId } from "@/lib/active-branch";
 import { workspaceFilterSearchPillClass } from "@/lib/workspace-field-classes";
 import { MdOutlineEdit, MdOutlineVisibility } from "react-icons/md";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
@@ -82,13 +83,17 @@ export default function CustomersPage() {
         if (!cancelled && reqId === fetchRequestId.current) setLoading(false);
         return;
       }
-      const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
-      if (!userRow?.organization_id || cancelled) {
+      const [userRes, branchId] = await Promise.all([
+        supabase.from("users").select("organization_id").eq("id", user.id).single(),
+        resolveActiveBranchId(supabase, user.id),
+      ]);
+      if (cancelled) return;
+      const userRow = userRes.data;
+      if (!userRow?.organization_id) {
         if (!cancelled && reqId === fetchRequestId.current) setLoading(false);
         return;
       }
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) {
+      if (!branchId) {
         if (!cancelled && reqId === fetchRequestId.current) {
           setCustomers([]);
           setTotalCount(0);
@@ -103,7 +108,7 @@ export default function CustomersPage() {
         .from("customers")
         .select("id, organization_id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)", { count: "exact" })
         .eq("organization_id", userRow.organization_id)
-        .eq("branch_id", ub.branch_id)
+        .eq("branch_id", branchId)
         .eq("active", true)
         .order("name", { ascending: true })
         .range(from, to);
@@ -121,7 +126,7 @@ export default function CustomersPage() {
           .from("customers")
           .select("id, organization_id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)", { count: "exact" })
           .eq("organization_id", userRow.organization_id)
-          .eq("branch_id", ub.branch_id)
+          .eq("branch_id", branchId)
           .order("name", { ascending: true })
           .range(from, to);
         const q2WithSearch = qTrim ? q2.or(`name.ilike.%${qTrim}%,cedula.ilike.%${qTrim}%,email.ilike.%${qTrim}%,phone.ilike.%${qTrim}%`) : q2;

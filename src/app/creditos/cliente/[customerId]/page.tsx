@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
@@ -46,6 +47,14 @@ export default function CreditosClientePage() {
   const [credits, setCredits] = useState<CreditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => setActiveBranchEpoch((n) => n + 1);
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
 
   useEffect(() => {
     if (!customerId) return;
@@ -59,37 +68,38 @@ export default function CreditosClientePage() {
         setLoading(false);
         return;
       }
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).maybeSingle();
-      if (!ub?.branch_id) {
+      const currentBranch = await resolveActiveBranchId(supabase, user.id);
+      if (!currentBranch) {
         setError("Sin sucursal asignada.");
         setLoading(false);
         return;
       }
-      const { data: cust, error: cErr } = await supabase.from("customers").select("id, name").eq("id", customerId).eq("branch_id", ub.branch_id).maybeSingle();
+      const [custRes, crRes] = await Promise.all([
+        supabase.from("customers").select("id, name").eq("id", customerId).eq("branch_id", currentBranch).maybeSingle(),
+        supabase
+          .from("customer_credits")
+          .select("id, public_ref, total_amount, amount_paid, due_date, status, cancelled_at, sale_id, sales(invoice_number)")
+          .eq("branch_id", currentBranch)
+          .eq("customer_id", customerId)
+          .order("created_at", { ascending: false }),
+      ]);
       if (cancelled) return;
-      if (cErr || !cust) {
+      if (custRes.error || !custRes.data) {
         setError("Cliente no encontrado en esta sucursal.");
         setCustomer(null);
         setCredits([]);
         setLoading(false);
         return;
       }
-      setCustomer(cust as CustomerRow);
-      const { data: cr, error: crErr } = await supabase
-        .from("customer_credits")
-        .select("id, public_ref, total_amount, amount_paid, due_date, status, cancelled_at, sale_id, sales(invoice_number)")
-        .eq("branch_id", ub.branch_id)
-        .eq("customer_id", customerId)
-        .order("created_at", { ascending: false });
-      if (cancelled) return;
-      if (crErr) setError(crErr.message);
-      setCredits((cr ?? []) as unknown as CreditRow[]);
+      setCustomer(custRes.data as CustomerRow);
+      if (crRes.error) setError(crRes.error.message);
+      setCredits((crRes.data ?? []) as unknown as CreditRow[]);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [customerId]);
+  }, [customerId, activeBranchEpoch]);
 
   const totalCred = credits.reduce((s, c) => s + Number(c.total_amount), 0);
   const totalPag = credits.reduce((s, c) => s + Number(c.amount_paid), 0);

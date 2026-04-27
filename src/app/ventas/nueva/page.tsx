@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchWithSalesMode } from "@/lib/active-branch";
 import { workspaceFormInputMdClass } from "@/lib/workspace-field-classes";
 import { logActivity } from "@/lib/activities";
 import { getCopy, getDocumentCopy, type SalesMode } from "../sales-mode";
@@ -109,37 +109,11 @@ export default function NewSalePage() {
     setCustomerHighlightIndex(0);
   }, [customerResults]);
 
-  // Cargar domiciliarios cuando se carga la sucursal
+  // Domiciliarios + cierre de caja del día (en paralelo al tener sucursal)
   useEffect(() => {
     if (!branchId) {
       setDeliveryPersons([]);
       setSelectedDeliveryPersonId(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("delivery_persons")
-        .select("id, name, code")
-        .eq("branch_id", branchId)
-        .eq("active", true)
-        .order("code", { ascending: true });
-      if (cancelled) return;
-      const list = (data ?? []) as Array<{ id: string; name: string; code: string }>;
-      setDeliveryPersons(list);
-      // Si hay 1 o 2 domiciliarios, seleccionar automáticamente el primero (d1)
-      // Si hay más de 2, mostrar el selector para que el usuario elija
-      if (list.length > 0 && list.length <= 2 && !selectedDeliveryPersonId) {
-        setSelectedDeliveryPersonId(list[0].id);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [branchId]);
-
-  // Verificar si ya hubo cierre de caja hoy en esta sucursal.
-  useEffect(() => {
-    if (!branchId) {
       setCashClosedToday(false);
       return;
     }
@@ -151,15 +125,28 @@ export default function NewSalePage() {
       const m = String(now.getMonth() + 1).padStart(2, "0");
       const d = String(now.getDate()).padStart(2, "0");
       const today = `${y}-${m}-${d}`;
-      const { data } = await supabase
-        .from("cash_closings")
-        .select("id")
-        .eq("branch_id", branchId)
-        .eq("closing_date", today)
-        .limit(1)
-        .maybeSingle();
+      const [{ data: delData }, { data: cashData }] = await Promise.all([
+        supabase
+          .from("delivery_persons")
+          .select("id, name, code")
+          .eq("branch_id", branchId)
+          .eq("active", true)
+          .order("code", { ascending: true }),
+        supabase
+          .from("cash_closings")
+          .select("id")
+          .eq("branch_id", branchId)
+          .eq("closing_date", today)
+          .limit(1)
+          .maybeSingle(),
+      ]);
       if (cancelled) return;
-      setCashClosedToday(!!data);
+      setCashClosedToday(!!cashData);
+      const list = (delData ?? []) as Array<{ id: string; name: string; code: string }>;
+      setDeliveryPersons(list);
+      if (list.length > 0 && list.length <= 2) {
+        setSelectedDeliveryPersonId((prev) => prev ?? list[0].id);
+      }
     })();
     return () => {
       cancelled = true;
@@ -256,22 +243,30 @@ export default function NewSalePage() {
     if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [productHighlightIndex, filteredProductResults.length]);
 
-  // Auth + sucursal activa (misma que sidebar / inventario)
+  // Auth + sucursal activa: perfil y sucursal (nombre + modo) en menos idas a red
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
     const applyBranch = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user || cancelled) return;
       setUserId(user.id);
-      const bid = await resolveActiveBranchId(supabase, user.id);
-      if (!bid || cancelled) return;
-      setBranchId(bid);
-      const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
-      if (userRow?.organization_id) setOrgId(userRow.organization_id);
-      const { data: branch } = await supabase.from("branches").select("name, sales_mode").eq("id", bid).single();
-      if (branch?.name) setBranchName(branch.name);
-      if (branch && "sales_mode" in branch) setSalesMode((branch as { sales_mode?: string }).sales_mode === "orders" ? "orders" : "sales");
+      const [ctx, userRes] = await Promise.all([
+        resolveActiveBranchWithSalesMode(supabase, user.id),
+        supabase.from("users").select("organization_id").eq("id", user.id).single(),
+      ]);
+      if (cancelled) return;
+      if (userRes.data?.organization_id) setOrgId(userRes.data.organization_id);
+      if (!ctx.branchId) {
+        setBranchId(null);
+        setBranchName("");
+        return;
+      }
+      setBranchId(ctx.branchId);
+      if (ctx.branchName) setBranchName(ctx.branchName);
+      setSalesMode(ctx.salesMode);
     };
     void applyBranch();
     const onBranchChange = () => {
@@ -314,7 +309,7 @@ export default function NewSalePage() {
     if (!q) return;
     const t = setTimeout(async () => {
       const supabase = createClient();
-      let req = supabase
+      const req = supabase
         .from("customers")
         .select("id, name, cedula, email, phone")
         .eq("organization_id", orgId)
@@ -608,7 +603,10 @@ export default function NewSalePage() {
     const supabase = createClient();
 
     try {
-      const { count } = await supabase.from("sales").select("*", { count: "exact", head: true }).eq("branch_id", branchId);
+      const { count } = await supabase
+        .from("sales")
+        .select("id", { count: "exact", head: true })
+        .eq("branch_id", branchId);
       const nextNum = (count ?? 0) + 1;
       const invoiceNumber = nextNum >= 1000 ? String(nextNum) : String(nextNum).padStart(3, "0");
 
@@ -670,30 +668,53 @@ export default function NewSalePage() {
         if (completeError) throw completeError;
       }
 
-      if (orgId && userId && branchId) {
-        try {
-          await logActivity(supabase, {
-            organizationId: orgId,
-            branchId,
-            userId,
-            action: "sale_created",
-            entityType: "sale",
-            entityId: sale.id,
-            summary: `Creó la venta ${invoiceNumber}${selectedCustomer?.name ? ` — ${selectedCustomer.name}` : ""}`,
-            metadata: {
-              invoice_number: invoiceNumber,
-              sale_id: sale.id,
-              total: totalClamped,
-              customer_name: selectedCustomer?.name ?? null,
-              items: cartClamped.map((i) => ({ name: i.name, quantity: i.quantity, reference: i.reference || null })),
-            },
-          });
-        } catch {
-          // No bloquear el flujo
+      // Navegar de inmediato; el log y JSON pesado no deben retrasar la UI (facturas enormes).
+      const activityMetadata = (() => {
+        const lineCount = cartClamped.length;
+        const cap = 40;
+        if (lineCount <= cap) {
+          return {
+            invoice_number: invoiceNumber,
+            sale_id: sale.id,
+            total: totalClamped,
+            customer_name: selectedCustomer?.name ?? null,
+            line_count: lineCount,
+            items: cartClamped.map((i) => ({
+              name: i.name,
+              quantity: i.quantity,
+              reference: i.reference || null,
+            })),
+          } as Record<string, unknown>;
         }
-      }
+        return {
+          invoice_number: invoiceNumber,
+          sale_id: sale.id,
+          total: totalClamped,
+          customer_name: selectedCustomer?.name ?? null,
+          line_count: lineCount,
+          items_preview: cartClamped.slice(0, 15).map((i) => ({
+            name: i.name,
+            quantity: i.quantity,
+            reference: i.reference || null,
+          })),
+          items_omitted: lineCount - 15,
+        } as Record<string, unknown>;
+      })();
 
       router.push(`/ventas/${sale.id}`);
+
+      if (orgId && userId && branchId) {
+        void logActivity(supabase, {
+          organizationId: orgId,
+          branchId,
+          userId,
+          action: "sale_created",
+          entityType: "sale",
+          entityId: sale.id,
+          summary: `Creó la venta ${invoiceNumber}${selectedCustomer?.name ? ` — ${selectedCustomer.name}` : ""}`,
+          metadata: activityMetadata,
+        }).catch(() => {});
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : getDocumentCopy(isDelivery).createError);
     } finally {
@@ -729,6 +750,9 @@ export default function NewSalePage() {
             <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">{doc.newButton}</h1>
             <p className="mt-1 text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
               Selecciona el cliente, agrega productos al carrito y elige el método de pago.
+              {branchName ? (
+                <span className="mt-1 block text-[12px] text-slate-400 dark:text-slate-500">Sucursal: {branchName}</span>
+              ) : null}
             </p>
           </div>
           <Link

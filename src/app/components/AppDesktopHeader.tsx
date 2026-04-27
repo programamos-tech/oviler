@@ -8,7 +8,7 @@ import Notifications from "./Notifications";
 import { workspaceAvatarSeed } from "./app-nav-data";
 import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { type OrgTrialFields, isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
-import { bernabePlanUpgradeWhatsAppUrl, programamosWhatsAppUrl } from "@/lib/programamos-contact";
+import { bernabePlanUpgradeWhatsAppUrl, workspaceHelpWhatsAppUrl } from "@/lib/programamos-contact";
 import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
@@ -143,7 +143,7 @@ export default function AppDesktopHeader() {
           </Link>
 
           <a
-            href={programamosWhatsAppUrl("Hola programamos, te escribo desde Oviler…")}
+            href={workspaceHelpWhatsAppUrl()}
             target="_blank"
             rel="noreferrer"
             className={iconBtn}

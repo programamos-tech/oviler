@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { resolveActiveBranchId } from "@/lib/active-branch";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import DatePickerCard from "@/app/components/DatePickerCard";
 import { workspaceFormInputMdClass } from "@/lib/workspace-field-classes";
@@ -194,17 +195,13 @@ function NuevoCreditoForm() {
       } = await supabase.auth.getUser();
       if (!user || cancelled) return;
       setUserId(user.id);
-      const { data: ub } = await supabase
-        .from("user_branches")
-        .select("branch_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
+      const [activeBranch, meRes] = await Promise.all([
+        resolveActiveBranchId(supabase, user.id),
+        supabase.from("users").select("organization_id").eq("id", user.id).single(),
+      ]);
       if (cancelled) return;
-      setBranchId(ub?.branch_id ?? null);
-      const { data: me } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
-      if (cancelled) return;
-      setOrgId(me?.organization_id ?? null);
+      setBranchId(activeBranch);
+      setOrgId(meRes.data?.organization_id ?? null);
     })();
     return () => {
       cancelled = true;
@@ -280,7 +277,7 @@ function NuevoCreditoForm() {
     if (!q) return;
     const t = setTimeout(async () => {
       const supabase = createClient();
-      let req = supabase
+      const req = supabase
         .from("customers")
         .select("id, name, cedula, email, phone")
         .eq("organization_id", orgId)
@@ -584,8 +581,7 @@ function NuevoCreditoForm() {
     const supabase = createClient();
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      if (!userId) {
         setError("Sesión expirada.");
         return;
       }
@@ -636,41 +632,43 @@ function NuevoCreditoForm() {
           total_amount: totalClamped,
           due_date: dueDate,
           notes: notes.trim() || null,
-          created_by: user.id,
+          created_by: userId,
         })
         .select("id, public_ref")
         .single();
       if (creditErr) throw creditErr;
       if (!creditRow?.id) throw new Error("No se pudo crear el crédito.");
 
-      try {
-        await logActivity(supabase, {
-          organizationId: orgId,
-          branchId,
-          userId,
-          action: "sale_created",
-          entityType: "sale",
-          entityId: sale.id,
-          summary: `Factura a crédito ${invoiceNumber}${selectedCustomer.name ? ` — ${selectedCustomer.name}` : ""}`,
-          metadata: {
-            invoice_number: invoiceNumber,
-            sale_id: sale.id,
-            credit_id: creditRow.id,
-            credit_public_ref:
-              creditRow && typeof creditRow === "object" && "public_ref" in creditRow
-                ? String((creditRow as { public_ref: string }).public_ref ?? "")
-                : null,
-            total: totalClamped,
-            customer_name: selectedCustomer.name ?? null,
-            credit: true,
-            items: cartClamped.map((i) => ({ name: i.name, quantity: i.quantity, reference: i.reference || null })),
-          },
-        });
-      } catch {
-        // no bloquear
-      }
+      const creditPublicRef =
+        creditRow && typeof creditRow === "object" && "public_ref" in creditRow
+          ? String((creditRow as { public_ref: string }).public_ref ?? "")
+          : null;
 
       router.push(`/creditos/${creditRow.id}`);
+
+      void logActivity(supabase, {
+        organizationId: orgId,
+        branchId,
+        userId,
+        action: "sale_created",
+        entityType: "sale",
+        entityId: sale.id,
+        summary: `Factura a crédito ${invoiceNumber}${selectedCustomer.name ? ` — ${selectedCustomer.name}` : ""}`,
+        metadata: {
+          invoice_number: invoiceNumber,
+          sale_id: sale.id,
+          credit_id: creditRow.id,
+          credit_public_ref: creditPublicRef,
+          total: totalClamped,
+          customer_name: selectedCustomer.name ?? null,
+          credit: true,
+          items: cartClamped.map((i) => ({
+            name: i.name,
+            quantity: i.quantity,
+            reference: i.reference || null,
+          })),
+        },
+      }).catch(() => {});
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el crédito.");
     } finally {

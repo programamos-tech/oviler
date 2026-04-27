@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import dynamic from "next/dynamic";
+import { useState, useEffect, useMemo, useTransition, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { resolveActiveBranchId } from "@/lib/active-branch";
@@ -8,7 +9,19 @@ import DatePickerCard from "@/app/components/DatePickerCard";
 import { creditRowPending } from "@/app/creditos/credit-ui";
 import { cashTransferFromLine, addCreditPaymentSplits as addCreditPaymentsToCashTransfer } from "@/lib/cash-transfer-from-line";
 import { InfoTip } from "@/app/components/InfoTip";
-import { IncomeTrendChart } from "@/app/components/IncomeTrendChart";
+
+const IncomeTrendChart = dynamic(
+  () => import("@/app/components/IncomeTrendChart").then((m) => m.IncomeTrendChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="h-[min(16rem,42vh)] w-full min-h-[12rem] animate-pulse rounded-2xl bg-slate-100/90 dark:bg-slate-800/50"
+        aria-hidden
+      />
+    ),
+  }
+);
 import {
   ArrowDown,
   ArrowUp,
@@ -397,6 +410,7 @@ function warrantySaleLineTotal(
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const queryBranchId = searchParams.get("branchId");
+  const [, startDataTransition] = useTransition();
   type DateFilterMode = "today" | "range";
 
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>("today");
@@ -499,6 +513,8 @@ export default function DashboardPage() {
         { data: customerCreditsBranch },
         { data: inventoryData },
         { data: defectiveData },
+        { data: expensesPeriod },
+        { data: warrantiesInPeriod },
       ] = await Promise.all([
         supabase
           .from("sales")
@@ -561,6 +577,18 @@ export default function DashboardPage() {
           .select("product_id, quantity, products(base_cost)")
           .eq("branch_id", branchId)
           .in("disposition", ["pending", "returned_to_supplier", "destroyed"]),
+        supabase
+          .from("expenses")
+          .select("amount, payment_method, concept, notes, created_at")
+          .eq("branch_id", branchId)
+          .eq("status", "active")
+          .gte("created_at", start)
+          .lte("created_at", end),
+        supabase
+          .from("warranties")
+          .select("id, branch_id, sales(branch_id)")
+          .gte("created_at", start)
+          .lte("created_at", end),
       ]);
 
       if (cancelled) return;
@@ -682,19 +710,18 @@ export default function DashboardPage() {
       const incomeCash = cash;
       const incomeTransfer = transfer;
 
-      // Egresos del día (tabla expenses): restar de efectivo/transferencia
+      // Egresos del período (tabla expenses): restar de efectivo/transferencia
       let totalExpensesCash = 0;
       let totalExpensesTransfer = 0;
-      const { data: expensesDay } = await supabase
-        .from("expenses")
-        .select("amount, payment_method, concept, notes")
-        .eq("branch_id", branchId)
-        .eq("status", "active")
-        .gte("created_at", start)
-        .lte("created_at", end);
-      if (cancelled) return;
+      const expenseRowsPeriod = (expensesPeriod ?? []) as Array<{
+        amount: number;
+        payment_method: string;
+        concept?: string | null;
+        notes?: string | null;
+        created_at: string;
+      }>;
       let warrantiesRefundAmount = 0;
-      (expensesDay ?? []).forEach((e: { amount: number; payment_method: string; concept?: string | null; notes?: string | null }) => {
+      expenseRowsPeriod.forEach((e) => {
         const amount = Number(e.amount) || 0;
         const concept = String(e.concept ?? "");
         const notes = String(e.notes ?? "");
@@ -711,22 +738,13 @@ export default function DashboardPage() {
         }
       });
 
-      // Último egreso del día (para mostrar en card)
-      let lastExpense: { amount: number; concept: string } | null = null;
-      const { data: lastExpenseRow } = await supabase
-        .from("expenses")
-        .select("amount, concept")
-        .eq("branch_id", branchId)
-        .eq("status", "active")
-        .gte("created_at", start)
-        .lte("created_at", end)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (cancelled) return;
-      if (lastExpenseRow && lastExpenseRow.amount != null) {
-        lastExpense = { amount: Number(lastExpenseRow.amount), concept: String(lastExpenseRow.concept ?? "") };
-      }
+      const lastExpRow = expenseRowsPeriod
+        .slice()
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+      const lastExpense: { amount: number; concept: string } | null =
+        lastExpRow && lastExpRow.amount != null
+          ? { amount: Number(lastExpRow.amount), concept: String(lastExpRow.concept ?? "") }
+          : null;
 
       // Último movimiento efectivo / transfer: ventas cobradas o abonos a crédito
       const completedByDate = [...completed].sort(
@@ -1035,14 +1053,8 @@ export default function DashboardPage() {
       const grossProfit = Math.round(marginPaidSales + marginFromAbonos);
       const netProfit = Math.round(totalIncome);
 
-      // Garantías gestionadas en el período
+      // Garantías gestionadas en el período (cargadas en el Promise.all inicial)
       let warrantiesCount = 0;
-      const { data: warrantiesInPeriod } = await supabase
-        .from("warranties")
-        .select("id, branch_id, sales(branch_id)")
-        .gte("created_at", start)
-        .lte("created_at", end);
-      if (cancelled) return;
       warrantiesCount = (warrantiesInPeriod ?? []).filter(
         (w: { branch_id?: string | null; sales?: { branch_id?: string | null }[] | { branch_id?: string | null } | null }) => {
           const saleRow = Array.isArray(w.sales) ? (w.sales[0] || null) : w.sales;
@@ -1136,41 +1148,44 @@ export default function DashboardPage() {
   const periodLabel =
     effectiveDateMode === "today" ? formatDate(selectedDay) : formatRange(dateFrom, dateTo);
 
-  const data = dashboardData ?? {
-    totalIncome: 0,
-    totalDeliveryFees: 0,
-    unpaidDeliveryFees: 0,
-    incomeCash: 0,
-    incomeTransfer: 0,
-    cash: 0,
-    transfer: 0,
-    totalExpensesCash: 0,
-    totalExpensesTransfer: 0,
-    totalSales: 0,
-    physicalSales: 0,
-    deliverySales: 0,
-    cashSales: 0,
-    transferSales: 0,
-    cancelledInvoices: 0,
-    cancelledTotal: 0,
-    cancelledList: [],
-    topProducts: [],
-    last15Days: emptyIncomeTrendDays(),
-    prevPeriodNetCash: 0,
-    prevPeriodNetTransfer: 0,
-    prevPeriodNetTotal: 0,
-    totalStockInvestment: 0,
-    defectiveStockInvestment: 0,
-    expectedProfit: 0,
-    grossProfit: 0,
-    netProfit: 0,
-    warrantiesCount: 0,
-    warrantiesRefundAmount: 0,
-    lastExpense: null,
-    lastCashSale: null,
-    lastTransferSale: null,
-    outstandingCredits: 0,
-  };
+  const data = useMemo((): DashboardData => {
+    if (dashboardData) return dashboardData;
+    return {
+      totalIncome: 0,
+      totalDeliveryFees: 0,
+      unpaidDeliveryFees: 0,
+      incomeCash: 0,
+      incomeTransfer: 0,
+      cash: 0,
+      transfer: 0,
+      totalExpensesCash: 0,
+      totalExpensesTransfer: 0,
+      totalSales: 0,
+      physicalSales: 0,
+      deliverySales: 0,
+      cashSales: 0,
+      transferSales: 0,
+      cancelledInvoices: 0,
+      cancelledTotal: 0,
+      cancelledList: [],
+      topProducts: [],
+      last15Days: emptyIncomeTrendDays(),
+      prevPeriodNetCash: 0,
+      prevPeriodNetTransfer: 0,
+      prevPeriodNetTotal: 0,
+      totalStockInvestment: 0,
+      defectiveStockInvestment: 0,
+      expectedProfit: 0,
+      grossProfit: 0,
+      netProfit: 0,
+      warrantiesCount: 0,
+      warrantiesRefundAmount: 0,
+      lastExpense: null,
+      lastCashSale: null,
+      lastTransferSale: null,
+      outstandingCredits: 0,
+    };
+  }, [dashboardData]);
   const totalExpensesDay = data.totalExpensesCash + data.totalExpensesTransfer;
   const formatSensitiveValue = (value: number | string, type: "currency" | "number" = "currency") => {
     if (hideSensitiveInfo) {
@@ -1209,7 +1224,7 @@ export default function DashboardPage() {
                 <div className="inline-grid shrink-0 grid-cols-2 rounded-lg bg-slate-100/90 p-0.5 dark:bg-slate-800/60">
                   <button
                     type="button"
-                    onClick={() => setDateFilterMode("today")}
+                    onClick={() => startDataTransition(() => setDateFilterMode("today"))}
                     className={`rounded-md px-2.5 py-1.5 text-center text-[11px] font-semibold transition-all sm:px-3 sm:py-2 sm:text-[12px] ${
                       dateFilterMode === "today"
                         ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
@@ -1220,7 +1235,7 @@ export default function DashboardPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setDateFilterMode("range")}
+                    onClick={() => startDataTransition(() => setDateFilterMode("range"))}
                     className={`rounded-md px-2.5 py-1.5 text-center text-[11px] font-semibold transition-all sm:px-3 sm:py-2 sm:text-[12px] ${
                       dateFilterMode === "range"
                         ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
@@ -1243,7 +1258,7 @@ export default function DashboardPage() {
                   <DatePickerCard
                     id="dashboard-date-today-header"
                     value={selectedDay}
-                    onChange={(d) => d && setSelectedDay(d)}
+                    onChange={(d) => d && startDataTransition(() => setSelectedDay(d))}
                     max={today}
                     allowClear={false}
                     size="sm"
@@ -1256,7 +1271,7 @@ export default function DashboardPage() {
                   <DatePickerCard
                     id="dashboard-date-from-header"
                     value={dateFrom}
-                    onChange={(d) => d && setDateFrom(d)}
+                    onChange={(d) => d && startDataTransition(() => setDateFrom(d))}
                     max={dateTo}
                     allowClear={false}
                     size="sm"
@@ -1269,7 +1284,7 @@ export default function DashboardPage() {
                   <DatePickerCard
                     id="dashboard-date-to-header"
                     value={dateTo}
-                    onChange={(d) => d && setDateTo(d)}
+                    onChange={(d) => d && startDataTransition(() => setDateTo(d))}
                     min={dateFrom}
                     max={today}
                     allowClear={false}

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { resolveActiveBranchWithSalesMode } from "@/lib/active-branch";
 import { MdSwapHoriz, MdAttachMoney, MdBuild } from "react-icons/md";
 
 const IVA_RATE = 0.19;
@@ -115,24 +116,20 @@ function NewWarrantyContent() {
   const [stockProduct, setStockProduct] = useState<number | null>(null);
   const [stockReplacement, setStockReplacement] = useState<number | null>(null);
 
-  // Cargar branch_id y configuración de garantías (por venta vs por producto)
+  // Sucursal activa y configuración de garantías (por venta vs por producto) — un solo viaje a Supabase
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelled) return;
-      const { data: ub } = await supabase
-        .from("user_branches")
-        .select("branch_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .single();
-      if (!cancelled && ub?.branch_id) {
-        setBranchId(ub.branch_id);
-        const { data: branch } = await supabase.from("branches").select("warranty_by_sale").eq("id", ub.branch_id).single();
-        if (branch) setWarrantyBySale(branch.warranty_by_sale !== false);
-      }
+      const { branchId, warrantyBySale: fromBranch } = await resolveActiveBranchWithSalesMode(
+        supabase,
+        user.id
+      );
+      if (cancelled) return;
+      if (branchId) setBranchId(branchId);
+      setWarrantyBySale(fromBranch);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -209,19 +206,19 @@ function NewWarrantyContent() {
       }
       (async () => {
         const supabase = createClient();
-        const next: Record<string, number> = {};
-        await Promise.all(
-          ids.map(async (productId) => {
-            const { data } = await supabase
-              .from("inventory")
-              .select("quantity")
-              .eq("branch_id", branchId)
-              .eq("product_id", productId);
-            if (cancelled) return;
-            const total = (data ?? []).reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
-            next[productId] = total;
-          })
-        );
+        const { data } = await supabase
+          .from("inventory")
+          .select("product_id, quantity")
+          .eq("branch_id", branchId)
+          .in("product_id", ids);
+        if (cancelled) return;
+        const next: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
+        for (const row of data ?? []) {
+          const productId = String((row as { product_id: string }).product_id);
+          if (productId in next) {
+            next[productId] += Number((row as { quantity: number | null }).quantity ?? 0);
+          }
+        }
         if (!cancelled) setStockByWarrantyProductId(next);
       })();
       return () => {

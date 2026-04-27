@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { resolveActiveBranchId } from "@/lib/active-branch";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { formatCedulaForStorage, normalizeCedulaForUniqueness } from "@/lib/customer-cedula";
@@ -80,114 +81,117 @@ export default function NewCustomerPage() {
 
     setSaving(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError("Debes iniciar sesión.");
-      setSaving(false);
-      return;
-    }
-    const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
-    if (!userRow?.organization_id) {
-      setError("No se encontró tu organización.");
-      setSaving(false);
-      return;
-    }
-    const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-    if (!ub?.branch_id) {
-      setError("No encontramos una sucursal activa para tu usuario.");
-      setSaving(false);
-      return;
-    }
-
-    const cedulaStored = formatCedulaForStorage(cedula);
-    const cedulaNorm = normalizeCedulaForUniqueness(cedula);
-    if (cedulaNorm) {
-      const { data: existingCedula } = await supabase
-        .from("customers")
-        .select("id")
-        .eq("branch_id", ub.branch_id)
-        .eq("cedula_norm", cedulaNorm)
-        .maybeSingle();
-      if (existingCedula) {
-        setError("Ya existe un cliente con esta cédula en esta sucursal.");
-        setSaving(false);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError("Debes iniciar sesión.");
         return;
       }
-    }
-
-    const { data: customer, error: insertError } = await supabase
-      .from("customers")
-      .insert({
-        organization_id: userRow.organization_id,
-        branch_id: ub.branch_id,
-        name: nameTrim,
-        cedula: cedulaStored,
-        email: email.trim() || null,
-        phone: phone.trim() || null,
-      })
-      .select("id")
-      .single();
-
-    if (insertError) {
-      if (insertError.code === "23505") {
-        setError("Ya existe un cliente con esta cédula en esta sucursal.");
-      } else {
-        setError(insertError.message || "No se pudo crear el cliente.");
+      const [userRes, branchId] = await Promise.all([
+        supabase.from("users").select("organization_id").eq("id", user.id).single(),
+        resolveActiveBranchId(supabase, user.id),
+      ]);
+      const userRow = userRes.data;
+      if (!userRow?.organization_id) {
+        setError("No se encontró tu organización.");
+        return;
       }
-      setSaving(false);
-      return;
-    }
+      if (!branchId) {
+        setError("No encontramos una sucursal activa para tu usuario.");
+        return;
+      }
 
-    if (validAddresses.length > 0 && customer?.id) {
-      for (let i = 0; i < validAddresses.length; i++) {
-        const a = validAddresses[i];
-        const label = a.label === "Otro" ? (a.labelCustom.trim() || "Otro") : a.label;
-        const { error: addrError } = await supabase.from("customer_addresses").insert({
+      const cedulaStored = formatCedulaForStorage(cedula);
+      const cedulaNorm = normalizeCedulaForUniqueness(cedula);
+      if (cedulaNorm) {
+        const { data: existingCedula } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("branch_id", branchId)
+          .eq("cedula_norm", cedulaNorm)
+          .maybeSingle();
+        if (existingCedula) {
+          setError("Ya existe un cliente con esta cédula en esta sucursal.");
+          return;
+        }
+      }
+
+      const { data: customer, error: insertError } = await supabase
+        .from("customers")
+        .insert({
+          organization_id: userRow.organization_id,
+          branch_id: branchId,
+          name: nameTrim,
+          cedula: cedulaStored,
+          email: email.trim() || null,
+          phone: phone.trim() || null,
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        if (insertError.code === "23505") {
+          setError("Ya existe un cliente con esta cédula en esta sucursal.");
+        } else {
+          setError(insertError.message || "No se pudo crear el cliente.");
+        }
+        return;
+      }
+
+      if (validAddresses.length > 0 && customer?.id) {
+        const addressRows = validAddresses.map((a, i) => ({
           customer_id: customer.id,
-          label,
+          label: a.label === "Otro" ? (a.labelCustom.trim() || "Otro") : a.label,
           address: a.address.trim(),
           reference_point: a.referencePoint.trim() || null,
           is_default: i === 0,
           display_order: i,
-        });
+        }));
+        const { error: addrError } = await supabase.from("customer_addresses").insert(addressRows);
         if (addrError) {
-          setError(addrError.message || "Error al guardar una dirección.");
-          setSaving(false);
+          setError(addrError.message || "Error al guardar las direcciones.");
           return;
         }
       }
-    }
 
-    const addressLabels = validAddresses.map((a) => (a.label === "Otro" ? (a.labelCustom.trim() || "Otro") : a.label));
-    const addressesSummary =
-      addressLabels.length === 0
-        ? null
-        : addressLabels.length === 1
-          ? `1 dirección: ${addressLabels[0]}`
-          : `${addressLabels.length} direcciones: ${addressLabels.join(", ")}`;
+      const addressLabels = validAddresses.map((a) => (a.label === "Otro" ? (a.labelCustom.trim() || "Otro") : a.label));
+      const addressesSummary =
+        addressLabels.length === 0
+          ? null
+          : addressLabels.length === 1
+            ? `1 dirección: ${addressLabels[0]}`
+            : `${addressLabels.length} direcciones: ${addressLabels.slice(0, 8).join(", ")}${
+                addressLabels.length > 8 ? "…" : ""
+              }`;
 
-    try {
-      await logActivity(supabase, {
+      router.push("/clientes");
+
+      const meta: Record<string, unknown> = {
+        name: nameTrim,
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        cedula: cedula.trim() || null,
+        address_count: validAddresses.length,
+        addressesSummary: addressesSummary ?? null,
+      };
+      if (addressLabels.length > 12) {
+        meta.address_labels_preview = addressLabels.slice(0, 10);
+        meta.address_labels_omitted = addressLabels.length - 10;
+      }
+
+      void logActivity(supabase, {
         organizationId: userRow.organization_id,
-        branchId: ub?.branch_id ?? null,
+        branchId,
         userId: user.id,
         action: "customer_created",
         entityType: "customer",
         entityId: customer?.id ?? null,
         summary: `Creó el cliente ${nameTrim}`,
-        metadata: {
-          name: nameTrim,
-          email: email.trim() || null,
-          phone: phone.trim() || null,
-          cedula: cedula.trim() || null,
-          addressesSummary: addressesSummary ?? null,
-        },
-      });
-    } catch {
-      // No bloquear el flujo si falla el registro de actividad
+        metadata: meta,
+      }).catch(() => {});
+    } finally {
+      setSaving(false);
     }
-
-    router.push("/clientes");
   }
 
   return (

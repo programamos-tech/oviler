@@ -2,21 +2,25 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchWithSalesMode } from "@/lib/active-branch";
 import {
   workspaceFilterLabelClass,
   workspaceFilterSearchPillClass,
   workspaceFilterSelectClass,
 } from "@/lib/workspace-field-classes";
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
-}
-
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
-}
+const WARRANTY_LIST_SELECT = `
+  *,
+  customers(name),
+  products:products!warranties_product_id_fkey(name),
+  sales(invoice_number, created_at, branch_id),
+  sale_items(unit_price, quantity),
+  requested_by_user:users!warranties_requested_by_fkey(name),
+  reviewed_by_user:users!warranties_reviewed_by_fkey(name),
+  replacement_product:products!warranties_replacement_product_id_fkey(name)
+`;
 
 function formatDateShort(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
@@ -86,83 +90,116 @@ export default function WarrantiesPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchQueryDebounced, setSearchQueryDebounced] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => setActiveBranchEpoch((n) => n + 1);
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQueryDebounced(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
+    /* Carga y refetch al cambiar sucursal/filtros; el estado de UI debe ponerse antes del async. */
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setLoadError(null);
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user || cancelled) {
-        setLoading(false);
-        return;
-      }
-      const { data: ub } = await supabase
-        .from("user_branches")
-        .select("branch_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .single();
-      if (!ub?.branch_id || cancelled) {
         setWarranties([]);
         setLoading(false);
         return;
       }
-      const currentBranchId = ub.branch_id;
 
-      let q = supabase
-        .from("warranties")
-        .select(`
-          *,
-          customers(name),
-          products:products!warranties_product_id_fkey(name),
-          sales(invoice_number, created_at, branch_id),
-          sale_items(unit_price, quantity),
-          requested_by_user:users!warranties_requested_by_fkey(name),
-          reviewed_by_user:users!warranties_reviewed_by_fkey(name),
-          replacement_product:products!warranties_replacement_product_id_fkey(name)
-        `)
-        .order("created_at", { ascending: false });
-
-      if (statusFilter !== "all") {
-        q = q.eq("status", statusFilter);
-      }
-
-      const { data: warrantiesData, error } = await q;
+      const { branchId: currentBranchId } = await resolveActiveBranchWithSalesMode(supabase, user.id);
       if (cancelled) return;
-      if (error) {
-        console.error("Error loading warranties:", error);
-        setLoadError(error.message || "Error al cargar garantías");
+      if (!currentBranchId) {
         setWarranties([]);
-      } else {
-        const scoped = ((warrantiesData ?? []) as WarrantyRow[]).filter((w) => {
-          const saleBranchId = w.sales?.branch_id ?? null;
-          return w.branch_id === currentBranchId || saleBranchId === currentBranchId;
-        });
-        setWarranties(scoped);
+        setLoadError(null);
+        setLoading(false);
+        return;
       }
+
+      const selectByBranch = WARRANTY_LIST_SELECT;
+      const selectBySaleBranch = WARRANTY_LIST_SELECT.replace(
+        "sales(invoice_number, created_at, branch_id)",
+        "sales!inner(invoice_number, created_at, branch_id)"
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const applyListFilters = (base: any) => {
+        let q = base;
+        if (statusFilter !== "all") q = q.eq("status", statusFilter);
+        if (typeFilter !== "all") q = q.eq("warranty_type", typeFilter);
+        return q.order("created_at", { ascending: false });
+      };
+
+      const q1 = applyListFilters(
+        supabase.from("warranties").select(selectByBranch).eq("branch_id", currentBranchId)
+      );
+      const q2 = applyListFilters(
+        supabase
+          .from("warranties")
+          .select(selectBySaleBranch)
+          .not("sale_id", "is", null)
+          .eq("sales.branch_id", currentBranchId)
+      );
+
+      const [{ data: byDirectBranch, error: err1 }, { data: bySaleBranch, error: err2 }] = await Promise.all([q1, q2]);
+      if (cancelled) return;
+      const error = err1 || err2;
+      if (error) {
+        console.error("Error loading warranties:", err1, err2);
+        setLoadError((error as { message?: string }).message || "Error al cargar garantías");
+        setWarranties([]);
+        setLoading(false);
+        return;
+      }
+
+      const byId = new Map<string, WarrantyRow>();
+      for (const w of (byDirectBranch ?? []) as WarrantyRow[]) {
+        if (!byId.has(w.id)) byId.set(w.id, w);
+      }
+      for (const w of (bySaleBranch ?? []) as WarrantyRow[]) {
+        if (!byId.has(w.id)) byId.set(w.id, w);
+      }
+      const merged = Array.from(byId.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setWarranties(merged);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [statusFilter]);
+  }, [statusFilter, typeFilter, activeBranchEpoch]);
 
-  const filteredWarranties = warranties.filter((w) => {
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      const matchId = w.id.toLowerCase().includes(q) || w.id.slice(0, 8).toUpperCase().includes(q.toUpperCase());
-      const matchCustomer = w.customers?.name?.toLowerCase().includes(q);
-      const matchProduct = w.products?.name?.toLowerCase().includes(q);
-      const matchInvoice = w.sales?.invoice_number?.toLowerCase().includes(q);
-      if (!matchId && !matchCustomer && !matchProduct && !matchInvoice) return false;
-    }
-    if (typeFilter !== "all" && w.warranty_type !== typeFilter) return false;
-    return true;
-  });
+  const filteredWarranties = useMemo(() => {
+    return warranties.filter((w) => {
+      const q = searchQueryDebounced.trim().toLowerCase();
+      if (q) {
+        const matchId = w.id.toLowerCase().includes(q) || w.id.slice(0, 8).toUpperCase().includes(q.toUpperCase());
+        const matchCustomer = w.customers?.name?.toLowerCase().includes(q);
+        const matchProduct = w.products?.name?.toLowerCase().includes(q);
+        const matchInvoice = w.sales?.invoice_number?.toLowerCase().includes(q);
+        if (!matchId && !matchCustomer && !matchProduct && !matchInvoice) return false;
+      }
+      return true;
+    });
+  }, [warranties, searchQueryDebounced]);
 
   const actionIconClass =
     "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-[color:var(--shell-sidebar)] dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-zinc-300";

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
@@ -105,16 +106,29 @@ export default function CustomerDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => setActiveBranchEpoch((n) => n + 1);
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
     const supabase = createClient();
     let cancelled = false;
     (async () => {
+      setLoading(true);
+      setNotFound(false);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
-      const { data: ub } = await supabase.from("user_branches").select("branch_id").eq("user_id", user.id).limit(1).single();
-      if (!ub?.branch_id || cancelled) {
+      if (!user || cancelled) {
+        setLoading(false);
+        return;
+      }
+      const currentBranch = await resolveActiveBranchId(supabase, user.id);
+      if (!currentBranch || cancelled) {
         setNotFound(true);
         setLoading(false);
         return;
@@ -123,7 +137,7 @@ export default function CustomerDetailPage() {
         .from("customers")
         .select("id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)")
         .eq("id", id)
-        .eq("branch_id", ub.branch_id)
+        .eq("branch_id", currentBranch)
         .single();
 
       if (cancelled) return;
@@ -146,7 +160,7 @@ export default function CustomerDetailPage() {
       const { data: creditsData } = await supabase
         .from("customer_credits")
         .select("id, public_ref, title, total_amount, amount_paid, due_date, status, cancelled_at, sale_id, sales(invoice_number)")
-        .eq("branch_id", ub.branch_id)
+        .eq("branch_id", currentBranch)
         .eq("customer_id", id)
         .order("created_at", { ascending: false });
       if (!cancelled) {
@@ -206,7 +220,7 @@ export default function CustomerDetailPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, activeBranchEpoch]);
 
   async function handleDelete() {
     if (!customer?.id) return;
