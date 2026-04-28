@@ -34,6 +34,7 @@ export function OvilerWordmark({
   className,
   variant = "onLight",
   companyName = "Bernabé",
+  companyClassName,
   productLine = "Comercios",
   /** Ruta del PNG del lockup; por defecto `/ceiling.png` */
   logoSrc,
@@ -43,6 +44,7 @@ export function OvilerWordmark({
   className?: string;
   variant?: "onLight" | "onDark";
   companyName?: string;
+  companyClassName?: string;
   productLine?: string;
   logoSrc?: string;
   markOnly?: boolean;
@@ -68,7 +70,7 @@ export function OvilerWordmark({
         <BrandLogoMark src={logo} variant={variant} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col items-start justify-center gap-[0.16em] leading-none">
-        <span className="w-full truncate font-logo tracking-tight">{companyName}</span>
+        <span className={`w-full truncate font-logo tracking-tight ${companyClassName ?? ""}`.trim()}>{companyName}</span>
         {productLine ? (
           <span
             className={`w-full truncate font-sans font-semibold uppercase tracking-[0.14em] leading-none text-[0.44em] ${productMuted}`.trim()}
