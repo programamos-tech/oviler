@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { Inter, Geist_Mono, Young_Serif } from "next/font/google";
+import { Geist_Mono, Plus_Jakarta_Sans, Young_Serif } from "next/font/google";
 import AppShell from "./components/AppShell";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const plusJakarta = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
   subsets: ["latin"],
   display: "swap",
+  weight: ["400", "500", "600", "700"],
 });
 
 const geistMono = Geist_Mono({
@@ -44,7 +45,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${geistMono.variable} ${youngSerif.variable} antialiased min-h-screen overflow-x-hidden bg-background text-foreground`}
+        className={`${plusJakarta.variable} ${geistMono.variable} ${youngSerif.variable} antialiased min-h-screen overflow-x-hidden bg-background text-foreground`}
       >
         <div className="flex min-h-screen min-w-0 max-w-full flex-col overflow-x-hidden bg-[rgb(var(--background))] text-slate-900 dark:bg-[rgb(var(--background))] dark:text-slate-100">
           <AppShell>{children}</AppShell>

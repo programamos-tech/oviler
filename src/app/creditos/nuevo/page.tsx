@@ -7,8 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 import { resolveActiveBranchId } from "@/lib/active-branch";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import DatePickerCard from "@/app/components/DatePickerCard";
-import { workspaceFormInputMdClass } from "@/lib/workspace-field-classes";
 import { logActivity } from "@/lib/activities";
+
+
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const bereaFieldClass =
+  "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
+
+const bereaSectionLabel = "text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
 
 const IVA_RATE = 0.19;
 
@@ -118,14 +125,12 @@ function NuevoCreditoForm() {
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
 
-  const cardClass =
-    "rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800";
-  const cardClassDue =
-    "rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-950 dark:ring-zinc-800/85";
-  const inputClass = workspaceFormInputMdClass;
+  const cardClass = `rounded-xl p-4 sm:p-5 ${REPORTS_SURFACE}`;
+  const cardClassDue = cardClass;
+  const inputClass = bereaFieldClass;
   const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
   const softListClass =
-    "mt-2 max-h-[28rem] overflow-y-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:hover:bg-slate-400 dark:[&::-webkit-scrollbar-track]:bg-slate-800 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 dark:[&::-webkit-scrollbar-thumb]:hover:bg-slate-500";
+    "mt-2 max-h-[28rem] overflow-y-auto rounded-xl border border-[var(--berea-card-border)] bg-[var(--shell-workspace-search-bg)] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--berea-card-border)]";
 
   const filteredProductResults = useMemo(() => {
     const notInCart = productResults.filter((p) => !cart.some((c) => c.product_id === p.id));
@@ -679,36 +684,34 @@ function NuevoCreditoForm() {
 
   if (!branchId || !orgId || !userId) {
     return (
-      <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
+      <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)]">
         <header className="space-y-2">
-          <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">Nuevo crédito</h1>
-          <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">Cargando sucursal…</p>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-[1.65rem]">Nuevo crédito</h1>
+          <p className="text-[14px] text-[var(--berea-ink-muted)]">Cargando sucursal…</p>
         </header>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <Breadcrumb items={[{ label: "Créditos", href: "/creditos" }, { label: "Nuevo crédito" }]} />
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">Nuevo crédito</h1>
-            <p className="mt-1 text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
-              Arma la factura con productos como en ventas: el cobro queda pendiente y el cliente paga después según el vencimiento.
-            </p>
-          </div>
-          <Link
-            href="/creditos"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            title="Volver a créditos"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </Link>
+    <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        <div className="min-w-0">
+          <Breadcrumb items={[{ label: "Créditos", href: "/creditos" }, { label: "Nuevo crédito" }]} />
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-[1.65rem]">Nuevo crédito</h1>
+          <p className="mt-1 text-[14px] text-[var(--berea-ink-muted)]">
+            Arma la factura con productos como en ventas: el cobro queda pendiente y el cliente paga después según el vencimiento.
+          </p>
         </div>
+        <Link
+          href="/creditos"
+          className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-ink)] ${REPORTS_SURFACE}`}
+          title="Volver a créditos"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </Link>
       </header>
 
       <form onSubmit={handleSubmit}>
@@ -720,7 +723,7 @@ function NuevoCreditoForm() {
           )}
           <div className="space-y-4">
             <div className={cardClass}>
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Productos</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Productos</p>
               <input
                 type="text"
                 value={productSearch}
@@ -786,7 +789,7 @@ function NuevoCreditoForm() {
             </div>
 
             <div className={cardClass}>
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">
                 Productos seleccionados
                 {cart.length > 0 && (
                   <span className="ml-2 rounded-full bg-slate-200/90 px-2 py-0.5 text-[12px] font-semibold text-[color:var(--shell-sidebar)] dark:bg-white/10 dark:text-zinc-300">
@@ -987,7 +990,7 @@ function NuevoCreditoForm() {
 
           <div className="space-y-4">
             <div className={cardClass}>
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">
                 Cliente <span className={requiredMarkClass}>*</span>
               </p>
               <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
@@ -1077,13 +1080,13 @@ function NuevoCreditoForm() {
                     d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h.01"
                   />
                 </svg>
-                <span className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Envío</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Envío</span>
               </label>
               <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">El envío no aplica al registrar un crédito en tienda.</p>
             </div>
 
             <div className={cardClassDue}>
-              <p className="text-[13px] font-bold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">
                 Fecha de vencimiento <span className={requiredMarkClass}>*</span>
               </p>
               <div
@@ -1125,7 +1128,7 @@ function NuevoCreditoForm() {
             </div>
 
             <div className={`${cardClassDue} w-full min-w-0 py-3`}>
-              <p className="text-[12px] font-bold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">
                 Notas del crédito (opcional)
               </p>
               <textarea
@@ -1138,7 +1141,7 @@ function NuevoCreditoForm() {
             </div>
 
             <div className={cardClass}>
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Resumen</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Resumen</p>
               {error && (
                 <div
                   className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] font-medium text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200"
@@ -1209,7 +1212,7 @@ function NuevoCreditoForm() {
 
 export default function NuevoCreditoPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-slate-500 dark:text-slate-400">Cargando…</div>}>
+    <Suspense fallback={<div className="berea-reports p-8 text-center text-[var(--berea-ink-muted)]">Cargando…</div>}>
       <NuevoCreditoForm />
     </Suspense>
   );

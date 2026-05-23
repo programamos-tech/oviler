@@ -60,7 +60,7 @@ type DatePickerCardProps = {
   fullWidth?: boolean;
   size?: "sm" | "md";
   /** Borde/fondo del botón: zinc evita tinte azulado en modo oscuro */
-  triggerTone?: "slate" | "zinc";
+  triggerTone?: "slate" | "zinc" | "berea";
   "aria-label"?: string;
 };
 
@@ -139,12 +139,18 @@ export default function DatePickerCard({
   const grid = getCalendarGrid(viewMonth);
 
   const triggerSurface =
-    triggerTone === "zinc"
-      ? "border-zinc-200/80 bg-white text-zinc-900 shadow-[0_1px_2px_rgba(0,0,0,0.05)] dark:border-zinc-600/90 dark:bg-zinc-950 dark:text-zinc-100"
-      : "border-slate-200/70 bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
+    triggerTone === "berea"
+      ? "border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[var(--berea-ink)] shadow-[var(--shell-workspace-search-inset)] dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:shadow-none"
+      : triggerTone === "zinc"
+        ? "border-zinc-200/80 bg-white text-zinc-900 shadow-[0_1px_2px_rgba(0,0,0,0.05)] dark:border-zinc-600/90 dark:bg-zinc-950 dark:text-zinc-100"
+        : "border-slate-200/70 bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
 
   const placeholderClass =
-    triggerTone === "zinc" ? "text-zinc-400 dark:text-zinc-500" : "text-slate-400 dark:text-slate-500";
+    triggerTone === "berea"
+      ? "text-[var(--berea-ink-subtle)] dark:text-[var(--shell-nav-fg-subtle)]"
+      : triggerTone === "zinc"
+        ? "text-zinc-400 dark:text-zinc-500"
+        : "text-slate-400 dark:text-slate-500";
 
   return (
     <div ref={wrapperRef} className={`relative ${fullWidth ? "block w-full" : "inline-block"}`}>

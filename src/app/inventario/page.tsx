@@ -6,13 +6,16 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
 import { PlanLimitHeaderNote, PLAN_LIMIT_DISABLED_BUTTON_CLASS } from "@/app/components/PlanLimitNotice";
-import {
-  workspaceFilterLabelClass,
-  workspaceFilterSearchPillClass,
-  workspaceFilterSelectClass,
-} from "@/lib/workspace-field-classes";
 import { escapeSearchForFilter } from "@/lib/escape-search-for-filter";
 import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const bereaFieldClass =
+  "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
+
+const bereaFilterLabel = "block text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
+
 const IVA_RATE = 0.19;
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -112,6 +115,80 @@ function StockEstadoSelect({
         </>
       )}
     </select>
+  );
+}
+
+function InventoryFilters({
+  searchQuery,
+  onSearchChange,
+  stockStatusOption,
+  onStockStatusChange,
+  categoryFilter,
+  onCategoryChange,
+  categories,
+  hasBodega,
+  stockStatusId,
+}: {
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  stockStatusOption: string;
+  onStockStatusChange: (value: string) => void;
+  categoryFilter: string;
+  onCategoryChange: (value: string) => void;
+  categories: CategoryOption[];
+  hasBodega: boolean | null;
+  stockStatusId: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
+      <div className="relative min-w-0 w-full lg:min-w-0 lg:flex-1">
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--berea-ink-muted)]">
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </span>
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Nombre o código (ej. Coca-Cola, REST-BB-04)"
+          aria-label="Buscar producto por nombre o por código"
+          className={`${bereaFieldClass} py-2.5 pl-11 pr-4`}
+        />
+      </div>
+      <div className="grid min-w-0 w-full grid-cols-2 gap-2 sm:gap-3 lg:w-auto lg:shrink-0 lg:gap-3">
+        <div className="min-w-0 space-y-1.5">
+          <label htmlFor={stockStatusId} className={bereaFilterLabel}>
+            Estado
+          </label>
+          <StockEstadoSelect
+            id={stockStatusId}
+            value={stockStatusOption}
+            onChange={onStockStatusChange}
+            hasBodega={hasBodega}
+            className={`${bereaFieldClass} px-3 font-medium`}
+          />
+        </div>
+        <div className="min-w-0 space-y-1.5">
+          <label htmlFor={`${stockStatusId}-category`} className={bereaFilterLabel}>
+            Categoría
+          </label>
+          <select
+            id={`${stockStatusId}-category`}
+            value={categoryFilter}
+            onChange={(e) => onCategoryChange(e.target.value)}
+            className={`${bereaFieldClass} px-3 font-medium`}
+          >
+            <option value="">Todas</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -380,32 +457,100 @@ export default function InventoryPage() {
     return nums;
   })();
   const actionIconClass =
-    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[color:var(--shell-sidebar)] dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-zinc-300";
+    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-ink)]";
   const SHOW_TRANSFER_OPTION = true;
+  const stockBadgeBase = "inline-flex max-w-full items-center rounded-md px-2.5 py-1 text-[13px] font-semibold ring-1 ring-inset";
   const stockStatusChip = (stock: number) => {
     if (stock === 0) {
       return {
         label: "Sin stock",
-        className:
-          "inline-flex max-w-full items-center rounded-full border border-red-300/90 bg-red-50 px-2 py-0.5 text-[12px] font-semibold text-red-800 dark:border-red-800/70 dark:bg-red-950/45 dark:text-red-200",
+        className: `${stockBadgeBase} bg-rose-100 text-rose-900 ring-rose-300`,
       };
     }
     if (stock <= 10) {
       return {
         label: "Stock bajo",
-        className:
-          "inline-flex max-w-full items-center rounded-full border border-amber-300/80 bg-amber-50 px-2 py-0.5 text-[12px] font-semibold text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/35 dark:text-amber-100",
+        className: `${stockBadgeBase} bg-amber-100 text-amber-950 ring-amber-300`,
       };
     }
     return {
       label: "Con stock",
-      className:
-        "inline-flex max-w-full items-center rounded-full border border-emerald-300/80 bg-emerald-50 px-2 py-0.5 text-[12px] font-semibold text-emerald-900 dark:border-emerald-700/55 dark:bg-emerald-950/40 dark:text-emerald-200",
+      className: `${stockBadgeBase} bg-emerald-100 text-emerald-900 ring-emerald-300`,
     };
   };
-  const filterSearchClass = workspaceFilterSearchPillClass;
-  const filterSelectClass = workspaceFilterSelectClass;
-  const filterLabelClass = workspaceFilterLabelClass;
+
+  const filterProps = {
+    searchQuery,
+    onSearchChange: (value: string) => {
+      setSearchQuery(value);
+      setPage(1);
+    },
+    stockStatusOption,
+    onStockStatusChange: (value: string) => {
+      setStockStatusOption(value);
+      setPage(1);
+    },
+    categoryFilter,
+    onCategoryChange: (value: string) => {
+      setCategoryFilter(value);
+      setPage(1);
+    },
+    categories,
+    hasBodega,
+  };
+
+  const paginationBar = showPagination && (
+    <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 sm:px-5 ${REPORTS_SURFACE}`}>
+      <p className="text-[13px] font-medium text-[var(--berea-ink-muted)] md:text-[14px]">
+        {totalCount} {totalCount === 1 ? "producto" : "productos"}
+        {totalPages > 1 && <> · Página {page} de {totalPages}</>}
+      </p>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
+            aria-label="Página anterior"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          {pageNumbers.map((n, i) =>
+            n === "…" ? (
+              <span key={`ellipsis-${i}`} className="px-2 text-[var(--berea-ink-subtle)]">…</span>
+            ) : (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setPage(n)}
+                className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg px-2 text-[13px] font-semibold transition-colors ${
+                  page === n
+                    ? "bg-[var(--berea-accent)] text-[var(--shell-nav-fg)]"
+                    : `${REPORTS_SURFACE} text-[var(--berea-ink-muted)] hover:bg-[var(--shell-workspace)]`
+                }`}
+              >
+                {n}
+              </button>
+            )
+          )}
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
+            aria-label="Página siguiente"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   /** Grid alineado encabezado + filas: 8 cols con bodega (local + bodega separados), 7 sin. */
   const desktopInventoryHeaderGrid =
@@ -418,23 +563,22 @@ export default function InventoryPage() {
       : "grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(90px,0.8fr)_minmax(115px,0.9fr)_minmax(140px,auto)] gap-x-6 items-center px-5 py-4";
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-              <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-                Productos
-              </h1>
-              <p className="mt-1 text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
-                Lista de tus productos. Busca, filtra y gestiona stock desde aquí.
-              </p>
-          </div>
-          <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
-            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
-              <button
+    <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        <div className="min-w-0 shrink-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
+            Productos
+          </h1>
+          <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
+            Lista de tus productos. Busca, filtra y gestiona stock desde aquí.
+          </p>
+        </div>
+        <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
                 type="button"
                 onClick={() => setRefreshKey((k) => k + 1)}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:w-auto sm:px-4 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -443,7 +587,7 @@ export default function InventoryPage() {
               </button>
               {planSnapshot && !planSnapshot.canCreateProduct ? (
                 <span
-                  className={`col-span-2 inline-flex h-9 w-full cursor-not-allowed items-center justify-center gap-2 sm:col-span-1 sm:w-auto ${PLAN_LIMIT_DISABLED_BUTTON_CLASS}`}
+                  className={`inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-lg px-4 ${PLAN_LIMIT_DISABLED_BUTTON_CLASS}`}
                   title="Límite de referencias alcanzado"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -454,7 +598,7 @@ export default function InventoryPage() {
               ) : (
                 <Link
                   href="/inventario/nuevo"
-                  className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-3 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto sm:px-4"
+                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -462,11 +606,10 @@ export default function InventoryPage() {
                   Nuevo producto
                 </Link>
               )}
-            </div>
-            {planSnapshot && !planSnapshot.canCreateProduct ? (
-              <PlanLimitHeaderNote kind="products" planId={planSnapshot.planId} className="w-full justify-end" />
-            ) : null}
           </div>
+          {planSnapshot && !planSnapshot.canCreateProduct ? (
+            <PlanLimitHeaderNote kind="products" planId={planSnapshot.planId} className="w-full justify-end" />
+          ) : null}
         </div>
       </header>
 
@@ -478,61 +621,18 @@ export default function InventoryPage() {
         aria-label="Lista de productos. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
         {loading ? (
-          <div className="min-h-[280px] animate-pulse rounded-3xl bg-white dark:bg-slate-900" aria-hidden />
+          <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
         ) : filteredProducts.length === 0 ? (
-          <div className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
-            <div className="flex min-w-0 flex-col gap-3 md:flex-row md:flex-nowrap md:items-end md:gap-2 md:overflow-x-auto md:pb-0.5 md:[scrollbar-width:thin] lg:gap-3 lg:overflow-visible xl:gap-3">
-              <div className="relative min-w-0 md:min-w-[14rem] md:flex-1">
-                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </span>
-                <input
-                  type="search"
-                  value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-                  placeholder="Nombre o código (ej. Coca-Cola, REST-BB-04)"
-                  aria-label="Buscar producto por nombre o por código"
-                  className={filterSearchClass}
-                />
-              </div>
-              <div className="w-full shrink-0 space-y-1.5 md:min-w-[10rem] md:w-[12.5rem] lg:w-[13rem]">
-                <label className={filterLabelClass} htmlFor="inv-stock-status-empty">
-                  Estado
-                </label>
-                <StockEstadoSelect
-                  id="inv-stock-status-empty"
-                  value={stockStatusOption}
-                  onChange={(v) => { setStockStatusOption(v); setPage(1); }}
-                  hasBodega={hasBodega}
-                  className={filterSelectClass}
-                />
-              </div>
-              <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
-                <label className={filterLabelClass}>Categoría</label>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-                  className={filterSelectClass}
-                >
-                  <option value="">Todas</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+          <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
+            <InventoryFilters {...filterProps} stockStatusId="inv-stock-status-empty" />
 
-            <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-14 text-center dark:border-slate-700">
-              <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">
+            <div className="px-2 py-8 text-center sm:px-4">
+              <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
                 {isDatabaseEmpty
                   ? "Aún no tienes productos"
                   : "Ningún producto coincide con tu búsqueda o filtros"}
               </p>
-              <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+              <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
                 {isDatabaseEmpty
                   ? "Crea tu primer producto para verlo aquí."
                   : "Ajusta la búsqueda, el estado de stock o la categoría."}
@@ -554,73 +654,30 @@ export default function InventoryPage() {
             </div>
           </div>
         ) : (
-          <div className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
-            <div className="flex min-w-0 flex-col gap-3 md:flex-row md:flex-nowrap md:items-end md:gap-2 md:overflow-x-auto md:pb-0.5 md:[scrollbar-width:thin] lg:gap-3 lg:overflow-visible xl:gap-3">
-              <div className="relative min-w-0 md:min-w-[14rem] md:flex-1">
-                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </span>
-                <input
-                  type="search"
-                  value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-                  placeholder="Nombre o código (ej. Coca-Cola, REST-BB-04)"
-                  aria-label="Buscar producto por nombre o por código"
-                  className={filterSearchClass}
-                />
-              </div>
-              <div className="w-full shrink-0 space-y-1.5 md:min-w-[10rem] md:w-[12.5rem] lg:w-[13rem]">
-                <label className={filterLabelClass} htmlFor="inv-stock-status">
-                  Estado
-                </label>
-                <StockEstadoSelect
-                  id="inv-stock-status"
-                  value={stockStatusOption}
-                  onChange={(v) => { setStockStatusOption(v); setPage(1); }}
-                  hasBodega={hasBodega}
-                  className={filterSelectClass}
-                />
-              </div>
-              <div className="w-full shrink-0 space-y-1.5 md:w-[9rem] lg:w-[9.25rem] xl:w-[10rem]">
-                <label className={filterLabelClass}>Categoría</label>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-                  className={filterSelectClass}
-                >
-                  <option value="">Todas</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+          <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
+            <InventoryFilters {...filterProps} stockStatusId="inv-stock-status" />
 
             {/* Contenedor único: encabezado + filas con el mismo grid para alinear columnas (desktop) */}
             <div className="hidden overflow-hidden rounded-2xl border border-slate-100 bg-white dark:border-zinc-800/80 dark:bg-zinc-950/30 xl:block">
               {/* Títulos de columna */}
               <div
-                className={`${desktopInventoryHeaderGrid} bg-slate-50 border-b border-slate-200 dark:border-zinc-800/80 dark:bg-zinc-900/40`}
+                className={`${desktopInventoryHeaderGrid} border-b border-[var(--berea-card-border)]`}
                 aria-hidden
               >
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Producto</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Código</div>
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Categoría</div>
+                <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Producto</div>
+                <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Código</div>
+                <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Categoría</div>
                 {hasBodega === true ? (
                   <>
-                    <div className="min-w-0 text-right sm:text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Local</div>
-                    <div className="min-w-0 text-right sm:text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Bodega</div>
+                    <div className="min-w-0 text-right sm:text-left text-[13px] font-semibold text-[var(--berea-ink-muted)]">Local</div>
+                    <div className="min-w-0 text-right sm:text-left text-[13px] font-semibold text-[var(--berea-ink-muted)]">Bodega</div>
                   </>
                 ) : (
-                  <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Stock</div>
+                  <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Stock</div>
                 )}
-                <div className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Estado</div>
-                <div className="min-w-0 w-full text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Precio</div>
-                <div className="min-w-0 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Acciones</div>
+                <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Estado</div>
+                <div className="min-w-0 w-full text-right text-[13px] font-semibold text-[var(--berea-ink-muted)]">Precio</div>
+                <div className="min-w-0 text-right text-[13px] font-semibold text-[var(--berea-ink-muted)]">Acciones</div>
               </div>
               {filteredProducts.map((p, index) => {
                 const split = stockSplitByProduct[p.id] ?? { local: 0, bodega: 0 };
@@ -636,42 +693,42 @@ export default function InventoryPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/inventario/${p.id}`)}
-                    className={`${desktopInventoryRowGrid} cursor-pointer transition-colors border-b border-slate-100 dark:border-zinc-800/60 ${
+                    className={`${desktopInventoryRowGrid} cursor-pointer transition-colors border-b border-[var(--berea-card-border)]/60 ${
                       isLast ? "border-b-0" : ""
                     } ${
                       isSelected
-                        ? "bg-slate-100 dark:bg-zinc-900/70"
-                        : "hover:bg-slate-50 dark:hover:bg-zinc-900/35"
+                        ? "bg-[var(--shell-workspace)]"
+                        : "hover:bg-[var(--shell-workspace)]/70"
                     }`}
                   >
                   <div className="min-w-0">
-                    <p className="truncate text-[15px] font-medium tracking-tight text-slate-900 dark:text-slate-50">{p.name}</p>
+                    <p className="truncate text-[15px] font-semibold text-[var(--berea-ink)]">{p.name}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{p.sku || "—"}</p>
+                    <p className="truncate text-[14px] text-[var(--berea-ink-muted)]">{p.sku || "—"}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p>
+                    <p className="truncate text-[14px] text-[var(--berea-ink-muted)]">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p>
                   </div>
                   {hasBodega === true ? (
                     <>
                       <div className="min-w-0 text-right sm:text-left">
-                        <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{split.local}</p>
+                        <p className="text-[14px] font-medium tabular-nums text-[var(--berea-ink)]">{split.local}</p>
                       </div>
                       <div className="min-w-0 text-right sm:text-left">
-                        <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{split.bodega}</p>
+                        <p className="text-[14px] font-medium tabular-nums text-[var(--berea-ink)]">{split.bodega}</p>
                       </div>
                     </>
                   ) : (
                     <div className="min-w-0">
-                      <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{stock}</p>
+                      <p className="text-[14px] font-medium tabular-nums text-[var(--berea-ink)]">{stock}</p>
                     </div>
                   )}
                   <div className="min-w-0">
                     <span className={stockStatus.className}>{stockStatus.label}</span>
                   </div>
                   <div className="min-w-0 w-full flex items-center justify-end">
-                    <span className="text-[15px] font-medium tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(price)}</span>
+                    <span className="text-[15px] font-semibold tabular-nums text-[var(--berea-ink)]">$ {formatMoney(price)}</span>
                   </div>
                   <div className="min-w-0 flex items-center justify-end gap-0 -space-x-0.5" onClick={(e) => e.stopPropagation()}>
                     <span className="relative inline-flex group/tooltip">
@@ -721,35 +778,35 @@ export default function InventoryPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/inventario/${p.id}`)}
-                    className={`rounded-xl shadow-sm ring-1 cursor-pointer transition-all px-4 py-3 ${
+                    className={`rounded-xl cursor-pointer transition-all px-4 py-3 ${REPORTS_SURFACE} ${
                       isSelected
-                        ? "bg-slate-100 ring-slate-300 dark:bg-zinc-900/80 dark:ring-zinc-700/60"
-                        : "bg-white ring-slate-200 hover:bg-slate-100 dark:bg-zinc-950/40 dark:ring-zinc-800/70 dark:hover:bg-zinc-900/50"
+                        ? "ring-2 ring-[var(--berea-accent)]/30"
+                        : "hover:bg-[var(--shell-workspace)]/60"
                     }`}
                   >
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Producto</span><p className="truncate text-right text-[15px] font-medium text-slate-900 dark:text-slate-50">{p.name}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Código</span><p className="text-[13px] font-medium text-slate-700 dark:text-slate-200">{p.sku || "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Categoría</span><p className="text-[13px] font-medium text-slate-700 dark:text-slate-200">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Producto</span><p className="truncate text-right text-[15px] font-semibold text-[var(--berea-ink)]">{p.name}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Código</span><p className="text-[14px] text-[var(--berea-ink-muted)]">{p.sku || "—"}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Categoría</span><p className="text-[14px] text-[var(--berea-ink-muted)]">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p></div>
                       {hasBodega === true ? (
                         <>
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock local</span>
-                            <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{split.local}</p>
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Stock local</span>
+                            <p className="text-[14px] font-medium tabular-nums text-[var(--berea-ink)]">{split.local}</p>
                           </div>
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock bodega</span>
-                            <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{split.bodega}</p>
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Stock bodega</span>
+                            <p className="text-[14px] font-medium tabular-nums text-[var(--berea-ink)]">{split.bodega}</p>
                           </div>
                         </>
                       ) : (
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Stock</span>
-                          <p className="text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">{stock}</p>
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Stock</span>
+                          <p className="text-[14px] font-medium tabular-nums text-[var(--berea-ink)]">{stock}</p>
                         </div>
                       )}
-                      <div className="flex items-center justify-between gap-2"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Estado</span><span className={stockStatus.className}>{stockStatus.label}</span></div>
-                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Precio</span><p className="text-[15px] font-medium tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(price)}</p></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Estado</span><span className={stockStatus.className}>{stockStatus.label}</span></div>
+                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800"><span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Precio</span><p className="text-[15px] font-semibold tabular-nums text-[var(--berea-ink)]">$ {formatMoney(price)}</p></div>
                       <div
                         className="flex flex-nowrap items-center justify-end gap-0.5 pt-2"
                         onClick={(e) => e.stopPropagation()}
@@ -807,58 +864,8 @@ export default function InventoryPage() {
         )}
       </section>
 
-      {showPagination && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-          <p className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
-            {totalCount} {totalCount === 1 ? "producto" : "productos"}
-            {totalPages > 1 && <> · Página {page} de {totalPages}</>}
-          </p>
-          {totalPages > 1 && (
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                aria-label="Página anterior"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              {pageNumbers.map((n, i) =>
-                n === "…" ? (
-                  <span key={`ellipsis-${i}`} className="px-2 text-slate-400">…</span>
-                ) : (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setPage(n)}
-                    className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg border px-2 text-[13px] font-medium ${
-                      page === n
-                        ? "border-ov-pink bg-ov-pink text-white dark:bg-ov-pink dark:text-white"
-                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                    }`}
-                  >
-                    {n}
-                  </button>
-                )
-              )}
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                aria-label="Página siguiente"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {paginationBar}
+
     </div>
   );
 }

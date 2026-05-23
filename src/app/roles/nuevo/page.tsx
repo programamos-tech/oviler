@@ -3,10 +3,20 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/lib/activities";
 import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
 import { BackLink, PlanLimitHeaderNote } from "@/app/components/PlanLimitNotice";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { PERMISSION_OPTIONS, ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
+
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const bereaFieldClass =
+  "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
+
+const bereaSectionLabel = "text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
+
+const bereaCardClass = `rounded-xl p-4 sm:p-5 ${REPORTS_SURFACE}`;
 
 const ROLES = [
   { id: "owner", name: "Dueño" },
@@ -175,6 +185,17 @@ export default function NewEmployeePage() {
         permissions: withRequiredPermissions(permissions),
       };
       await supabase.from("users").update(updatePayload).eq("id", newUserId);
+
+      void logActivity(supabase, {
+        organizationId: me.organization_id,
+        branchId,
+        userId: authUser.id,
+        action: "user_created",
+        entityType: "user",
+        entityId: newUserId,
+        summary: `Nuevo colaborador: ${nameTrim} (${email.trim().toLowerCase()})`,
+        metadata: { name: nameTrim, email: email.trim().toLowerCase(), role: roleToUse },
+      });
     } catch (err) {
       setError(collaboratorErrorMessage(err instanceof Error ? err.message : "Error inesperado"));
       setUploading(false);
@@ -184,45 +205,44 @@ export default function NewEmployeePage() {
     window.location.href = "/roles";
   }
 
-  const inputClass =
-    "h-10 w-full rounded-lg border border-slate-200 bg-slate-50/90 px-4 text-[14px] font-medium text-slate-800 outline-none transition-[border-color,background-color,box-shadow] placeholder:text-slate-400 focus:border-slate-900/25 focus:bg-white focus:ring-2 focus:ring-slate-900/10 dark:border-zinc-700/50 dark:bg-zinc-950/60 dark:text-zinc-100 dark:[color-scheme:dark] dark:focus:border-zinc-500 dark:focus:bg-zinc-900 dark:focus:ring-0 dark:focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] dark:focus-visible:ring-1 dark:focus-visible:ring-zinc-500/30 dark:focus-visible:ring-offset-0 dark:focus-visible:ring-offset-transparent dark:placeholder:text-zinc-500";
-  const labelClass = "mb-2 block text-[13px] font-bold text-slate-700 dark:text-slate-300";
+  const inputClass = bereaFieldClass;
+  const labelClass = `mb-1.5 block ${bereaSectionLabel}`;
 
   if (planLoading) {
     return (
-      <div className="space-y-4">
-        <p className="text-[14px] text-slate-600 dark:text-slate-400">Cargando…</p>
+      <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)]">
+        <p className="text-[14px] text-[var(--berea-ink-muted)]">Cargando…</p>
       </div>
     );
   }
 
   if (planSnapshot && !planSnapshot.canCreateUser) {
     return (
-      <div className="mx-auto max-w-lg space-y-4">
-        <p className="text-[14px] text-slate-600 dark:text-slate-400">
+      <div className="berea-reports mx-auto min-w-0 max-w-lg space-y-4 text-[15px] text-[var(--berea-ink)]">
+        <p className="text-[14px] text-[var(--berea-ink-muted)]">
           <BackLink href="/roles" label="← Volver a usuarios y roles" />
         </p>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">Nuevo colaborador</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)]">Nuevo colaborador</h1>
         <PlanLimitHeaderNote kind="users" planId={planSnapshot.planId} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
       <header className="space-y-2">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
+            <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
               Nuevo colaborador
             </h1>
-            <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
               Registra un colaborador: foto, nombre y usuario corto para acceso al sistema.
             </p>
           </div>
           <Link
             href="/roles"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-ink)] ${REPORTS_SURFACE}`}
             title="Volver a roles"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,9 +253,9 @@ export default function NewEmployeePage() {
       </header>
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
-        <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+        <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+          <div className={bereaCardClass}>
+            <p className={bereaSectionLabel}>
               Datos del colaborador
             </p>
             <div className="mt-3 space-y-3">
@@ -253,13 +273,13 @@ export default function NewEmployeePage() {
                     <select
                       value={avatarVariant}
                       onChange={(e) => setAvatarVariant(e.target.value as "beam" | "marble" | "pixel")}
-                      className="h-10 rounded-lg border border-slate-200 bg-slate-50/90 px-3 text-[13px] font-medium text-slate-800 outline-none transition-[border-color,background-color,box-shadow] focus:border-slate-900/25 focus:bg-white focus:ring-2 focus:ring-slate-900/10 dark:border-zinc-700/50 dark:bg-zinc-950/60 dark:text-zinc-100 dark:[color-scheme:dark] dark:focus:border-zinc-500 dark:focus:bg-zinc-900 dark:focus:ring-0 dark:focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] dark:focus-visible:ring-1 dark:focus-visible:ring-zinc-500/30 dark:focus-visible:ring-offset-0 dark:focus-visible:ring-offset-transparent"
+                      className={`h-11 rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] px-3 text-[13px] text-[var(--berea-ink)] outline-none focus:border-[rgba(44,40,36,0.22)] focus:ring-0`}
                     >
                       <option value="beam">Personaje A</option>
                       <option value="marble">Personaje B</option>
                       <option value="pixel">Personaje C</option>
                     </select>
-                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-[12px] text-[var(--berea-ink-muted)]">
                       Personaje generado (DiceBear). Elige una variante; se guarda con la cuenta.
                     </p>
                   </div>
@@ -282,7 +302,7 @@ export default function NewEmployeePage() {
                   placeholder="Ej. mlopez"
                   className={inputClass}
                 />
-                <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-[12px] text-[var(--berea-ink-muted)]">
                   Generado automáticamente desde el nombre. Corto y sin espacios.
                 </p>
               </div>
@@ -307,7 +327,7 @@ export default function NewEmployeePage() {
                   minLength={6}
                   autoComplete="new-password"
                 />
-                <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-[12px] text-[var(--berea-ink-muted)]">
                   El colaborador podrá cambiarla al iniciar sesión.
                 </p>
               </div>
@@ -334,7 +354,7 @@ export default function NewEmployeePage() {
                   Sucursal <span className="text-ov-pink">*</span>
                 </label>
                 {branches.length === 0 ? (
-                  <p className="rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-[13px] font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] font-medium text-amber-950 ring-1 ring-inset ring-amber-300 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
                     No hay sucursales en la organización.{" "}
                     <Link href="/sucursales/nueva" className="font-semibold underline underline-offset-2">
                       Crea una sucursal
@@ -356,7 +376,7 @@ export default function NewEmployeePage() {
                         </option>
                       ))}
                     </select>
-                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-[12px] text-[var(--berea-ink-muted)]">
                       El colaborador trabajará con datos de inventario, ventas y clientes de esta sucursal.
                     </p>
                   </>
@@ -366,10 +386,10 @@ export default function NewEmployeePage() {
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+          <div className={bereaCardClass}>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              <p className={bereaSectionLabel}>
                 Permisos
               </p>
               <button
@@ -378,20 +398,20 @@ export default function NewEmployeePage() {
                   const roleKey = rol && ROLES.some((r) => r.id === rol) ? rol : "cashier";
                   setPermissions(withRequiredPermissions([...(ROLE_DEFAULT_PERMISSIONS[roleKey] ?? ROLE_DEFAULT_PERMISSIONS.cashier)]));
                 }}
-                className="shrink-0 text-[12px] font-medium text-ov-pink hover:underline"
+                className="shrink-0 text-[12px] font-semibold text-[color:var(--shell-sidebar)] hover:underline"
               >
                 Restaurar por rol
               </button>
             </div>
-            <div className="max-h-[min(60vh,520px)] overflow-y-auto rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+            <div className="max-h-[min(60vh,520px)] overflow-y-auto rounded-xl border border-[var(--berea-card-border)] p-3">
               {Array.from(new Set(PERMISSION_OPTIONS.map((p) => p.group))).map((group) => (
                 <div key={group} className="mb-3 last:mb-0">
-                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{group}</p>
+                  <p className={`mb-2 ${bereaSectionLabel}`}>{group}</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {PERMISSION_OPTIONS.filter((p) => p.group === group).map((perm) => {
                       const checked = permissions.includes(perm.key);
                       return (
-                        <label key={perm.key} className="flex items-center gap-2 text-[13px] text-slate-700 dark:text-slate-300">
+                        <label key={perm.key} className="flex items-center gap-2 text-[13px] text-[var(--berea-ink)]">
                           <input
                             type="checkbox"
                             checked={checked}
@@ -418,45 +438,45 @@ export default function NewEmployeePage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <div className={bereaCardClass}>
+            <p className={bereaSectionLabel}>
               Resumen
             </p>
             <div className="mt-3 space-y-3 text-[13px]">
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Colaborador</p>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">{nombre || "—"}</p>
+              <div className="rounded-xl bg-[var(--shell-workspace)] p-3">
+                <p className="font-semibold text-[var(--berea-ink)]">Colaborador</p>
+                <p className="mt-1 text-[var(--berea-ink-muted)]">{nombre || "—"}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Usuario</p>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">{username ? `@${username}` : "—"}</p>
+              <div className="rounded-xl bg-[var(--shell-workspace)] p-3">
+                <p className="font-semibold text-[var(--berea-ink)]">Usuario</p>
+                <p className="mt-1 text-[var(--berea-ink-muted)]">{username ? `@${username}` : "—"}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Rol</p>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">
+              <div className="rounded-xl bg-[var(--shell-workspace)] p-3">
+                <p className="font-semibold text-[var(--berea-ink)]">Rol</p>
+                <p className="mt-1 text-[var(--berea-ink-muted)]">
                   {ROLES.find((r) => r.id === rol)?.name ?? "—"}
                 </p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                <p className="font-bold text-slate-800 dark:text-slate-100">Sucursal</p>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">
+              <div className="rounded-xl bg-[var(--shell-workspace)] p-3">
+                <p className="font-semibold text-[var(--berea-ink)]">Sucursal</p>
+                <p className="mt-1 text-[var(--berea-ink-muted)]">
                   {branches.find((b) => b.id === branchId)?.name ?? "—"}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <div className={bereaCardClass}>
             <div className="space-y-3">
-              <div className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
-                <p className="font-bold text-slate-700 dark:text-slate-100">Paso final</p>
+              <div className="text-[13px] text-[var(--berea-ink-muted)]">
+                <p className="font-semibold text-[var(--berea-ink)]">Paso final</p>
                 <p className="mt-1">
                   Al confirmar se creará el colaborador.
                 </p>
               </div>
               {error ? (
                 <div
-                  className="rounded-lg border border-red-200 bg-red-50 p-3 text-[13px] font-medium text-red-800 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
+                  className="rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] font-medium text-red-900 ring-1 ring-inset ring-red-300 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
                   role="alert"
                 >
                   {error}
@@ -466,7 +486,7 @@ export default function NewEmployeePage() {
                 type="button"
                 onClick={handleCreate}
                 disabled={uploading || branches.length === 0 || !branchId}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-ov-pink px-4 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-ov-pink-hover disabled:opacity-50 dark:bg-ov-pink dark:hover:bg-ov-pink-hover"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-50"
               >
                 {uploading ? "Guardando…" : "Crear colaborador"}
               </button>

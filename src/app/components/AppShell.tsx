@@ -8,96 +8,38 @@ import BottomNav from "./BottomNav";
 import AppSidebar from "./AppSidebar";
 import AppDesktopHeader from "./AppDesktopHeader";
 import PresenceHeartbeat from "./PresenceHeartbeat";
+import { SessionProvider, useSession } from "./SessionProvider";
 import { createClient } from "@/lib/supabase/client";
 import { canAccessPath, type AppRole } from "@/lib/permissions";
 import { trialRemainingLabel } from "@/lib/trial-ux";
 
 const AUTH_PATHS = ["/login", "/registro", "/onboarding"];
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+function AppShellPanel({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isAuth = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  const isLanding = pathname === "/";
   const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
-  /** Catálogo público: tienda aparte, sin TopNav/BottomNav del panel */
-  const isCatalogStorefront = pathname === "/t" || pathname.startsWith("/t/");
-  const isAccessBlockedPage = pathname === "/acceso-bloqueado";
-  const [isAllowed, setIsAllowed] = useState(true);
-  const [checkedAccess, setCheckedAccess] = useState(false);
-  const [unlockRequired, setUnlockRequired] = useState(false);
+  const { ready, profile, license } = useSession();
   const [unlockCode, setUnlockCode] = useState("");
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [unlockSuccess, setUnlockSuccess] = useState<string | null>(null);
-  const [unlockPeriodEnd, setUnlockPeriodEnd] = useState<string | null>(null);
+  const [unlockDismissed, setUnlockDismissed] = useState(false);
   const [unlockSignOutBusy, setUnlockSignOutBusy] = useState(false);
 
-  useEffect(() => {
-    if (isAuth || isLanding || isInterno || isCatalogStorefront) {
-      setCheckedAccess(true);
-      setIsAllowed(true);
-      return;
-    }
-
-    const supabase = createClient();
-    let cancelled = false;
-    (async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user || cancelled) {
-          return;
-        }
-        const { data: me } = await supabase.from("users").select("role, permissions").eq("id", user.id).single();
-        if (cancelled) return;
-        const meRow = me as { role?: string | null; permissions?: string[] | null } | null;
-        const allowed = canAccessPath((meRow?.role ?? null) as AppRole | null, pathname, meRow?.permissions ?? null);
-        setIsAllowed(allowed);
-        // Si no puede ver esta ruta, ir a Cuenta (siempre permitida). Antes se redirigía a /dashboard y, estando ya ahí, quedaba pantalla en blanco (return null).
-        if (!allowed) {
-          router.replace("/cuenta");
-        }
-      } catch (e) {
-        console.error("[AppShell] Error comprobando permisos", e);
-        if (!cancelled) setIsAllowed(true);
-      } finally {
-        if (!cancelled) setCheckedAccess(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuth, isLanding, isInterno, isCatalogStorefront, pathname, router]);
+  const role = (profile?.role ?? null) as AppRole | null;
+  const customPermissions = profile?.permissions ?? null;
+  const isAllowed = !ready || !profile || canAccessPath(role, pathname, customPermissions);
+  const unlockRequired = !isInterno && ready && license.requires_unlock && !unlockDismissed;
+  const unlockPeriodEnd = license.license_period_end;
 
   useEffect(() => {
-    if (isAuth || isLanding || isInterno || isCatalogStorefront || isAccessBlockedPage) {
-      setUnlockRequired(false);
-      return;
+    if (!ready || !profile) return;
+    const allowed = canAccessPath(role, pathname, customPermissions);
+    if (!allowed) {
+      router.replace("/cuenta");
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/license-status", { credentials: "include" });
-        if (!res.ok) return;
-        const json = (await res.json()) as {
-          requires_unlock?: boolean;
-          license_period_end?: string | null;
-          organization?: { trial_ends_at?: string | null } | null;
-        };
-        if (cancelled) return;
-        setUnlockRequired(Boolean(json.requires_unlock));
-        setUnlockPeriodEnd(json.license_period_end ?? json.organization?.trial_ends_at ?? null);
-      } catch {
-        // No bloquear la app si falla este check.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuth, isLanding, isInterno, isCatalogStorefront, isAccessBlockedPage, pathname]);
+  }, [ready, profile, role, pathname, customPermissions, router]);
 
   const submitUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +60,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         return;
       }
       const periodEnd = json.license_period_end ?? unlockPeriodEnd;
-      setUnlockRequired(false);
+      setUnlockDismissed(true);
       setUnlockCode("");
       if (periodEnd) {
         setUnlockSuccess(`Bienvenido. Tu licencia quedó activa hasta ${new Date(periodEnd).toLocaleDateString("es-CO")}.`);
@@ -147,27 +89,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  if (isAccessBlockedPage) {
-    return (
-      <main className="relative min-h-screen flex-1 py-6 sm:py-10">
-        <div className="mx-auto min-w-0 max-w-[1600px] px-4 sm:px-6 lg:px-8">{children}</div>
-      </main>
-    );
-  }
-
-  if (isAuth || isLanding) {
-    return <>{children}</>;
-  }
-
-  if (isCatalogStorefront) {
-    return <>{children}</>;
-  }
-
-  if (!checkedAccess) {
-    return <main className="min-h-screen" aria-busy="true" />;
-  }
-
-  if (!isAllowed) {
+  if (ready && profile && !isAllowed) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--shell-workspace)] p-6 text-center dark:bg-[var(--shell-workspace-dark)]">
         <p className="max-w-md text-sm text-slate-600 dark:text-slate-400">
@@ -187,7 +109,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <PresenceHeartbeat />
       <AppSidebar />
-      <div className="relative flex min-h-screen min-w-0 max-w-full flex-1 flex-col overflow-x-hidden bg-[var(--shell-workspace)] dark:bg-[var(--shell-workspace-dark)] lg:pl-[260px]">
+      <div className="relative flex min-h-screen min-w-0 max-w-full flex-1 flex-col overflow-x-hidden bg-[var(--shell-workspace)] dark:bg-[var(--shell-workspace-dark)] lg:pl-[272px]">
         <div
           className="pointer-events-none absolute inset-0 z-0 dark-app-canvas-glow opacity-0 dark:opacity-100"
           aria-hidden
@@ -195,7 +117,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <AppDesktopHeader />
         <TopNav />
         {unlockSuccess ? (
-          <div className="pointer-events-none fixed left-1/2 top-16 z-[9999] w-[min(92vw,560px)] -translate-x-1/2 lg:left-[calc(50%+130px)]">
+          <div className="pointer-events-none fixed left-1/2 top-16 z-[9999] w-[min(92vw,560px)] -translate-x-1/2 lg:left-[calc(50%+136px)]">
             <div className="rounded-xl border border-nou-300/50 bg-white px-4 py-2.5 text-[13px] text-nou-900 shadow-lg">
               {unlockSuccess}
             </div>
@@ -255,5 +177,32 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
     </>
+  );
+}
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isAuth = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  const isLanding = pathname === "/";
+  const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
+  const isCatalogStorefront = pathname === "/t" || pathname.startsWith("/t/");
+  const isAccessBlockedPage = pathname === "/acceso-bloqueado";
+
+  if (isAccessBlockedPage) {
+    return (
+      <main className="relative min-h-screen flex-1 py-6 sm:py-10">
+        <div className="mx-auto min-w-0 max-w-[1600px] px-4 sm:px-6 lg:px-8">{children}</div>
+      </main>
+    );
+  }
+
+  if (isAuth || isLanding || isCatalogStorefront) {
+    return <>{children}</>;
+  }
+
+  return (
+    <SessionProvider skipLicenseCheck={isInterno}>
+      <AppShellPanel>{children}</AppShellPanel>
+    </SessionProvider>
   );
 }

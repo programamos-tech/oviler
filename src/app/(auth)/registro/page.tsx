@@ -3,12 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { OvilerWordmark } from "@/app/components/OvilerWordmark";
-import { LoginAvatarCluster } from "../login/LoginAvatarCluster";
-
-const inputClass =
-  "h-12 w-full rounded-xl border border-zinc-700/90 bg-zinc-900/80 px-4 text-[15px] font-medium text-zinc-100 outline-none transition-[border-color,box-shadow] placeholder:text-zinc-500 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-500/25";
-const labelClass = "mb-2 block text-[13px] font-medium text-zinc-400";
+import { BereaAuthLogo } from "../login/BereaAuthLogo";
+import { LoginBrandPanel } from "../login/LoginBrandPanel";
 
 export default function RegistroPage() {
   const [loading, setLoading] = useState(false);
@@ -109,118 +105,103 @@ export default function RegistroPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col bg-zinc-950 lg:flex-row">
-      <section className="flex flex-1 flex-col justify-center px-6 py-12 sm:px-10 lg:w-1/2 lg:px-14 xl:px-20">
-        <Link
-          href="/"
-          className="inline-block w-fit outline-offset-4 focus-visible:rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-zinc-500"
-        >
-          <OvilerWordmark
-            variant="onDark"
-            companyName="Berea"
-            logoSrc="/laptop.png"
-            className="text-[clamp(1.75rem,4vw,2.5rem)] font-bold"
-          />
-        </Link>
+    <div className="berea-auth-page">
+      <div className="berea-auth-layout">
+        <main className="berea-auth-main">
+          <div className="berea-auth-card">
+            <BereaAuthLogo href="/" />
 
-        <h1 className="mt-10 text-3xl font-semibold tracking-tight text-white sm:text-[2rem]">Solicitar licencia</h1>
-        <p className="mt-2 max-w-md text-[15px] leading-relaxed text-zinc-400">
-          Completa el formulario para activar tu licencia Berea Comercios y gestionar inventario y ventas desde un solo panel.
-        </p>
+            <header className="berea-auth-card-header">
+              <h1>Solicitar licencia</h1>
+              <p>
+                Completa el formulario para activar Berea Comercios y gestionar inventario y ventas desde un solo
+                panel.
+              </p>
+            </header>
 
-        <form onSubmit={handleSubmit} className="mt-10 w-full max-w-md space-y-6">
-          {error ? (
-            <div className="rounded-xl border border-red-900/50 bg-red-950/50 px-4 py-3 text-[14px] leading-relaxed text-red-200">
-              <p>{error}</p>
-              {error.includes("Iniciar sesión") ? (
-                <Link
-                  href="/login"
-                  className="mt-2 inline-block font-semibold text-red-100 underline underline-offset-2 hover:text-white"
-                >
-                  Ir a Iniciar sesión
-                </Link>
+            <form onSubmit={handleSubmit} className="berea-auth-form">
+              {error ? (
+                <div className="berea-auth-error">
+                  <p>{error}</p>
+                  {error.includes("Iniciar sesión") ? (
+                    <Link href="/login" className="berea-auth-link-accent mt-2 inline-block hover:underline">
+                      Ir a Iniciar sesión
+                    </Link>
+                  ) : null}
+                </div>
               ) : null}
-            </div>
-          ) : null}
 
-          <div>
-            <label htmlFor="name" className={labelClass}>
-              Nombre completo <span className="text-zinc-500">*</span>
-            </label>
-            <input
-              id="name"
-              name="name"
-              type="text"
-              placeholder="Tu nombre"
-              className={inputClass}
-              required
-              disabled={loading}
-              autoComplete="name"
-            />
+              <div className="berea-auth-field">
+                <label htmlFor="name" className="berea-auth-label">
+                  Nombre completo
+                </label>
+                <input
+                  id="name"
+                  name="name"
+                  type="text"
+                  placeholder="Tu nombre"
+                  className="berea-auth-input"
+                  required
+                  disabled={loading}
+                  autoComplete="name"
+                />
+              </div>
+
+              <div className="berea-auth-field">
+                <label htmlFor="email" className="berea-auth-label">
+                  Correo electrónico
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="correo@ejemplo.com"
+                  className="berea-auth-input"
+                  required
+                  disabled={loading}
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="berea-auth-field">
+                <label htmlFor="password" className="berea-auth-label">
+                  Contraseña
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  className="berea-auth-input"
+                  required
+                  minLength={6}
+                  disabled={loading}
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <p className="text-[13px] leading-relaxed text-[var(--berea-ink-muted)]">
+                Al solicitar tu licencia, aceptas nuestros términos de servicio y política de privacidad.
+              </p>
+
+              <button type="submit" disabled={loading} className="berea-auth-btn-primary">
+                {loading ? "Enviando solicitud…" : "Solicitar licencia"}
+              </button>
+            </form>
+
+            <p className="berea-auth-footer">
+              ¿Ya tienes acceso?{" "}
+              <Link href="/login" className="berea-auth-link-accent hover:underline">
+                Iniciar sesión
+              </Link>
+            </p>
           </div>
+        </main>
 
-          <div>
-            <label htmlFor="email" className={labelClass}>
-              Correo electrónico <span className="text-zinc-500">*</span>
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="correo@ejemplo.com"
-              className={inputClass}
-              required
-              disabled={loading}
-              autoComplete="email"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className={labelClass}>
-              Contraseña <span className="text-zinc-500">*</span>
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Mínimo 6 caracteres"
-              className={inputClass}
-              required
-              minLength={6}
-              disabled={loading}
-              autoComplete="new-password"
-            />
-          </div>
-
-          <p className="text-[13px] leading-relaxed text-zinc-500">
-            Al solicitar tu licencia, aceptas nuestros términos de servicio y política de privacidad.
-          </p>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="h-12 w-full rounded-xl bg-white px-4 text-[15px] font-bold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-100 disabled:opacity-60"
-          >
-            {loading ? "Enviando solicitud…" : "Solicitar licencia"}
-          </button>
-        </form>
-
-        <p className="mt-10 text-[15px] text-zinc-500">
-          ¿Ya tienes acceso?{" "}
-          <Link
-            href="/login"
-            className="text-[17px] font-semibold text-zinc-100 underline-offset-2 hover:text-white hover:underline sm:text-lg"
-          >
-            Iniciar sesión
-          </Link>
-        </p>
-      </section>
-
-      <section className="flex flex-1 flex-col items-center justify-center border-t border-zinc-800/80 px-6 py-14 lg:border-l lg:border-t-0 lg:py-12">
-        <div className="origin-center scale-[0.88] sm:scale-100">
-          <LoginAvatarCluster />
-        </div>
-      </section>
+        <aside className="berea-auth-aside">
+          <LoginBrandPanel />
+        </aside>
+      </div>
     </div>
   );
 }

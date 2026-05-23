@@ -2,26 +2,30 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, Fragment } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchWithSalesMode } from "@/lib/active-branch";
-import {
-  workspaceFilterLabelClass,
-  workspaceFilterSearchPillClass,
-  workspaceFilterSelectClass,
-} from "@/lib/workspace-field-classes";
 import { MdOutlineLocalShipping, MdOutlinePublic, MdOutlineReceiptLong, MdOutlineStorefront } from "react-icons/md";
 import {
   getCopy,
   getStatusLabelForSale,
-  getStatusListChipClass,
-  getPaymentListChipClass,
+  getPedidoPaymentMethodChipClass,
   type SalesMode,
   ORDER_STATUS_FILTERS,
   SALES_STATUS_FILTERS,
 } from "./sales-mode";
-
+import DatePickerCard from "@/app/components/DatePickerCard";
 const PAGE_SIZE = 20;
+/** Máximo de filas para sumar efectivo/transferencia (evita cargar toda la tabla). */
+const PAYMENT_TOTALS_LIMIT = 4000;
+
+type PaymentTotals = {
+  cash: number;
+  transfer: number;
+  mixed: number;
+  countedSales: number;
+  truncated: boolean;
+};
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -34,6 +38,27 @@ function formatTime(dateStr: string) {
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
+}
+
+function getSalesDateBounds(dateFrom: Date | null, dateTo: Date | null): { start: string; end: string } | null {
+  if (!dateFrom && !dateTo) return null;
+  const startDate = dateFrom ?? dateTo!;
+  const endDate = dateTo ?? dateFrom!;
+  const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0);
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
+  if (start.getTime() > end.getTime()) {
+    return {
+      start: new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 0, 0, 0, 0).toISOString(),
+      end: new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59, 999).toISOString(),
+    };
+  }
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
 /** Número de factura para mostrar: sin prefijo FV- (normaliza datos antiguos) */
@@ -61,7 +86,38 @@ type SaleRow = {
   payment_proof_url?: string | null;
   customers: { name: string } | null;
   users: { name: string } | null;
+  amount_cash?: number | null;
+  amount_transfer?: number | null;
 };
+
+type SaleTotalsRow = {
+  total: number;
+  payment_method: string;
+  amount_cash: number | null;
+  amount_transfer: number | null;
+  delivery_fee: number | null;
+  payment_pending?: boolean | null;
+  status: string;
+};
+
+function sumSalesPaymentTotals(
+  rows: SaleTotalsRow[]
+): Pick<PaymentTotals, "cash" | "transfer" | "mixed" | "countedSales"> {
+  let cash = 0;
+  let transfer = 0;
+  let mixed = 0;
+  let countedSales = 0;
+  for (const s of rows) {
+    if (s.status === "cancelled" || s.payment_pending) continue;
+    const income = Math.max(0, Number(s.total) - (Number(s.delivery_fee) || 0));
+    const pm = String(s.payment_method ?? "");
+    if (pm === "cash") cash += income;
+    else if (pm === "transfer") transfer += income;
+    else if (pm === "mixed") mixed += income;
+    countedSales += 1;
+  }
+  return { cash, transfer, mixed, countedSales };
+}
 
 type StatusFilter = "all" | "completed" | "cancelled" | "pending" | "preparing" | "on_the_way" | "delivered";
 type PaymentFilter = "all" | "cash" | "transfer" | "mixed";
@@ -72,6 +128,79 @@ const PAYMENT_FILTER_OPTIONS: { value: PaymentFilter; label: string }[] = [
   { value: "mixed", label: "Mixto" },
 ];
 
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const BEREA_STATUS_STYLES: Record<string, string> = {
+  success: "bg-emerald-100 text-emerald-900 ring-emerald-300",
+  warning: "bg-amber-100 text-amber-950 ring-amber-300",
+  info: "bg-sky-100 text-sky-950 ring-sky-300",
+  danger: "bg-rose-100 text-rose-900 ring-rose-300",
+};
+
+const statusBadgeClass = (tone: keyof typeof BEREA_STATUS_STYLES) =>
+  `inline-flex rounded-md px-2.5 py-1 text-[13px] font-semibold ring-1 ring-inset ${BEREA_STATUS_STYLES[tone]}`;
+
+const paymentChipClass = (method: string) =>
+  `${getPedidoPaymentMethodChipClass(method)} px-2.5 py-1 text-[13px] font-semibold`;
+
+function rowStatusTone(status: string): keyof typeof BEREA_STATUS_STYLES {
+  if (status === "cancelled") return "danger";
+  if (status === "completed" || status === "delivered") return "success";
+  if (status === "pending") return "warning";
+  return "info";
+}
+
+const bereaFieldClass =
+  "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
+
+const bereaFilterLabel = "block text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
+
+function PaymentTotalsStrip({
+  totals,
+  totalCount,
+}: {
+  totals: PaymentTotals;
+  totalCount: number;
+}) {
+  const items = [
+    { label: "Efectivo", value: totals.cash },
+    { label: "Transferencia", value: totals.transfer },
+    { label: "Mixto", value: totals.mixed },
+  ] as const;
+  const grandTotal = totals.cash + totals.transfer + totals.mixed;
+  const detail = totals.truncated
+    ? `Totales sobre las últimas ${PAYMENT_TOTALS_LIMIT.toLocaleString("es-CO")} ventas del filtro${
+        totalCount > PAYMENT_TOTALS_LIMIT ? ` (${totalCount.toLocaleString("es-CO")} en total)` : ""
+      }. Sin anuladas ni cobros pendientes.`
+    : `Por forma de pago (${totals.countedSales} ${totals.countedSales === 1 ? "venta" : "ventas"}); total $${formatMoney(grandTotal)}. Sin envíos ni cobros pendientes.`;
+  const summary = `${totals.countedSales} ${totals.countedSales === 1 ? "venta" : "ventas"} · $${formatMoney(grandTotal)}`;
+
+  return (
+    <div
+      className={`flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl px-3 py-2 sm:gap-x-4 sm:px-4 ${REPORTS_SURFACE}`}
+      title={detail}
+    >
+      {items.map((item, index) => (
+        <Fragment key={item.label}>
+          {index > 0 ? (
+            <span className="hidden h-7 w-px shrink-0 bg-[var(--berea-card-border)] sm:block" aria-hidden />
+          ) : null}
+          <div className="flex items-baseline gap-2 whitespace-nowrap">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--berea-ink-muted)]">
+              {item.label}
+            </span>
+            <span className="text-[14px] font-semibold tabular-nums text-[var(--berea-ink)]">
+              ${formatMoney(item.value)}
+            </span>
+          </div>
+        </Fragment>
+      ))}
+      <span className="hidden h-7 w-px shrink-0 bg-[var(--berea-card-border)] md:block" aria-hidden />
+      <span className="whitespace-nowrap text-[13px] font-medium text-[var(--berea-ink-muted)]">{summary}</span>
+    </div>
+  );
+}
+
 export default function SalesPage() {
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,15 +209,18 @@ export default function SalesPage() {
   const [searchQueryDebounced, setSearchQueryDebounced] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [paymentTotals, setPaymentTotals] = useState<PaymentTotals | null>(null);
   const [salesMode, setSalesMode] = useState<SalesMode>("sales");
   const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const cardRefs = useRef<(HTMLDivElement | HTMLTableRowElement | null)[]>([]);
   const hasFocusedList = useRef(false);
   const router = useRouter();
 
@@ -124,6 +256,7 @@ export default function SalesPage() {
           setLoadError(null);
           setSales([]);
           setTotalCount(0);
+          setPaymentTotals(null);
           return;
         }
 
@@ -131,40 +264,82 @@ export default function SalesPage() {
 
         const from = (page - 1) * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
-        let q = supabase
-          .from("sales")
-          .select(
-            "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_paid, delivery_fee, created_at, channel, payment_proof_url, customers(name), users!user_id(name)",
-            { count: "exact" }
-          )
-          .eq("branch_id", branchId)
-          .order("created_at", { ascending: false })
-          .range(from, to);
 
-        const qTrim = searchQueryDebounced.trim();
-        if (qTrim) {
-          const esc = qTrim.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-          q = q.or(`invoice_number.ilike.%${esc}%,customers.name.ilike.%${esc}%`);
-        }
-        if (statusFilter !== "all") {
-          if (branchSalesMode === "orders" && statusFilter === "preparing") {
-            q = q.in("status", ["preparing", "packing"]);
-          } else if (branchSalesMode === "orders" && statusFilter === "completed") {
-            q = q.in("status", ["completed", "delivered"]);
-          } else {
-            q = q.eq("status", statusFilter);
+        const applyListFilters = <
+          T extends {
+            eq: (col: string, val: string) => T;
+            or: (filters: string) => T;
+            in: (col: string, vals: string[]) => T;
+            gte: (col: string, val: string) => T;
+            lte: (col: string, val: string) => T;
+          },
+        >(
+          query: T
+        ) => {
+          let q = query.eq("branch_id", branchId);
+          const qTrim = searchQueryDebounced.trim();
+          if (qTrim) {
+            const esc = qTrim.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+            q = q.or(`invoice_number.ilike.%${esc}%,customers.name.ilike.%${esc}%`);
           }
-        }
-        if (paymentFilter !== "all") q = q.eq("payment_method", paymentFilter);
+          if (statusFilter !== "all") {
+            if (branchSalesMode === "orders" && statusFilter === "preparing") {
+              q = q.in("status", ["preparing", "packing"]);
+            } else if (branchSalesMode === "orders" && statusFilter === "completed") {
+              q = q.in("status", ["completed", "delivered"]);
+            } else {
+              q = q.eq("status", statusFilter);
+            }
+          }
+          if (paymentFilter !== "all") q = q.eq("payment_method", paymentFilter);
+          const dateBounds = getSalesDateBounds(dateFrom, dateTo);
+          if (dateBounds) {
+            q = q.gte("created_at", dateBounds.start).lte("created_at", dateBounds.end);
+          }
+          return q;
+        };
 
-        const { data: salesData, error: queryError, count } = await q;
+        let q = applyListFilters(
+          supabase
+            .from("sales")
+            .select(
+              "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_paid, delivery_fee, created_at, channel, payment_proof_url, amount_cash, amount_transfer, customers(name), users!user_id(name)",
+              { count: "exact" }
+            )
+            .order("created_at", { ascending: false })
+            .range(from, to)
+        );
+
+        const qTotals = applyListFilters(
+          supabase
+            .from("sales")
+            .select(
+              "total, payment_method, amount_cash, amount_transfer, delivery_fee, payment_pending, status"
+            )
+            .order("created_at", { ascending: false })
+            .limit(PAYMENT_TOTALS_LIMIT)
+        );
+
+        const [{ data: salesData, error: queryError, count }, { data: totalsRows, error: totalsError }] =
+          await Promise.all([q, qTotals]);
         if (cancelled) return;
         if (queryError) {
           setLoadError(queryError.message);
           setSales([]);
           setTotalCount(0);
+          setPaymentTotals(null);
         } else {
           setLoadError(null);
+          if (!totalsError && totalsRows) {
+            const summed = sumSalesPaymentTotals(totalsRows as SaleTotalsRow[]);
+            const totalMatching = count ?? 0;
+            setPaymentTotals({
+              ...summed,
+              truncated: totalMatching > PAYMENT_TOTALS_LIMIT && totalsRows.length >= PAYMENT_TOTALS_LIMIT,
+            });
+          } else {
+            setPaymentTotals(null);
+          }
           setSales(((salesData ?? []) as Array<{
             id: string;
             branch_id: string;
@@ -179,6 +354,8 @@ export default function SalesPage() {
             delivery_paid: boolean;
             delivery_fee: number | null;
             created_at: string;
+            amount_cash: number | null;
+            amount_transfer: number | null;
             customers: { name: string }[] | { name: string } | null;
             users: { name: string }[] | { name: string } | null;
           }>).map((s) => ({
@@ -193,6 +370,7 @@ export default function SalesPage() {
           setLoadError(e instanceof Error ? e.message : "Error inesperado al cargar ventas");
           setSales([]);
           setTotalCount(0);
+          setPaymentTotals(null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -201,11 +379,11 @@ export default function SalesPage() {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey, page, searchQueryDebounced, statusFilter, paymentFilter, activeBranchEpoch]);
+  }, [refreshKey, page, searchQueryDebounced, statusFilter, paymentFilter, dateFrom, dateTo, activeBranchEpoch]);
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, statusFilter, paymentFilter]);
+  }, [searchQuery, statusFilter, paymentFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     setSelectedIndex((i) => Math.min(i, Math.max(0, sales.length - 1)));
@@ -266,8 +444,8 @@ export default function SalesPage() {
   })();
 
   const paginationBar = showPagination && (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-3xl bg-white px-5 py-4 max-md:rounded-2xl max-md:px-3.5 max-md:py-3 dark:bg-slate-900 md:gap-3">
-      <p className="text-[12px] font-medium text-slate-600 max-md:leading-snug dark:text-slate-400 md:text-[13px]">
+    <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 sm:px-5 ${REPORTS_SURFACE}`}>
+      <p className="text-[13px] font-medium text-[var(--berea-ink-muted)] md:text-[14px]">
         {totalCount} {totalCount === 1 ? "registro" : "registros"}
         {totalPages > 1 && (
           <>
@@ -282,7 +460,7 @@ export default function SalesPage() {
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100/90 text-slate-700 transition-colors hover:bg-slate-200/80 disabled:pointer-events-none disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
             aria-label="Página anterior"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -291,7 +469,7 @@ export default function SalesPage() {
           </button>
           {pageNumbers.map((n, i) =>
             n === "…" ? (
-              <span key={`ellipsis-${i}`} className="px-2 text-slate-400">
+              <span key={`ellipsis-${i}`} className="px-2 text-[var(--berea-ink-subtle)]">
                 …
               </span>
             ) : (
@@ -299,10 +477,10 @@ export default function SalesPage() {
                 key={n}
                 type="button"
                 onClick={() => setPage(n)}
-                className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl px-2 text-[13px] font-medium transition-colors ${
+                className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg px-2 text-[13px] font-semibold transition-colors ${
                   page === n
-                    ? "bg-[color:var(--shell-sidebar)] text-white dark:bg-[color:var(--shell-sidebar)]"
-                    : "bg-slate-100/80 text-slate-700 hover:bg-slate-200/80 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    ? "bg-[var(--berea-accent)] text-[var(--shell-nav-fg)]"
+                    : `${REPORTS_SURFACE} text-[var(--berea-ink-muted)] hover:bg-[var(--shell-workspace)]`
                 }`}
               >
                 {n}
@@ -313,7 +491,7 @@ export default function SalesPage() {
             type="button"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100/90 text-slate-700 transition-colors hover:bg-slate-200/80 disabled:pointer-events-none disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
             aria-label="Página siguiente"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -326,19 +504,25 @@ export default function SalesPage() {
   );
 
   const actionIconClass =
-    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-[color:var(--shell-sidebar)] dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-zinc-300";
+    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-subtle)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-accent)]";
 
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
     statusFilter !== "all" ||
-    paymentFilter !== "all";
+    paymentFilter !== "all" ||
+    dateFrom !== null ||
+    dateTo !== null;
 
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
     setPaymentFilter("all");
+    setDateFrom(null);
+    setDateTo(null);
     setPage(1);
   };
+
+  const today = startOfToday();
 
   const channelIconWrap = (sale: SaleRow) => {
     const unpaid =
@@ -346,8 +530,8 @@ export default function SalesPage() {
     const isWeb = sale.channel === "web_catalog";
     const hasProof = Boolean(sale.payment_proof_url);
     const creditPending = Boolean(sale.payment_pending);
-    const iconClass = "h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400";
-    const creditIconClass = "h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300";
+    const iconClass = "h-6 w-6 shrink-0 text-[var(--berea-ink-muted)]";
+    const creditIconClass = "h-6 w-6 shrink-0 text-amber-700 dark:text-amber-300";
 
     const channelLabel = isWeb
       ? "Catálogo"
@@ -389,40 +573,41 @@ export default function SalesPage() {
   };
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-4 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100 md:space-y-8">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none max-md:rounded-xl max-md:px-3 max-md:py-3.5 sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-4 max-md:gap-2.5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">{copy.sectionTitle}</h1>
-            <p className="mt-1 text-left text-[13px] font-medium leading-snug text-slate-500 max-md:mt-0.5 max-md:text-[12px] max-md:leading-relaxed dark:text-slate-400">
-              Gestiona facturas de mostrador y pedidos con envío desde un solo lugar.
-            </p>
-          </div>
-          <div className="w-full lg:overflow-x-auto">
-            <div className="grid w-full grid-cols-2 gap-2 lg:flex lg:min-w-max lg:flex-nowrap lg:items-center lg:justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setLoading(true);
-                  setRefreshKey((k) => k + 1);
-                }}
-                className="inline-flex h-9 w-full max-md:h-8 items-center justify-center gap-1.5 rounded-xl bg-slate-100/90 px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 max-md:text-[12px] max-md:font-semibold sm:w-auto sm:gap-2 sm:px-4 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Actualizar
-              </button>
-              <Link
-                href="/ventas/nueva"
-                className="inline-flex h-9 w-full max-md:h-8 items-center justify-center gap-1.5 rounded-xl bg-[color:var(--shell-sidebar)] px-3 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] max-md:text-[12px] max-md:font-semibold sm:w-auto sm:gap-2 sm:px-4"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                {copy.newButton}
-              </Link>
-            </div>
+    <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        <div className="min-w-0 shrink-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">{copy.sectionTitle}</h1>
+          <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)] sm:truncate lg:max-w-md xl:max-w-lg">
+            Gestiona facturas de mostrador y pedidos con envío desde un solo lugar.
+          </p>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:gap-3">
+          {!loading && !loadError && paymentTotals ? (
+            <PaymentTotalsStrip totals={paymentTotals} totalCount={totalCount} />
+          ) : null}
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                setRefreshKey((k) => k + 1);
+              }}
+              className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Actualizar
+            </button>
+            <Link
+              href="/ventas/nueva"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              {copy.newButton}
+            </Link>
           </div>
         </div>
       </header>
@@ -435,28 +620,28 @@ export default function SalesPage() {
         aria-label="Lista de facturas y pedidos. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
         {loading ? (
-          <div className="min-h-[280px] animate-pulse rounded-3xl bg-white dark:bg-slate-900" aria-hidden />
+          <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
         ) : loadError ? (
-          <div className="rounded-3xl border border-amber-200/80 bg-white px-6 py-10 text-center dark:border-amber-900/35 dark:bg-slate-900">
-            <p className="text-[15px] font-semibold text-amber-900 dark:text-amber-200">Error al cargar las ventas</p>
-            <p className="mt-2 text-[13px] font-medium text-amber-800/95 dark:text-amber-300/95">{loadError}</p>
-            <p className="mt-3 text-[12px] font-medium text-slate-500 dark:text-slate-400">
+          <div className={`rounded-xl px-6 py-10 text-center ${REPORTS_SURFACE}`}>
+            <p className="text-[15px] font-semibold text-amber-900">Error al cargar las ventas</p>
+            <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">{loadError}</p>
+            <p className="mt-3 text-[12px] text-[var(--berea-ink-subtle)]">
               Si acabas de aplicar migraciones en Supabase, ejecuta las migraciones y vuelve a intentar.
             </p>
             <button
               type="button"
               onClick={() => setRefreshKey((k) => k + 1)}
-              className="mt-6 inline-flex h-9 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+              className="mt-6 inline-flex h-9 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
             >
               Reintentar
             </button>
           </div>
         ) : (
-          <div className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 max-md:space-y-3 max-md:rounded-2xl max-md:px-3.5 max-md:py-4 sm:px-7 sm:py-7">
+          <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
               <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
                 <div className="relative min-w-0 w-full lg:min-w-0 lg:flex-1">
-                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--berea-ink-muted)]">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </span>
@@ -465,20 +650,20 @@ export default function SalesPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Factura, cliente…"
-                    className={workspaceFilterSearchPillClass}
+                    className={`${bereaFieldClass} py-2.5 pl-11 pr-4`}
                   />
                 </div>
-                <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4 lg:ml-auto lg:w-auto lg:shrink-0 lg:flex-row lg:justify-start lg:gap-3">
-                  <div className="grid min-w-0 w-full grid-cols-2 gap-2 sm:max-w-xl sm:gap-3 lg:max-w-none lg:w-auto lg:shrink-0 lg:gap-3">
+                <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4 lg:ml-auto lg:min-w-0 lg:flex-[1.4] lg:flex-row lg:justify-end lg:gap-3 xl:flex-[1.6]">
+                  <div className="grid min-w-0 w-full grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
                     <div className="min-w-0 space-y-1.5">
-                      <label htmlFor="ventas-filter-status" className={workspaceFilterLabelClass}>
+                      <label htmlFor="ventas-filter-status" className={bereaFilterLabel}>
                         Estado
                       </label>
                       <select
                         id="ventas-filter-status"
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                        className={workspaceFilterSelectClass}
+                        className={`${bereaFieldClass} px-3 font-medium`}
                       >
                         {statusFilterOptions.map((opt) => (
                           <option key={opt.value} value={opt.value}>
@@ -488,7 +673,7 @@ export default function SalesPage() {
                       </select>
                     </div>
                     <div className="min-w-0 space-y-1.5">
-                      <label htmlFor="ventas-filter-payment" className={workspaceFilterLabelClass}>
+                      <label htmlFor="ventas-filter-payment" className={bereaFilterLabel}>
                         <span className="sm:hidden">Pago</span>
                         <span className="hidden sm:inline">Forma de pago</span>
                       </label>
@@ -496,7 +681,7 @@ export default function SalesPage() {
                         id="ventas-filter-payment"
                         value={paymentFilter}
                         onChange={(e) => setPaymentFilter(e.target.value as PaymentFilter)}
-                        className={workspaceFilterSelectClass}
+                        className={`${bereaFieldClass} px-3 font-medium`}
                       >
                         {PAYMENT_FILTER_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>
@@ -505,12 +690,48 @@ export default function SalesPage() {
                         ))}
                       </select>
                     </div>
+                    <div className="col-span-2 min-w-0 space-y-1.5">
+                      <span className={bereaFilterLabel}>Fecha</span>
+                      <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3">
+                        <DatePickerCard
+                          id="ventas-filter-from"
+                          value={dateFrom}
+                          onChange={(d) => {
+                            setDateFrom(d);
+                            if (d && dateTo && d > dateTo) setDateTo(d);
+                          }}
+                          max={dateTo ?? today}
+                          placeholder="Desde"
+                          allowClear
+                          fullWidth
+                          size="md"
+                          triggerTone="berea"
+                          aria-label="Fecha desde"
+                        />
+                        <DatePickerCard
+                          id="ventas-filter-to"
+                          value={dateTo}
+                          onChange={(d) => {
+                            setDateTo(d);
+                            if (d && dateFrom && d < dateFrom) setDateFrom(d);
+                          }}
+                          min={dateFrom ?? undefined}
+                          max={today}
+                          placeholder="Hasta"
+                          allowClear
+                          fullWidth
+                          size="md"
+                          triggerTone="berea"
+                          aria-label="Fecha hasta"
+                        />
+                      </div>
+                    </div>
                   </div>
                   {hasActiveFilters ? (
                     <button
                       type="button"
                       onClick={clearFilters}
-                      className="shrink-0 self-start text-left text-[13px] font-medium text-[color:var(--shell-sidebar)] underline-offset-2 hover:underline sm:self-end dark:text-zinc-300"
+                      className="shrink-0 self-start text-left text-[13px] font-semibold text-[var(--berea-accent)] underline-offset-2 hover:underline sm:self-end"
                     >
                       Limpiar filtros
                     </button>
@@ -520,99 +741,102 @@ export default function SalesPage() {
 
             {totalCount === 0 && !hasActiveFilters ? (
               <div className="px-2 py-8 text-center sm:px-4">
-                <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">{copy.emptyTitle}</p>
-                <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                <p className="text-[15px] font-semibold text-[var(--berea-ink)]">{copy.emptyTitle}</p>
+                <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
                   Registra tu primera factura o pedido para verlo aquí.
                 </p>
                 <Link
                   href="/ventas/nueva"
-                  className="mt-6 inline-flex h-9 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+                  className="mt-6 inline-flex h-9 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
                 >
                   {copy.newButton}
                 </Link>
               </div>
             ) : sales.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-14 text-center dark:border-slate-700">
-                <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">
+              <div className="rounded-xl border border-dashed border-[var(--berea-card-border)] px-6 py-14 text-center">
+                <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
                   Ningún documento coincide con la búsqueda o los filtros
                 </p>
-                <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                  Prueba con otro término o ajusta estado o forma de pago.
+                <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
+                  Prueba con otro término o ajusta estado, forma de pago o fechas.
                 </p>
               </div>
             ) : (
               <>
-            {/* Desktop: tabla (estilo clientes) */}
-            <div className="hidden overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800 xl:block">
-              <div
-                className="grid grid-cols-[minmax(100px,1fr)_1fr_minmax(100px,1.2fr)_minmax(70px,0.8fr)_minmax(90px,0.9fr)_minmax(72px,0.7fr)_minmax(96px,auto)] items-center gap-x-6 border-b border-slate-100 px-5 py-3.5 dark:border-slate-800"
-                aria-hidden
-              >
-                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Factura / pedido</div>
-                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Fecha</div>
-                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Cliente</div>
-                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Pago</div>
-                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Estado</div>
-                <div className="min-w-0 w-full text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Total</div>
-                <div className="min-w-0 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Acciones</div>
-              </div>
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {/* Desktop: tabla estilo Berea */}
+            <div className="hidden overflow-x-auto xl:block">
+              <table className="w-full min-w-[760px] border-collapse text-left text-[14px] leading-relaxed">
+                <thead>
+                  <tr className="border-b border-[var(--berea-card-border)] text-[13px] text-[var(--berea-ink-muted)]">
+                    <th className="pb-3 pr-4 font-semibold">Factura / pedido</th>
+                    <th className="pb-3 pr-4 font-semibold">Fecha</th>
+                    <th className="pb-3 pr-4 font-semibold">Cliente</th>
+                    <th className="pb-3 pr-4 font-semibold">Pago</th>
+                    <th className="pb-3 pr-4 font-semibold">Estado</th>
+                    <th className="pb-3 pr-4 text-right font-semibold">Total</th>
+                    <th className="pb-3 text-right font-semibold">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
               {sales.map((s, index) => {
                 const isSelected = index === selectedIndex;
                 const customerName = s.customers?.name ?? "Cliente final";
+                const tone = rowStatusTone(s.status);
                 return (
-                  <div
+                  <tr
                     key={s.id}
                     ref={(el) => { cardRefs.current[index] = el; }}
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/ventas/${s.id}`)}
-                    className={`grid grid-cols-[minmax(100px,1fr)_1fr_minmax(100px,1.2fr)_minmax(70px,0.8fr)_minmax(90px,0.9fr)_minmax(72px,0.7fr)_minmax(96px,auto)] items-center gap-x-6 px-5 py-4 cursor-pointer transition-colors duration-150 ${
-                      isSelected
-                        ? "bg-slate-50 hover:bg-slate-100/95 dark:bg-slate-800/60 dark:hover:bg-slate-800/85"
-                        : "hover:bg-slate-100/90 dark:hover:bg-slate-800/55"
+                    className={`cursor-pointer transition-colors ${
+                      isSelected ? "bg-[var(--shell-workspace)]" : "hover:bg-[var(--shell-workspace)]/70"
                     }`}
                   >
-                    <div className="min-w-0 flex items-center gap-2.5">
-                      {channelIconWrap(s)}
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                        <p className="truncate text-[15px] font-medium tabular-nums tracking-tight text-slate-900 dark:text-slate-50">{displayInvoiceNumber(s.invoice_number)}</p>
+                    <td className="py-4 pr-4">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        {channelIconWrap(s)}
+                        <span className="truncate text-[15px] font-semibold tabular-nums text-[var(--berea-ink)]">
+                          {displayInvoiceNumber(s.invoice_number)}
+                        </span>
                       </div>
-                    </div>
-                    <div className="min-w-0 self-center">
-                      <p className="text-[14px] font-medium leading-snug text-slate-700 dark:text-slate-200">{formatTime(s.created_at)} · {formatDate(s.created_at)}</p>
-                    </div>
-                    <div className="min-w-0 self-center">
-                      <p className="truncate text-[15px] font-medium tracking-tight text-slate-900 dark:text-slate-50">{customerName}</p>
-                    </div>
-                    <div className="min-w-0 self-center">
-                      <span className={getPaymentListChipClass()}>{paymentLabel(s)}</span>
-                    </div>
-                    <div className="min-w-0 self-center">
-                      <span className={getStatusListChipClass(s.status)}>{statusLabel(s)}</span>
-                    </div>
-                    <div className="min-w-0 flex w-full items-center justify-end self-center">
-                      <span className="text-[15px] font-medium tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(Number(s.total))}</span>
-                    </div>
-                    <div className="flex items-center justify-end gap-0.5 self-center" onClick={(e) => e.stopPropagation()}>
+                    </td>
+                    <td className="py-4 pr-4 text-[var(--berea-ink-muted)]">
+                      {formatTime(s.created_at)} · {formatDate(s.created_at)}
+                    </td>
+                    <td className="max-w-[12rem] truncate py-4 pr-4 font-medium text-[var(--berea-ink)]">{customerName}</td>
+                    <td className="py-4 pr-4">
+                      <span className={paymentChipClass(s.payment_method)}>{paymentLabel(s)}</span>
+                    </td>
+                    <td className="py-4 pr-4">
+                      <span className={statusBadgeClass(tone)}>
+                        {statusLabel(s)}
+                      </span>
+                    </td>
+                    <td className="py-4 pr-4 text-right text-[15px] font-bold tabular-nums text-[var(--berea-ink)]">
+                      ${formatMoney(Number(s.total))}
+                    </td>
+                    <td className="py-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <Link href={`/ventas/${s.id}`} className={actionIconClass} aria-label="Ver detalle" title="Ver detalle">
                         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                       </Link>
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
                 );
               })}
-              </div>
+                </tbody>
+              </table>
             </div>
 
-            {/* Mobile: tarjetas (estilo clientes) */}
-            <div className="grid grid-cols-1 gap-4 pt-1 max-md:gap-2.5 sm:grid-cols-2 xl:hidden">
+            {/* Mobile: tarjetas Berea */}
+            <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2 xl:hidden">
               {sales.map((s, index) => {
                 const isSelected = index === selectedIndex;
                 const customerName = s.customers?.name ?? "Cliente final";
+                const tone = rowStatusTone(s.status);
                 return (
                   <div
                     key={s.id}
@@ -620,43 +844,46 @@ export default function SalesPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/ventas/${s.id}`)}
-                    className={`cursor-pointer rounded-2xl border border-slate-100 bg-slate-50/40 px-5 py-4 max-md:px-3.5 max-md:py-3 transition-[border-color,background-color,box-shadow] duration-150 dark:border-slate-800 dark:bg-slate-800/25 ${
-                      isSelected
-                        ? "ring-2 ring-slate-400/55 hover:border-slate-200 hover:bg-white hover:shadow-md dark:hover:border-slate-600 dark:hover:bg-slate-800/55 dark:hover:shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
-                        : "hover:border-slate-200 hover:bg-white hover:shadow-md dark:hover:border-slate-600 dark:hover:bg-slate-800/50 dark:hover:shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
+                    className={`cursor-pointer rounded-xl border border-[var(--berea-card-border)] bg-[var(--shell-workspace)] px-5 py-4 transition-colors ${
+                      isSelected ? "ring-2 ring-[var(--berea-accent)]/30" : "hover:bg-white"
                     }`}
                   >
-                    <div className="flex flex-col gap-3 max-md:gap-2">
+                    <div className="flex flex-col gap-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Factura / pedido</span>
+                        <span className={bereaFilterLabel}>Factura / pedido</span>
                         <div className="flex min-w-0 items-center gap-2">
                           {channelIconWrap(s)}
-                          <span className="truncate text-[15px] font-medium tabular-nums tracking-tight text-slate-900 dark:text-slate-50">{displayInvoiceNumber(s.invoice_number)}</span>
+                          <span className="truncate text-[15px] font-semibold tabular-nums text-[var(--berea-ink)]">
+                            {displayInvoiceNumber(s.invoice_number)}
+                          </span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Fecha</span>
-                        <span className="text-[14px] font-medium text-slate-700 dark:text-slate-200">{formatTime(s.created_at)} · {formatDate(s.created_at)}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Cliente</span>
-                        <span className="truncate text-right text-[14px] font-medium text-slate-900 dark:text-slate-50">{customerName}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Pago · Estado</span>
-                        <span className="flex flex-wrap items-center justify-end gap-1.5 text-[14px]">
-                          <span className={getPaymentListChipClass()}>{paymentLabel(s)}</span>
-                          <span className="text-slate-300 dark:text-slate-600" aria-hidden>
-                            ·
-                          </span>
-                          <span className={getStatusListChipClass(s.status)}>{statusLabel(s)}</span>
+                        <span className={bereaFilterLabel}>Fecha</span>
+                        <span className="text-[14px] text-[var(--berea-ink-muted)]">
+                          {formatTime(s.created_at)} · {formatDate(s.created_at)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Total</span>
-                        <span className="text-[15px] font-medium tabular-nums text-slate-900 dark:text-slate-50">$ {formatMoney(Number(s.total))}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={bereaFilterLabel}>Cliente</span>
+                        <span className="truncate text-right text-[14px] font-medium text-[var(--berea-ink)]">{customerName}</span>
                       </div>
-                      <div className="flex items-center justify-end gap-0.5 border-t border-slate-100 pt-3 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={bereaFilterLabel}>Pago · Estado</span>
+                        <span className="flex flex-wrap items-center justify-end gap-2">
+                          <span className={paymentChipClass(s.payment_method)}>{paymentLabel(s)}</span>
+                          <span className={statusBadgeClass(tone)}>
+                            {statusLabel(s)}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 border-t border-[var(--berea-card-border)] pt-3">
+                        <span className={bereaFilterLabel}>Total</span>
+                        <span className="text-[16px] font-bold tabular-nums text-[var(--berea-ink)]">
+                          ${formatMoney(Number(s.total))}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
                         <Link href={`/ventas/${s.id}`} className={actionIconClass} title="Ver detalle" aria-label="Ver detalle">
                           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -669,6 +896,7 @@ export default function SalesPage() {
                 );
               })}
             </div>
+
               </>
             )}
           </div>

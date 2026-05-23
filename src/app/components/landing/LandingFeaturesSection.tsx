@@ -119,32 +119,24 @@ export function LandingFeaturesSection() {
   return (
     <section
       id="funcionalidades"
-      className="relative border-t border-zinc-800/80 bg-zinc-950 py-16 sm:py-20 lg:py-24"
+      className="berea-landing-section relative py-16 sm:py-20 lg:py-24"
       aria-labelledby="landing-features-heading"
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/25 to-transparent" aria-hidden />
+      <div className="berea-landing-section-line" aria-hidden />
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Funcionalidades</p>
-          <h2
-            id="landing-features-heading"
-            className="mt-3 font-logo text-2xl tracking-tight text-white sm:text-3xl lg:text-[2rem]"
-          >
+          <p className="berea-landing-eyebrow">Funcionalidades</p>
+          <h2 id="landing-features-heading" className="berea-landing-heading mt-3 text-2xl tracking-tight sm:text-3xl lg:text-[2rem]">
             Hecho para operar tu comercio{" "}
-            <span className="bg-gradient-to-r from-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-              de punta a punta
-            </span>
+            <span className="berea-landing-accent-text">de punta a punta</span>
           </h2>
-          <p className="mt-4 text-[15px] leading-relaxed text-zinc-400 sm:text-base">
+          <p className="berea-landing-body mt-4 text-[15px] leading-relaxed sm:text-base">
             Módulos pensados para tiendas físicas y equipos que venden, despachan y cobran todos los días. Un solo sistema,
             roles claros y datos confiables.
           </p>
           <p className="mt-4">
-            <Link
-              href="/#vistas"
-              className="text-[13px] font-medium text-emerald-400/95 underline-offset-2 hover:text-emerald-300 hover:underline"
-            >
+            <Link href="/#vistas" className="berea-landing-link text-[13px]">
               Ver facturas, créditos y stock en acción
             </Link>
           </p>
@@ -152,29 +144,21 @@ export function LandingFeaturesSection() {
 
         <ul className="mt-12 grid list-none gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
           {FEATURES.map((f) => (
-            <li
-              key={f.title}
-              className="rounded-2xl border border-zinc-800/90 bg-zinc-900/35 p-5 shadow-sm ring-1 ring-white/[0.03] transition-[border-color,background-color] duration-200 hover:border-zinc-700/90 hover:bg-zinc-900/55"
-            >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300/95 ring-1 ring-emerald-500/20">
-                {f.icon}
-              </div>
-              <h3 className="mt-4 text-[15px] font-semibold tracking-tight text-zinc-100">{f.title}</h3>
-              <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">{f.description}</p>
+            <li key={f.title} className="berea-landing-card p-5">
+              <div className="berea-landing-icon-box">{f.icon}</div>
+              <h3 className="mt-4 text-[15px] font-semibold tracking-tight text-[var(--landing-fg)]">{f.title}</h3>
+              <p className="berea-landing-muted mt-2 text-[13px] leading-relaxed">{f.description}</p>
             </li>
           ))}
         </ul>
 
         <div className="mt-14 flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-6">
-          <Link
-            href="/registro"
-            className="inline-flex h-11 items-center justify-center rounded-xl bg-zinc-100 px-6 text-[14px] font-semibold text-zinc-900 transition-colors hover:bg-white"
-          >
+          <Link href="/registro" className="berea-landing-btn-primary px-6">
             Solicitar licencia
           </Link>
-          <p className="text-center text-[13px] text-zinc-500">
+          <p className="berea-landing-body text-center text-[13px]">
             ¿Ya usas Berea?{" "}
-            <Link href="/login" className="font-medium text-emerald-400/95 underline-offset-2 hover:text-emerald-300 hover:underline">
+            <Link href="/login" className="berea-landing-link">
               Inicia sesión
             </Link>
           </p>

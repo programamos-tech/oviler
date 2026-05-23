@@ -7,6 +7,19 @@ import { createClient } from "@/lib/supabase/client";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { workspaceAvatarSeed } from "@/app/components/app-nav-data";
 
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const bereaFieldClass =
+  "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
+
+const bereaFilterLabel = "block text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
+
+const bereaSectionLabel = "text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
+
+const bereaCardClass = `rounded-xl p-4 sm:p-5 ${REPORTS_SURFACE}`;
+
+const bereaBadgeBase = "inline-flex items-center rounded-md px-2.5 py-1 text-[13px] font-semibold ring-1 ring-inset";
+
 type Activity = {
   id: string;
   organization_id: string;
@@ -437,25 +450,24 @@ export default function ActivityFeedPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-        <div className="min-h-[280px] animate-pulse rounded-2xl bg-white dark:bg-slate-900" aria-hidden />
+      <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+        <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+    <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
               Actividades
             </h1>
-            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-300">
+            <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
               Log de registros y eventos recientes de la sucursal.
             </p>
             {!currentBranch && !loading && (
-              <p className="mt-1 text-[13px] text-amber-600 dark:text-amber-400">
+              <p className="mt-1 text-[13px] font-medium text-amber-700 dark:text-amber-400">
                 No tienes sucursal asignada. Asigna una en tu perfil para ver actividades.
               </p>
             )}
@@ -464,7 +476,7 @@ export default function ActivityFeedPage() {
             type="button"
             onClick={() => void handleRefresh()}
             disabled={refreshing}
-            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-800 sm:mt-0"
+            className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 self-start rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] transition-colors hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-60 ${REPORTS_SURFACE}`}
             aria-label="Actualizar actividades"
           >
             <svg
@@ -483,16 +495,15 @@ export default function ActivityFeedPage() {
             </svg>
             {refreshing ? "Actualizando…" : "Actualizar"}
           </button>
-        </div>
       </header>
 
-      <section className="rounded-3xl bg-white px-4 py-4 dark:bg-slate-900 sm:px-6 sm:py-6">
+      <section className={`rounded-xl px-4 py-4 sm:px-6 sm:py-5 ${REPORTS_SURFACE}`}>
         {activities.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/40 p-8 text-center dark:border-slate-700 dark:bg-slate-800/25">
-            <p className="text-[15px] font-medium text-slate-700 dark:text-slate-300">
+          <div className="rounded-xl border border-dashed border-[var(--berea-card-border)] bg-[var(--shell-workspace)]/40 p-8 text-center">
+            <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
               Aún no hay actividades
             </p>
-            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-[13px] text-[var(--berea-ink-muted)]">
               Las acciones en esta sucursal (crear/editar productos, ajustar stock, crear categorías) aparecerán aquí.
             </p>
           </div>
@@ -511,21 +522,21 @@ export default function ActivityFeedPage() {
                 ref={(el) => {
                   activityRefs.current[a.id] = el;
                 }}
-                className={`rounded-2xl border border-slate-100 bg-slate-50/35 px-3 py-3 transition-colors dark:border-slate-800 dark:bg-slate-800/20 sm:px-4 ${
-                  highlightedActivityId === a.id ? "border-slate-300/80 bg-slate-200/60 dark:border-zinc-600/40 dark:bg-zinc-800/55" : ""
+                className={`rounded-xl border border-[var(--berea-card-border)] bg-[var(--shell-workspace)]/35 px-3 py-3 transition-colors sm:px-4 ${
+                  highlightedActivityId === a.id ? "ring-2 ring-[color:var(--shell-sidebar)]/25 bg-[var(--shell-workspace)]" : ""
                 }`}
               >
                 <div className="flex gap-3">
                   <FeedActorAvatar activity={a} />
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-50">
+                      <span className="text-[13px] font-semibold text-[var(--berea-ink)]">
                         {actorName(a)}
                       </span>
-                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                      <span className={`${bereaBadgeBase} bg-sky-100 text-sky-950 ring-sky-300 text-[11px] uppercase tracking-wide`}>
                         {getActionLabel(a.action)}
                       </span>
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="text-[11px] text-[var(--berea-ink-muted)]">
                         {formatDateTime(a.created_at)} · {timeAgo(a.created_at)}
                       </span>
                     </div>
@@ -729,8 +740,8 @@ export default function ActivityFeedPage() {
                       <button
                         type="button"
                         onClick={() => toggleLike(a.id)}
-                        className={`group flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 ${
-                          liked ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : "text-slate-600 dark:text-slate-400"
+                        className={`group flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors hover:bg-[var(--shell-workspace)] ${
+                          liked ? "text-[color:var(--shell-sidebar)]" : "text-[var(--berea-ink-muted)]"
                         }`}
                       >
                         <svg
@@ -751,7 +762,7 @@ export default function ActivityFeedPage() {
                       <button
                         type="button"
                         onClick={() => setExpandedComments((prev) => ({ ...prev, [a.id]: !prev[a.id] }))}
-                        className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                        className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)]"
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
@@ -778,7 +789,7 @@ export default function ActivityFeedPage() {
                                 <span className="text-[12px] font-bold text-slate-900 dark:text-slate-50">
                                   {c.users?.name ?? "Usuario"}
                                 </span>
-                                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                <span className="text-[11px] text-[var(--berea-ink-muted)]">
                                   {timeAgo(c.created_at)}
                                 </span>
                               </div>
@@ -799,7 +810,7 @@ export default function ActivityFeedPage() {
                                   submitComment(a.id);
                                 }
                               }}
-                              className="max-w-[260px] rounded-xl border border-slate-300 bg-transparent px-3 py-1.5 text-[12px] outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:placeholder:text-slate-500 dark:focus:border-zinc-500"
+                              className={`max-w-[260px] ${bereaFieldClass} h-9 py-1.5 text-[12px]`}
                             />
                             <button
                               type="button"
@@ -832,7 +843,7 @@ export default function ActivityFeedPage() {
             );
           })}
           </div>
-          <div ref={loadMoreRef} className="py-3 text-center text-[12px] text-slate-500 dark:text-slate-400">
+          <div ref={loadMoreRef} className="py-3 text-center text-[12px] text-[var(--berea-ink-muted)]">
             {loadingMore ? "Cargando más actividad..." : hasMore ? "Desliza para ver más" : "No hay más actividad por mostrar"}
           </div>
           </>

@@ -6,6 +6,15 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Breadcrumb from "@/app/components/Breadcrumb";
 
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const bereaFieldClass =
+  "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
+
+const bereaFilterLabel = "block text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
+
+const bereaSectionLabel = "text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
+
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
 }
@@ -129,10 +138,10 @@ export default function ExpenseDetailPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 px-0 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
         <Breadcrumb items={[{ label: "Egresos", href: "/egresos" }, { label: "Detalle" }]} />
-        <div className="flex min-h-[200px] items-center justify-center rounded-xl bg-white p-8 dark:bg-slate-900">
-          <p className="text-slate-500 dark:text-slate-400">Cargando egreso...</p>
+        <div className={`flex min-h-[200px] items-center justify-center rounded-xl p-8 ${REPORTS_SURFACE}`}>
+          <p className="text-[var(--berea-ink-muted)]">Cargando egreso...</p>
         </div>
       </div>
     );
@@ -140,11 +149,11 @@ export default function ExpenseDetailPage() {
 
   if (notFound || !expense) {
     return (
-      <div className="space-y-4 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 px-0 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
         <Breadcrumb items={[{ label: "Egresos", href: "/egresos" }, { label: "Detalle" }]} />
-        <div className="rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <p className="text-[15px] font-medium text-slate-700 dark:text-slate-300">Egreso no encontrado</p>
-          <Link href="/egresos" className="mt-4 inline-block text-ov-pink hover:underline text-[14px]">
+        <div className={`rounded-xl p-8 text-center ${REPORTS_SURFACE}`}>
+          <p className="text-[15px] font-semibold text-[var(--berea-ink)]">Egreso no encontrado</p>
+          <Link href="/egresos" className="mt-4 inline-block text-[14px] font-semibold text-[color:var(--shell-sidebar)] hover:underline">
             Volver a la lista
           </Link>
         </div>
@@ -156,8 +165,8 @@ export default function ExpenseDetailPage() {
   const isAutoWarrantyExpense = isAutomaticWarrantyRefund(expense);
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
+    <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+      <div className={`rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
         <Breadcrumb
           items={[
             { label: "Egresos", href: "/egresos" },
@@ -166,10 +175,10 @@ export default function ExpenseDetailPage() {
         />
         <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
               Egreso #{shortId}
             </h1>
-            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
               {formatDate(expense.created_at)} · {formatTime(expense.created_at)}
               {expense.users?.name && <> · Registrado por {expense.users.name}</>}
             </p>
@@ -185,7 +194,7 @@ export default function ExpenseDetailPage() {
           </div>
           <Link
             href="/egresos"
-            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 shrink-0"
+            className={`rounded-lg p-2 text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-ink)] shrink-0 ${REPORTS_SURFACE}`}
             title="Volver a egresos"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -195,40 +204,40 @@ export default function ExpenseDetailPage() {
         </div>
 
         {actionError && (
-          <div className="mt-4 rounded-lg bg-red-50 p-3 text-[13px] font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] font-medium text-red-900 ring-1 ring-inset ring-red-300 dark:bg-red-900/20 dark:text-red-300">
             {actionError}
           </div>
         )}
 
         <div className="mt-5 flex flex-wrap items-start gap-4 sm:gap-6">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Concepto</p>
-            <p className="mt-0.5 text-lg font-semibold text-slate-900 dark:text-slate-50 sm:text-xl">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Concepto</p>
+            <p className="mt-0.5 text-lg font-semibold text-[var(--berea-ink)] sm:text-xl">
               {expense.concept}
             </p>
           </div>
-          <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Monto</p>
-            <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl tabular-nums">
+          <div className="border-l border-[var(--berea-card-border)] pl-4 sm:pl-6">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Monto</p>
+            <p className="mt-0.5 text-lg font-bold text-[var(--berea-ink)] sm:text-xl tabular-nums">
               $ {formatMoney(expense.amount)}
             </p>
           </div>
-          <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Forma de pago</p>
-            <p className="mt-0.5 text-lg font-medium text-slate-700 dark:text-slate-300 sm:text-xl">
+          <div className="border-l border-[var(--berea-card-border)] pl-4 sm:pl-6">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Forma de pago</p>
+            <p className="mt-0.5 text-lg font-medium text-[var(--berea-ink-muted)] sm:text-xl">
               {PAYMENT_LABELS[expense.payment_method]}
             </p>
           </div>
-          <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Fecha y hora</p>
-            <p className="mt-0.5 text-[14px] font-medium text-slate-700 dark:text-slate-300">
+          <div className="border-l border-[var(--berea-card-border)] pl-4 sm:pl-6">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Fecha y hora</p>
+            <p className="mt-0.5 text-[14px] font-medium text-[var(--berea-ink-muted)]">
               {formatDate(expense.created_at)} · {formatTime(expense.created_at)}
             </p>
           </div>
           {expense.users?.name && (
-            <div className="border-l border-slate-200 pl-4 dark:border-slate-700 sm:pl-6">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Registrado por</p>
-              <p className="mt-0.5 text-[14px] font-medium text-slate-700 dark:text-slate-300">
+            <div className="border-l border-[var(--berea-card-border)] pl-4 sm:pl-6">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Registrado por</p>
+              <p className="mt-0.5 text-[14px] font-medium text-[var(--berea-ink-muted)]">
                 {expense.users.name}
               </p>
             </div>
@@ -236,16 +245,16 @@ export default function ExpenseDetailPage() {
         </div>
 
         {expense.notes && expense.notes.trim() && (
-          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Notas</p>
-            <p className="mt-2 text-[14px] font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+          <div className="mt-6 rounded-xl border border-[var(--berea-card-border)] bg-[var(--shell-workspace)]/50 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Notas</p>
+            <p className="mt-2 text-[14px] font-medium text-[var(--berea-ink-muted)] whitespace-pre-wrap">
               {expense.notes.trim()}
             </p>
           </div>
         )}
 
         {expense.status === "cancelled" ? (
-          <div className="mt-6 rounded-xl border border-red-200 bg-red-50/60 p-4 dark:border-red-900/50 dark:bg-red-900/10">
+          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 ring-1 ring-inset ring-red-300 dark:border-red-900/50 dark:bg-red-900/10">
             <p className="text-[12px] font-semibold text-red-700 dark:text-red-300">Este egreso fue anulado.</p>
             <p className="mt-1 text-[12px] text-red-700/90 dark:text-red-300/90">
               {expense.cancelled_at ? `Fecha: ${formatDate(expense.cancelled_at)} · ${formatTime(expense.cancelled_at)}` : "Sin fecha registrada"}
@@ -257,7 +266,7 @@ export default function ExpenseDetailPage() {
             )}
           </div>
         ) : isAutoWarrantyExpense ? (
-          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/50 dark:bg-amber-900/10">
+          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 ring-1 ring-inset ring-amber-300 dark:border-amber-900/50 dark:bg-amber-900/10">
             <p className="text-[12px] font-semibold text-amber-700 dark:text-amber-300">
               Este egreso fue creado automáticamente por una devolución de garantía.
             </p>
@@ -266,7 +275,7 @@ export default function ExpenseDetailPage() {
             </p>
           </div>
         ) : (
-          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30">
+          <div className="mt-6 rounded-xl border border-[var(--berea-card-border)] bg-[var(--shell-workspace)]/50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Anular egreso</p>
@@ -277,7 +286,7 @@ export default function ExpenseDetailPage() {
               <button
                 type="button"
                 onClick={() => setCancelFormOpen((prev) => !prev)}
-                className="inline-flex h-9 items-center rounded-lg border border-red-300 bg-white px-3 text-[13px] font-medium text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                className="inline-flex h-9 items-center rounded-lg border border-red-300 bg-white px-3 text-[13px] font-semibold text-red-800 hover:bg-red-50 dark:border-red-900/60 dark:bg-transparent dark:text-red-300 dark:hover:bg-red-950/30"
               >
                 {cancelFormOpen ? "Cerrar" : "Anular egreso"}
               </button>
@@ -289,7 +298,7 @@ export default function ExpenseDetailPage() {
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   placeholder="Motivo de la anulación (opcional)"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] text-slate-800 outline-none focus:ring-2 focus:ring-red-200 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                  className={`w-full ${bereaFieldClass.replace("h-11 ", "min-h-[5rem] py-2 ")}`}
                 />
                 <button
                   type="button"

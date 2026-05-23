@@ -2,21 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { getCopy } from "@/app/ventas/sales-mode";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
+import { workspaceHelpWhatsAppUrl } from "@/lib/programamos-contact";
 import type { ReactNode } from "react";
-import { navItems, navPathIsActive, type NavItem } from "./app-nav-data";
-import { OvilerWordmark } from "./OvilerWordmark";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+import {
+  navPathIsActive,
+  sidebarNavEntries,
+  type NavItem,
+  type SidebarNavEntry,
+} from "./app-nav-data";
+import { useSession } from "./SessionProvider";
 
-const SIDEBAR_COLLAPSED_KEY = "nou.sidebar.collapsedSections";
+const SIDEBAR_EXPANDED_KEY = "nou.sidebar.expandedGroups";
 
-function readCollapsedFromStorage(): Set<string> {
+function readExpandedFromStorage(): Set<string> {
   if (typeof window === "undefined") return new Set();
   try {
-    const raw = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    const raw = window.localStorage.getItem(SIDEBAR_EXPANDED_KEY);
     if (!raw) return new Set();
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return new Set();
@@ -26,301 +29,324 @@ function readCollapsedFromStorage(): Set<string> {
   }
 }
 
-function writeCollapsedToStorage(set: Set<string>) {
+function writeExpandedToStorage(set: Set<string>) {
   try {
-    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, JSON.stringify([...set]));
+    window.localStorage.setItem(SIDEBAR_EXPANDED_KEY, JSON.stringify([...set]));
   } catch {
     /* ignore */
   }
 }
 
+function SidebarChevronDown({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
+function SidebarChevronRight({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+function SidebarHouseIcon() {
+  return (
+    <span className="sidebar-icon-box sidebar-nav-icon flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)] text-[var(--shell-nav-fg-subtle)]">
+      <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+        />
+      </svg>
+    </span>
+  );
+}
+
+function SidebarSproutIcon() {
+  return (
+    <span className="sidebar-nav-icon flex h-9 w-9 shrink-0 items-center justify-center text-[var(--shell-nav-fg-subtle)]">
+      <svg className="h-[20px] w-[20px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3c-3.5 2.2-5.5 5.2-5.5 8.5a5.5 5.5 0 0011 0C17.5 8.2 15.5 5.2 12 3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 14v4M9 18h6" />
+      </svg>
+    </span>
+  );
+}
+
+const navItemBase =
+  "sidebar-nav-row flex w-full items-center gap-3 px-3 py-[10px] text-[14px] leading-snug transition-colors duration-150";
+const navItemIdle = "font-medium text-[var(--shell-nav-fg-muted)] hover:bg-[var(--shell-nav-hover-bg)] hover:text-[var(--shell-nav-fg)]";
+const navItemActive = "sidebar-nav-item--active font-medium text-[var(--shell-nav-fg)]";
+
 export default function AppSidebar() {
   const pathname = usePathname();
   const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
-  const [user, setUser] = useState<{
-    name: string;
-    email: string;
-    role?: string | null;
-    permissions?: string[] | null;
-  } | null>(null);
-  const [branch, setBranch] = useState<{ name: string; logo_url: string | null; show_expenses?: boolean; sales_mode?: string } | null>(null);
-
-  /** Un solo getUser; perfil y sucursal en paralelo tras auth (menos espera al entrar al panel). */
-  useEffect(() => {
-    let cancelled = false;
-    const loadUserAndBranch = async () => {
-      const supabase = createClient();
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      if (!authUser || cancelled) return;
-
-      const [userRes, resolvedBranchId] = await Promise.all([
-        supabase
-          .from("users")
-          .select("name, email, role, permissions")
-          .eq("id", authUser.id)
-          .single(),
-        resolveActiveBranchId(supabase, authUser.id),
-      ]);
-      if (cancelled) return;
-
-      if (userRes.data) {
-        setUser(userRes.data as typeof user);
+  const { profile, branch } = useSession();
+  const user = profile
+    ? {
+        name: profile.name,
+        email: profile.email,
+        role: profile.role,
+        permissions: profile.permissions,
+        avatar_url: profile.avatar_url,
       }
-
-      if (!resolvedBranchId) {
-        setBranch(null);
-        return;
-      }
-      const { data: branchData } = await supabase
-        .from("branches")
-        .select("name, logo_url, show_expenses, sales_mode")
-        .eq("id", resolvedBranchId)
-        .single();
-      if (cancelled) return;
-      if (branchData) {
-        setBranch({
-          name: branchData.name,
-          logo_url: branchData.logo_url ?? null,
-          show_expenses: branchData.show_expenses !== false,
-          sales_mode: (branchData as { sales_mode?: string }).sales_mode,
-        });
-      } else {
-        setBranch(null);
-      }
-    };
-
-    const onBranchChanged = () => {
-      void loadUserAndBranch();
-    };
-
-    void loadUserAndBranch();
-    if (typeof window !== "undefined") {
-      window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranchChanged);
-    }
-    return () => {
-      cancelled = true;
-      if (typeof window !== "undefined") {
-        window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranchChanged);
-      }
-    };
-  }, [pathname]);
+    : null;
 
   const role = (user?.role ?? null) as AppRole | null;
   const customPermissions = user?.permissions ?? null;
-  const appNavItems = navItems
-    .filter((item) => canAccessNavModule(role, item.label, customPermissions))
-    .map((item) => ({
-      ...item,
-      items: item.items?.filter((subItem) => {
-        if (branch && branch.show_expenses === false && subItem.href.startsWith("/egresos")) return false;
-        return canAccessPath(role, subItem.href, customPermissions);
-      }),
-    }))
-    .filter((item) => (item.items?.length ?? 0) > 0);
+
+  const appSidebarEntries = useMemo((): SidebarNavEntry[] => {
+    const result: SidebarNavEntry[] = [];
+    for (const entry of sidebarNavEntries) {
+      if (branch && branch.show_expenses === false && entry.href.startsWith("/egresos")) continue;
+      if (!canAccessNavModule(role, entry.navModule, customPermissions)) continue;
+      const children = (entry.children ?? []).filter((child) => {
+        if (branch && branch.show_expenses === false && child.href.startsWith("/egresos")) return false;
+        return canAccessPath(role, child.href, customPermissions);
+      });
+      const selfAllowed = canAccessPath(role, entry.href, customPermissions);
+      if (!selfAllowed && children.length === 0) continue;
+      result.push({ ...entry, children: children.length > 0 ? children : undefined });
+    }
+    return result;
+  }, [role, customPermissions, branch]);
+
   const internalNavItems: NavItem[] = [
     {
       label: "BACKOFFICE",
       href: "/interno",
       icon: (
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        <svg className="h-[22px] w-[22px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       ),
       items: [
         {
           label: "Clientes plataforma",
           href: "/interno",
-          icon: (
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
-            </svg>
-          ),
           description: "Activación y gestión de licencias",
         },
       ],
     },
   ];
-  const displayNavItems = isInterno ? internalNavItems : appNavItems;
 
-  const [collapsedModules, setCollapsedModules] = useState<Set<string>>(() => new Set());
-  const [collapsedReady, setCollapsedReady] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
+  const [expandedReady, setExpandedReady] = useState(false);
 
   useEffect(() => {
-    setCollapsedModules(readCollapsedFromStorage());
-    setCollapsedReady(true);
+    setExpandedGroups(readExpandedFromStorage());
+    setExpandedReady(true);
   }, []);
 
-  const modulesKey = displayNavItems.map((i) => i.label).join("|");
-
   useEffect(() => {
-    if (!collapsedReady) return;
-    setCollapsedModules((prev) => {
+    if (!expandedReady || isInterno) return;
+    setExpandedGroups((prev) => {
       const next = new Set(prev);
       let changed = false;
-      for (const item of displayNavItems) {
-        const subs = item.items ?? [];
-        if (subs.some((sub) => navPathIsActive(pathname, sub.href)) && next.has(item.label)) {
-          next.delete(item.label);
+      for (const entry of appSidebarEntries) {
+        const children = entry.children ?? [];
+        const childActive = children.some((c) => navPathIsActive(pathname, c.href));
+        if (childActive && !next.has(entry.label)) {
+          next.add(entry.label);
           changed = true;
         }
       }
-      if (changed) writeCollapsedToStorage(next);
+      if (changed) writeExpandedToStorage(next);
       return changed ? next : prev;
     });
-  }, [pathname, collapsedReady, modulesKey]);
+  }, [pathname, expandedReady, isInterno, appSidebarEntries]);
 
-  const toggleModule = useCallback((label: string) => {
-    setCollapsedModules((prev) => {
+  const toggleGroup = useCallback((label: string) => {
+    setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(label)) next.delete(label);
       else next.add(label);
-      writeCollapsedToStorage(next);
+      writeExpandedToStorage(next);
       return next;
     });
   }, []);
 
-  const linkSub = (subHref: string, subLabel: string, subIcon?: ReactNode) => {
-    const active = navPathIsActive(pathname, subHref);
-    return (
-      <Link
-        key={subHref + subLabel}
-        href={subHref}
-        className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] transition-colors ${
-          active
-            ? "font-medium bg-[rgb(24_27_34)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ring-1 ring-[rgb(48_52_62)]"
-            : "text-white/65 hover:bg-white/[0.06] hover:text-white/95"
-        }`}
-      >
+  const renderNavLink = (href: string, label: string, icon: ReactNode, active: boolean, indent = false) => (
+    <Link
+      key={href + label}
+      href={href}
+      className={`${navItemBase} ${indent ? "pl-11 pr-3 py-2 text-[12px]" : ""} ${
+        active ? navItemActive : navItemIdle
+      }`}
+    >
+      {!indent ? (
         <span
-          className={`flex h-5 w-5 shrink-0 items-center justify-center [&>svg]:h-4 [&>svg]:w-4 ${
-            active ? "text-white/90" : "text-white/40"
+          className={`sidebar-nav-icon flex shrink-0 items-center justify-center ${
+            active ? "text-[var(--shell-nav-fg)]" : "text-[var(--shell-nav-fg-subtle)]"
           }`}
         >
-          {subIcon ?? <span className="block h-1 w-1 rounded-full bg-white/30" />}
+          {icon}
         </span>
-        <span className="min-w-0 truncate">{subLabel}</span>
-      </Link>
+      ) : null}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </Link>
+  );
+
+  const renderEntry = (entry: SidebarNavEntry) => {
+    const children = entry.children ?? [];
+    const hasChildren = children.length > 0;
+    const childActive = children.some((c) => navPathIsActive(pathname, c.href));
+    const parentActive = navPathIsActive(pathname, entry.href) || childActive;
+    const expanded = expandedGroups.has(entry.label);
+    const panelId = `sidebar-${entry.label.replace(/\s+/g, "-").toLowerCase()}`;
+
+    if (!hasChildren) {
+      return renderNavLink(entry.href, entry.label, entry.icon, parentActive);
+    }
+
+    return (
+      <div key={entry.label} className="space-y-0.5">
+        <div className={`${navItemBase} ${parentActive ? navItemActive : navItemIdle}`}>
+          <Link href={entry.href} className="flex min-w-0 flex-1 items-center gap-3">
+            <span
+              className={`sidebar-nav-icon flex shrink-0 items-center justify-center ${
+                parentActive ? "text-[var(--shell-nav-fg)]" : "text-[var(--shell-nav-fg-subtle)]"
+              }`}
+            >
+              {entry.icon}
+            </span>
+            <span className="min-w-0 flex-1 truncate">{entry.label}</span>
+          </Link>
+          <button
+            type="button"
+            id={`${panelId}-btn`}
+            className="-mr-1 flex shrink-0 items-center justify-center rounded-[3px] p-1 text-[var(--shell-nav-fg-subtle)] transition-colors hover:text-[var(--shell-nav-fg)]"
+            aria-expanded={expanded}
+            aria-controls={panelId}
+            aria-label={expanded ? `Ocultar menú de ${entry.label}` : `Mostrar menú de ${entry.label}`}
+            onClick={() => toggleGroup(entry.label)}
+          >
+            {expanded ? (
+              <SidebarChevronDown className="h-4 w-4" />
+            ) : (
+              <SidebarChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+        <div id={panelId} role="region" aria-labelledby={`${panelId}-btn`} hidden={!expanded} className="space-y-0.5">
+          {children.map((child) =>
+            renderNavLink(
+              child.href,
+              child.label,
+              null,
+              navPathIsActive(pathname, child.href),
+              true
+            )
+          )}
+        </div>
+      </div>
     );
   };
 
-  /** Sección del shell: cabecera plegable + enlaces. */
-  const moduleBlock = (item: NavItem, showSpacing: boolean) => {
-    const subs = item.items ?? [];
-    const parentActive = subs.some((sub) => navPathIsActive(pathname, sub.href));
-    const salesCopy =
-      item.label === "COMERCIAL" && branch?.sales_mode
-        ? getCopy(branch.sales_mode as "sales" | "orders")
-        : null;
-    if (subs.length === 0) return null;
-
-    const collapsed = collapsedModules.has(item.label);
-    const panelId = `sidebar-mod-${item.label.replace(/[^\w\u00C0-\u024f]+/g, "-").replace(/^-|-$/g, "")}`;
-
+  const internoLink = (subHref: string, subLabel: string) => {
+    const active = navPathIsActive(pathname, subHref);
     return (
-      <div key={item.label} className={showSpacing ? "mt-5" : ""}>
-        <button
-          type="button"
-          id={`${panelId}-btn`}
-          className={`mb-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider transition-colors hover:bg-white/[0.06] ${
-            parentActive ? "text-white/75" : "text-white/40"
-          }`}
-          aria-expanded={!collapsed}
-          aria-controls={panelId}
-          onClick={() => toggleModule(item.label)}
-        >
-          <svg
-            className={`h-3.5 w-3.5 shrink-0 text-white/45 transition-transform ${collapsed ? "-rotate-90" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center text-white/35 [&>svg]:h-3.5 [&>svg]:w-3.5">
-            {item.icon}
-          </span>
-          <span className="min-w-0 flex-1 truncate">{item.label}</span>
-        </button>
-        <div id={panelId} role="region" aria-labelledby={`${panelId}-btn`} hidden={collapsed} className="space-y-0">
-          {subs.map((sub) => {
-            const subLabel =
-              salesCopy && sub.href === "/ventas"
-                ? salesCopy.sectionTitle
-                : sub.href === "/ventas/nueva"
-                  ? salesCopy?.newButton ?? sub.label
-                  : sub.label;
-            return linkSub(sub.href, subLabel, sub.icon);
-          })}
-        </div>
-      </div>
+      <Link
+        key={subHref}
+        href={subHref}
+        className={`${navItemBase} ${active ? navItemActive : navItemIdle}`}
+      >
+        <span className="min-w-0 flex-1 truncate">{subLabel}</span>
+      </Link>
     );
   };
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col overflow-hidden border-r border-slate-800 bg-[#080910] text-white shadow-none lg:flex"
+      className="shell-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen w-[272px] flex-col overflow-hidden border-r border-[var(--shell-nav-border)] bg-[var(--shell-nav-bg)] pb-3 pt-4 text-[var(--shell-nav-fg)] lg:flex"
       aria-label="Navegación principal"
     >
-      {/* Barra lateral siempre oscura: mismo tono con o sin modo oscuro del resto de la app. */}
-      <div className="pointer-events-none absolute inset-0 bg-[#080910]" aria-hidden />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.2] dark-app-canvas-glow"
-        aria-hidden
-      />
-
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-        <div className="shrink-0 border-b border-slate-800/80 px-3 py-3.5">
+      <header className="sidebar-header shrink-0 px-4">
+        <div className="sidebar-logo-wrap">
           <Link
-            href="/dashboard"
-            className="mx-auto flex w-full items-center justify-center rounded-xl px-2 py-2 outline-offset-2 transition-colors hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35"
+            href={isInterno ? "/interno" : "/dashboard"}
+            className="sidebar-logo-link outline-offset-4 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--shell-nav-fg)]/35"
             title={isInterno ? "Bernabé BackOffice" : "Bernabé Comercios"}
+            aria-label="Berea — Ir al inicio"
           >
-            <span className="min-w-0 shrink-0">
-              <OvilerWordmark
-                variant="onDark"
-                companyName="Bernabé"
-                companyClassName="text-[0.95em]"
-                logoSrc="/laptop.png"
-                productLine={isInterno ? "BackOffice" : "Comercios"}
-                className="text-[1.2rem] font-bold leading-none sm:text-[1.38rem] lg:text-[1.52rem]"
-              />
+            <span className="sidebar-logo-crop">
+              <img src="/logo-berea.2.png" alt="" className="sidebar-logo-img" decoding="async" />
             </span>
           </Link>
         </div>
 
-        <nav
-          className="sidebar-nav-scroll min-h-0 flex-1 overflow-y-auto px-1 py-2 [scrollbar-color:rgba(255,255,255,0.18)_transparent] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/[0.16] [&::-webkit-scrollbar-thumb:hover]:bg-white/[0.26]"
-        >
-          {!isInterno && branch ? (
-            <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-transparent px-2.5 py-2">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-transparent">
-                {branch.logo_url ? (
-                  <img
-                    src={branch.logo_url}
-                    alt=""
-                    width={36}
-                    height={36}
-                    className="max-h-full max-w-full object-contain object-center"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span className="flex h-full w-full items-center justify-center text-[12px] font-bold text-white/75">
-                    {(branch.name || "?").slice(0, 1).toUpperCase()}
-                  </span>
-                )}
+        {!isInterno && branch ? (
+          <Link
+            href="/sucursales"
+            className="sidebar-card flex items-center gap-3 border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)] px-3 py-2.5 transition-colors hover:bg-[var(--shell-nav-hover-bg)]"
+          >
+            {branch.logo_url ? (
+              <div className="sidebar-icon-box flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)]">
+                <img
+                  src={branch.logo_url}
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="max-h-full max-w-full object-contain object-center"
+                  referrerPolicy="no-referrer"
+                />
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Negocio</p>
-                <p className="truncate text-[12px] font-medium text-white/85">{branch.name}</p>
-              </div>
+            ) : (
+              <SidebarHouseIcon />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium leading-tight text-[var(--shell-nav-fg)]">{branch.name}</p>
+              <p className="truncate text-[11px] leading-tight text-[var(--shell-nav-fg-muted)]">Sucursal activa</p>
             </div>
-          ) : null}
-          <div className="space-y-0">{displayNavItems.map((item, idx) => moduleBlock(item, idx > 0))}</div>
-        </nav>
-      </div>
+            <SidebarChevronDown className="h-4 w-4 shrink-0 text-[var(--shell-nav-fg-subtle)]" />
+          </Link>
+        ) : null}
+      </header>
+
+      <nav
+        className="sidebar-menu sidebar-nav-scroll flex min-h-0 flex-1 flex-col justify-evenly overflow-y-auto overflow-x-hidden px-4 py-2"
+        aria-label="Menú del panel"
+      >
+        {isInterno
+          ? internalNavItems.flatMap((item) => (item.items ?? []).map((sub) => internoLink(sub.href, sub.label)))
+          : appSidebarEntries.map((entry) => <div key={entry.label}>{renderEntry(entry)}</div>)}
+      </nav>
+
+      {!isInterno ? (
+        <footer className="sidebar-footer shrink-0 border-t border-[var(--shell-nav-border)] px-4 py-3">
+          <a
+            href={workspaceHelpWhatsAppUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sidebar-card flex items-center gap-3 border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)] px-3 py-2.5 transition-colors hover:bg-[var(--shell-nav-hover-bg)]"
+          >
+            <SidebarSproutIcon />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-medium leading-tight text-[var(--shell-nav-fg)]">
+                ¿Necesitas ayuda?
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-[var(--shell-nav-fg-muted)]">
+                Escríbenos, estamos para apoyarte.
+              </span>
+            </span>
+            <svg
+              className="h-4 w-4 shrink-0 text-[var(--shell-nav-fg-subtle)]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </a>
+        </footer>
+      ) : null}
     </aside>
   );
 }

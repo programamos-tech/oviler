@@ -1,26 +1,23 @@
 import Link from "next/link";
-import { OvilerWordmark } from "@/app/components/OvilerWordmark";
+import { BereaLandingLogo } from "@/app/components/landing/BereaLandingLogo";
 import { ColombiaFlag } from "@/app/components/landing/ColombiaFlag";
 
-const footerLinkClass =
-  "text-[13px] font-medium text-zinc-400 transition-colors hover:text-zinc-100 focus-visible:rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500";
+const footerLinkClass = "berea-landing-link text-[13px]";
 
 export function LandingFooter() {
   return (
-    <footer className="border-t border-zinc-800/80 bg-zinc-950 pb-10 pt-14">
+    <footer className="berea-landing-section border-t pb-10 pt-14">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-md">
-            <Link href="/" className="inline-flex outline-offset-4 focus-visible:rounded-lg">
-              <OvilerWordmark variant="onDark" companyName="Berea" logoSrc="/laptop.png" className="text-[1.35rem] font-bold" />
-            </Link>
-            <p className="mt-4 text-[13px] leading-relaxed text-zinc-500">
+            <BereaLandingLogo href="/" />
+            <p className="berea-landing-muted mt-4 text-[13px] leading-relaxed">
               Software de gestión para comercios: inventario, ventas, clientes y reportes en un solo lugar. Implementación y
               acompañamiento con el equipo Berea.
             </p>
-            <p className="mt-3 inline-flex items-center gap-2 text-[13px] font-medium text-zinc-400">
+            <p className="berea-landing-body mt-3 inline-flex items-center gap-2 text-[13px] font-medium">
               <svg
-                className="h-4 w-4 shrink-0 text-zinc-600"
+                className="h-4 w-4 shrink-0 text-[var(--landing-fg-subtle)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -40,7 +37,7 @@ export function LandingFooter() {
           </div>
 
           <nav aria-label="Enlaces del pie de página">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-600">Producto</p>
+            <p className="berea-landing-eyebrow">Producto</p>
             <ul className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-x-8 sm:gap-y-2.5">
               <li>
                 <Link href="/#vistas" className={footerLinkClass}>
@@ -71,11 +68,11 @@ export function LandingFooter() {
           </nav>
         </div>
 
-        <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-zinc-800/60 pt-8 sm:flex-row">
-          <p className="text-center text-[12px] text-zinc-600 sm:text-left">
+        <div className="berea-landing-muted mt-12 flex flex-col items-center justify-between gap-3 border-t border-[var(--landing-border)] pt-8 sm:flex-row">
+          <p className="text-center text-[12px] sm:text-left">
             © {new Date().getFullYear()} Berea Comercios. Todos los derechos reservados.
           </p>
-          <p className="max-w-sm text-center text-[12px] leading-relaxed text-zinc-600 sm:text-right">
+          <p className="max-w-sm text-center text-[12px] leading-relaxed sm:text-right">
             Desde Sincelejo, Colombia — licencias, implementación y soporte para comercios en todo el país.
           </p>
         </div>

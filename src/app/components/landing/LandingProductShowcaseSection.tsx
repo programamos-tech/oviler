@@ -1,6 +1,3 @@
-/**
- * Galería de vistas del sistema (solo landing, datos de ejemplo).
- */
 import { LandingInvoiceMockup } from "@/app/components/landing/LandingInvoiceMockup";
 import { LandingCreditsMockup } from "@/app/components/landing/LandingCreditsMockup";
 import { LandingInventoryMockup } from "@/app/components/landing/LandingInventoryMockup";
@@ -9,22 +6,20 @@ export function LandingProductShowcaseSection() {
   return (
     <section
       id="vistas"
-      className="relative border-t border-zinc-800/80 bg-zinc-950 py-16 sm:py-20"
+      className="berea-landing-section relative py-16 sm:py-20"
       aria-labelledby="landing-showcase-heading"
     >
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center lg:mx-0 lg:max-w-3xl lg:text-left">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">El sistema en acción</p>
+          <p className="berea-landing-eyebrow">El sistema en acción</p>
           <h2
             id="landing-showcase-heading"
-            className="mt-3 font-logo text-2xl tracking-tight text-white sm:text-3xl lg:text-[2rem]"
+            className="berea-landing-heading mt-3 text-2xl tracking-tight sm:text-3xl lg:text-[2rem]"
           >
             Facturas, créditos e inventario{" "}
-            <span className="bg-gradient-to-r from-emerald-300/95 to-teal-200/90 bg-clip-text text-transparent">
-              como los usas cada día
-            </span>
+            <span className="berea-landing-accent-text">como los usas cada día</span>
           </h2>
-          <p className="mt-4 text-[15px] leading-relaxed text-zinc-400 sm:text-base">
+          <p className="berea-landing-body mt-4 text-[15px] leading-relaxed sm:text-base">
             Vistas reales del flujo de trabajo: desde el detalle de una factura hasta la cartera y el stock. Todo integrado en
             Berea Comercios — capturas ilustrativas.
           </p>

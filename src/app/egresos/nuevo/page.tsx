@@ -6,7 +6,19 @@ import Breadcrumb from "@/app/components/Breadcrumb";
 import { InfoTip } from "@/app/components/InfoTip";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { workspaceFormInputClass } from "@/lib/workspace-field-classes";
+import { logActivity } from "@/lib/activities";
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const bereaFieldClass =
+  "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
+
+const bereaFilterLabel = "block text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
+
+const bereaSectionLabel = "text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
+
+const bereaCardClass = `rounded-xl p-4 sm:p-5 ${REPORTS_SURFACE}`;
+
+const bereaBadgeBase = "inline-flex items-center rounded-md px-2.5 py-1 text-[13px] font-semibold ring-1 ring-inset";
 
 const DEFAULT_CONCEPTS = [
   "Pago servicios",
@@ -112,14 +124,24 @@ export default function NewExpensePage() {
       return;
     }
 
-    const { error: insertError } = await supabase.from("expenses").insert({
-      branch_id: ub.branch_id,
-      user_id: user.id,
-      amount: amountNum,
-      payment_method: paymentMethod,
-      concept: conceptTrim,
-      notes: notes.trim() || null,
-    });
+    const { data: userRow } = await supabase
+      .from("users")
+      .select("organization_id")
+      .eq("id", user.id)
+      .single();
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("expenses")
+      .insert({
+        branch_id: ub.branch_id,
+        user_id: user.id,
+        amount: amountNum,
+        payment_method: paymentMethod,
+        concept: conceptTrim,
+        notes: notes.trim() || null,
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       setError(insertError.message || "No se pudo registrar el egreso.");
@@ -127,24 +149,36 @@ export default function NewExpensePage() {
       return;
     }
 
+    if (userRow?.organization_id) {
+      void logActivity(supabase, {
+        organizationId: userRow.organization_id,
+        branchId: ub.branch_id,
+        userId: user.id,
+        action: "expense_created",
+        entityType: "expense",
+        entityId: inserted?.id ?? null,
+        summary: `${conceptTrim} · $${amountNum.toLocaleString("es-CO")} (${paymentMethod === "cash" ? "efectivo" : "transferencia"})`,
+        metadata: { amount: amountNum, concept: conceptTrim, payment_method: paymentMethod },
+      });
+    }
+
     router.push("/egresos");
   }
 
   const amountNum = parseFloat(amount.replace(/\./g, "").replace(",", ".")) || 0;
   const paymentLabel = paymentMethod === "cash" ? "Efectivo" : "Transferencia";
-  const inputClass = `${workspaceFormInputClass} dark:accent-zinc-500`;
-  const textareaClass = `${workspaceFormInputClass.replace("h-10 ", "min-h-[5.5rem] py-3 ")} resize-y`;
-  const labelClass = "mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300";
-  const requiredMarkClass = "text-[color:var(--shell-sidebar)] dark:text-zinc-300";
+  const inputClass = bereaFieldClass;
+  const textareaClass = `${bereaFieldClass.replace("h-11 ", "min-h-[5.5rem] py-3 ")} resize-y`;
+  const labelClass = `mb-1.5 block ${bereaSectionLabel}`;
+  const requiredMarkClass = "text-[color:var(--shell-sidebar)]";
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <Breadcrumb items={[{ label: "Egresos", href: "/egresos" }, { label: "Nuevo egreso" }]} />
-        <div className="mt-3 flex items-start justify-between gap-4">
+    <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+      <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
+            <Breadcrumb items={[{ label: "Egresos", href: "/egresos" }, { label: "Nuevo egreso" }]} />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
                 Nuevo egreso o gasto
               </h1>
               <InfoTip ariaLabel="Cómo encaja con los reportes">
@@ -154,32 +188,31 @@ export default function NewExpensePage() {
                 compras mercancía para que ambos números reflejen la misma realidad.
               </InfoTip>
             </div>
-            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
               Registra una salida de dinero (efectivo o transferencia).
             </p>
           </div>
           <Link
             href="/egresos"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
+            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-ink)] ${REPORTS_SURFACE}`}
             title="Volver a egresos"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </Link>
-        </div>
       </header>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-[13px] font-medium text-red-800 dark:border-red-900/45 dark:bg-red-900/30 dark:text-red-200" role="alert">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-900 ring-1 ring-inset ring-red-300 dark:border-red-900/45 dark:bg-red-900/30 dark:text-red-200" role="alert">
           {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)]">
         <div className="space-y-4">
-          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+          <div className={bereaCardClass}>
+            <p className={bereaSectionLabel}>
               Datos del egreso
             </p>
             <div className="mt-3 space-y-4">
@@ -259,13 +292,13 @@ export default function NewExpensePage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-5 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-60"
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-60"
               >
                 {saving ? "Guardando…" : "Registrar egreso"}
               </button>
               <Link
                 href="/egresos"
-                className="inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className={`inline-flex h-10 items-center rounded-lg px-4 text-[13px] font-semibold text-[var(--berea-ink)] transition-colors hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
               >
                 Cancelar
               </Link>
@@ -273,26 +306,26 @@ export default function NewExpensePage() {
           </div>
         </div>
         <div className="space-y-4">
-          <div className="rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+          <div className={bereaCardClass}>
+            <p className={bereaSectionLabel}>
               Resumen
             </p>
             <div className="mt-3 space-y-2 text-[13px]">
-              <div className="flex justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/25">
-                <span className="text-slate-600 dark:text-slate-400">Concepto</span>
-                <span className="max-w-[180px] truncate text-right font-medium text-slate-900 dark:text-slate-100" title={effectiveConcept || undefined}>
+              <div className="flex justify-between gap-2 rounded-xl bg-[var(--shell-workspace)] px-3 py-2.5">
+                <span className="text-[var(--berea-ink-muted)]">Concepto</span>
+                <span className="max-w-[180px] truncate text-right font-medium text-[var(--berea-ink)]" title={effectiveConcept || undefined}>
                   {effectiveConcept || "—"}
                 </span>
               </div>
-              <div className="flex justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/25">
-                <span className="text-slate-600 dark:text-slate-400">Monto</span>
-                <span className="tabular-nums font-semibold text-slate-900 dark:text-slate-50">
+              <div className="flex justify-between gap-2 rounded-xl bg-[var(--shell-workspace)] px-3 py-2.5">
+                <span className="text-[var(--berea-ink-muted)]">Monto</span>
+                <span className="tabular-nums font-semibold text-[var(--berea-ink)]">
                   {amountNum > 0 ? `$ ${amountNum.toLocaleString("es-CO")}` : "—"}
                 </span>
               </div>
-              <div className="flex justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/25">
-                <span className="text-slate-600 dark:text-slate-400">Forma de pago</span>
-                <span className="font-medium text-slate-900 dark:text-slate-100">{paymentLabel}</span>
+              <div className="flex justify-between gap-2 rounded-xl bg-[var(--shell-workspace)] px-3 py-2.5">
+                <span className="text-[var(--berea-ink-muted)]">Forma de pago</span>
+                <span className="font-medium text-[var(--berea-ink)]">{paymentLabel}</span>
               </div>
             </div>
           </div>

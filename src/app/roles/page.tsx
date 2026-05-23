@@ -9,6 +9,10 @@ import { PlanLimitHeaderNote, PLAN_LIMIT_DISABLED_BUTTON_CLASS } from "@/app/com
 import { getAvatarVariant } from "@/app/components/app-nav-data";
 import { PRODUCT_DISPLAY_NAME, PRODUCT_INTERNAL_NAME } from "@/lib/permissions";
 
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const bereaBadgeBase = "inline-flex items-center rounded-md px-2.5 py-1 text-[13px] font-semibold ring-1 ring-inset";
+
 interface Role {
   id: string;
   name: string;
@@ -122,14 +126,18 @@ export default function RolesPage() {
   }, []);
   const getRoleColor = (color: string) => {
     const colors: Record<string, string> = {
-      emerald:
-        "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/45 dark:bg-emerald-950/25 dark:text-emerald-300",
-      blue: "border border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/45 dark:bg-blue-950/25 dark:text-blue-300",
-      purple: "border border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/50 dark:bg-violet-950/25 dark:text-violet-300",
-      orange: "border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/45 dark:bg-amber-950/25 dark:text-amber-300",
+      emerald: `${bereaBadgeBase} bg-emerald-100 text-emerald-900 ring-emerald-300`,
+      blue: `${bereaBadgeBase} bg-sky-100 text-sky-950 ring-sky-300`,
+      purple: `${bereaBadgeBase} bg-violet-100 text-violet-900 ring-violet-300`,
+      orange: `${bereaBadgeBase} bg-amber-100 text-amber-950 ring-amber-300`,
     };
     return colors[color] || colors.blue;
   };
+
+  const statusBadge = (active: boolean) =>
+    active
+      ? `${bereaBadgeBase} bg-emerald-100 text-emerald-900 ring-emerald-300`
+      : `${bereaBadgeBase} bg-slate-100 text-[var(--berea-ink-muted)] ring-[var(--berea-card-border)]`;
 
   const getRole = (roleId: string) => roles.find((r) => r.id === roleId);
 
@@ -137,54 +145,52 @@ export default function RolesPage() {
     name.trim().split(/\s+/).map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-              Usuarios y roles
-            </h1>
-            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Gestiona colaboradores, roles y permisos en {PRODUCT_DISPLAY_NAME}{" "}
-              <span className="text-slate-400 dark:text-slate-500">({PRODUCT_INTERNAL_NAME})</span>.
-            </p>
-          </div>
-          <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
-            {planSnapshot && !planSnapshot.canCreateUser ? (
-              <span
-                className={`${PLAN_LIMIT_DISABLED_BUTTON_CLASS} w-full sm:w-auto`}
-                title="Límite de usuarios alcanzado"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Nuevo colaborador
-              </span>
-            ) : (
-              <Link
-                href="/roles/nuevo"
-                className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Nuevo colaborador
-              </Link>
-            )}
-            {planSnapshot && !planSnapshot.canCreateUser ? (
-              <PlanLimitHeaderNote kind="users" planId={planSnapshot.planId} className="sm:justify-end" />
-            ) : null}
-          </div>
+    <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        <div className="min-w-0 shrink-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
+            Usuarios y roles
+          </h1>
+          <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
+            Gestiona colaboradores, roles y permisos en {PRODUCT_DISPLAY_NAME}{" "}
+            <span className="text-[var(--berea-ink-subtle)]">({PRODUCT_INTERNAL_NAME})</span>.
+          </p>
+        </div>
+        <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
+          {planSnapshot && !planSnapshot.canCreateUser ? (
+            <span
+              className={`${PLAN_LIMIT_DISABLED_BUTTON_CLASS} inline-flex h-10 items-center gap-2 rounded-lg px-4`}
+              title="Límite de usuarios alcanzado"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo colaborador
+            </span>
+          ) : (
+            <Link
+              href="/roles/nuevo"
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo colaborador
+            </Link>
+          )}
+          {planSnapshot && !planSnapshot.canCreateUser ? (
+            <PlanLimitHeaderNote kind="users" planId={planSnapshot.planId} className="sm:justify-end" />
+          ) : null}
         </div>
       </header>
 
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
+      <div className={`rounded-xl px-4 py-4 sm:px-6 sm:py-5 ${REPORTS_SURFACE}`}>
         <details className="group">
-          <summary className="cursor-pointer list-none text-[13px] font-semibold text-slate-800 dark:text-slate-100 [&::-webkit-details-marker]:hidden">
+          <summary className="cursor-pointer list-none text-[13px] font-semibold text-[var(--berea-ink)] [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-2">
               Quién puede hacer qué en {PRODUCT_DISPLAY_NAME}
               <svg
-                className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180"
+                className="h-4 w-4 shrink-0 text-[var(--berea-ink-muted)] transition-transform group-open:rotate-180"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -194,33 +200,33 @@ export default function RolesPage() {
               </svg>
             </span>
           </summary>
-          <div className="mt-3 space-y-3 text-[13px] leading-relaxed text-slate-600 dark:text-slate-400">
+          <div className="mt-3 space-y-3 text-[13px] leading-relaxed text-[var(--berea-ink-muted)]">
             <p>
-              <strong className="font-semibold text-slate-800 dark:text-slate-200">{PRODUCT_DISPLAY_NAME}</strong> es el
+              <strong className="font-semibold text-[var(--berea-ink)]">{PRODUCT_DISPLAY_NAME}</strong> es el
               producto que usas en el negocio; en documentación interna también se llama{" "}
-              <strong className="font-semibold text-slate-800 dark:text-slate-200">{PRODUCT_INTERNAL_NAME}</strong>. Cada
+              <strong className="font-semibold text-[var(--berea-ink)]">{PRODUCT_INTERNAL_NAME}</strong>. Cada
               colaborador tiene un <strong className="font-semibold">rol</strong> (Dueño, Administrador, Cajero o Inventario)
               con permisos por defecto; al editar un usuario puedes marcar permisos concretos y sustituir ese paquete.
             </p>
             <ul className="list-disc space-y-2 pl-5">
               <li>
-                <strong className="text-slate-800 dark:text-slate-200">Dueño:</strong> acceso completo a módulos y
+                <strong className="text-[var(--berea-ink)]">Dueño:</strong> acceso completo a módulos y
                 permisos (incluye usuarios, sucursales, inventario, ventas, créditos, catálogo, etc.).
               </li>
               <li>
-                <strong className="text-slate-800 dark:text-slate-200">Administrador:</strong> ventas, clientes, egresos,
+                <strong className="text-[var(--berea-ink)]">Administrador:</strong> ventas, clientes, egresos,
                 inventario (productos, stock, transferencias, bodega, merma), créditos y actividades. Por defecto{" "}
                 <strong className="font-semibold">no</strong> incluye gestión de colaboradores ni de sucursales, salvo que
                 actives esos permisos al editarlo.
               </li>
               <li>
-                <strong className="text-slate-800 dark:text-slate-200">Cajero:</strong> ventas, clientes, egresos,
+                <strong className="text-[var(--berea-ink)]">Cajero:</strong> ventas, clientes, egresos,
                 consulta de inventario, créditos y actividades; orientado a caja y operación diaria sin inventario avanzado
                 por defecto.
               </li>
               <li>
-                <strong className="text-slate-800 dark:text-slate-200">Inventario</strong> (rol técnico{" "}
-                <code className="rounded bg-slate-100 px-1 text-[12px] dark:bg-slate-800">delivery</code>): inventario y
+                <strong className="text-[var(--berea-ink)]">Inventario</strong> (rol técnico{" "}
+                <code className="rounded-md bg-[var(--shell-workspace)] px-1.5 py-0.5 text-[12px] text-[var(--berea-ink)]">delivery</code>): inventario y
                 bodega (productos, categorías, stock, transferencias, ubicaciones, merma) y actividades; por defecto sin
                 ventas ni clientes.
               </li>
@@ -230,11 +236,11 @@ export default function RolesPage() {
       </div>
 
       {loading ? (
-        <div className="min-h-[280px] animate-pulse rounded-3xl bg-white dark:bg-slate-900" aria-hidden />
+        <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
       ) : users.length === 0 ? (
-        <div className="rounded-3xl bg-white px-6 py-10 text-center dark:bg-slate-900">
-          <p className="text-[15px] font-medium text-slate-600 dark:text-slate-300">No hay usuarios en tu organización</p>
-          <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+        <div className={`rounded-xl px-6 py-10 text-center ${REPORTS_SURFACE}`}>
+          <p className="text-[15px] font-medium text-[var(--berea-ink-muted)]">No hay usuarios en tu organización</p>
+          <p className="mt-1 text-[13px] text-[var(--berea-ink-muted)]">
             El usuario con el que creaste la cuenta debería aparecer aquí. Si no ves a nadie, revisa que estés en la organización correcta.
           </p>
         </div>
@@ -247,7 +253,7 @@ export default function RolesPage() {
               return (
                 <div
                   key={user.id}
-                  className="rounded-3xl bg-white px-5 py-4 transition-colors hover:bg-slate-50/80 dark:bg-slate-900 dark:hover:bg-slate-900/80"
+                  className={`rounded-xl px-5 py-4 transition-colors hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
                 >
                   <div className="flex gap-3">
                     <div className="relative shrink-0">
@@ -287,21 +293,21 @@ export default function RolesPage() {
                       />
                     </div>
                     <div className="min-w-0 flex-1 flex flex-col justify-center text-left">
-                      <p className="truncate text-[15px] font-semibold text-slate-900 dark:text-slate-50">
+                      <p className="truncate text-[15px] font-semibold text-[var(--berea-ink)]">
                         {user.name || user.email}
                       </p>
-                      <p className="mt-0.5 truncate text-[12px] font-medium text-slate-500 dark:text-slate-400">
+                      <p className="mt-0.5 truncate text-[12px] font-medium text-[var(--berea-ink-muted)]">
                         {user.email}
                       </p>
-                      <p className="mt-1 line-clamp-2 text-[12px] text-slate-500 dark:text-slate-400">
+                      <p className="mt-1 line-clamp-2 text-[12px] text-[var(--berea-ink-muted)]">
                         {userRole?.description || "Sin descripción de rol."}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${isActive ? "border border-slate-300/90 bg-slate-200/70 text-[color:var(--shell-sidebar)] dark:border-zinc-600/40 dark:bg-zinc-800/55 dark:text-zinc-300" : "border border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>
+                        <span className={statusBadge(isActive)}>
                           {isActive ? "Activo" : "Inactivo"}
                         </span>
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${getRoleColor(
+                          className={`${getRoleColor(
                             userRole?.color || "blue"
                           )}`}
                         >
@@ -309,7 +315,7 @@ export default function RolesPage() {
                         </span>
                         <Link
                           href={`/roles/${user.id}/editar`}
-                          className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                          className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[12px] font-semibold text-[var(--berea-ink)] transition-colors hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
                         >
                           Editar
                         </Link>

@@ -6,7 +6,15 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
  * Icono (i) con texto explicativo. Se abre y cierra con clic/tap (iPad y móvil);
  * clic fuera o Escape cierra. Así no dependemos de :hover ni del foco táctil inconsistente.
  */
-export function InfoTip({ children, ariaLabel = "Más información" }: { children: ReactNode; ariaLabel?: string }) {
+export function InfoTip({
+  children,
+  ariaLabel = "Más información",
+  tone = "default",
+}: {
+  children: ReactNode;
+  ariaLabel?: string;
+  tone?: "default" | "berea";
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
   const tooltipId = useId();
@@ -46,13 +54,23 @@ export function InfoTip({ children, ariaLabel = "Más información" }: { childre
     <span ref={rootRef} className="relative inline-flex shrink-0 align-middle">
       <button
         type="button"
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 outline-none transition-colors hover:text-slate-600 focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-500 dark:hover:text-slate-300"
+        className={
+          tone === "berea"
+            ? "inline-flex h-4 w-4 items-center justify-center rounded-full text-[var(--berea-ink-subtle)] outline-none transition-colors hover:text-[var(--berea-ink-muted)] focus-visible:ring-2 focus-visible:ring-[var(--berea-accent)]/40"
+            : "inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 outline-none transition-colors hover:text-slate-600 focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-500 dark:hover:text-slate-300"
+        }
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-controls={tooltipId}
         onClick={onButtonClick}
       >
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+        <svg
+          className={tone === "berea" ? "h-3.5 w-3.5" : "h-4 w-4"}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden
+        >
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -64,9 +82,11 @@ export function InfoTip({ children, ariaLabel = "Más información" }: { childre
       <span
         id={tooltipId}
         role="tooltip"
-        className={`absolute left-0 top-full z-50 mt-1.5 w-[min(calc(100vw-2rem),18rem)] rounded-lg bg-slate-800 px-3 py-2 text-left text-[11px] font-medium leading-snug text-white shadow-lg ring-1 ring-black/10 transition-opacity dark:bg-slate-700 dark:ring-white/10 sm:left-1/2 sm:w-72 sm:-translate-x-1/2 ${
-          open ? "visible opacity-100 pointer-events-auto" : "invisible opacity-0 pointer-events-none"
-        }`}
+        className={`absolute left-0 top-full z-50 mt-1.5 w-[min(calc(100vw-2rem),16rem)] rounded-lg px-2.5 py-2 text-left text-[11px] font-medium leading-snug transition-opacity sm:left-1/2 sm:w-60 sm:-translate-x-1/2 ${
+          tone === "berea"
+            ? "berea-reports-surface text-[var(--berea-ink-muted)] shadow-md"
+            : "bg-slate-800 text-white shadow-lg ring-1 ring-black/10 dark:bg-slate-700 dark:ring-white/10"
+        } ${open ? "visible opacity-100 pointer-events-auto" : "invisible opacity-0 pointer-events-none"}`}
       >
         {children}
       </span>

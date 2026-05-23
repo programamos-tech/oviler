@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, type ComponentType } from "react";
+import { useMemo, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+import { useSession } from "./SessionProvider";
 
 const SHOW_BODEGA_IN_SIDEBAR = false;
 const SHOW_SUCURSALES_MODULE = true;
@@ -254,40 +253,10 @@ function BoxIcon({ active }: { active: boolean }) {
 }
 export default function BottomNav() {
   const pathname = usePathname();
-  const [showExpenses, setShowExpenses] = useState<boolean | null>(null);
-  const [userRole, setUserRole] = useState<AppRole | null>(null);
-  const [userPermissions, setUserPermissions] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadBranchState = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
-      const resolvedBranchId = await resolveActiveBranchId(supabase, user.id);
-      if (!resolvedBranchId || cancelled) return;
-      const { data: branch } = await supabase.from("branches").select("show_expenses").eq("id", resolvedBranchId).single();
-      const { data: me } = await supabase.from("users").select("role, permissions").eq("id", user.id).single();
-      if (!cancelled && branch) {
-        setShowExpenses(branch.show_expenses !== false);
-        setUserRole((me?.role ?? null) as AppRole | null);
-        setUserPermissions((me as { permissions?: string[] | null } | null)?.permissions ?? null);
-      }
-    };
-    const handleBranchChange = () => {
-      void loadBranchState();
-    };
-    void loadBranchState();
-    if (typeof window !== "undefined") {
-      window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
-    }
-    return () => {
-      cancelled = true;
-      if (typeof window !== "undefined") {
-        window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
-      }
-    };
-  }, []);
+  const { profile, branch } = useSession();
+  const showExpenses = branch?.show_expenses ?? null;
+  const userRole = (profile?.role ?? null) as AppRole | null;
+  const userPermissions = profile?.permissions ?? null;
 
   const displayMasItems = useMemo(
     () =>

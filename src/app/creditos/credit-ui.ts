@@ -38,33 +38,27 @@ export function creditLineDisplayStatus(
   return status;
 }
 
+const CREDIT_BADGE_BASE =
+  "inline-flex max-w-full items-center rounded-md px-2.5 py-1 text-[13px] font-semibold ring-1 ring-inset";
+
+const CREDIT_STATUS_BADGE: Record<CreditStatus, string> = {
+  overdue: `${CREDIT_BADGE_BASE} bg-rose-100 text-rose-900 ring-rose-300`,
+  pending: `${CREDIT_BADGE_BASE} bg-amber-100 text-amber-950 ring-amber-300`,
+  completed: `${CREDIT_BADGE_BASE} bg-emerald-100 text-emerald-900 ring-emerald-300`,
+  cancelled: `${CREDIT_BADGE_BASE} bg-red-100 text-red-800 ring-red-300`,
+};
+
 export function creditStatusChip(status: CreditStatus): { label: string; className: string } {
   switch (status) {
     case "overdue":
-      return {
-        label: "Vencido",
-        className:
-          "inline-flex max-w-full items-center gap-1 rounded-full border border-rose-400/90 bg-rose-50 px-2.5 py-0.5 text-[12px] font-semibold text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-100",
-      };
+      return { label: "Vencido", className: CREDIT_STATUS_BADGE.overdue };
     case "pending":
-      return {
-        label: "Pendiente",
-        className:
-          "inline-flex max-w-full items-center gap-1 rounded-full border border-amber-500/85 bg-amber-100 px-2.5 py-0.5 text-[12px] font-semibold text-amber-950 dark:border-amber-900/45 dark:bg-amber-950/30 dark:text-amber-100",
-      };
+      return { label: "Pendiente", className: CREDIT_STATUS_BADGE.pending };
     case "completed":
-      return {
-        label: "Completado",
-        className:
-          "inline-flex max-w-full items-center gap-1 rounded-full border border-emerald-600/55 bg-emerald-50 px-2.5 py-0.5 text-[12px] font-semibold text-emerald-950 dark:border-emerald-900/45 dark:bg-emerald-950/35 dark:text-emerald-100",
-      };
+      return { label: "Completado", className: CREDIT_STATUS_BADGE.completed };
     case "cancelled":
     default:
-      return {
-        label: "Anulado",
-        className:
-          "inline-flex max-w-full items-center gap-1 rounded-full border border-red-200/90 bg-red-50/90 px-2.5 py-0.5 text-[12px] font-semibold text-red-800 dark:border-red-900/55 dark:bg-red-950/35 dark:text-red-200",
-      };
+      return { label: "Anulado", className: CREDIT_STATUS_BADGE.cancelled };
   }
 }
 

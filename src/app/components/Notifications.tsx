@@ -178,9 +178,14 @@ export default function Notifications({ tone = "dark" }: { tone?: "dark" | "ligh
     setNotifications(mapped.map(({ createdAt, ...n }) => n));
   }, []);
 
+  const loadedOnceRef = useRef(false);
+
   useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
+    if (!isOpen) return;
+    if (loadedOnceRef.current) return;
+    loadedOnceRef.current = true;
+    void loadNotifications();
+  }, [isOpen, loadNotifications]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -319,7 +324,7 @@ export default function Notifications({ tone = "dark" }: { tone?: "dark" | "ligh
         onClick={() => setIsOpen(!isOpen)}
         className={
           tone === "light"
-            ? "relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            ? "shell-header-icon-btn relative flex h-9 w-9 items-center justify-center rounded-lg"
             : "relative flex h-9 w-9 items-center justify-center rounded-lg text-white/85 transition-colors hover:bg-white/10 hover:text-white"
         }
         aria-label="Notificaciones"

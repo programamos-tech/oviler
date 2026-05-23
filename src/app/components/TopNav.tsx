@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import Notifications from "./Notifications";
 import FreeTrialWelcomeModal from "./FreeTrialWelcomeModal";
 import { isTrialWelcomeDismissedThisSession, markTrialWelcomeDismissedThisSession } from "@/lib/trial-welcome-storage";
-import { type OrgTrialFields, isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
+import { isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
 import { workspaceAvatarSeed } from "./app-nav-data";
 import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
@@ -15,70 +15,35 @@ import { OvilerWordmark } from "./OvilerWordmark";
 import { bernabePlanUpgradeWhatsAppUrl, workspaceHelpWhatsAppUrl } from "@/lib/programamos-contact";
 import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import { GlobalSearchCombobox } from "@/app/components/GlobalSearchCombobox";
+import { useSession } from "./SessionProvider";
 
-/** Iconos en la barra superior móvil (fondo #080910, mismo tono que el sidebar) */
+/** Iconos en la barra superior móvil (mismo tono que el sidebar) */
 const MOBILE_NAV_ICON =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/75 transition-colors hover:bg-white/12 hover:text-white";
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--shell-nav-fg-muted)] transition-colors hover:bg-[var(--shell-nav-hover-bg)] hover:text-[var(--shell-nav-fg)]";
 const MOBILE_NAV_PLUS =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#080910] shadow-[0_1px_3px_rgba(0,0,0,0.35)] transition-colors hover:bg-white/90";
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--shell-nav-fg)] text-[var(--shell-nav-bg)] shadow-[0_1px_3px_rgba(0,0,0,0.35)] transition-colors hover:bg-[var(--shell-nav-fg-muted)]";
 
 export default function TopNav() {
   const pathname = usePathname();
   const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
   const router = useRouter();
+  const { profile, branch, org, authMeta } = useSession();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [user, setUser] = useState<{
-    name: string;
-    email: string;
-    avatar_url?: string | null;
-    role?: string | null;
-    permissions?: string[] | null;
-    organization_id?: string | null;
-  } | null>(null);
-  const [branch, setBranch] = useState<{ name: string; logo_url: string | null } | null>(null);
-  const [orgTrial, setOrgTrial] = useState<OrgTrialFields | null>(null);
-  const [authMeta, setAuthMeta] = useState<Record<string, unknown> | null>(null);
-  const [trialModalOpen, setTrialModalOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const [trialModalOpen, setTrialModalOpen] = useState(false);
 
-  useEffect(() => {
-    async function loadUser() {
-      const supabase = createClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser) {
-        const { data: userData } = await supabase
-          .from("users")
-          .select("name, email, avatar_url, role, permissions, organization_id")
-          .eq("id", authUser.id)
-          .single();
-        if (userData) {
-          setUser(userData);
-          setAuthMeta((authUser.user_metadata as Record<string, unknown> | null) ?? null);
-          const oid = (userData as { organization_id?: string | null }).organization_id;
-          if (oid) {
-            const { data: orgRow } = await supabase
-              .from("organizations")
-              .select("subscription_status, plan_type, trial_ends_at")
-              .eq("id", oid)
-              .maybeSingle();
-            setOrgTrial(orgRow as OrgTrialFields | null);
-          } else {
-            setOrgTrial(null);
-          }
-        } else {
-          setUser(null);
-          setAuthMeta(null);
-        }
-      } else {
-        setUser(null);
-        setAuthMeta(null);
+  const user = profile
+    ? {
+        name: profile.name,
+        email: profile.email,
+        avatar_url: profile.avatar_url,
+        role: profile.role,
+        permissions: profile.permissions,
+        organization_id: profile.organization_id,
       }
-    }
-    loadUser();
-  }, []);
-
+    : null;
+  const orgTrial = org;
   const trialActive = orgTrial != null && isFreeTrialActive(orgTrial);
   const trialEndsAt = orgTrial?.trial_ends_at ?? "";
 
@@ -89,30 +54,6 @@ export default function TopNav() {
     if (isTrialWelcomeDismissedThisSession(oid)) return;
     setTrialModalOpen(true);
   }, [trialActive, trialEndsAt, user?.organization_id]);
-
-  useEffect(() => {
-    async function loadBranch() {
-      const supabase = createClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
-      const resolvedBranchId = await resolveActiveBranchId(supabase, authUser.id);
-      if (!resolvedBranchId) return;
-      const { data: branchData } = await supabase.from("branches").select("name, logo_url").eq("id", resolvedBranchId).single();
-      if (branchData) setBranch({ name: branchData.name, logo_url: branchData.logo_url ?? null });
-    }
-    const handleBranchChange = () => {
-      void loadBranch();
-    };
-    void loadBranch();
-    if (typeof window !== "undefined") {
-      window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
-    }
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, handleBranchChange);
-      }
-    };
-  }, [pathname]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -146,7 +87,7 @@ export default function TopNav() {
   }, [router]);
 
   return (
-    <nav className="sticky top-0 z-50 flex min-w-0 max-w-full flex-col overflow-x-hidden border-b border-white/10 bg-[#080910] pt-[env(safe-area-inset-top,0px)] text-white shadow-[0_4px_24px_rgba(0,0,0,0.35)] lg:hidden">
+    <nav className="shell-nav sticky top-0 z-50 flex min-w-0 max-w-full flex-col overflow-x-hidden border-b border-[var(--shell-nav-border)] bg-[var(--shell-nav-bg)] pt-[env(safe-area-inset-top,0px)] text-[var(--shell-nav-fg)] shadow-[0_4px_24px_rgba(0,0,0,0.2)] lg:hidden">
       <div className="mx-auto flex h-14 min-h-[3.5rem] w-full min-w-0 max-w-[1600px] items-center justify-between gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
         {/* Marca producto + logo sucursal */}
         <div className="flex min-w-0 flex-1 items-center justify-start gap-2.5 sm:gap-3">
@@ -159,19 +100,19 @@ export default function TopNav() {
             }
             title={branch?.name ? `Bernabé Comercios · ${branch.name}` : "Bernabé Comercios"}
           >
-            <span className="min-w-0 flex-1 overflow-hidden">
+            <span className="min-w-0 flex-1 overflow-hidden text-[var(--shell-nav-fg)] [&_span]:!text-[var(--shell-nav-fg)]">
               <OvilerWordmark
                 variant="onDark"
                 companyName="Bernabé"
-                companyClassName="text-[0.95em]"
+                companyClassName="text-[0.95em] !text-[var(--shell-nav-fg)]"
                 logoSrc="/laptop.png"
-                className="w-full min-w-0 text-[1.02rem] font-bold sm:text-[1.08rem]"
+                className="w-full min-w-0 text-[1.02rem] font-bold sm:text-[1.08rem] !text-[var(--shell-nav-fg)]"
               />
             </span>
             {branch ? (
               <>
-                <span className="h-8 w-px shrink-0 rounded-full bg-white/20" aria-hidden />
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-transparent">
+                <span className="h-8 w-px shrink-0 rounded-full bg-[var(--shell-nav-border)]" aria-hidden />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--shell-nav-hover-bg)]">
                   {branch.logo_url ? (
                     <img
                       src={branch.logo_url}
@@ -180,7 +121,7 @@ export default function TopNav() {
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <span className="flex h-full w-full items-center justify-center text-[11px] font-bold text-white/55">
+                    <span className="flex h-full w-full items-center justify-center text-[11px] font-bold text-[var(--shell-nav-fg-muted)]">
                       {(branch.name || "L").slice(0, 1).toUpperCase()}
                     </span>
                   )}

@@ -1,41 +1,23 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useState, useEffect, useMemo, useTransition, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { resolveActiveBranchId } from "@/lib/active-branch";
-import DatePickerCard from "@/app/components/DatePickerCard";
+import { useSession } from "@/app/components/SessionProvider";
 import { creditRowPending } from "@/app/creditos/credit-ui";
 import { cashTransferFromLine, addCreditPaymentSplits as addCreditPaymentsToCashTransfer } from "@/lib/cash-transfer-from-line";
-import { InfoTip } from "@/app/components/InfoTip";
-
-const IncomeTrendChart = dynamic(
-  () => import("@/app/components/IncomeTrendChart").then((m) => m.IncomeTrendChart),
-  {
-    ssr: false,
-    loading: () => (
-      <div
-        className="h-[min(16rem,42vh)] w-full min-h-[12rem] animate-pulse rounded-2xl bg-slate-100/90 dark:bg-slate-800/50"
-        aria-hidden
-      />
-    ),
-  }
-);
+import BereaReportsDashboard from "@/app/components/dashboard/BereaReportsDashboard";
+import { getExpenseConceptKind } from "@/lib/expense-concept-kind";
 import {
-  ArrowDown,
-  ArrowUp,
-  Banknote,
-  CircleDollarSign,
-  CircleX,
-  CreditCard,
-  Landmark,
-  LineChart,
-  Package,
-  PiggyBank,
-  ShieldCheck,
-  TrendingDown,
-} from "lucide-react";
+  mergeDashboardActivityFeed,
+  DASHBOARD_CARD_ITEM_LIMIT,
+  type SystemActivityRow,
+  type TopSoldProduct,
+  computePaymentMix,
+  saleChannelLabel,
+  storeIncomeFromSale,
+  type DashboardActivity,
+} from "@/lib/dashboard-berea";
 
 type DashboardData = {
   totalIncome: number; // Total neto en caja/banco (después de egresos)
@@ -55,8 +37,8 @@ type DashboardData = {
   cancelledInvoices: number;
   cancelledTotal: number;
   cancelledList: { invoice_number: string; total: number }[];
-  topProducts: { name: string; units: number; total: number }[];
-  last15Days: { day: string; sales: number }[];
+  topProducts: { id: string; name: string; units: number; total: number }[];
+  last15Days: { day: string; sales: number; previousSales: number }[];
   /** Neto efectivo / transfer / total del día calendario anterior al ancla (para variación %). */
   prevPeriodNetCash: number;
   prevPeriodNetTransfer: number;
@@ -73,16 +55,50 @@ type DashboardData = {
   lastTransferSale: { total: number; invoice_number: string } | null;
   /** Saldo total pendiente por cobrar en créditos a clientes (esta sucursal). */
   outstandingCredits: number;
+  storeIncome: number;
+  unitsSold: number;
+  newCustomers: number;
+  prevStoreIncome: number;
+  prevIncomeCash: number;
+  prevIncomeTransfer: number;
+  prevOrders: number;
+  prevUnitsSold: number;
+  prevNewCustomers: number;
+  recentOrders: Array<{
+    id: string;
+    invoice_number: string;
+    customer_name: string;
+    channel_label: string;
+    total: number;
+    status: string;
+    created_at: string;
+  }>;
+  lowStock: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    min_stock: number;
+    kind: "inventory" | "slow_mover";
+  }>;
+  activities: DashboardActivity[];
+  ordersSpark: number[];
+  paymentMix: ReturnType<typeof computePaymentMix>;
+  totalExpenses: number;
+  operationalExpenses: number;
+  inventoryExpenses: number;
+  dailyResult: number;
+  recentExpenses: Array<{
+    id: string;
+    concept: string;
+    conceptKind: "inventory" | "operating";
+    amount: number;
+    payment_method: "cash" | "transfer";
+    created_at: string;
+  }>;
 };
 
-const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-
-/** Iconos del resumen: marca en claro; en oscuro --shell-sidebar es muy oscuro sobre #121212 → acento legible. */
-const DASHBOARD_ICON_CLASS =
-  "text-[color:var(--shell-sidebar)] dark:text-[color:var(--shell-sidebar-accent)]";
-
 /** Días mostrados en la tendencia de ingresos (siempre anclada a “hoy” calendario). */
-const INCOME_TREND_DAY_COUNT = 15;
+const INCOME_TREND_DAY_COUNT = 7;
 
 /** Reporte completo: rango de fechas, bloque inventario/resultado y gráfica de tendencia. Cajero solo ve día a día. */
 function hasFullDashboardReports(role: string | null | undefined): boolean {
@@ -90,8 +106,26 @@ function hasFullDashboardReports(role: string | null | undefined): boolean {
   return r === "owner" || r === "admin" || r === "delivery";
 }
 
+const TREND_MONTH_SHORT = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+] as const;
+
+/** Etiqueta eje X tipo mock: "12 May" (sin año ni barras). */
 function formatTrendAxisDay(d: Date): string {
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const month = TREND_MONTH_SHORT[d.getMonth()];
+  const monthLabel = month.charAt(0).toUpperCase() + month.slice(1);
+  return `${d.getDate()} ${monthLabel}`;
 }
 
 /** Clave estable día calendario local (evita desalineos con toDateString / zona). */
@@ -102,14 +136,14 @@ function localDayKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function emptyIncomeTrendDays(): { day: string; sales: number }[] {
+function emptyIncomeTrendDays(): { day: string; sales: number; previousSales: number }[] {
   const t = new Date();
   t.setHours(0, 0, 0, 0);
-  const out: { day: string; sales: number }[] = [];
+  const out: { day: string; sales: number; previousSales: number }[] = [];
   for (let i = INCOME_TREND_DAY_COUNT - 1; i >= 0; i--) {
     const d = new Date(t);
     d.setDate(d.getDate() - i);
-    out.push({ day: formatTrendAxisDay(d), sales: 0 });
+    out.push({ day: formatTrendAxisDay(d), sales: 0, previousSales: 0 });
   }
   return out;
 }
@@ -210,158 +244,6 @@ function applyExpensesToCashTransfer(
   return { cash: c, transfer: t };
 }
 
-function HeroDeltaInline({ cur, prev, hide }: { cur: number; prev: number; hide: boolean }) {
-  if (hide) {
-    return (
-      <span className="text-sm font-semibold tabular-nums text-slate-400" title="Oculto">
-        ***
-      </span>
-    );
-  }
-  if (prev <= 0) {
-    if (cur > 0) {
-      return (
-        <span
-          className="inline-flex items-center gap-0.5 text-sm font-semibold text-[color:var(--shell-sidebar)] dark:text-zinc-300"
-          title="Sin día anterior comparable"
-        >
-          <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden strokeWidth={2.25} />
-          Nuevo
-        </span>
-      );
-    }
-    return null;
-  }
-  const pct = Math.round(((cur - prev) / prev) * 1000) / 10;
-  const up = pct >= 0;
-  return (
-    <span
-      className={`inline-flex items-center gap-0.5 text-sm font-semibold tabular-nums ${
-        up ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : "text-rose-600 dark:text-rose-400"
-      }`}
-      title="vs. día anterior"
-    >
-      {up ? (
-        <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden strokeWidth={2.25} />
-      ) : (
-        <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden strokeWidth={2.25} />
-      )}
-      <span>
-        {up ? "+" : ""}
-        {pct}%
-      </span>
-    </span>
-  );
-}
-
-function DashboardHeroMetric({
-  label,
-  valueStr,
-  numericValue,
-  prevNumeric,
-  showDelta,
-  hideSensitive,
-  icon,
-  infoTip,
-}: {
-  label: string;
-  valueStr: string;
-  numericValue: number;
-  prevNumeric: number;
-  showDelta: boolean;
-  hideSensitive: boolean;
-  icon: ReactNode;
-  infoTip?: ReactNode;
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-2.5 sm:items-start sm:gap-3.5">
-      <span
-        className={`inline-flex shrink-0 items-center justify-center leading-none sm:mt-0.5 [&>svg]:h-5 [&>svg]:w-5 sm:[&>svg]:h-6 sm:[&>svg]:w-6 ${DASHBOARD_ICON_CLASS}`}
-      >
-        {icon}
-      </span>
-      {/* Móvil: mismo patrón que Salidas (etiqueta + i | valor). sm+: número debajo (web). */}
-      <div className="flex min-w-0 flex-1 flex-row flex-nowrap items-center justify-between gap-2 sm:flex-col sm:items-stretch sm:justify-start sm:gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1 sm:flex-initial">
-          <p className="min-w-0 truncate text-[10px] font-semibold uppercase leading-snug tracking-[0.08em] text-slate-500 sm:truncate-none dark:text-slate-400">
-            {label}
-          </p>
-          {infoTip ? <InfoTip ariaLabel={`${label}: más información`}>{infoTip}</InfoTip> : null}
-        </div>
-        <div className="flex min-w-0 shrink-0 flex-wrap items-baseline justify-end gap-x-1.5 gap-y-0.5 sm:justify-start">
-          <span className="text-right text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 sm:text-left sm:text-xl lg:text-2xl">
-            {valueStr}
-          </span>
-          {showDelta ? <HeroDeltaInline cur={numericValue} prev={prevNumeric} hide={hideSensitive} /> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Bloque de reporte: rejilla plana, sin tarjetas (solo tipografía + espacio). */
-function DashboardReportSection({
-  eyebrow,
-  gridClass,
-  children,
-}: {
-  eyebrow: string;
-  /** Columnas y gaps; incluir breakpoints (ej. `grid-cols-2 sm:grid-cols-3`) */
-  gridClass: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="mt-10 pt-0 sm:mt-14">
-      <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 sm:mb-5 sm:text-[11px]">
-        {eyebrow}
-      </p>
-      <div
-        className={`grid grid-cols-1 gap-x-4 gap-y-3 sm:gap-x-5 sm:gap-y-4 lg:gap-x-6 lg:gap-y-5 ${gridClass}`}
-      >
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function DashboardKpiCard({
-  icon,
-  label,
-  value,
-  infoTip,
-  valueClassName = "text-lg sm:text-xl lg:text-2xl",
-}: {
-  icon: ReactNode;
-  label: string;
-  value: ReactNode;
-  infoTip?: ReactNode;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-2.5 sm:items-start sm:gap-3.5">
-      <span
-        className={`inline-flex shrink-0 items-center justify-center leading-none sm:mt-0.5 [&>svg]:h-5 [&>svg]:w-5 sm:[&>svg]:h-6 sm:[&>svg]:w-6 ${DASHBOARD_ICON_CLASS}`}
-      >
-        {icon}
-      </span>
-      {/* Móvil: etiqueta + valor en una fila. sm+: columna tipo tarjeta (referencia limpia). */}
-      <div className="flex min-w-0 flex-1 flex-row flex-nowrap items-center justify-between gap-2 sm:flex-col sm:items-stretch sm:justify-start sm:gap-0">
-        <div className="flex min-w-0 flex-1 items-center gap-1 sm:min-h-0 sm:flex-initial">
-          <p className="min-w-0 truncate text-[10px] font-semibold uppercase leading-snug tracking-[0.08em] text-slate-500 sm:truncate-none sm:whitespace-normal sm:leading-snug dark:text-slate-400">
-            {label}
-          </p>
-          {infoTip ? <InfoTip ariaLabel={`${label}: más información`}>{infoTip}</InfoTip> : null}
-        </div>
-        <p
-          className={`shrink-0 text-right font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-50 sm:mt-3 sm:text-left ${valueClassName}`}
-        >
-          {value}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 const IVA_RATE = 0.19;
 
 function getDayBounds(date: Date): { start: string; end: string } {
@@ -410,6 +292,7 @@ function warrantySaleLineTotal(
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const queryBranchId = searchParams.get("branchId");
+  const { branchId, profile, ready: sessionReady, refreshSession } = useSession();
   const [, startDataTransition] = useTransition();
   type DateFilterMode = "today" | "range";
 
@@ -425,39 +308,15 @@ export default function DashboardPage() {
   });
   const [hideSensitiveInfo, setHideSensitiveInfo] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [branchId, setBranchId] = useState<string | null>(null);
-  const [branchResolved, setBranchResolved] = useState(false);
-  const [dashboardRole, setDashboardRole] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const dashboardRole = profile?.role ?? null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   useEffect(() => {
-    const supabase = createClient();
-    let cancelled = false;
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) {
-        if (!cancelled) {
-          setBranchResolved(true);
-          setDashboardRole(null);
-        }
-        return;
-      }
-      const [resolvedBranchId, profileRes] = await Promise.all([
-        resolveActiveBranchId(supabase, user.id, queryBranchId),
-        supabase.from("users").select("role").eq("id", user.id).maybeSingle(),
-      ]);
-      if (cancelled) return;
-      setBranchId(resolvedBranchId);
-      setDashboardRole(((profileRes.data as { role?: string } | null)?.role as string | undefined) ?? "cashier");
-      setBranchResolved(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [queryBranchId]);
+    void refreshSession(queryBranchId);
+  }, [queryBranchId, refreshSession]);
 
   const reportsFullAccess = hasFullDashboardReports(dashboardRole);
 
@@ -468,16 +327,15 @@ export default function DashboardPage() {
   }, [reportsFullAccess, dateFilterMode]);
 
   useEffect(() => {
+    if (!sessionReady) {
+      setLoading(true);
+      return;
+    }
     if (!branchId) {
-      if (!branchResolved) {
-        setLoading(true);
-        return;
-      }
       setDashboardData(null);
       setLoading(false);
       return;
     }
-    const supabase = createClient();
     let cancelled = false;
     setLoading(true);
     const dateMode = reportsFullAccess ? dateFilterMode : "today";
@@ -490,108 +348,97 @@ export default function DashboardPage() {
     dayBeforeRef.setDate(dayBeforeRef.getDate() - 1);
     const { start: yStart, end: yEnd } = getDayBounds(dayBeforeRef);
 
-    const trendWindowStart = new Date();
-    trendWindowStart.setHours(0, 0, 0, 0);
-    trendWindowStart.setDate(trendWindowStart.getDate() - (INCOME_TREND_DAY_COUNT - 1));
     const trendWindowEndDay = new Date();
     trendWindowEndDay.setHours(0, 0, 0, 0);
+    const trendWindowStart = new Date(trendWindowEndDay);
+    trendWindowStart.setDate(trendWindowStart.getDate() - (INCOME_TREND_DAY_COUNT * 2 - 1));
     const { start: trendWindowStartIso, end: trendWindowEndIso } = getRangeBounds(trendWindowStart, trendWindowEndDay);
 
-    const creditPaySelect =
-      "amount, payment_method, amount_cash, amount_transfer, payment_source, created_at, customer_credits!inner(branch_id, public_ref, sale_id, total_amount)";
+    const supabase = createClient();
 
     (async () => {
       try {
-      const [
-        { data: salesDay },
-        { data: salesPrevDay },
-        { data: expensesPrevDay },
-        { data: salesTrendWindow },
-        { data: creditPaymentsPeriod },
-        { data: creditPaymentsPrev },
-        { data: creditPaymentsTrend },
-        { data: customerCreditsBranch },
-        { data: inventoryData },
-        { data: defectiveData },
-        { data: expensesPeriod },
-        { data: warrantiesInPeriod },
-      ] = await Promise.all([
-        supabase
-          .from("sales")
-          .select(
-            "id, total, payment_method, amount_cash, amount_transfer, is_delivery, status, invoice_number, delivery_fee, delivery_paid, payment_pending, created_at"
-          )
-          .eq("branch_id", branchId)
-          .gte("created_at", start)
-          .lte("created_at", end),
-        supabase
-          .from("sales")
-          .select(
-            "id, total, payment_method, amount_cash, amount_transfer, is_delivery, status, invoice_number, delivery_fee, delivery_paid, payment_pending, created_at"
-          )
-          .eq("branch_id", branchId)
-          .gte("created_at", yStart)
-          .lte("created_at", yEnd),
-        supabase
-          .from("expenses")
-          .select("amount, payment_method")
-          .eq("branch_id", branchId)
-          .eq("status", "active")
-          .gte("created_at", yStart)
-          .lte("created_at", yEnd),
-        supabase
-          .from("sales")
-          .select("total, created_at, delivery_fee, payment_pending")
-          .eq("branch_id", branchId)
-          .eq("status", "completed")
-          .gte("created_at", trendWindowStartIso)
-          .lte("created_at", trendWindowEndIso),
-        supabase
-          .from("credit_payments")
-          .select(creditPaySelect)
-          .eq("customer_credits.branch_id", branchId)
-          .gte("created_at", start)
-          .lte("created_at", end),
-        supabase
-          .from("credit_payments")
-          .select(creditPaySelect)
-          .eq("customer_credits.branch_id", branchId)
-          .gte("created_at", yStart)
-          .lte("created_at", yEnd),
-        supabase
-          .from("credit_payments")
-          .select(creditPaySelect)
-          .eq("customer_credits.branch_id", branchId)
-          .gte("created_at", trendWindowStartIso)
-          .lte("created_at", trendWindowEndIso),
-        supabase
-          .from("customer_credits")
-          .select("total_amount, amount_paid, cancelled_at, status")
-          .eq("branch_id", branchId),
-        supabase
-          .from("inventory")
-          .select("product_id, quantity, products(base_cost, base_price)")
-          .eq("branch_id", branchId),
-        supabase
-          .from("defective_products")
-          .select("product_id, quantity, products(base_cost)")
-          .eq("branch_id", branchId)
-          .in("disposition", ["pending", "returned_to_supplier", "destroyed"]),
-        supabase
-          .from("expenses")
-          .select("amount, payment_method, concept, notes, created_at")
-          .eq("branch_id", branchId)
-          .eq("status", "active")
-          .gte("created_at", start)
-          .lte("created_at", end),
-        supabase
-          .from("warranties")
-          .select("id, branch_id, sales(branch_id)")
-          .gte("created_at", start)
-          .lte("created_at", end),
-      ]);
-
+      const bundleRes = await fetch(
+        `/api/dashboard/query-bundle?${new URLSearchParams({
+          branchId,
+          start,
+          end,
+          yStart,
+          yEnd,
+          trendStart: trendWindowStartIso,
+          trendEnd: trendWindowEndIso,
+        }).toString()}`,
+        { credentials: "include" }
+      );
+      if (!bundleRes.ok) throw new Error("No se pudo cargar el dashboard");
+      const bundle = (await bundleRes.json()) as {
+        salesDay: unknown[];
+        salesPrevDay: unknown[];
+        expensesPrevDay: unknown[];
+        salesTrendWindow: unknown[];
+        creditPaymentsPeriod: unknown[];
+        creditPaymentsPrev: unknown[];
+        creditPaymentsTrend: unknown[];
+        customerCreditsBranch: unknown[];
+        inventoryData: unknown[];
+        defectiveData: unknown[];
+        expensesPeriod: unknown[];
+        warrantiesInPeriod: unknown[];
+        recentSales: unknown[];
+        newCustomersCount: number;
+        newCustomersPrevCount: number;
+        prevUnitsSold: number;
+        systemActivities: SystemActivityRow[];
+        lowStock: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    min_stock: number;
+    kind: "inventory" | "slow_mover";
+  }>;
+        topProducts: TopSoldProduct[];
+      };
       if (cancelled) return;
+
+      const salesDay = bundle.salesDay as Array<{
+        id: string;
+        total: number;
+        payment_method: string;
+        amount_cash: number | null;
+        amount_transfer: number | null;
+        is_delivery: boolean;
+        status: string;
+        invoice_number: string;
+        delivery_fee: number | null;
+        delivery_paid: boolean;
+        payment_pending?: boolean | null;
+        created_at: string;
+      }>;
+      const salesPrevDay = bundle.salesPrevDay as DaySaleRow[];
+      const expensesPrevDay = bundle.expensesPrevDay as Array<{ amount: number; payment_method: string }>;
+      const salesTrendWindow = bundle.salesTrendWindow as Array<{
+        total: number;
+        created_at: string;
+        delivery_fee: number | null;
+        payment_pending?: boolean | null;
+      }>;
+      const creditPaymentsPeriod = bundle.creditPaymentsPeriod as CreditPaymentRow[];
+      const creditPaymentsPrev = bundle.creditPaymentsPrev as CreditPaymentRow[];
+      const creditPaymentsTrend = bundle.creditPaymentsTrend as CreditPaymentRow[];
+      const customerCreditsBranch = bundle.customerCreditsBranch;
+      const inventoryData = bundle.inventoryData;
+      const defectiveData = bundle.defectiveData;
+      const expensesPeriod = bundle.expensesPeriod as Array<{
+        amount: number;
+        payment_method: string;
+        concept?: string | null;
+        notes?: string | null;
+        created_at: string;
+      }>;
+      const warrantiesInPeriod = bundle.warrantiesInPeriod as Array<{
+        branch_id?: string | null;
+        sales?: { branch_id?: string | null }[] | { branch_id?: string | null } | null;
+      }>;
 
       const outstandingCredits = ((customerCreditsBranch ?? []) as Array<{
         total_amount: number;
@@ -714,12 +561,16 @@ export default function DashboardPage() {
       let totalExpensesCash = 0;
       let totalExpensesTransfer = 0;
       const expenseRowsPeriod = (expensesPeriod ?? []) as Array<{
+        id: string;
         amount: number;
         payment_method: string;
         concept?: string | null;
         notes?: string | null;
         created_at: string;
       }>;
+      let totalExpenses = 0;
+      let operationalExpenses = 0;
+      let inventoryExpenses = 0;
       let warrantiesRefundAmount = 0;
       expenseRowsPeriod.forEach((e) => {
         const amount = Number(e.amount) || 0;
@@ -729,6 +580,11 @@ export default function DashboardPage() {
           concept.startsWith("Devolución garantía ") ||
           notes === "Reembolso automático al procesar garantía tipo devolución.";
         if (isWarrantyRefund) warrantiesRefundAmount += amount;
+        if (!isWarrantyRefund) {
+          if (getExpenseConceptKind(concept) === "inventory") inventoryExpenses += amount;
+          else operationalExpenses += amount;
+        }
+        totalExpenses += amount;
         if (e.payment_method === "cash") {
           totalExpensesCash += amount;
           cash -= amount;
@@ -737,6 +593,19 @@ export default function DashboardPage() {
           transfer -= amount;
         }
       });
+
+      const recentExpenses = expenseRowsPeriod
+        .slice()
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, DASHBOARD_CARD_ITEM_LIMIT)
+        .map((e) => ({
+          id: e.id,
+          concept: String(e.concept ?? "Egreso"),
+          conceptKind: getExpenseConceptKind(String(e.concept ?? "")),
+          amount: Number(e.amount) || 0,
+          payment_method: (e.payment_method === "transfer" ? "transfer" : "cash") as "cash" | "transfer",
+          created_at: e.created_at,
+        }));
 
       const lastExpRow = expenseRowsPeriod
         .slice()
@@ -848,14 +717,19 @@ export default function DashboardPage() {
         const key = localDayKey(d);
         byDay[key] = (byDay[key] ?? 0) + Number(p.amount);
       });
-      const last15Days: { day: string; sales: number }[] = [];
+      const last15Days: { day: string; sales: number; previousSales: number }[] = [];
       for (let i = 0; i < INCOME_TREND_DAY_COUNT; i++) {
-        const d = new Date(trendWindowStart);
-        d.setDate(d.getDate() + i);
-        const key = localDayKey(d);
+        const dCurrent = new Date(trendWindowEndDay);
+        dCurrent.setHours(0, 0, 0, 0);
+        dCurrent.setDate(dCurrent.getDate() - (INCOME_TREND_DAY_COUNT - 1 - i));
+        const dPrevious = new Date(dCurrent);
+        dPrevious.setDate(dPrevious.getDate() - 7);
+        const keyCurrent = localDayKey(dCurrent);
+        const keyPrevious = localDayKey(dPrevious);
         last15Days.push({
-          day: formatTrendAxisDay(d),
-          sales: byDay[key] ?? 0,
+          day: formatTrendAxisDay(dCurrent),
+          sales: byDay[keyCurrent] ?? 0,
+          previousSales: byDay[keyPrevious] ?? 0,
         });
       }
 
@@ -903,22 +777,102 @@ export default function DashboardPage() {
         }));
       }
 
-      const byProduct: Record<string, { name: string; units: number; total: number }> = {};
-      items.forEach((it) => {
-        const lineTotal = Math.max(
-          0,
-          Math.round(
-            it.quantity * Number(it.unit_price) * (1 - Number(it.discount_percent || 0) / 100) - Number(it.discount_amount || 0)
-          )
-        );
-        const name = it.products?.name ?? "—";
-        if (!byProduct[it.product_id]) byProduct[it.product_id] = { name, units: 0, total: 0 };
-        byProduct[it.product_id].units += it.quantity;
-        byProduct[it.product_id].total += lineTotal;
+      const topProducts = (bundle.topProducts ?? []).slice(0, DASHBOARD_CARD_ITEM_LIMIT);
+
+      const unitsSold = items.reduce((sum, it) => sum + Number(it.quantity ?? 0), 0);
+
+      let prevStoreIncome = 0;
+      completedPrev.forEach((s) => {
+        if (s.payment_pending) return;
+        prevStoreIncome += storeIncomeFromSale(s);
       });
-      const topProducts = Object.values(byProduct)
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 5);
+
+      let prevIncomeGross = netCashTransferFromCompletedSales(completedPrev);
+      prevIncomeGross = addCreditPaymentsToCashTransfer(
+        (creditPaymentsPrev ?? []).filter(isCreditPaymentCashInflow),
+        prevIncomeGross.cash,
+        prevIncomeGross.transfer
+      );
+      const prevIncomeCash = prevIncomeGross.cash;
+      const prevIncomeTransfer = prevIncomeGross.transfer;
+
+      const ordersByDay: Record<string, number> = {};
+      (salesTrendWindow ?? []).forEach((s) => {
+        const row = s as { created_at: string; payment_pending?: boolean | null };
+        if (row.payment_pending) return;
+        const d = new Date(row.created_at);
+        d.setHours(0, 0, 0, 0);
+        const key = localDayKey(d);
+        ordersByDay[key] = (ordersByDay[key] ?? 0) + 1;
+      });
+      const ordersSpark: number[] = [];
+      for (let i = 0; i < INCOME_TREND_DAY_COUNT; i++) {
+        const d = new Date(trendWindowStart);
+        d.setDate(d.getDate() + i);
+        ordersSpark.push(ordersByDay[localDayKey(d)] ?? 0);
+      }
+
+      const paymentMix = computePaymentMix(
+        completed,
+        abonosPeriod.filter(isCreditPaymentCashInflow)
+      );
+      const newCustomers = Number(bundle.newCustomersCount ?? 0);
+      const lowStock = bundle.lowStock ?? [];
+
+      const recentSalesRaw = (bundle.recentSales ?? []) as Array<{
+        id: string;
+        invoice_number: string;
+        total: number;
+        status: string;
+        is_delivery?: boolean | null;
+        channel?: string | null;
+        payment_pending?: boolean | null;
+        delivery_fee?: number | null;
+        created_at: string;
+        customers?: { name: string } | Array<{ name: string }> | null;
+      }>;
+      const recentOrders = recentSalesRaw.slice(0, DASHBOARD_CARD_ITEM_LIMIT).map((s) => {
+        const c = s.customers;
+        const customer_name = (Array.isArray(c) ? c[0]?.name : c?.name) ?? "Cliente";
+        return {
+          id: s.id,
+          invoice_number: s.invoice_number,
+          customer_name,
+          channel_label: saleChannelLabel(s),
+          total: storeIncomeFromSale(s),
+          status: s.status,
+          created_at: s.created_at,
+        };
+      });
+
+      const warrantiesForFeed = (
+        (warrantiesInPeriod ?? []) as Array<{
+          id: string;
+          branch_id?: string | null;
+          warranty_type?: string | null;
+          created_at?: string;
+          sales?: { branch_id?: string | null }[] | { branch_id?: string | null } | null;
+        }>
+      )
+        .filter((w) => {
+          const saleRow = Array.isArray(w.sales) ? (w.sales[0] || null) : w.sales;
+          const saleBranchId = saleRow?.branch_id ?? null;
+          return (w.branch_id ?? null) === branchId || saleBranchId === branchId;
+        })
+        .map((w) => ({
+          id: String(w.id),
+          warranty_type: w.warranty_type ?? null,
+          created_at: String(w.created_at ?? new Date().toISOString()),
+        }));
+
+      const activities = mergeDashboardActivityFeed({
+        systemActivities: (bundle.systemActivities ?? []) as SystemActivityRow[],
+        sales: recentSalesRaw,
+        creditPayments: abonosPeriod.filter(isCreditPaymentCashInflow),
+        expenses: expenseRowsPeriod,
+        warranties: warrantiesForFeed,
+        limit: DASHBOARD_CARD_ITEM_LIMIT,
+      });
 
       const inventory = ((inventoryData ?? []) as Array<{
         product_id: string;
@@ -1051,6 +1005,7 @@ export default function DashboardPage() {
       }
 
       const grossProfit = Math.round(marginPaidSales + marginFromAbonos);
+      const dailyResult = Math.round(grossProfit - operationalExpenses);
       const netProfit = Math.round(totalIncome);
 
       // Garantías gestionadas en el período (cargadas en el Promise.all inicial)
@@ -1097,6 +1052,25 @@ export default function DashboardPage() {
         lastCashSale: lastCashSaleDisplay,
         lastTransferSale: lastTransferSaleDisplay,
         outstandingCredits,
+        storeIncome: totalStoreIncome,
+        unitsSold,
+        newCustomers,
+        prevStoreIncome,
+        prevIncomeCash,
+        prevIncomeTransfer,
+        prevOrders: completedPrev.length,
+        prevUnitsSold: Number(bundle.prevUnitsSold ?? 0),
+        prevNewCustomers: Number(bundle.newCustomersPrevCount ?? 0),
+        recentOrders,
+        lowStock,
+        activities,
+        ordersSpark,
+        paymentMix,
+        totalExpenses,
+        operationalExpenses,
+        inventoryExpenses,
+        dailyResult,
+        recentExpenses,
       });
       } catch (err) {
         console.error("[dashboard] Error cargando datos", err);
@@ -1106,47 +1080,9 @@ export default function DashboardPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [branchId, branchResolved, dateFilterMode, selectedDay, dateFrom, dateTo, refreshKey, reportsFullAccess]);
+  }, [branchId, sessionReady, dateFilterMode, selectedDay, dateFrom, dateTo, refreshKey, reportsFullAccess]);
 
-  const formatDate = (date: Date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const dateToCheck = new Date(date);
-    dateToCheck.setHours(0, 0, 0, 0);
-
-    if (dateToCheck.getTime() === today.getTime()) {
-      return "Hoy";
-    } else if (dateToCheck.getTime() === yesterday.getTime()) {
-      return "Ayer";
-    } else {
-      return dateToLocaleDateString(date);
-    }
-  };
-
-  const dateToLocaleDateString = (date: Date) => {
-    return date.toLocaleDateString("es-ES", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    });
-  };
-
-  const formatRange = (from: Date, to: Date) => {
-    const sameYear = from.getFullYear() === to.getFullYear();
-    const fmt = (d: Date, short = false) =>
-      d.toLocaleDateString("es-ES", {
-        day: "numeric",
-        month: "short",
-        ...(short ? {} : { year: "numeric" }),
-      });
-    if (from.getTime() === to.getTime()) return fmt(from);
-    return sameYear ? `${fmt(from, true)} - ${fmt(to)}` : `${fmt(from)} - ${fmt(to)}`;
-  };
   const effectiveDateMode = reportsFullAccess ? dateFilterMode : "today";
-  const periodLabel =
-    effectiveDateMode === "today" ? formatDate(selectedDay) : formatRange(dateFrom, dateTo);
 
   const data = useMemo((): DashboardData => {
     if (dashboardData) return dashboardData;
@@ -1184,9 +1120,28 @@ export default function DashboardPage() {
       lastCashSale: null,
       lastTransferSale: null,
       outstandingCredits: 0,
+      storeIncome: 0,
+      unitsSold: 0,
+      newCustomers: 0,
+      prevStoreIncome: 0,
+      prevIncomeCash: 0,
+      prevIncomeTransfer: 0,
+      prevOrders: 0,
+      prevUnitsSold: 0,
+      prevNewCustomers: 0,
+      recentOrders: [],
+      lowStock: [],
+      activities: [],
+      ordersSpark: [],
+      paymentMix: computePaymentMix([]),
+      totalExpenses: 0,
+      operationalExpenses: 0,
+      inventoryExpenses: 0,
+      dailyResult: 0,
+      recentExpenses: [],
     };
   }, [dashboardData]);
-  const totalExpensesDay = data.totalExpensesCash + data.totalExpensesTransfer;
+
   const formatSensitiveValue = (value: number | string, type: "currency" | "number" = "currency") => {
     if (hideSensitiveInfo) {
       return type === "currency" ? "***" : "***";
@@ -1201,309 +1156,56 @@ export default function DashboardPage() {
     effectiveDateMode === "today" ||
     (effectiveDateMode === "range" && dateFrom.getTime() === dateTo.getTime());
 
+  const displayName = profile?.name?.trim() || "equipo";
+
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-10 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-5 sm:py-4">
-        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              {periodLabel}
-            </p>
-            <h1 className="mt-0.5 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-lg">
-              Reportes
-            </h1>
-            <p className="mt-0.5 text-[12px] font-medium leading-snug text-slate-500 dark:text-slate-400 sm:text-[13px]">
-              {reportsFullAccess
-                ? "Ventas y caja por sucursal y período."
-                : "Ventas y caja del día (vista diaria)."}
-            </p>
-          </div>
-          <div className="min-w-0 lg:max-w-[min(100%,52rem)] lg:flex-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 lg:flex-nowrap lg:justify-end">
-              {reportsFullAccess ? (
-                <div className="inline-grid shrink-0 grid-cols-2 rounded-lg bg-slate-100/90 p-0.5 dark:bg-slate-800/60">
-                  <button
-                    type="button"
-                    onClick={() => startDataTransition(() => setDateFilterMode("today"))}
-                    className={`rounded-md px-2.5 py-1.5 text-center text-[11px] font-semibold transition-all sm:px-3 sm:py-2 sm:text-[12px] ${
-                      dateFilterMode === "today"
-                        ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
-                        : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    Hoy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => startDataTransition(() => setDateFilterMode("range"))}
-                    className={`rounded-md px-2.5 py-1.5 text-center text-[11px] font-semibold transition-all sm:px-3 sm:py-2 sm:text-[12px] ${
-                      dateFilterMode === "range"
-                        ? "bg-white text-[color:var(--shell-sidebar)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:text-zinc-300"
-                        : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    Rango
-                  </button>
-                </div>
-              ) : (
-                <div
-                  className="shrink-0 rounded-lg bg-slate-100/90 px-2.5 py-1.5 text-center text-[11px] font-semibold text-[color:var(--shell-sidebar)] sm:text-[12px] dark:bg-slate-800/60 dark:text-zinc-300"
-                  title="Tu rol solo permite ver el reporte por día"
-                >
-                  Solo día
-                </div>
-              )}
-              {effectiveDateMode === "today" ? (
-                <div className="min-w-0 flex-1 sm:max-w-[200px] lg:max-w-[220px]">
-                  <DatePickerCard
-                    id="dashboard-date-today-header"
-                    value={selectedDay}
-                    onChange={(d) => d && startDataTransition(() => setSelectedDay(d))}
-                    max={today}
-                    allowClear={false}
-                    size="sm"
-                    fullWidth
-                    aria-label="Seleccionar día"
-                  />
-                </div>
-              ) : (
-                <div className="flex min-w-0 shrink-0 items-center gap-1.5">
-                  <DatePickerCard
-                    id="dashboard-date-from-header"
-                    value={dateFrom}
-                    onChange={(d) => d && startDataTransition(() => setDateFrom(d))}
-                    max={dateTo}
-                    allowClear={false}
-                    size="sm"
-                    fullWidth={false}
-                    aria-label="Fecha desde"
-                  />
-                  <span className="shrink-0 text-[12px] font-medium text-slate-400 dark:text-slate-500" aria-hidden>
-                    —
-                  </span>
-                  <DatePickerCard
-                    id="dashboard-date-to-header"
-                    value={dateTo}
-                    onChange={(d) => d && startDataTransition(() => setDateTo(d))}
-                    min={dateFrom}
-                    max={today}
-                    allowClear={false}
-                    size="sm"
-                    fullWidth={false}
-                    aria-label="Fecha hasta"
-                  />
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => setRefreshKey((k) => k + 1)}
-                title="Actualizar datos"
-                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-slate-100/90 px-2.5 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:h-9 sm:gap-2 sm:rounded-xl sm:px-3 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span className="sr-only sm:not-sr-only">Actualizar</span>
-              </button>
-              <button
-                onClick={() => setHideSensitiveInfo(!hideSensitiveInfo)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100/90 text-slate-600 transition-colors hover:bg-slate-200/70 sm:h-9 sm:w-9 sm:rounded-xl dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                title={hideSensitiveInfo ? "Mostrar información" : "Ocultar información sensible"}
-              >
-              {hideSensitiveInfo ? (
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                </svg>
-              ) : (
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {loading ? (
-        <div
-          className="min-h-[300px] animate-pulse rounded-3xl bg-slate-100/90 dark:bg-[#121212]"
-          aria-busy
-          aria-label="Cargando reportes"
-        />
-      ) : (
-        <>
-          <div className="space-y-5 sm:space-y-6">
-            <div className="rounded-3xl bg-white px-4 py-6 sm:px-7 sm:py-8 lg:px-8 lg:py-9 dark:bg-[#121212]">
-              <div className="mb-4 flex flex-wrap items-center gap-2 sm:mb-5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 sm:text-[11px]">
-                  Resumen del período
-                </p>
-                <InfoTip ariaLabel="Qué muestra el resumen del período">
-                  Aquí ves el <strong className="font-semibold">dinero en caja</strong> del período (cobros y abonos, menos
-                  egresos) y, aparte, el <strong className="font-semibold">margen bruto</strong> según el costo cargado en
-                  cada producto. Son dos lecturas distintas a un balance contable formal.
-                </InfoTip>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-stretch sm:gap-4 lg:gap-5">
-                <DashboardHeroMetric
-                  label="Neto en caja del período"
-                  valueStr={formatSensitiveValue(data.totalIncome)}
-                  numericValue={data.totalIncome}
-                  prevNumeric={data.prevPeriodNetTotal}
-                  showDelta={showHeroDeltas}
-                  hideSensitive={hideSensitiveInfo}
-                  icon={<CircleDollarSign aria-hidden strokeWidth={2} />}
-                  infoTip={
-                    <>
-                      Cobros de ventas y abonos a crédito del período, menos todos los egresos registrados. Es el dinero
-                      disponible entre efectivo y transferencia.
-                    </>
-                  }
-                />
-                <DashboardHeroMetric
-                  label="Efectivo (neto)"
-                  valueStr={formatSensitiveValue(data.cash)}
-                  numericValue={data.cash}
-                  prevNumeric={data.prevPeriodNetCash}
-                  showDelta={showHeroDeltas}
-                  hideSensitive={hideSensitiveInfo}
-                  icon={<Banknote aria-hidden strokeWidth={2} />}
-                  infoTip={
-                    <>Ingresos en efectivo del período menos egresos que pagaste en efectivo.</>
-                  }
-                />
-                <DashboardHeroMetric
-                  label="Transferencia (neto)"
-                  valueStr={formatSensitiveValue(data.transfer)}
-                  numericValue={data.transfer}
-                  prevNumeric={data.prevPeriodNetTransfer}
-                  showDelta={showHeroDeltas}
-                  hideSensitive={hideSensitiveInfo}
-                  icon={<Landmark aria-hidden strokeWidth={2} />}
-                  infoTip={
-                    <>Ingresos por transferencia del período menos egresos pagados por transferencia.</>
-                  }
-                />
-              </div>
-
-              <DashboardReportSection eyebrow="Salidas y ajustes" gridClass="sm:grid-cols-3">
-              <DashboardKpiCard
-                icon={<TrendingDown aria-hidden strokeWidth={2} />}
-                label="Egresos"
-                value={formatSensitiveValue(totalExpensesDay)}
-                infoTip={
-                  <>
-                    Dinero que registraste como salida: compras, gastos operativos, pago a proveedores, compra de mercancía,
-                    etc. Reduce el neto en caja del período.
-                  </>
-                }
-              />
-              <DashboardKpiCard
-                icon={<CircleX aria-hidden strokeWidth={2} />}
-                label="Facturas anuladas"
-                value={
-                  data.cancelledInvoices > 0
-                    ? `${data.cancelledInvoices} (${formatSensitiveValue(data.cancelledTotal)})`
-                    : "0"
-                }
-                infoTip={<>Cantidad de facturas canceladas en el período y suma de sus montos.</>}
-              />
-              <DashboardKpiCard
-                icon={<ShieldCheck aria-hidden strokeWidth={2} />}
-                label="Garantías"
-                value={formatSensitiveValue(data.warrantiesCount, "number")}
-                infoTip={
-                  <>
-                    Garantías creadas en el período. Devoluciones: monto reembolsado asociado (
-                    {formatSensitiveValue(data.warrantiesRefundAmount)}).
-                  </>
-                }
-              />
-            </DashboardReportSection>
-
-            {reportsFullAccess ? (
-              <>
-                <DashboardReportSection eyebrow="Inventario y resultado" gridClass="sm:grid-cols-2 lg:grid-cols-4">
-                  <DashboardKpiCard
-                    icon={<Package aria-hidden strokeWidth={2} />}
-                    label="Stock total"
-                    value={formatSensitiveValue(data.totalStockInvestment)}
-                    infoTip={
-                      <>
-                        Cantidad en bodega × costo del producto en el catálogo. No usa la tabla de egresos: es el valor del
-                        inventario al costo cargado en cada producto.
-                      </>
-                    }
-                  />
-                  <DashboardKpiCard
-                    icon={<LineChart aria-hidden strokeWidth={2} />}
-                    label="Margen bruto"
-                    value={formatSensitiveValue(data.grossProfit)}
-                    infoTip={
-                      <>
-                        Suma de (precio de venta − costo del producto) × cantidad en líneas de ventas cobradas. Conviene tener el
-                        costo actualizado en el catálogo para que refleje la realidad.
-                      </>
-                    }
-                  />
-                  <DashboardKpiCard
-                    icon={<PiggyBank aria-hidden strokeWidth={2} />}
-                    label="Resultado en caja"
-                    value={formatSensitiveValue(data.netProfit)}
-                    infoTip={
-                      <>
-                        Cobros más abonos, menos egresos del período. Coincide con «Neto en caja del período» en el bloque
-                        superior.
-                      </>
-                    }
-                  />
-                  <DashboardKpiCard
-                    icon={<CreditCard aria-hidden strokeWidth={2} />}
-                    label="Créditos"
-                    value={formatSensitiveValue(data.outstandingCredits)}
-                    infoTip={<>Saldo pendiente por cobrar en ventas a crédito (esta sucursal).</>}
-                  />
-                </DashboardReportSection>
-              </>
-            ) : null}
-            </div>
-
-            {reportsFullAccess ? (
-            <section className="rounded-3xl bg-white px-5 py-6 sm:px-8 sm:py-7 dark:bg-[#121212]">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tendencia de ingresos</p>
-              <div
-                className="relative mt-4 min-h-[220px] h-56 w-full min-w-0 sm:h-60"
-                role="region"
-                aria-label={`Gráfico de ingresos de los últimos ${INCOME_TREND_DAY_COUNT} días`}
-              >
-                <IncomeTrendChart days={data.last15Days} hideSensitiveInfo={hideSensitiveInfo} />
-              </div>
-          <div className="mt-4 flex flex-col gap-2 text-center sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-4 sm:text-left sm:whitespace-nowrap">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Promedio diario ({INCOME_TREND_DAY_COUNT} días calendario, con $0):{" "}
-              <span className="font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo
-                  ? "***"
-                  : (() => {
-                      const total = data.last15Days.reduce((a, d) => a + d.sales, 0);
-                      return `$${Math.round(total / INCOME_TREND_DAY_COUNT).toLocaleString("es-CO")}`;
-                    })()}
-              </span>
-            </div>
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Total ({INCOME_TREND_DAY_COUNT} días):{" "}
-              <span className="font-bold text-slate-900 dark:text-slate-50">
-                {hideSensitiveInfo ? "***" : `$${data.last15Days.reduce((a, d) => a + d.sales, 0).toLocaleString("es-CO")}`}
-              </span>
-            </div>
-          </div>
-        </section>
-            ) : null}
-      </div>
-        </>
-      )}
+    <div className="mx-auto min-w-0 max-w-[1600px]">
+      <BereaReportsDashboard
+        loading={loading}
+        hideSensitive={hideSensitiveInfo}
+        onToggleHideSensitive={() => setHideSensitiveInfo((v) => !v)}
+        onRefresh={() => setRefreshKey((k) => k + 1)}
+        userName={displayName}
+        reportsFullAccess={reportsFullAccess}
+        dateFilterMode={effectiveDateMode}
+        onDateFilterMode={(mode) => startDataTransition(() => setDateFilterMode(mode))}
+        selectedDay={selectedDay}
+        onSelectedDay={(d) => startDataTransition(() => setSelectedDay(d))}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFrom={(d) => startDataTransition(() => setDateFrom(d))}
+        onDateTo={(d) => startDataTransition(() => setDateTo(d))}
+        today={today}
+        showDeltas={showHeroDeltas}
+        formatValue={formatSensitiveValue}
+        kpis={{
+          sales: data.storeIncome,
+          salesPrev: data.prevStoreIncome,
+          grossProfit: data.grossProfit,
+          cash: data.cash,
+          cashCollected: data.incomeCash,
+          cashExpenses: data.totalExpensesCash,
+          cashPrev: data.prevPeriodNetCash,
+          transfer: data.transfer,
+          transferCollected: data.incomeTransfer,
+          transferExpenses: data.totalExpensesTransfer,
+          transferPrev: data.prevPeriodNetTransfer,
+          netCashTotal: data.totalIncome,
+          stockInvestment: data.totalStockInvestment,
+          salesSpark: data.last15Days.map((d) => d.sales),
+          cashSpark: data.last15Days.map((d) => d.sales),
+          transferSpark: data.last15Days.map((d) => d.sales),
+        }}
+        paymentMix={data.paymentMix}
+        trendDays={data.last15Days}
+        recentOrders={data.recentOrders}
+        topProducts={data.topProducts}
+        activities={data.activities}
+        totalExpenses={data.totalExpenses}
+        operationalExpenses={data.operationalExpenses}
+        inventoryExpenses={data.inventoryExpenses}
+        recentExpenses={data.recentExpenses}
+      />
     </div>
   );
 }

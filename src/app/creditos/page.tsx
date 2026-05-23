@@ -1,16 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
-import {
-  workspaceFilterLabelClass,
-  workspaceFilterSearchPillClass,
-  workspaceFilterSelectClass,
-} from "@/lib/workspace-field-classes";
 import {
   clientAggregateChip,
   clientAggregateStatusFromCredits,
@@ -20,6 +16,13 @@ import {
   type ClientAggregateStatus,
   type CreditStatus,
 } from "./credit-ui";
+
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const bereaFieldClass =
+  "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
+
+const bereaFilterLabel = "block text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
 
 type CreditStatusFilter = "all" | ClientAggregateStatus;
 
@@ -53,7 +56,58 @@ type GroupedClient = {
   aggregateStatus: ReturnType<typeof clientAggregateStatusFromCredits>;
 };
 
+function CreditFilters({
+  search,
+  onSearchChange,
+  statusFilter,
+  onStatusChange,
+}: {
+  search: string;
+  onSearchChange: (value: string) => void;
+  statusFilter: CreditStatusFilter;
+  onStatusChange: (value: CreditStatusFilter) => void;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
+      <div className="relative min-w-0 w-full lg:min-w-0 lg:flex-1">
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--berea-ink-muted)]">
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </span>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Buscar cliente…"
+          className={`${bereaFieldClass} py-2.5 pl-11 pr-4`}
+          aria-label="Filtrar por nombre de cliente"
+        />
+      </div>
+      <div className="w-full min-w-0 space-y-1.5 sm:w-[11rem] sm:shrink-0 lg:w-[12rem]">
+        <label htmlFor="creditos-filter-estado" className={bereaFilterLabel}>
+          Estado
+        </label>
+        <select
+          id="creditos-filter-estado"
+          value={statusFilter}
+          onChange={(e) => onStatusChange(e.target.value as CreditStatusFilter)}
+          className={`${bereaFieldClass} px-3 font-medium`}
+          aria-label="Filtrar por estado del crédito"
+        >
+          {CREDIT_STATUS_FILTER_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 export default function CreditosPage() {
+  const router = useRouter();
   const [branchId, setBranchId] = useState<string | null>(null);
   const [rows, setRows] = useState<CreditRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -168,230 +222,231 @@ export default function CreditosPage() {
   }, [rows, searchDebounced, statusFilter]);
 
   const actionIconClass =
-    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-[color:var(--shell-sidebar)] dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-zinc-300";
+    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-subtle)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-accent)]";
+
+  const filterProps = {
+    search,
+    onSearchChange: setSearch,
+    statusFilter,
+    onStatusChange: setStatusFilter,
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+  };
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="overflow-x-auto [-webkit-overflow-scrolling:touch] lg:overflow-visible">
-              <h1 className="w-max whitespace-nowrap text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
-                Créditos a clientes
-              </h1>
-            </div>
-            <div className="mt-1 overflow-x-auto [-webkit-overflow-scrolling:touch]">
-              <p className="w-max whitespace-nowrap text-left text-[13px] font-medium leading-snug text-slate-500 dark:text-slate-400">
-                Resumen por cliente de esta sucursal. Entra al detalle para ver cada crédito y registrar abonos.
-              </p>
-            </div>
-          </div>
-          <div className="w-full shrink-0 lg:w-auto lg:overflow-x-auto">
-            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:min-w-max lg:flex-nowrap lg:items-center lg:justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setLoading(true);
-                  setRefreshKey((k) => k + 1);
-                }}
-                disabled={loading}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 disabled:pointer-events-none disabled:opacity-50 sm:w-auto dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Actualizar
-              </button>
-              <Link
-                href="/creditos/nuevo"
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Nuevo crédito
-              </Link>
-            </div>
-          </div>
+    <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        <div className="min-w-0 shrink-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
+            Créditos a clientes
+          </h1>
+          <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
+            Resumen por cliente de esta sucursal. Entra al detalle para ver cada crédito y registrar abonos.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              setRefreshKey((k) => k + 1);
+            }}
+            disabled={loading}
+            className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
+          >
+            <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Actualizar
+          </button>
+          <Link
+            href="/creditos/nuevo"
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nuevo crédito
+          </Link>
         </div>
       </header>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-red-800 dark:border-red-900/45 dark:bg-red-900/20 dark:text-red-200">
-          <p className="font-medium">Error al cargar créditos</p>
-          <p className="mt-1 text-[13px]">{error}</p>
+        <div className={`rounded-xl px-6 py-10 text-center ${REPORTS_SURFACE}`}>
+          <p className="text-[15px] font-semibold text-amber-900">Error al cargar créditos</p>
+          <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">{error}</p>
         </div>
       )}
 
-      <section className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
+      <section className="outline-none">
         {loading ? (
-          <div className="min-h-[280px] animate-pulse rounded-2xl bg-slate-50 dark:bg-slate-800/40" aria-hidden />
+          <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
         ) : !branchId ? (
-          <p className="text-center text-[13px] font-medium text-slate-500 dark:text-slate-400">No tienes sucursal asignada.</p>
+          <div className={`rounded-xl px-6 py-10 text-center ${REPORTS_SURFACE}`}>
+            <p className="text-[15px] font-semibold text-[var(--berea-ink)]">No tienes sucursal asignada</p>
+            <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
+              Asigna una sucursal a tu usuario para ver los créditos de clientes.
+            </p>
+          </div>
         ) : (
-          <>
-            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3 lg:gap-4">
-              <div className="relative min-w-0 max-w-xl flex-1 sm:min-w-[12rem]">
-                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </span>
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar cliente…"
-                  className={workspaceFilterSearchPillClass}
-                  aria-label="Filtrar por nombre de cliente"
-                />
-              </div>
-              <div className="w-full min-w-0 space-y-1.5 sm:w-[11rem] sm:shrink-0 lg:w-[12rem]">
-                <label htmlFor="creditos-filter-estado" className={workspaceFilterLabelClass}>
-                  Estado
-                </label>
-                <select
-                  id="creditos-filter-estado"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as CreditStatusFilter)}
-                  className={workspaceFilterSelectClass}
-                  aria-label="Filtrar por estado del crédito"
-                >
-                  {CREDIT_STATUS_FILTER_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+          <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
+            <CreditFilters {...filterProps} />
 
             {rows.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-14 text-center dark:border-slate-700">
-                <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">Aún no hay créditos</p>
-                <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+              <div className="px-2 py-8 text-center sm:px-4">
+                <p className="text-[15px] font-semibold text-[var(--berea-ink)]">Aún no hay créditos</p>
+                <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
                   Crea un crédito vinculado a un cliente para verlo aquí.
                 </p>
                 <Link
                   href="/creditos/nuevo"
-                  className="mt-6 inline-flex h-9 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+                  className="mt-6 inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
                 >
                   Nuevo crédito
                 </Link>
               </div>
             ) : grouped.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-12 text-center dark:border-slate-700">
-                <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">Sin resultados</p>
-                <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+              <div className="px-2 py-8 text-center sm:px-4">
+                <p className="text-[15px] font-semibold text-[var(--berea-ink)]">Sin resultados</p>
+                <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
                   Prueba otro nombre o ajusta el filtro de estado.
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSearch("");
-                    setStatusFilter("all");
-                  }}
-                  className="mt-5 inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  onClick={clearFilters}
+                  className={`mt-5 inline-flex h-10 items-center justify-center rounded-lg px-4 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
                 >
                   Limpiar búsqueda y filtros
                 </button>
               </div>
             ) : (
-              <div className="hidden overflow-hidden rounded-2xl border border-slate-100 dark:border-zinc-800/80 xl:block">
-                <div className="grid grid-cols-[minmax(160px,2fr)_minmax(100px,1fr)_minmax(90px,0.9fr)_minmax(90px,0.9fr)_minmax(120px,1fr)_minmax(100px,0.85fr)_minmax(52px,auto)] gap-x-4 border-b border-slate-100 bg-slate-50 px-5 py-3 dark:border-zinc-800/80 dark:bg-zinc-900/40">
-                  <div className={workspaceFilterLabelClass}>Cliente</div>
-                  <div className={workspaceFilterLabelClass}>Créditos</div>
-                  <div className={`${workspaceFilterLabelClass} text-right`}>Total</div>
-                  <div className={`${workspaceFilterLabelClass} text-right`}>Pendiente</div>
-                  <div className={workspaceFilterLabelClass}>Estado</div>
-                  <div className={workspaceFilterLabelClass}>Vencimiento</div>
-                  <div className={`${workspaceFilterLabelClass} text-right`}> </div>
+              <>
+                <div className="hidden overflow-x-auto xl:block">
+                  <table className="w-full min-w-[920px] border-collapse text-left text-[14px] leading-relaxed">
+                    <thead>
+                      <tr className="border-b border-[var(--berea-card-border)] text-[13px] text-[var(--berea-ink-muted)]">
+                        <th className="pb-3 pr-4 font-semibold">Cliente</th>
+                        <th className="pb-3 pr-4 font-semibold">Créditos</th>
+                        <th className="pb-3 pr-4 text-right font-semibold">Total</th>
+                        <th className="pb-3 pr-4 text-right font-semibold">Pendiente</th>
+                        <th className="pb-3 pr-4 font-semibold">Estado</th>
+                        <th className="pb-3 pr-4 font-semibold">Vencimiento</th>
+                        <th className="pb-3 text-right font-semibold">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {grouped.map((g) => {
+                        const chip = clientAggregateChip(g.aggregateStatus);
+                        const avatarSeed = `${g.customerId}-${getAvatarVariant(null)}`;
+                        return (
+                          <tr
+                            key={g.customerId}
+                            role="link"
+                            tabIndex={0}
+                            className="cursor-pointer transition-colors hover:bg-[var(--shell-workspace)]/70"
+                            onClick={() => router.push(`/creditos/cliente/${g.customerId}`)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                router.push(`/creditos/cliente/${g.customerId}`);
+                              }
+                            }}
+                          >
+                            <td className="py-4 pr-4">
+                              <Link
+                                href={`/creditos/cliente/${g.customerId}`}
+                                className="flex min-w-0 items-center gap-3 text-inherit no-underline"
+                                aria-label={`${g.name}: ver créditos del cliente`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-[var(--shell-workspace)]">
+                                  <WorkspaceCharacterAvatar seed={avatarSeed} size={80} className="h-full w-full object-cover" />
+                                </div>
+                                <span className="truncate text-[15px] font-semibold text-[var(--berea-ink)]">{g.name}</span>
+                              </Link>
+                            </td>
+                            <td className="py-4 pr-4 font-medium text-[var(--berea-ink)]">
+                              {g.invoiceCount} {g.invoiceCount === 1 ? "crédito" : "créditos"}
+                            </td>
+                            <td className="py-4 pr-4 text-right font-semibold tabular-nums text-[var(--berea-ink)]">
+                              ${formatMoney(g.totalAmount)}
+                            </td>
+                            <td className="py-4 pr-4 text-right font-semibold tabular-nums text-[var(--berea-ink)]">
+                              ${formatMoney(g.totalPending)}
+                            </td>
+                            <td className="py-4 pr-4">
+                              <span className={chip.className}>{chip.label}</span>
+                            </td>
+                            <td className="py-4 pr-4 text-[var(--berea-ink-muted)]">
+                              {g.nextDue ? formatDateShort(g.nextDue) : "—"}
+                            </td>
+                            <td className="py-4 text-right">
+                              <Link
+                                href={`/creditos/cliente/${g.customerId}`}
+                                className={actionIconClass}
+                                aria-label={`Ver créditos de ${g.name}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-                {grouped.map((g) => {
-                  const chip = clientAggregateChip(g.aggregateStatus);
-                  const avatarSeed = `${g.customerId}-${getAvatarVariant(null)}`;
-                  return (
-                    <Link
-                      key={g.customerId}
-                      href={`/creditos/cliente/${g.customerId}`}
-                      className="grid grid-cols-[minmax(160px,2fr)_minmax(100px,1fr)_minmax(90px,0.9fr)_minmax(90px,0.9fr)_minmax(120px,1fr)_minmax(100px,0.85fr)_minmax(52px,auto)] gap-x-4 border-b border-slate-100 px-5 py-4 text-inherit no-underline transition-colors last:border-b-0 hover:bg-slate-50/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--shell-sidebar)] dark:border-zinc-800/60 dark:hover:bg-zinc-900/40 dark:focus-visible:outline-zinc-500"
-                      aria-label={`${g.name}: ver créditos del cliente`}
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
-                          <WorkspaceCharacterAvatar seed={avatarSeed} size={80} className="h-full w-full object-cover" />
-                        </div>
-                        <span className="truncate text-[15px] font-medium text-slate-900 dark:text-slate-50">{g.name}</span>
-                      </div>
-                      <div className="self-center text-[13px] font-medium text-slate-700 dark:text-slate-200">
-                        {g.invoiceCount} {g.invoiceCount === 1 ? "crédito" : "créditos"}
-                      </div>
-                      <div className="self-center text-right text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">
-                        $ {formatMoney(g.totalAmount)}
-                      </div>
-                      <div className="self-center text-right text-[13px] font-medium tabular-nums text-slate-900 dark:text-slate-50">
-                        $ {formatMoney(g.totalPending)}
-                      </div>
-                      <div className="self-center">
-                        <span className={chip.className}>{chip.label}</span>
-                      </div>
-                      <div className="self-center text-[13px] font-medium text-slate-600 dark:text-slate-300">
-                        {g.nextDue ? formatDateShort(g.nextDue) : "—"}
-                      </div>
-                      <div className="flex items-center justify-end" aria-hidden="true">
-                        <span className={actionIconClass}>
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
 
-            {grouped.length > 0 && (
-              <div className="grid gap-3 xl:hidden">
-                {grouped.map((g) => {
-                  const chip = clientAggregateChip(g.aggregateStatus);
-                  const avatarSeed = `${g.customerId}-${getAvatarVariant(null)}`;
-                  return (
-                    <Link
-                      key={g.customerId}
-                      href={`/creditos/cliente/${g.customerId}`}
-                      className="rounded-2xl border border-slate-200 bg-slate-50/40 p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
-                          <WorkspaceCharacterAvatar seed={avatarSeed} size={88} className="h-full w-full object-cover" />
+                <div className="grid gap-4 pt-2 sm:grid-cols-2 xl:hidden">
+                  {grouped.map((g) => {
+                    const chip = clientAggregateChip(g.aggregateStatus);
+                    const avatarSeed = `${g.customerId}-${getAvatarVariant(null)}`;
+                    return (
+                      <Link
+                        key={g.customerId}
+                        href={`/creditos/cliente/${g.customerId}`}
+                        className="rounded-xl border border-[var(--berea-card-border)] bg-[var(--shell-workspace)] p-5 transition-colors hover:bg-white"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-[var(--shell-workspace)] ring-1 ring-[var(--berea-card-border)]">
+                            <WorkspaceCharacterAvatar seed={avatarSeed} size={88} className="h-full w-full object-cover" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[15px] font-semibold text-[var(--berea-ink)]">{g.name}</p>
+                            <p className="mt-0.5 text-[13px] text-[var(--berea-ink-muted)]">
+                              {g.invoiceCount} {g.invoiceCount === 1 ? "crédito" : "créditos"}
+                              {g.nextDue ? ` · Vence ${formatDateShort(g.nextDue)}` : ""}
+                            </p>
+                          </div>
+                          <span className={chip.className}>{chip.label}</span>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[15px] font-semibold text-slate-900 dark:text-slate-50">{g.name}</p>
-                          <p className="mt-0.5 text-[12px] font-medium text-slate-500 dark:text-slate-400">
-                            {g.invoiceCount} {g.invoiceCount === 1 ? "crédito" : "créditos"}
-                            {g.nextDue ? ` · Vence ${formatDateShort(g.nextDue)}` : ""}
-                          </p>
+                        <div className="mt-3 flex justify-between gap-2 border-t border-[var(--berea-card-border)] pt-3">
+                          <div>
+                            <p className={bereaFilterLabel}>Total</p>
+                            <p className="mt-1 text-[15px] font-bold tabular-nums text-[var(--berea-ink)]">
+                              ${formatMoney(g.totalAmount)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className={bereaFilterLabel}>Pendiente</p>
+                            <p className="mt-1 text-[15px] font-bold tabular-nums text-[var(--berea-ink)]">
+                              ${formatMoney(g.totalPending)}
+                            </p>
+                          </div>
                         </div>
-                        <span className={chip.className}>{chip.label}</span>
-                      </div>
-                      <div className="mt-3 flex justify-between gap-2 border-t border-slate-200 pt-3 dark:border-zinc-800">
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Total</p>
-                          <p className="text-[14px] font-semibold tabular-nums">$ {formatMoney(g.totalAmount)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Pendiente</p>
-                          <p className="text-[14px] font-semibold tabular-nums">$ {formatMoney(g.totalPending)}</p>
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </>
             )}
-          </>
+          </div>
         )}
       </section>
     </div>

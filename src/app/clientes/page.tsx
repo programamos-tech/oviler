@@ -5,13 +5,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { resolveActiveBranchId } from "@/lib/active-branch";
-import { workspaceFilterSearchPillClass } from "@/lib/workspace-field-classes";
 import { MdOutlineEdit, MdOutlineVisibility } from "react-icons/md";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 350;
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const bereaFieldClass =
+  "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
 
 type CustomerAddress = {
   id: string;
@@ -43,7 +46,7 @@ export default function CustomersPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const cardRefs = useRef<(HTMLDivElement | HTMLTableRowElement | null)[]>([]);
   const hasFocusedList = useRef(false);
   const fetchRequestId = useRef(0);
   const prevDebouncedSearch = useRef<string | undefined>(undefined);
@@ -196,8 +199,8 @@ export default function CustomersPage() {
   })();
 
   const paginationBar = showPagination && (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-white px-5 py-4 dark:bg-slate-900">
-      <p className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
+    <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 sm:px-5 ${REPORTS_SURFACE}`}>
+      <p className="text-[13px] font-medium text-[var(--berea-ink-muted)] md:text-[14px]">
         {totalCount} {totalCount === 1 ? "cliente" : "clientes"}
         {totalPages > 1 && <> · Página {page} de {totalPages}</>}
       </p>
@@ -207,7 +210,7 @@ export default function CustomersPage() {
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100/90 text-slate-700 transition-colors hover:bg-slate-200/80 disabled:pointer-events-none disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
             aria-label="Página anterior"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -216,16 +219,16 @@ export default function CustomersPage() {
           </button>
           {pageNumbers.map((n, i) =>
             n === "…" ? (
-              <span key={`ellipsis-${i}`} className="px-2 text-slate-400">…</span>
+              <span key={`ellipsis-${i}`} className="px-2 text-[var(--berea-ink-subtle)]">…</span>
             ) : (
               <button
                 key={n}
                 type="button"
                 onClick={() => setPage(n)}
-                className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl px-2 text-[13px] font-medium transition-colors ${
+                className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg px-2 text-[13px] font-semibold transition-colors ${
                   page === n
-                    ? "bg-[color:var(--shell-sidebar)] text-white dark:bg-[color:var(--shell-sidebar)]"
-                    : "bg-slate-100/80 text-slate-700 hover:bg-slate-200/80 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    ? "bg-[var(--berea-accent)] text-[var(--shell-nav-fg)]"
+                    : `${REPORTS_SURFACE} text-[var(--berea-ink-muted)] hover:bg-[var(--shell-workspace)]`
                 }`}
               >
                 {n}
@@ -236,7 +239,7 @@ export default function CustomersPage() {
             type="button"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100/90 text-slate-700 transition-colors hover:bg-slate-200/80 disabled:pointer-events-none disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
             aria-label="Página siguiente"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -249,7 +252,7 @@ export default function CustomersPage() {
   );
 
   const actionIconClass =
-    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[color:var(--shell-sidebar)] transition-colors hover:bg-slate-100 dark:text-zinc-300 dark:hover:bg-white/10";
+    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-subtle)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-accent)]";
 
   const showSearch =
     totalCount > 0 ||
@@ -257,41 +260,37 @@ export default function CustomersPage() {
     debouncedSearch.trim() !== "";
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
-      <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">Clientes</h1>
-            <p className="mt-1 whitespace-nowrap text-left text-[13px] font-medium leading-snug text-slate-500 dark:text-slate-400">
-              Lista de esta sucursal. Busca por nombre, cédula, email o teléfono.
-            </p>
-          </div>
-          <div className="w-full lg:overflow-x-auto">
-            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:min-w-max lg:flex-nowrap lg:items-center lg:justify-end">
+    <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        <div className="min-w-0 shrink-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">Clientes</h1>
+          <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
+            Lista de esta sucursal. Busca por nombre, cédula, email o teléfono.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setLoading(true);
                   setRefreshKey((k) => k + 1);
                 }}
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:w-auto dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 Actualizar
               </button>
               <Link
                 href="/clientes/nueva"
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] sm:w-auto"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Nuevo cliente
-              </Link>
-            </div>
-          </div>
+            Nuevo cliente
+          </Link>
         </div>
       </header>
 
@@ -303,27 +302,27 @@ export default function CustomersPage() {
         aria-label="Lista de clientes. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
         {loading ? (
-          <div className="min-h-[280px] animate-pulse rounded-3xl bg-white dark:bg-slate-900" aria-hidden />
+          <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
         ) : !showSearch && customers.length === 0 ? (
-          <div className="rounded-3xl bg-white px-6 py-10 text-center dark:bg-slate-900">
-            <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">Aún no tienes clientes</p>
-            <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+          <div className={`rounded-xl px-6 py-10 text-center ${REPORTS_SURFACE}`}>
+            <p className="text-[15px] font-semibold text-[var(--berea-ink)]">Aún no tienes clientes</p>
+            <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
               Registra tu primer cliente para verlo aquí.
             </p>
             <Link
               href="/clientes/nueva"
-              className="mt-6 inline-flex h-9 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+              className="mt-6 inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
             >
               Nuevo cliente
             </Link>
           </div>
         ) : (
           <>
-            <div className="space-y-6 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
+            <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
               {showSearch && (
                 <div className="relative min-w-0">
-                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--berea-ink-muted)]">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </span>
@@ -332,34 +331,34 @@ export default function CustomersPage() {
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     placeholder="Buscar por nombre, cédula, email o teléfono…"
-                    className={workspaceFilterSearchPillClass}
+                    className={`${bereaFieldClass} py-2.5 pl-11 pr-4`}
                   />
                 </div>
               )}
             {customers.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-6 py-14 text-center dark:border-slate-700">
-                <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">
+              <div className="px-2 py-8 text-center sm:px-4">
+                <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
                   {debouncedSearch.trim() ? "Ningún cliente coincide con la búsqueda" : "Sin resultados en esta página"}
                 </p>
-                <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
                   {debouncedSearch.trim() ? "Prueba con otro término o revisa la ortografía." : "Cambia de página o ajusta el filtro."}
                 </p>
               </div>
             ) : (
               <>
-            <div className="hidden overflow-hidden rounded-2xl border border-slate-100 dark:border-zinc-800/80 xl:block">
+            <div className="hidden overflow-x-auto xl:block">
               <div
-                className="grid grid-cols-[minmax(200px,2fr)_minmax(72px,0.75fr)_minmax(100px,1.1fr)_minmax(88px,0.95fr)_minmax(120px,1.4fr)_minmax(96px,auto)] gap-x-6 border-b border-slate-100 px-5 py-3.5 dark:border-zinc-800/80"
+                className="grid grid-cols-[minmax(200px,2fr)_minmax(72px,0.75fr)_minmax(100px,1.1fr)_minmax(88px,0.95fr)_minmax(120px,1.4fr)_minmax(96px,auto)] gap-x-6 border-b border-[var(--berea-card-border)] pb-3 text-[13px] text-[var(--berea-ink-muted)]"
                 aria-hidden
               >
-                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Cliente</div>
-                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Cédula</div>
-                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Email</div>
-                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Teléfono</div>
-                <div className="min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Dirección</div>
-                <div className="min-w-0 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Acciones</div>
+                <div className="min-w-0 font-semibold">Cliente</div>
+                <div className="min-w-0 font-semibold">Cédula</div>
+                <div className="min-w-0 font-semibold">Email</div>
+                <div className="min-w-0 font-semibold">Teléfono</div>
+                <div className="min-w-0 font-semibold">Dirección</div>
+                <div className="min-w-0 text-right font-semibold">Acciones</div>
               </div>
-              <div className="divide-y divide-slate-100 dark:divide-zinc-800/70">
+              <div className="">
               {customers.map((c, index) => {
                 const isSelected = index === selectedIndex;
                 const addrs = c.customer_addresses ?? [];
@@ -373,46 +372,46 @@ export default function CustomersPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/clientes/${c.id}`)}
-                    className={`cursor-pointer grid grid-cols-[minmax(200px,2fr)_minmax(72px,0.75fr)_minmax(100px,1.1fr)_minmax(88px,0.95fr)_minmax(120px,1.4fr)_minmax(96px,auto)] gap-x-6 px-5 py-4 transition-colors duration-150 ${
+                    className={`cursor-pointer grid grid-cols-[minmax(200px,2fr)_minmax(72px,0.75fr)_minmax(100px,1.1fr)_minmax(88px,0.95fr)_minmax(120px,1.4fr)_minmax(96px,auto)] gap-x-6 py-4 transition-colors ${
                       isSelected
-                        ? "bg-slate-50 hover:bg-slate-100/95 dark:bg-zinc-900/70 dark:hover:bg-zinc-900/85"
-                        : "hover:bg-slate-100/90 dark:hover:bg-zinc-900/35"
+                        ? "bg-[var(--shell-workspace)]"
+                        : "hover:bg-[var(--shell-workspace)]/70"
                     }`}
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-[var(--shell-workspace)]">
                         <WorkspaceCharacterAvatar seed={avatarSeed} size={80} className="h-full w-full object-cover" />
                       </div>
-                      <p className="truncate text-[15px] font-medium tracking-tight text-slate-900 dark:text-slate-50">{c.name}</p>
+                      <p className="truncate text-[15px] font-semibold text-[var(--berea-ink)]">{c.name}</p>
                     </div>
                     <div className="min-w-0 self-center">
-                      <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.cedula ? `CC ${c.cedula}` : "—"}</p>
+                      <p className="truncate text-[14px] font-medium text-[var(--berea-ink)]">{c.cedula ? `CC ${c.cedula}` : "—"}</p>
                     </div>
                     <div className="min-w-0 self-center">
-                      <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p>
+                      <p className="truncate text-[14px] font-medium text-[var(--berea-ink)]">{c.email || "—"}</p>
                     </div>
                     <div className="min-w-0 self-center">
-                      <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.phone || "—"}</p>
+                      <p className="truncate text-[14px] font-medium text-[var(--berea-ink)]">{c.phone || "—"}</p>
                     </div>
                     <div className="min-w-0 self-center">
                       {firstAddr ? (
                         <>
-                          <p className="truncate text-[13px] font-medium text-slate-700 dark:text-slate-200" title={firstAddr.address}>
+                          <p className="truncate text-[14px] font-medium text-[var(--berea-ink)]" title={firstAddr.address}>
                             {addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address}
                           </p>
                           {firstAddr.reference_point && (
-                            <p className="mt-0.5 truncate text-[12px] font-medium text-slate-500 dark:text-slate-400" title={firstAddr.reference_point}>
+                            <p className="mt-0.5 truncate text-[12px] text-[var(--berea-ink-muted)]" title={firstAddr.reference_point}>
                               Ref: {firstAddr.reference_point}
                             </p>
                           )}
                           {addrs.length > 1 && (
-                            <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                            <p className="mt-0.5 text-[12px] text-[var(--berea-ink-muted)]">
                               +{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}
                             </p>
                           )}
                         </>
                       ) : (
-                        <p className="text-[13px] font-medium text-slate-400 dark:text-slate-500">—</p>
+                        <p className="text-[14px] text-[var(--berea-ink-muted)]">—</p>
                       )}
                     </div>
                     <div className="flex items-center justify-end gap-0.5 self-center" onClick={(e) => e.stopPropagation()}>
@@ -439,7 +438,7 @@ export default function CustomersPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:hidden pt-1">
+            <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2 xl:hidden">
               {customers.map((c, index) => {
                 const isSelected = index === selectedIndex;
                 const addrs = c.customer_addresses ?? [];
@@ -453,48 +452,48 @@ export default function CustomersPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/clientes/${c.id}`)}
-                    className={`cursor-pointer rounded-2xl border border-slate-100 bg-slate-50/40 px-5 py-4 transition-[border-color,background-color,box-shadow] duration-150 dark:border-slate-800 dark:bg-slate-800/25 ${
+                    className={`cursor-pointer rounded-xl border border-[var(--berea-card-border)] bg-[var(--shell-workspace)] px-5 py-4 transition-colors ${
                       isSelected
-                        ? "ring-2 ring-slate-400/55 hover:border-slate-200 hover:bg-white hover:shadow-md dark:hover:border-slate-600 dark:hover:bg-slate-800/55 dark:hover:shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
-                        : "hover:border-slate-200 hover:bg-white hover:shadow-md dark:hover:border-slate-600 dark:hover:bg-slate-800/50 dark:hover:shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
+                        ? "ring-2 ring-[var(--berea-accent)]/30"
+                        : "hover:bg-white"
                     }`}
                   >
                     <div className="flex flex-col gap-3">
                       <div className="flex items-start gap-3">
-                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-[var(--shell-workspace)]">
                           <WorkspaceCharacterAvatar seed={avatarSeed} size={88} className="h-full w-full object-cover" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Cliente</p>
-                          <p className="mt-0.5 truncate text-[15px] font-medium text-slate-900 dark:text-slate-50">{c.name}</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Cliente</p>
+                          <p className="mt-0.5 truncate text-[15px] font-semibold text-[var(--berea-ink)]">{c.name}</p>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Cédula</span>
-                        <p className="text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.cedula ? `CC ${c.cedula}` : "—"}</p>
+                      <div className="flex items-center justify-between gap-2 border-t border-[var(--berea-card-border)] pt-3">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Cédula</span>
+                        <p className="text-[14px] font-medium text-[var(--berea-ink)]">{c.cedula ? `CC ${c.cedula}` : "—"}</p>
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Email</span>
-                        <p className="max-w-[58%] truncate text-right text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.email || "—"}</p>
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Email</span>
+                        <p className="max-w-[58%] truncate text-right text-[14px] font-medium text-[var(--berea-ink)]">{c.email || "—"}</p>
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Teléfono</span>
-                        <p className="text-[13px] font-medium text-slate-700 dark:text-slate-200">{c.phone || "—"}</p>
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Teléfono</span>
+                        <p className="text-[14px] font-medium text-[var(--berea-ink)]">{c.phone || "—"}</p>
                       </div>
-                      <div className="space-y-1 border-t border-slate-100 pt-3 dark:border-slate-800">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">Dirección</span>
+                      <div className="space-y-1 border-t border-[var(--berea-card-border)] pt-3">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Dirección</span>
                         <div className="min-w-0">
-                          <p className="break-words text-[13px] font-medium text-slate-700 dark:text-slate-200" title={firstAddr?.address}>
+                          <p className="break-words text-[14px] font-medium text-[var(--berea-ink)]" title={firstAddr?.address}>
                             {firstAddr ? (addrs.length > 1 ? `${firstAddr.label}: ${firstAddr.address}` : firstAddr.address) : "—"}
                           </p>
                           {addrs.length > 1 && (
-                            <p className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                            <p className="mt-1 text-[12px] text-[var(--berea-ink-muted)]">
                               +{addrs.length - 1} {addrs.length === 2 ? "dirección más" : "direcciones más"}
                             </p>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center justify-end gap-1 border-t border-slate-100 pt-3 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1 border-t border-[var(--berea-card-border)] pt-3" onClick={(e) => e.stopPropagation()}>
                         <Link href={`/clientes/${c.id}`} className={actionIconClass} title="Ver detalle" aria-label="Ver detalle">
                           <MdOutlineVisibility className="h-5 w-5" aria-hidden />
                         </Link>

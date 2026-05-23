@@ -5,7 +5,6 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Breadcrumb from "@/app/components/Breadcrumb";
-import { workspaceFormInputMdClass } from "@/lib/workspace-field-classes";
 import { logActivity } from "@/lib/activities";
 import { MdBadge, MdBusiness, MdPerson, MdSchedule, MdStorefront } from "react-icons/md";
 import { getPaymentListChipClass, getStatusListChipClass } from "@/app/ventas/sales-mode";
@@ -19,6 +18,13 @@ import {
   paymentMethodLabel,
   type CreditStatus,
 } from "../credit-ui";
+
+const REPORTS_SURFACE = "berea-reports-surface";
+
+const bereaFieldClass =
+  "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
+
+const bereaSectionLabel = "text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
 
 const PAYMENT_LABELS: Record<string, string> = {
   cash: "Efectivo",
@@ -437,17 +443,17 @@ function CreditoDetalleInner() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full min-w-0 max-w-[1600px] p-8">
-        <div className="h-40 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+      <div className="berea-reports mx-auto min-w-0 max-w-[1600px] p-8">
+        <div className={`h-40 animate-pulse rounded-xl ${REPORTS_SURFACE}`} />
       </div>
     );
   }
 
   if (!credit) {
     return (
-      <div className="mx-auto w-full min-w-0 max-w-[1600px] space-y-4 p-6">
-        <p className="text-[15px] font-medium text-slate-700 dark:text-slate-200">{error ?? "No encontrado"}</p>
-        <Link href="/creditos" className="text-[13px] font-medium text-[color:var(--shell-sidebar)] dark:text-zinc-300">
+      <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-4 p-6 text-[15px] text-[var(--berea-ink)]">
+        <p className="font-medium">{error ?? "No encontrado"}</p>
+        <Link href="/creditos" className="text-[13px] font-semibold text-[color:var(--shell-sidebar)]">
           Volver a créditos
         </Link>
       </div>
@@ -466,10 +472,8 @@ function CreditoDetalleInner() {
 
   return (
     <div
-      className={`mx-auto w-full min-w-0 max-w-[1600px] space-y-6 px-4 pb-10 pt-2 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100 sm:px-6 ${
-        isCreditAnnulled
-          ? "rounded-2xl ring-1 ring-red-500/[0.11] ring-offset-0 dark:ring-red-400/[0.14]"
-          : ""
+      className={`berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 pb-10 pt-2 text-[15px] text-[var(--berea-ink)] sm:space-y-6 ${
+        isCreditAnnulled ? "rounded-xl ring-1 ring-red-300/60" : ""
       }`}
     >
       {error && (
@@ -479,7 +483,7 @@ function CreditoDetalleInner() {
       )}
 
       {/* Card principal — mismo patrón que detalle de factura */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
+      <div className={`rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
         <Breadcrumb
           items={[
             { label: "Créditos", href: "/creditos" },
@@ -489,10 +493,10 @@ function CreditoDetalleInner() {
         />
         <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
               Crédito #{credit.public_ref}
             </h1>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-slate-500 dark:text-slate-400 sm:text-[13px]">
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-[var(--berea-ink-muted)] sm:text-[14px]">
               <span className="inline-flex items-center gap-1">
                 <MdSchedule className="h-4 w-4 shrink-0" aria-hidden />
                 {formatDate(credit.created_at)} · {formatTime(credit.created_at)}
@@ -526,7 +530,7 @@ function CreditoDetalleInner() {
           <div className="flex shrink-0 items-center gap-2">
             <Link
               href={`/creditos/cliente/${credit.customer_id}`}
-              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              className="rounded-lg p-2 text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-ink)]"
               title="Volver"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -539,32 +543,32 @@ function CreditoDetalleInner() {
         <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
           <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:gap-4">
             <div className="min-w-0 p-0">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total</p>
-              <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Total</p>
+              <p className="mt-0.5 text-xl font-semibold tabular-nums text-[var(--berea-ink)] sm:text-2xl">
                 $ {formatMoney(Number(credit.total_amount))}
               </p>
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Método de pago (factura)</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Método de pago (factura)</p>
               <div className="mt-1">
                 <span className={getPaymentListChipClass()}>{salePaymentLabel}</span>
               </div>
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Estado del pago</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Estado del pago</p>
               <div className="mt-1">
                 <span className={getStatusListChipClass(paymentChipKey)}>{paymentChipLabel}</span>
               </div>
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Estado del crédito</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Estado del crédito</p>
               <div className="mt-1">
                 <span className={chip.className}>{chip.label}</span>
               </div>
             </div>
             {credit.sales?.id && (
               <div className="col-span-2 min-w-0 sm:col-span-1 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Factura</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Factura</p>
                 <div className="mt-1">
                   <Link
                     href={`/ventas/${credit.sales.id}`}
@@ -578,24 +582,24 @@ function CreditoDetalleInner() {
           </div>
           <div className="grid w-full grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-[13px] dark:border-slate-800 sm:w-auto sm:border-t-0 sm:pt-0">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Pagado</p>
-              <p className="mt-0.5 font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Pagado</p>
+              <p className="mt-0.5 font-semibold tabular-nums text-[var(--berea-ink)]">
                 $ {formatMoney(Number(credit.amount_paid))}
               </p>
             </div>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Pendiente</p>
-              <p className="mt-0.5 font-semibold tabular-nums text-slate-800 dark:text-slate-100">$ {formatMoney(pendiente)}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Pendiente</p>
+              <p className="mt-0.5 font-semibold tabular-nums text-[var(--berea-ink)]">$ {formatMoney(pendiente)}</p>
             </div>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--berea-card-border)] pt-4">
           {pendiente > 0.005 && !credit.cancelled_at && (
             <button
               type="button"
               onClick={() => setShowAbono(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white shadow-sm hover:bg-[color:var(--shell-sidebar-cta-hover)]"
             >
               Registrar abono
             </button>
@@ -605,7 +609,7 @@ function CreditoDetalleInner() {
               type="button"
               onClick={handleCancelarCredito}
               disabled={cancelling}
-              className="inline-flex h-9 items-center rounded-xl border border-slate-300 px-4 text-[13px] font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200"
+              className="inline-flex h-10 items-center rounded-lg border border-[var(--berea-card-border)] px-4 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)]"
             >
               {cancelling ? "Anulando…" : "Anular crédito"}
             </button>
@@ -636,8 +640,8 @@ function CreditoDetalleInner() {
       </div>
 
       {/* Productos — mismo contenedor que factura */}
-      <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
-        <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+      <div className={`rounded-xl p-4 sm:p-5 ${REPORTS_SURFACE}`}>
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">
           Productos de la factura
         </h2>
         {saleItems.length === 0 ? (
@@ -676,12 +680,12 @@ function CreditoDetalleInner() {
             <div className="mt-4 hidden overflow-x-auto sm:block">
               <table className="w-full min-w-[520px] border-collapse text-[14px]">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="px-3 pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">Producto</th>
-                    <th className="px-3 pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">Cant. pedida</th>
-                    <th className="whitespace-nowrap px-3 pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">P. unit.</th>
-                    <th className="px-3 pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">Cant.</th>
-                    <th className="px-3 pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">Subtotal</th>
+                  <tr className="border-b border-[var(--berea-card-border)]">
+                    <th className="px-3 pb-2 text-left font-semibold text-[var(--berea-ink-muted)]">Producto</th>
+                    <th className="px-3 pb-2 text-left font-semibold text-[var(--berea-ink-muted)]">Cant. pedida</th>
+                    <th className="whitespace-nowrap px-3 pb-2 text-left font-semibold text-[var(--berea-ink-muted)]">P. unit.</th>
+                    <th className="px-3 pb-2 text-left font-semibold text-[var(--berea-ink-muted)]">Cant.</th>
+                    <th className="px-3 pb-2 text-left font-semibold text-[var(--berea-ink-muted)]">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -744,7 +748,7 @@ function CreditoDetalleInner() {
       </div>
 
       {/* Historial de abonos */}
-      <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
+      <div className={`rounded-xl p-4 sm:p-5 ${REPORTS_SURFACE}`}>
         <div className="mb-4 flex items-center gap-2">
           <svg className="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -754,7 +758,7 @@ function CreditoDetalleInner() {
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
             />
           </svg>
-          <h2 className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">
             Historial de abonos ({payments.length})
           </h2>
         </div>
@@ -801,7 +805,7 @@ function CreditoDetalleInner() {
                   {p.users?.name ?? "—"}
                 </div>
                 <div className="hidden text-[13px] text-slate-700 dark:text-slate-200 sm:block">{p.users?.name ?? "—"}</div>
-                <div className="text-[12px] font-medium text-slate-500 dark:text-slate-400 sm:text-[13px] sm:text-slate-700 dark:sm:text-slate-200">
+                <div className="text-[13px] text-[var(--berea-ink-muted)] sm:text-[14px] sm:text-slate-700 dark:sm:text-slate-200">
                   {formatDateTime(p.created_at)}
                 </div>
               </div>
@@ -812,38 +816,81 @@ function CreditoDetalleInner() {
 
       {showAbono && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 dark:bg-black/60 sm:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
           role="dialog"
           aria-modal="true"
+          aria-labelledby="abono-modal-title"
         >
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
-            <h3 className="text-[16px] font-semibold text-slate-900 dark:text-slate-50">Registrar abono</h3>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Pendiente: $ {formatMoney(pendiente)}</p>
-            <form onSubmit={handleAbono} className="mt-4 space-y-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/45 dark:bg-black/60"
+            aria-label="Cerrar"
+            onClick={() => {
+              if (submitting) return;
+              setShowAbono(false);
+              router.replace(`/creditos/${credit.id}`);
+            }}
+          />
+          <div className={`relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl p-5 shadow-xl sm:p-6 ${REPORTS_SURFACE}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 id="abono-modal-title" className="text-[17px] font-semibold text-[var(--berea-ink)] sm:text-lg">
+                  Registrar abono
+                </h3>
+                <p className="mt-1 text-[14px] text-[var(--berea-ink-muted)]">Saldo pendiente del crédito</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (submitting) return;
+                  setShowAbono(false);
+                  router.replace(`/creditos/${credit.id}`);
+                }}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-ink)]"
+                aria-label="Cerrar"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="mt-3 rounded-lg border border-[var(--berea-card-border)] bg-[var(--shell-workspace)]/50 px-3.5 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Pendiente</p>
+              <p className="mt-0.5 text-xl font-semibold tabular-nums text-[var(--berea-ink)]">$ {formatMoney(pendiente)}</p>
+            </div>
+            <form onSubmit={handleAbono} className="mt-5 space-y-4">
               <div>
-                <label className="mb-1 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">Monto</label>
+                <label htmlFor="abono-amount" className={`mb-1.5 block ${bereaSectionLabel}`}>
+                  Monto
+                </label>
                 <input
+                  id="abono-amount"
                   type="text"
-                  className={workspaceFormInputMdClass}
+                  className={bereaFieldClass}
                   value={abonoAmountStr}
                   onChange={(e) => setAbonoAmountStr(sanitizeFormattedMoneyInput(e.target.value))}
                   inputMode="decimal"
                   autoComplete="off"
                   placeholder="Ej. 50.000 o 12.500,50"
+                  autoFocus
                 />
               </div>
               <div>
-                <p className="mb-2 text-[12px] font-semibold text-slate-700 dark:text-slate-300">Método</p>
-                <div className="flex flex-wrap gap-2">
+                <p className={`mb-2 ${bereaSectionLabel}`}>Método</p>
+                <div
+                  className="flex flex-wrap gap-1 rounded-xl border border-[var(--berea-card-border)] bg-[var(--shell-workspace)]/40 p-1"
+                  role="group"
+                  aria-label="Método de pago del abono"
+                >
                   {(["transfer", "cash", "mixed"] as const).map((m) => (
                     <button
                       key={m}
                       type="button"
                       onClick={() => setAbonoMethod(m)}
-                      className={`rounded-xl border px-3 py-2 text-[13px] font-medium ${
+                      className={`min-w-0 flex-1 rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-colors ${
                         abonoMethod === m
-                          ? "border-[color:var(--shell-sidebar)] bg-[color:var(--shell-sidebar)]/10 text-[color:var(--shell-sidebar)] dark:border-zinc-500/45 dark:bg-white/10 dark:text-zinc-300"
-                          : "border-slate-200 text-slate-600 dark:border-slate-600 dark:text-slate-300"
+                          ? "bg-[color:var(--shell-sidebar)] text-white shadow-sm"
+                          : "text-[var(--berea-ink-muted)] hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-ink)]"
                       }`}
                     >
                       {paymentMethodLabel(m)}
@@ -852,12 +899,15 @@ function CreditoDetalleInner() {
                 </div>
               </div>
               {abonoMethod === "mixed" && (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="mb-1 block text-[11px] font-semibold text-slate-600 dark:text-slate-400">Efectivo</label>
+                    <label htmlFor="abono-cash" className={`mb-1.5 block ${bereaSectionLabel}`}>
+                      Efectivo
+                    </label>
                     <input
+                      id="abono-cash"
                       type="text"
-                      className={workspaceFormInputMdClass}
+                      className={bereaFieldClass}
                       value={cashStr}
                       onChange={(e) => setCashStr(sanitizeFormattedMoneyInput(e.target.value))}
                       inputMode="decimal"
@@ -865,10 +915,13 @@ function CreditoDetalleInner() {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[11px] font-semibold text-slate-600 dark:text-slate-400">Transferencia</label>
+                    <label htmlFor="abono-transfer" className={`mb-1.5 block ${bereaSectionLabel}`}>
+                      Transferencia
+                    </label>
                     <input
+                      id="abono-transfer"
                       type="text"
-                      className={workspaceFormInputMdClass}
+                      className={bereaFieldClass}
                       value={transferStr}
                       onChange={(e) => setTransferStr(sanitizeFormattedMoneyInput(e.target.value))}
                       inputMode="decimal"
@@ -878,24 +931,34 @@ function CreditoDetalleInner() {
                 </div>
               )}
               <div>
-                <label className="mb-1 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">Notas (opcional)</label>
-                <input className={workspaceFormInputMdClass} value={abonoNotes} onChange={(e) => setAbonoNotes(e.target.value)} />
+                <label htmlFor="abono-notes" className={`mb-1.5 block ${bereaSectionLabel}`}>
+                  Notas (opcional)
+                </label>
+                <textarea
+                  id="abono-notes"
+                  rows={2}
+                  className={`${bereaFieldClass} min-h-[4.5rem] resize-y py-2.5`}
+                  value={abonoNotes}
+                  onChange={(e) => setAbonoNotes(e.target.value)}
+                  placeholder="Observaciones del abono…"
+                />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => {
                     setShowAbono(false);
                     router.replace(`/creditos/${credit.id}`);
                   }}
-                  className="h-10 rounded-xl border border-slate-200 px-4 text-[13px] font-medium dark:border-slate-600"
+                  disabled={submitting}
+                  className="h-11 rounded-lg border border-[var(--berea-card-border)] px-4 text-[13px] font-semibold text-[var(--berea-ink)] transition-colors hover:bg-[var(--shell-workspace)] disabled:opacity-50"
                 >
                   Cerrar
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="h-10 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white disabled:opacity-50"
+                  className="h-11 rounded-lg bg-[color:var(--shell-sidebar)] px-5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-50"
                 >
                   {submitting ? "Guardando…" : "Guardar abono"}
                 </button>
