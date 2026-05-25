@@ -71,6 +71,8 @@ type SessionContextValue = {
 
 const defaultLicense: SessionLicense = { requires_unlock: false, license_period_end: null };
 
+export const BEREA_SESSION_READY_EVENT = "berea:session-ready";
+
 const SessionContext = createContext<SessionContextValue | null>(null);
 
 function branchFromRow(row: BranchAssignmentRow | undefined): SessionBranch | null {
@@ -227,6 +229,11 @@ export function SessionProvider({
     window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranchChanged);
     return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranchChanged);
   }, [refreshSession]);
+
+  useEffect(() => {
+    if (!ready) return;
+    window.dispatchEvent(new CustomEvent(BEREA_SESSION_READY_EVENT));
+  }, [ready]);
 
   const value = useMemo<SessionContextValue>(
     () => ({

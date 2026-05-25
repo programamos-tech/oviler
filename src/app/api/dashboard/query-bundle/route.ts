@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DASHBOARD_CARD_ITEM_LIMIT } from "@/lib/dashboard-berea";
+import {
+  computeMarginFromCreditAbonos,
+  grossMarginFromItemRows,
+  normalizeSaleItemMarginRows,
+  type CreditPaymentMarginRow,
+} from "@/lib/dashboard-margins";
 import { resolveTopSoldProducts } from "@/lib/dashboard-top-products";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+const BUNDLE_CACHE_SECONDS = 30;
+
 const CREDIT_PAY_SELECT =
   "amount, payment_method, amount_cash, amount_transfer, payment_source, created_at, customer_credits!inner(branch_id, public_ref, sale_id, total_amount)";
 
 const MAX_SALE_IDS_FOR_ITEMS = 400;
+const SALE_ITEM_MARGIN_SELECT =
+  "sale_id, product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost)";
 
 async function sumUnitsSoldForSales(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -159,7 +169,8 @@ export async function GET(request: NextRequest) {
     supabase
       .from("customer_credits")
       .select("total_amount, amount_paid, cancelled_at, status")
-      .eq("branch_id", branchId),
+      .eq("branch_id", branchId)
+      .in("status", ["pending", "overdue"]),
     supabase
       .from("inventory")
       .select("product_id, quantity, min_stock, products(base_cost, base_price, name)")
@@ -180,6 +191,7 @@ export async function GET(request: NextRequest) {
     supabase
       .from("warranties")
       .select("id, branch_id, warranty_type, created_at, sales(branch_id)")
+      .eq("branch_id", branchId)
       .gte("created_at", start)
       .lte("created_at", end),
     organizationId
@@ -250,31 +262,93 @@ export async function GET(request: NextRequest) {
     .filter((s) => s.status === "completed" && !s.payment_pending)
     .map((s) => s.id);
 
-  const completedSaleIdsForSlowMover =
-    lowStock.length === 0
-      ? ((salesDay.data ?? []) as Array<{ id: string; status: string; payment_pending?: boolean | null }>)
-          .filter((s) => s.status === "completed" && !s.payment_pending)
-          .map((s) => s.id)
-      : [];
+  const periodCompletedSaleIds = ((salesDay.data ?? []) as Array<{
+    id: string;
+    status: string;
+    payment_pending?: boolean | null;
+  }>)
+    .filter((s) => s.status === "completed" && !s.payment_pending)
+    .map((s) => s.id);
 
-  const [prevUnitsSold, topProducts, slowMoverRows] = await Promise.all([
-    sumUnitsSoldForSales(supabase, prevCompletedSaleIds),
-    resolveTopSoldProducts(supabase, branchId, start, end, DASHBOARD_CARD_ITEM_LIMIT, {
-      skipExtendedLookback: true,
-    }).catch((err) => {
-      console.error("Error resolving top sold products:", err);
-      return [];
-    }),
-    lowStock.length === 0
-      ? resolveSlowMoverLowStock(supabase, completedSaleIdsForSlowMover)
-      : Promise.resolve([]),
-  ]);
+  const completedSaleIdsForSlowMover = lowStock.length === 0 ? periodCompletedSaleIds : [];
+
+  const abonoSaleIds = [
+    ...new Set(
+      ((creditPaymentsPeriod.data ?? []) as CreditPaymentMarginRow[])
+        .filter((p) => p.payment_source !== "warranty_refund")
+        .map((p) => {
+          const c = p.customer_credits;
+          const row = Array.isArray(c) ? c[0] : c;
+          return row?.sale_id ? String(row.sale_id) : null;
+        })
+        .filter((id): id is string => Boolean(id))
+    ),
+  ].slice(0, MAX_SALE_IDS_FOR_ITEMS);
+
+  const [prevUnitsSold, periodUnitsSold, topProducts, slowMoverRows, periodMarginItemsRes, abonoItemsRes, abonoSalesRes] =
+    await Promise.all([
+      sumUnitsSoldForSales(supabase, prevCompletedSaleIds),
+      sumUnitsSoldForSales(supabase, periodCompletedSaleIds),
+      resolveTopSoldProducts(supabase, branchId, start, end, DASHBOARD_CARD_ITEM_LIMIT, {
+        skipExtendedLookback: true,
+      }).catch((err) => {
+        console.error("Error resolving top sold products:", err);
+        return [];
+      }),
+      lowStock.length === 0
+        ? resolveSlowMoverLowStock(supabase, completedSaleIdsForSlowMover)
+        : Promise.resolve([]),
+      supabase
+        .from("sale_items")
+        .select(
+          `${SALE_ITEM_MARGIN_SELECT}, sales!inner(branch_id, created_at, status, payment_pending)`
+        )
+        .eq("sales.branch_id", branchId)
+        .gte("sales.created_at", start)
+        .lte("sales.created_at", end)
+        .eq("sales.status", "completed")
+        .eq("sales.payment_pending", false),
+      abonoSaleIds.length > 0
+        ? supabase.from("sale_items").select(SALE_ITEM_MARGIN_SELECT).in("sale_id", abonoSaleIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+      abonoSaleIds.length > 0
+        ? supabase.from("sales").select("id, total, delivery_fee").in("id", abonoSaleIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+    ]);
 
   if (lowStock.length === 0 && slowMoverRows.length > 0) {
     lowStock = slowMoverRows;
   }
 
-  return NextResponse.json({
+  let periodMarginItems = normalizeSaleItemMarginRows(
+    (periodMarginItemsRes.data ?? []) as Parameters<typeof normalizeSaleItemMarginRows>[0]
+  );
+
+  if (periodMarginItems.length === 0 && periodCompletedSaleIds.length > 0) {
+    const { data: fallbackItems } = await supabase
+      .from("sale_items")
+      .select(SALE_ITEM_MARGIN_SELECT)
+      .in("sale_id", periodCompletedSaleIds.slice(0, MAX_SALE_IDS_FOR_ITEMS));
+    periodMarginItems = normalizeSaleItemMarginRows(
+      (fallbackItems ?? []) as Parameters<typeof normalizeSaleItemMarginRows>[0]
+    );
+  }
+
+  const abonoSaleItems = normalizeSaleItemMarginRows(
+    (abonoItemsRes.data ?? []) as Parameters<typeof normalizeSaleItemMarginRows>[0]
+  );
+
+  const grossMarginPaid = Math.round(grossMarginFromItemRows(periodMarginItems));
+  const marginFromAbonos = Math.round(
+    computeMarginFromCreditAbonos(
+      (creditPaymentsPeriod.data ?? []) as CreditPaymentMarginRow[],
+      abonoSaleItems,
+      (abonoSalesRes.data ?? []) as Array<{ id: string; total: number; delivery_fee?: number | null }>
+    )
+  );
+
+  return NextResponse.json(
+    {
     salesDay: salesDay.data ?? [],
     salesPrevDay: salesPrevDay.data ?? [],
     expensesPrevDay: expensesPrevDay.data ?? [],
@@ -291,8 +365,17 @@ export async function GET(request: NextRequest) {
     newCustomersCount: newCustomers.count ?? 0,
     newCustomersPrevCount: newCustomersPrev.count ?? 0,
     prevUnitsSold,
+    periodUnitsSold,
+    grossMarginPaid,
+    marginFromAbonos,
     systemActivities: systemActivitiesRes.data ?? [],
     lowStock,
     topProducts,
-  });
+    },
+    {
+      headers: {
+        "Cache-Control": `private, max-age=${BUNDLE_CACHE_SECONDS}, stale-while-revalidate=${BUNDLE_CACHE_SECONDS * 2}`,
+      },
+    }
+  );
 }

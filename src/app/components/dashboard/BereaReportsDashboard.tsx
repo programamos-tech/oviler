@@ -37,6 +37,8 @@ const IncomeTrendChart = dynamic(
 
 export type BereaDashboardProps = {
   loading: boolean;
+  /** Recarga en segundo plano sin ocultar el reporte ya visible. */
+  refreshing?: boolean;
   hideSensitive: boolean;
   onToggleHideSensitive: () => void;
   onRefresh: () => void;
@@ -722,6 +724,7 @@ function PeriodExpensesCard({
 export default function BereaReportsDashboard(props: BereaDashboardProps) {
   const {
     loading,
+    refreshing = false,
     hideSensitive,
     onToggleHideSensitive,
     onRefresh,
@@ -789,7 +792,9 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
   }, [paymentMix]);
 
   return (
-    <div className="berea-reports min-w-0 space-y-5 text-[14px] text-[var(--berea-ink)] sm:space-y-6">
+    <div
+      className={`berea-reports min-w-0 space-y-5 text-[14px] text-[var(--berea-ink)] sm:space-y-6${refreshing ? " berea-reports--refreshing" : ""}`}
+    >
       <header
         className={`flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between ${
           loading ? "" : "berea-header-enter"
@@ -799,7 +804,15 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
             Hola, {firstName}!
           </h1>
-          <p className="mt-1 text-[13px] text-[var(--berea-ink-muted)]">Así va tu negocio hoy</p>
+          <p className="mt-1 text-[13px] text-[var(--berea-ink-muted)]">
+            Así va tu negocio hoy
+            {refreshing ? (
+              <span className="ml-2 inline-flex items-center gap-1 text-[12px] text-[var(--berea-accent)]">
+                <span className="berea-refresh-dot" aria-hidden />
+                Actualizando…
+              </span>
+            ) : null}
+          </p>
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
@@ -907,7 +920,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
           <div className={`berea-loading-shimmer min-h-[160px] rounded-xl ${reportsSurfaceClass}`} />
         </div>
       ) : (
-        <>
+        <div className={refreshing ? "pointer-events-none opacity-[0.72] transition-opacity duration-200" : undefined}>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">
             <div className="flex min-w-0 flex-col gap-3 lg:col-span-9">
               <div className="grid grid-cols-2 gap-2 sm:gap-2.5 lg:grid-cols-4">
@@ -1154,8 +1167,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
               />
             </div>
           </div>
-
-        </>
+        </div>
       )}
     </div>
   );

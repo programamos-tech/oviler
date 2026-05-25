@@ -478,6 +478,27 @@ body {
   animation: berea-skeleton-shimmer 1.4s ease-in-out infinite;
 }
 
+.berea-reports .berea-refresh-dot {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: var(--berea-accent);
+  animation: berea-refresh-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes berea-refresh-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .berea-reports .berea-header-enter,
   .berea-reports .berea-card-enter,
@@ -500,7 +521,8 @@ body {
     animation: none;
   }
 
-  .berea-reports .berea-loading-shimmer {
+  .berea-reports .berea-loading-shimmer,
+  .berea-reports .berea-refresh-dot {
     animation: none;
   }
 }
@@ -1296,6 +1318,174 @@ body {
 /* Catálogo /t: quita el outline azul del navegador; el foco visible va con ring coral en componentes */
 [data-nou-catalog-root] :is(button, [role="button"], [role="link"]):focus {
   outline: none;
+}
+
+/* Pantalla de carga al recargar (estilo juego / RPG) */
+@keyframes berea-boot-status-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes berea-boot-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.berea-boot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--shell-nav-bg);
+  transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+
+.berea-boot-overlay--exit {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.berea-boot-panel {
+  width: min(92vw, 22rem);
+  text-align: center;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+.berea-boot-logo-wrap {
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 5.5rem;
+  height: 5.5rem;
+  border: 3px solid rgba(247, 242, 238, 0.2);
+  border-radius: 0.75rem;
+  background: rgba(247, 242, 238, 0.04);
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 242, 238, 0.08),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.berea-boot-logo {
+  width: 4.5rem;
+  height: 4.5rem;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.berea-boot-title {
+  margin: 0;
+  font-family: var(--font-young-serif), Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--shell-nav-fg);
+}
+
+.berea-boot-subtitle {
+  margin: 0.35rem 0 1.35rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--shell-nav-fg-muted);
+}
+
+.berea-boot-bar-frame {
+  position: relative;
+  padding: 4px;
+  border: 3px solid rgba(247, 242, 238, 0.22);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.berea-boot-bar-track {
+  position: relative;
+  height: 1.125rem;
+  overflow: hidden;
+  border-radius: 1px;
+  background: rgba(247, 242, 238, 0.08);
+}
+
+.berea-boot-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 1px;
+  background: linear-gradient(180deg, #8a7358 0%, var(--berea-accent) 45%, #4a3b2e 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: width 0.08s linear;
+}
+
+.berea-boot-bar-shine {
+  position: absolute;
+  top: 2px;
+  width: 22%;
+  height: calc(100% - 4px);
+  border-radius: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  pointer-events: none;
+  transition: left 0.08s linear;
+}
+
+.berea-boot-bar-segments {
+  position: absolute;
+  inset: 4px;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  pointer-events: none;
+}
+
+.berea-boot-bar-segments span {
+  border-right: 1px solid rgba(0, 0, 0, 0.28);
+}
+
+.berea-boot-bar-segments span:last-child {
+  border-right: none;
+}
+
+.berea-boot-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+  font-size: 0.7rem;
+}
+
+.berea-boot-pct {
+  min-width: 2.5rem;
+  font-weight: 700;
+  color: #e8c9a0;
+  text-shadow: 0 0 8px rgba(232, 201, 160, 0.35);
+}
+
+.berea-boot-status {
+  flex: 1;
+  text-align: right;
+  color: var(--shell-nav-fg-muted);
+  animation: berea-boot-status-in 0.35s ease both;
+}
+
+.berea-boot-hint {
+  margin: 1.25rem 0 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--shell-nav-fg-subtle);
+  animation: berea-boot-pulse 2.4s ease-in-out infinite;
 }
 
 /* Google Material Symbols Outlined - NOU Tiendas */

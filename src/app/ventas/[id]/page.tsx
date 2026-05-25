@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
+import { useSession } from "@/app/components/SessionProvider";
 import { MdLocalShipping, MdStorefront, MdCheck, MdSchedule, MdPerson, MdBusiness, MdBadge, MdInfoOutline } from "react-icons/md";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
@@ -44,6 +45,9 @@ function displayInvoiceNumber(invoiceNumber: string) {
 /** Crédito vinculado a la venta (cabecera / estado de pago). */
 type LinkedCreditBanner = { id: string; public_ref: string; cancelled_at: string | null };
 
+const DETAIL_CACHE_MS = 30_000;
+const saleDetailCache = new Map<string, { at: number; payload: unknown }>();
+
 async function fetchLinkedCreditForSale(
   supabase: ReturnType<typeof createClient>,
   saleId: string
@@ -62,6 +66,19 @@ async function fetchLinkedCreditForSale(
     cancelled_at: data.cancelled_at ?? null,
   };
 }
+
+type SaleDetailBundle = {
+  sale: SaleDetail;
+  items: SaleItemRow[];
+  salesMode: SalesMode;
+  branchOrgId: string | null;
+  deliveryAddress: DeliveryAddress | null;
+  deliveryPersons: { id: string; name: string; code: string }[];
+  linkedCredit: LinkedCreditBanner | null;
+  refundWarrantyProcessedCount: number;
+  latestRefundWarrantyId: string | null;
+  paymentProofSignedUrl: string | null;
+};
 
 const PAYMENT_LABELS: Record<string, string> = {
   cash: "Efectivo",
@@ -196,6 +213,8 @@ function lineDiscountLabel(item: SaleItemRow): string {
 export default function SaleDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { profile } = useSession();
+  const currentUserRole = profile?.role ?? null;
   const id = params?.id as string | undefined;
   const [sale, setSale] = useState<SaleDetail | null>(null);
   const [paymentProofSignedUrl, setPaymentProofSignedUrl] = useState<string | null>(null);
@@ -206,7 +225,6 @@ export default function SaleDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
@@ -240,147 +258,68 @@ export default function SaleDetailPage() {
   const [pedidoClienteUrl, setPedidoClienteUrl] = useState("");
   const [pedidoLinkCopied, setPedidoLinkCopied] = useState(false);
   const [linkedCredit, setLinkedCredit] = useState<LinkedCreditBanner | null>(null);
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0);
+
+  const applyDetailBundle = useCallback((bundle: SaleDetailBundle) => {
+    setSale(bundle.sale);
+    setItems(bundle.items);
+    setSalesMode(bundle.salesMode);
+    setBranchOrgId(bundle.branchOrgId);
+    setDeliveryAddress(bundle.deliveryAddress);
+    setDeliveryPersonsList(bundle.deliveryPersons);
+    setLinkedCredit(bundle.linkedCredit);
+    setRefundWarrantyProcessedCount(bundle.refundWarrantyProcessedCount);
+    setLatestRefundWarrantyId(bundle.latestRefundWarrantyId);
+    setPaymentProofSignedUrl(bundle.paymentProofSignedUrl);
+    setNotFound(false);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
-    const supabase = createClient();
     let cancelled = false;
-    (async () => {
-      setLinkedCredit(null);
-      const { data: saleData, error: saleError } = await supabase
-        .from("sales")
-        .select(
-          "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_address_id, delivery_fee, delivery_person_id, delivery_paid, created_at, channel, public_tracking_token, payment_proof_url, cancellation_reason, cancellation_requested_at, cancellation_requested_by, customers(name, phone, cedula), users!user_id(name), delivery_persons(name, code)"
-        )
-        .eq("id", id)
-        .single();
+    const cacheKey = `${id}|${detailRefreshKey}`;
+    const cached = saleDetailCache.get(cacheKey);
+    const useCache = cached && Date.now() - cached.at < DETAIL_CACHE_MS;
 
-      if (cancelled) return;
-      if (saleError || !saleData) {
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
-      const transformedSale = {
-        ...saleData,
-        customers: Array.isArray(saleData.customers) ? (saleData.customers[0] || null) : saleData.customers,
-        users: Array.isArray(saleData.users) ? (saleData.users[0] || null) : saleData.users,
-        delivery_persons: Array.isArray(saleData.delivery_persons) ? (saleData.delivery_persons[0] || null) : saleData.delivery_persons,
-        branches: null, // Se asignará después
-      } as SaleDetail & { branch_id: string };
-      const s = transformedSale;
-      let branchData: SaleDetail["branches"] = null;
-      if (s.branch_id) {
-        const { data: branchRow } = await supabase
-          .from("branches")
-          .select("name, nit, address, phone, logo_url, responsable_iva, invoice_print_type, invoice_cancel_requires_approval, sales_mode, organization_id")
-          .eq("id", s.branch_id)
-          .single();
-        if (!cancelled && branchRow) {
-          const row = branchRow as { invoice_print_type?: string; invoice_cancel_requires_approval?: boolean; sales_mode?: string; organization_id?: string };
-          branchData = {
-            name: branchRow.name,
-            nit: branchRow.nit ?? null,
-            address: branchRow.address ?? null,
-            phone: branchRow.phone ?? null,
-            logo_url: branchRow.logo_url ?? null,
-            responsable_iva: Boolean(branchRow.responsable_iva),
-            invoice_print_type: row.invoice_print_type === "tirilla" ? "tirilla" : "block",
-            invoice_cancel_requires_approval: Boolean(row.invoice_cancel_requires_approval),
-          };
-          if (row.sales_mode === "orders") setSalesMode("orders");
-          if (row.organization_id) setBranchOrgId(row.organization_id);
+    if (!useCache && !sale) setLoading(true);
+
+    (async () => {
+      try {
+        let bundle: SaleDetailBundle;
+        if (useCache) {
+          bundle = cached!.payload as SaleDetailBundle;
+        } else {
+          const res = await fetch(`/api/ventas/${id}/detail`, { credentials: "include" });
+          if (res.status === 404) {
+            if (!cancelled) {
+              setNotFound(true);
+              setSale(null);
+            }
+            return;
+          }
+          if (!res.ok) {
+            const err = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(err.error ?? "No se pudo cargar la venta");
+          }
+          bundle = (await res.json()) as SaleDetailBundle;
+          saleDetailCache.set(cacheKey, { at: Date.now(), payload: bundle });
         }
+        if (cancelled) return;
+        applyDetailBundle(bundle);
+      } catch {
+        if (!cancelled) {
+          setNotFound(true);
+          setSale(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      const finalSale = {
-        ...transformedSale,
-        branches: branchData,
-      } as SaleDetail;
-      setSale(finalSale);
-
-      const { data: itemsData } = await supabase
-        .from("sale_items")
-        .select("id, product_id, quantity, unit_price, discount_percent, discount_amount, quantity_picked, products(name, sku)")
-        .eq("sale_id", id);
-
-      if (!cancelled) {
-        const transformedItems = ((itemsData ?? []) as Array<{
-          id: string;
-          product_id: string;
-          quantity: number;
-          unit_price: number;
-          discount_percent: number;
-          discount_amount: number;
-          quantity_picked: number | null;
-          products: { name: string; sku: string | null }[] | { name: string; sku: string | null } | null;
-        }>).map((item) => ({
-          ...item,
-          quantity_picked: item.quantity_picked ?? null,
-          products: Array.isArray(item.products) ? (item.products[0] || null) : item.products,
-        })) as SaleItemRow[];
-        setItems(transformedItems);
-      }
-
-      const { data: warrantiesData } = await supabase
-        .from("warranties")
-        .select("id, created_at")
-        .eq("sale_id", id)
-        .eq("warranty_type", "refund")
-        .eq("status", "processed")
-        .order("created_at", { ascending: false });
-      if (!cancelled) {
-        const list = (warrantiesData ?? []) as Array<{ id: string; created_at: string }>;
-        setRefundWarrantyProcessedCount(list.length);
-        setLatestRefundWarrantyId(list[0]?.id ?? null);
-      }
-
-      if (s.delivery_address_id) {
-        const { data: addr } = await supabase
-          .from("customer_addresses")
-          .select("id, label, address, reference_point")
-          .eq("id", s.delivery_address_id)
-          .single();
-        if (!cancelled && addr) setDeliveryAddress(addr as DeliveryAddress);
-      }
-      if (s.branch_id && s.is_delivery) {
-        const { data: dps } = await supabase
-          .from("delivery_persons")
-          .select("id, name, code")
-          .eq("branch_id", s.branch_id)
-          .eq("active", true)
-          .order("name");
-        if (!cancelled && dps) setDeliveryPersonsList((dps ?? []) as { id: string; name: string; code: string }[]);
-      } else if (!cancelled) setDeliveryPersonsList([]);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!cancelled && user) {
-        const { data: userRow } = await supabase.from("users").select("role").eq("id", user.id).single();
-        setCurrentUserRole(userRow?.role ?? null);
-      }
-
-      if (!cancelled) {
-        setLinkedCredit(await fetchLinkedCreditForSale(supabase, id));
-      }
-
-      setLoading(false);
     })();
-    return () => { cancelled = true; };
-  }, [id]);
 
-  useEffect(() => {
-    if (!sale?.payment_proof_url) {
-      setPaymentProofSignedUrl(null);
-      return;
-    }
-    const supabase = createClient();
-    let cancelled = false;
-    (async () => {
-      const { data: signed } = await supabase.storage.from("payment-proofs").createSignedUrl(sale.payment_proof_url!, 3600);
-      if (!cancelled) setPaymentProofSignedUrl(signed?.signedUrl ?? null);
-    })();
     return () => {
       cancelled = true;
     };
-  }, [sale?.payment_proof_url, sale?.id]);
+  }, [id, detailRefreshKey, applyDetailBundle]);
 
   useEffect(() => {
     if (!sale?.public_tracking_token || typeof window === "undefined") {
@@ -390,9 +329,13 @@ export default function SaleDetailPage() {
     setPedidoClienteUrl(`${window.location.origin}/t/pedido/${sale.public_tracking_token}`);
   }, [sale?.public_tracking_token]);
 
-  // Ubicación en bodega por producto (para mostrar en En alistamiento)
+  // Ubicación en bodega (solo pedidos en alistamiento; no bloquea la carga inicial)
   useEffect(() => {
-    if (!sale?.branch_id || items.length === 0) {
+    const needsLocations =
+      salesMode === "orders" &&
+      items.length > 0 &&
+      (sale?.status === "preparing" || sale?.status === "packing");
+    if (!needsLocations || !sale?.branch_id) {
       setLocationByProductId({});
       return;
     }
@@ -445,7 +388,7 @@ export default function SaleDetailPage() {
       if (!cancelled) setLocationByProductId(byProduct);
     })();
     return () => { cancelled = true };
-  }, [sale?.branch_id, items.map((it) => it.product_id).join(",")]);
+  }, [sale?.branch_id, sale?.status, salesMode, items.map((it) => it.product_id).join(",")]);
 
   // Búsqueda de productos para agregar al pedido (header y modal)
   useEffect(() => {
@@ -1009,10 +952,11 @@ export default function SaleDetailPage() {
     }
   }
 
-  if (loading) {
+  if (loading && !sale) {
     return (
-      <div className="space-y-4">
-        <div className="min-h-[260px]" aria-hidden />
+      <div className="mx-auto min-w-0 max-w-[1200px] space-y-4">
+        <div className="h-5 w-48 animate-pulse rounded-md bg-[var(--shell-workspace-search-bg)]" />
+        <div className="berea-reports-surface min-h-[320px] animate-pulse rounded-2xl" aria-hidden />
       </div>
     );
   }

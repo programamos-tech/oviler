@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback, Fragment } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchWithSalesMode } from "@/lib/active-branch";
+import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import { getSalesDateBounds } from "@/lib/sales-list-filters";
+import { useSession } from "@/app/components/SessionProvider";
 import { MdOutlineLocalShipping, MdOutlinePublic, MdOutlineReceiptLong, MdOutlineStorefront } from "react-icons/md";
 import {
   getCopy,
@@ -16,8 +17,15 @@ import {
 } from "./sales-mode";
 import DatePickerCard from "@/app/components/DatePickerCard";
 const PAGE_SIZE = 20;
-/** Máximo de filas para sumar efectivo/transferencia (evita cargar toda la tabla). */
-const PAYMENT_TOTALS_LIMIT = 4000;
+const VENTAS_CACHE_MS = 30_000;
+const ventasListCache = new Map<string, { at: number; payload: unknown }>();
+
+function ventasCacheKey(parts: Record<string, string | number>) {
+  return Object.entries(parts)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("|");
+}
 
 type PaymentTotals = {
   cash: number;
@@ -40,21 +48,6 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
 }
 
-function getSalesDateBounds(dateFrom: Date | null, dateTo: Date | null): { start: string; end: string } | null {
-  if (!dateFrom && !dateTo) return null;
-  const startDate = dateFrom ?? dateTo!;
-  const endDate = dateTo ?? dateFrom!;
-  const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0);
-  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
-  if (start.getTime() > end.getTime()) {
-    return {
-      start: new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 0, 0, 0, 0).toISOString(),
-      end: new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59, 999).toISOString(),
-    };
-  }
-  return { start: start.toISOString(), end: end.toISOString() };
-}
-
 function startOfToday(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -71,7 +64,6 @@ function displayInvoiceNumber(invoiceNumber: string) {
 type SaleRow = {
   id: string;
   branch_id: string;
-  user_id: string;
   customer_id: string | null;
   invoice_number: string;
   total: number;
@@ -85,39 +77,11 @@ type SaleRow = {
   channel?: string | null;
   payment_proof_url?: string | null;
   customers: { name: string } | null;
-  users: { name: string } | null;
   amount_cash?: number | null;
   amount_transfer?: number | null;
 };
 
-type SaleTotalsRow = {
-  total: number;
-  payment_method: string;
-  amount_cash: number | null;
-  amount_transfer: number | null;
-  delivery_fee: number | null;
-  payment_pending?: boolean | null;
-  status: string;
-};
-
-function sumSalesPaymentTotals(
-  rows: SaleTotalsRow[]
-): Pick<PaymentTotals, "cash" | "transfer" | "mixed" | "countedSales"> {
-  let cash = 0;
-  let transfer = 0;
-  let mixed = 0;
-  let countedSales = 0;
-  for (const s of rows) {
-    if (s.status === "cancelled" || s.payment_pending) continue;
-    const income = Math.max(0, Number(s.total) - (Number(s.delivery_fee) || 0));
-    const pm = String(s.payment_method ?? "");
-    if (pm === "cash") cash += income;
-    else if (pm === "transfer") transfer += income;
-    else if (pm === "mixed") mixed += income;
-    countedSales += 1;
-  }
-  return { cash, transfer, mixed, countedSales };
-}
+type PaymentTotalsResponse = PaymentTotals & { skipped?: boolean };
 
 type StatusFilter = "all" | "completed" | "cancelled" | "pending" | "preparing" | "on_the_way" | "delivered";
 type PaymentFilter = "all" | "cash" | "transfer" | "mixed";
@@ -159,9 +123,19 @@ function PaymentTotalsStrip({
   totals,
   totalCount,
 }: {
-  totals: PaymentTotals;
+  totals: PaymentTotalsResponse;
   totalCount: number;
 }) {
+  if (totals.skipped) {
+    return (
+      <div
+        className={`min-w-0 max-w-md rounded-xl px-3 py-2 text-[12px] text-[var(--berea-ink-muted)] sm:px-4 ${REPORTS_SURFACE}`}
+        title="Con muchos registros sin filtro de fecha, los totales se omiten para cargar más rápido."
+      >
+        Filtra por fecha para ver totales por forma de pago ({totalCount.toLocaleString("es-CO")} ventas).
+      </div>
+    );
+  }
   const items = [
     { label: "Efectivo", value: totals.cash },
     { label: "Transferencia", value: totals.transfer },
@@ -169,8 +143,8 @@ function PaymentTotalsStrip({
   ] as const;
   const grandTotal = totals.cash + totals.transfer + totals.mixed;
   const detail = totals.truncated
-    ? `Totales sobre las últimas ${PAYMENT_TOTALS_LIMIT.toLocaleString("es-CO")} ventas del filtro${
-        totalCount > PAYMENT_TOTALS_LIMIT ? ` (${totalCount.toLocaleString("es-CO")} en total)` : ""
+    ? `Totales sobre las últimas 2.000 ventas del filtro${
+        totalCount > 2000 ? ` (${totalCount.toLocaleString("es-CO")} en total)` : ""
       }. Sin anuladas ni cobros pendientes.`
     : `Por forma de pago (${totals.countedSales} ${totals.countedSales === 1 ? "venta" : "ventas"}); total $${formatMoney(grandTotal)}. Sin envíos ni cobros pendientes.`;
   const summary = `${totals.countedSales} ${totals.countedSales === 1 ? "venta" : "ventas"} · $${formatMoney(grandTotal)}`;
@@ -202,22 +176,25 @@ function PaymentTotalsStrip({
 }
 
 export default function SalesPage() {
+  const { branch, ready: sessionReady } = useSession();
+  const branchId = branch?.id ?? null;
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   /** Evita un refetch por tecla al buscar (menos carga y sensación más fluida). */
   const [searchQueryDebounced, setSearchQueryDebounced] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
-  const [dateFrom, setDateFrom] = useState<Date | null>(null);
-  const [dateTo, setDateTo] = useState<Date | null>(null);
+  const [dateFrom, setDateFrom] = useState<Date | null>(() => startOfToday());
+  const [dateTo, setDateTo] = useState<Date | null>(() => startOfToday());
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [paymentTotals, setPaymentTotals] = useState<PaymentTotals | null>(null);
-  const [salesMode, setSalesMode] = useState<SalesMode>("sales");
+  const [paymentTotals, setPaymentTotals] = useState<PaymentTotalsResponse | null>(null);
+  const salesMode: SalesMode = branch?.sales_mode === "orders" ? "orders" : "sales";
   const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | HTMLTableRowElement | null)[]>([]);
@@ -240,131 +217,85 @@ export default function SalesPage() {
   }, [searchQuery]);
 
   useEffect(() => {
-    const supabase = createClient();
+    if (!sessionReady) {
+      setLoading(true);
+      return;
+    }
+    if (!branchId) {
+      setLoadError(null);
+      setSales([]);
+      setTotalCount(0);
+      setPaymentTotals(null);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     let cancelled = false;
-    setLoading(true);
+    const dateBounds = getSalesDateBounds(dateFrom, dateTo);
+    const cacheKey = ventasCacheKey({
+      branchId,
+      page,
+      search: searchQueryDebounced,
+      status: statusFilter,
+      payment: paymentFilter,
+      dateStart: dateBounds?.start ?? "",
+      dateEnd: dateBounds?.end ?? "",
+      salesMode,
+      refreshKey,
+    });
+    const cached = ventasListCache.get(cacheKey);
+    const useCache = cached && Date.now() - cached.at < VENTAS_CACHE_MS;
+
+    if (useCache) {
+      setRefreshing(true);
+    } else if (sales.length === 0) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+
     (async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { branchId, salesMode: branchSalesMode } = await resolveActiveBranchWithSalesMode(supabase, user.id);
-        if (cancelled) return;
-        if (!branchId) {
-          setLoadError(null);
-          setSales([]);
-          setTotalCount(0);
-          setPaymentTotals(null);
-          return;
-        }
-
-        if (!cancelled) setSalesMode(branchSalesMode);
-
-        const from = (page - 1) * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-
-        const applyListFilters = <
-          T extends {
-            eq: (col: string, val: string) => T;
-            or: (filters: string) => T;
-            in: (col: string, vals: string[]) => T;
-            gte: (col: string, val: string) => T;
-            lte: (col: string, val: string) => T;
-          },
-        >(
-          query: T
-        ) => {
-          let q = query.eq("branch_id", branchId);
-          const qTrim = searchQueryDebounced.trim();
-          if (qTrim) {
-            const esc = qTrim.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-            q = q.or(`invoice_number.ilike.%${esc}%,customers.name.ilike.%${esc}%`);
-          }
-          if (statusFilter !== "all") {
-            if (branchSalesMode === "orders" && statusFilter === "preparing") {
-              q = q.in("status", ["preparing", "packing"]);
-            } else if (branchSalesMode === "orders" && statusFilter === "completed") {
-              q = q.in("status", ["completed", "delivered"]);
-            } else {
-              q = q.eq("status", statusFilter);
-            }
-          }
-          if (paymentFilter !== "all") q = q.eq("payment_method", paymentFilter);
-          const dateBounds = getSalesDateBounds(dateFrom, dateTo);
-          if (dateBounds) {
-            q = q.gte("created_at", dateBounds.start).lte("created_at", dateBounds.end);
-          }
-          return q;
+        type Bundle = {
+          sales: SaleRow[];
+          totalCount: number;
+          paymentTotals: PaymentTotalsResponse | null;
         };
 
-        let q = applyListFilters(
-          supabase
-            .from("sales")
-            .select(
-              "id, branch_id, user_id, customer_id, invoice_number, total, payment_method, status, payment_pending, is_delivery, delivery_paid, delivery_fee, created_at, channel, payment_proof_url, amount_cash, amount_transfer, customers(name), users!user_id(name)",
-              { count: "exact" }
-            )
-            .order("created_at", { ascending: false })
-            .range(from, to)
-        );
-
-        const qTotals = applyListFilters(
-          supabase
-            .from("sales")
-            .select(
-              "total, payment_method, amount_cash, amount_transfer, delivery_fee, payment_pending, status"
-            )
-            .order("created_at", { ascending: false })
-            .limit(PAYMENT_TOTALS_LIMIT)
-        );
-
-        const [{ data: salesData, error: queryError, count }, { data: totalsRows, error: totalsError }] =
-          await Promise.all([q, qTotals]);
-        if (cancelled) return;
-        if (queryError) {
-          setLoadError(queryError.message);
-          setSales([]);
-          setTotalCount(0);
-          setPaymentTotals(null);
+        let bundle: Bundle;
+        if (useCache) {
+          bundle = cached!.payload as Bundle;
         } else {
-          setLoadError(null);
-          if (!totalsError && totalsRows) {
-            const summed = sumSalesPaymentTotals(totalsRows as SaleTotalsRow[]);
-            const totalMatching = count ?? 0;
-            setPaymentTotals({
-              ...summed,
-              truncated: totalMatching > PAYMENT_TOTALS_LIMIT && totalsRows.length >= PAYMENT_TOTALS_LIMIT,
-            });
-          } else {
-            setPaymentTotals(null);
+          const params = new URLSearchParams({
+            branchId,
+            salesMode,
+            page: String(page),
+            pageSize: String(PAGE_SIZE),
+            search: searchQueryDebounced,
+            status: statusFilter,
+            payment: paymentFilter,
+          });
+          if (dateBounds?.start) params.set("dateStart", dateBounds.start);
+          if (dateBounds?.end) params.set("dateEnd", dateBounds.end);
+
+          const res = await fetch(`/api/ventas/query-bundle?${params.toString()}`, {
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const err = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(err.error ?? "No se pudo cargar ventas");
           }
-          setSales(((salesData ?? []) as Array<{
-            id: string;
-            branch_id: string;
-            user_id: string;
-            customer_id: string | null;
-            invoice_number: string;
-            total: number;
-            payment_method: string;
-            status: string;
-            payment_pending?: boolean;
-            is_delivery: boolean;
-            delivery_paid: boolean;
-            delivery_fee: number | null;
-            created_at: string;
-            amount_cash: number | null;
-            amount_transfer: number | null;
-            customers: { name: string }[] | { name: string } | null;
-            users: { name: string }[] | { name: string } | null;
-          }>).map((s) => ({
-            ...s,
-            customers: Array.isArray(s.customers) ? (s.customers[0] || null) : s.customers,
-            users: Array.isArray(s.users) ? (s.users[0] || null) : s.users,
-          })) as SaleRow[]);
-          setTotalCount(count ?? 0);
+          const json = (await res.json()) as Bundle;
+          bundle = json;
+          ventasListCache.set(cacheKey, { at: Date.now(), payload: bundle });
         }
+
+        if (cancelled) return;
+        setLoadError(null);
+        setSales(bundle.sales);
+        setTotalCount(bundle.totalCount);
+        setPaymentTotals(bundle.paymentTotals);
       } catch (e) {
         if (!cancelled) {
           setLoadError(e instanceof Error ? e.message : "Error inesperado al cargar ventas");
@@ -373,13 +304,29 @@ export default function SalesPage() {
           setPaymentTotals(null);
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [refreshKey, page, searchQueryDebounced, statusFilter, paymentFilter, dateFrom, dateTo, activeBranchEpoch]);
+  }, [
+    sessionReady,
+    branchId,
+    salesMode,
+    refreshKey,
+    page,
+    searchQueryDebounced,
+    statusFilter,
+    paymentFilter,
+    dateFrom,
+    dateTo,
+    activeBranchEpoch,
+  ]);
 
   useEffect(() => {
     setPage(1);
@@ -517,8 +464,9 @@ export default function SalesPage() {
     setSearchQuery("");
     setStatusFilter("all");
     setPaymentFilter("all");
-    setDateFrom(null);
-    setDateTo(null);
+    const t = startOfToday();
+    setDateFrom(t);
+    setDateTo(t);
     setPage(1);
   };
 
@@ -585,11 +533,16 @@ export default function SalesPage() {
           {!loading && !loadError && paymentTotals ? (
             <PaymentTotalsStrip totals={paymentTotals} totalCount={totalCount} />
           ) : null}
+          {refreshing ? (
+            <span className="hidden text-[12px] font-medium text-[var(--berea-accent)] sm:inline">
+              Actualizando…
+            </span>
+          ) : null}
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => {
-                setLoading(true);
+                ventasListCache.clear();
                 setRefreshKey((k) => k + 1);
               }}
               className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
@@ -619,7 +572,7 @@ export default function SalesPage() {
         className="outline-none"
         aria-label="Lista de facturas y pedidos. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
-        {loading ? (
+        {loading && sales.length === 0 ? (
           <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
         ) : loadError ? (
           <div className={`rounded-xl px-6 py-10 text-center ${REPORTS_SURFACE}`}>
@@ -637,7 +590,9 @@ export default function SalesPage() {
             </button>
           </div>
         ) : (
-          <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
+          <div
+            className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}${refreshing ? " opacity-[0.72] transition-opacity duration-200" : ""}`}
+          >
               <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
                 <div className="relative min-w-0 w-full lg:min-w-0 lg:flex-1">
                   <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--berea-ink-muted)]">

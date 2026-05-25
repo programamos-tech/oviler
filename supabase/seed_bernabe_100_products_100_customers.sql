@@ -267,6 +267,7 @@ BEGIN
     VALUES (
       v_org_id,
       v_branch_id,
+      -- Deprecado: usar seed_bernabe_live_demo.sql para nombres reales (1019001…).
       'Cliente Bernabé demo ' || LPAD(i::text, 3, '0'),
       (9200000000 + i)::text,
       'bernabe.seed.' || i::text || '@nou.local',

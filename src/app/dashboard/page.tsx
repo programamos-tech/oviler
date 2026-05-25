@@ -101,7 +101,7 @@ type DashboardData = {
 /** Días mostrados en la tendencia de ingresos (siempre anclada a “hoy” calendario). */
 const INCOME_TREND_DAY_COUNT = 7;
 
-const DASHBOARD_BUNDLE_CACHE_MS = 25_000;
+const DASHBOARD_BUNDLE_CACHE_MS = 45_000;
 const dashboardBundleCache = new Map<string, { at: number; payload: unknown }>();
 
 function dashboardBundleCacheKey(
@@ -189,33 +189,6 @@ type CreditPaymentRow = {
 
 function isCreditPaymentCashInflow(p: CreditPaymentRow): boolean {
   return p.payment_source !== "warranty_refund";
-}
-
-type SaleItemMarginRow = {
-  quantity: number;
-  unit_price: number;
-  discount_percent: number;
-  discount_amount: number;
-  products: { name: string; base_cost: number | null } | null;
-};
-
-/** Margen bruto (precio − costo) × cantidad, misma fórmula que el dashboard. */
-function grossMarginFromItemRows(itemRows: SaleItemMarginRow[]): number {
-  return itemRows.reduce((sum, it) => {
-    const unitPrice = Number(it.unit_price ?? 0);
-    const discountPercent = Number(it.discount_percent ?? 0);
-    const discountAmount = Number(it.discount_amount ?? 0);
-    const quantity = Number(it.quantity ?? 0);
-    const baseCost = Number(it.products?.base_cost ?? 0);
-    const salePriceWithDiscount = Math.max(
-      0,
-      unitPrice * (1 - discountPercent / 100) - discountAmount
-    );
-    if (baseCost > 0) {
-      return sum + (salePriceWithDiscount - baseCost) * quantity;
-    }
-    return sum;
-  }, 0);
 }
 
 function creditPublicRef(p: CreditPaymentRow): string {
@@ -326,6 +299,7 @@ function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const dashboardRole = profile?.role ?? null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -371,7 +345,6 @@ function DashboardPage() {
     trendWindowStart.setDate(trendWindowStart.getDate() - (INCOME_TREND_DAY_COUNT * 2 - 1));
     const { start: trendWindowStartIso, end: trendWindowEndIso } = getRangeBounds(trendWindowStart, trendWindowEndDay);
 
-    const supabase = createClient();
     const cacheKey = dashboardBundleCacheKey(
       branchId,
       start,
@@ -383,7 +356,13 @@ function DashboardPage() {
     );
     const cached = dashboardBundleCache.get(cacheKey);
     const useCache = cached && Date.now() - cached.at < DASHBOARD_BUNDLE_CACHE_MS;
-    if (!useCache) setLoading(true);
+    if (useCache) {
+      setRefreshing(true);
+    } else if (!dashboardData) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
 
     (async () => {
       try {
@@ -413,6 +392,9 @@ function DashboardPage() {
     kind: "inventory" | "slow_mover";
   }>;
         topProducts: TopSoldProduct[];
+        periodUnitsSold: number;
+        grossMarginPaid: number;
+        marginFromAbonos: number;
       };
 
       if (useCache) {
@@ -770,53 +752,9 @@ function DashboardPage() {
         });
       }
 
-      // Productos más vendidos y margen: solo ventas con cobro registrado (excluye crédito pendiente).
-      let items: Array<SaleItemMarginRow & { product_id: string }> = [];
-      const { data: itemsDayDirect } = await supabase
-        .from("sale_items")
-        .select(
-          "sale_id, product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost), sales!inner(branch_id, created_at, status, payment_pending)"
-        )
-        .eq("sales.branch_id", branchId)
-        .gte("sales.created_at", start)
-        .lte("sales.created_at", end)
-        .eq("sales.status", "completed")
-        .eq("sales.payment_pending", false);
-      if (cancelled) return;
-      const rawItems = (itemsDayDirect ?? []) as Array<{
-        sale_id?: string;
-        product_id: string;
-        quantity: number;
-        unit_price: number;
-        discount_percent: number;
-        discount_amount: number;
-        products: { name: string; base_cost: number | null }[] | { name: string; base_cost: number | null } | null;
-      }>;
-      // Si la API no soporta filtro por relación, usar fallback con IDs del fetch de ventas
-      if (rawItems.length === 0) {
-        const saleIdsForItems = completed.filter((s) => !s.payment_pending).map((s) => s.id);
-        if (saleIdsForItems.length > 0) {
-          const { data: itemsDayFallback } = await supabase
-            .from("sale_items")
-            .select("sale_id, product_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost)")
-            .in("sale_id", saleIdsForItems);
-          if (cancelled) return;
-          const fallback = (itemsDayFallback ?? []) as typeof rawItems;
-          items = fallback.map((it) => ({
-            ...it,
-            products: Array.isArray(it.products) ? (it.products[0] || null) : it.products,
-          }));
-        }
-      } else {
-        items = rawItems.map((it) => ({
-          ...it,
-          products: Array.isArray(it.products) ? (it.products[0] || null) : it.products,
-        }));
-      }
-
       const topProducts = (bundle.topProducts ?? []).slice(0, DASHBOARD_CARD_ITEM_LIMIT);
 
-      const unitsSold = items.reduce((sum, it) => sum + Number(it.quantity ?? 0), 0);
+      const unitsSold = Number(bundle.periodUnitsSold ?? 0);
 
       let prevStoreIncome = 0;
       completedPrev.forEach((s) => {
@@ -957,91 +895,9 @@ function DashboardPage() {
 
       const totalExpensesDay = totalExpensesCash + totalExpensesTransfer;
 
-      const marginPaidSales = grossMarginFromItemRows(items);
-
-      let marginFromAbonos = 0;
-      const saleIdsForAbono = [
-        ...new Set(
-          abonosPeriod
-            .filter(isCreditPaymentCashInflow)
-            .map((p) => {
-              const c = p.customer_credits;
-              const row = Array.isArray(c) ? c[0] : c;
-              const sid = row?.sale_id;
-              return sid ? String(sid) : null;
-            })
-            .filter((id): id is string => Boolean(id))
-        ),
-      ];
-      if (saleIdsForAbono.length > 0) {
-        const [{ data: abonoSaleItems }, { data: salesForAbono }] = await Promise.all([
-          supabase
-            .from("sale_items")
-            .select("sale_id, quantity, unit_price, discount_percent, discount_amount, products(name, base_cost)")
-            .in("sale_id", saleIdsForAbono),
-          supabase.from("sales").select("id, total, delivery_fee").in("id", saleIdsForAbono),
-        ]);
-        if (cancelled) return;
-        const storeRevBySale = new Map<string, number>();
-        for (const s of salesForAbono ?? []) {
-          const df = Number(s.delivery_fee) || 0;
-          storeRevBySale.set(String(s.id), Math.max(0, Number(s.total) - df));
-        }
-        type RawAbonoIt = {
-          sale_id: string;
-          quantity: number;
-          unit_price: number;
-          discount_percent: number;
-          discount_amount: number;
-          products: { name: string; base_cost: number | null }[] | { name: string; base_cost: number | null } | null;
-        };
-        const norm = ((abonoSaleItems ?? []) as RawAbonoIt[]).map((it) => ({
-          sale_id: it.sale_id,
-          quantity: it.quantity,
-          unit_price: it.unit_price,
-          discount_percent: it.discount_percent,
-          discount_amount: it.discount_amount,
-          products: Array.isArray(it.products) ? it.products[0] || null : it.products,
-        }));
-        const grouped = new Map<string, SaleItemMarginRow[]>();
-        for (const it of norm) {
-          const row: SaleItemMarginRow = {
-            quantity: it.quantity,
-            unit_price: it.unit_price,
-            discount_percent: it.discount_percent,
-            discount_amount: it.discount_amount,
-            products: it.products,
-          };
-          const list = grouped.get(it.sale_id) ?? [];
-          list.push(row);
-          grouped.set(it.sale_id, list);
-        }
-        const marginBySale = new Map<string, number>();
-        for (const [sid, list] of grouped) {
-          marginBySale.set(sid, grossMarginFromItemRows(list));
-        }
-        const payBySale = new Map<string, number>();
-        for (const p of abonosPeriod) {
-          if (!isCreditPaymentCashInflow(p)) continue;
-          const c = p.customer_credits;
-          const row = Array.isArray(c) ? c[0] : c;
-          const sid = row?.sale_id ? String(row.sale_id) : null;
-          if (!sid) continue;
-          const pay = Number(p.amount ?? 0);
-          if (pay <= 0) continue;
-          payBySale.set(sid, (payBySale.get(sid) ?? 0) + pay);
-        }
-        for (const [sid, totalPayInPeriod] of payBySale) {
-          const saleM = marginBySale.get(sid) ?? 0;
-          if (saleM <= 0) continue;
-          const storeRev = storeRevBySale.get(sid) ?? 0;
-          const denom = Math.max(storeRev, totalPayInPeriod, 1);
-          const frac = Math.min(1, totalPayInPeriod / denom);
-          marginFromAbonos += frac * saleM;
-        }
-      }
-
-      const grossProfit = Math.round(marginPaidSales + marginFromAbonos);
+      const grossProfit = Math.round(
+        Number(bundle.grossMarginPaid ?? 0) + Number(bundle.marginFromAbonos ?? 0)
+      );
       const dailyResult = Math.round(grossProfit - operationalExpenses);
       const netProfit = Math.round(totalIncome);
 
@@ -1113,7 +969,10 @@ function DashboardPage() {
         console.error("[dashboard] Error cargando datos", err);
         if (!cancelled) setDashboardData(null);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -1198,7 +1057,8 @@ function DashboardPage() {
   return (
     <div className="mx-auto min-w-0 max-w-[1600px]">
       <BereaReportsDashboard
-        loading={loading}
+        loading={loading && !dashboardData}
+        refreshing={refreshing}
         hideSensitive={hideSensitiveInfo}
         onToggleHideSensitive={() => setHideSensitiveInfo((v) => !v)}
         onRefresh={() => {

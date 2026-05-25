@@ -21,8 +21,8 @@ function SidebarSvg({ children, d }: { children?: React.ReactNode; d?: string })
 const SHOW_BODEGA_IN_SIDEBAR = false;
 const SHOW_SUCURSALES_MODULE = true;
 const SHOW_CIERRES_MODULE = false;
-/** Catálogo en línea (/catalogo): siempre visible; el acceso funcional depende del plan (Lite bloqueado en pantalla). */
-const SHOW_COMERCIAL_CATALOGO_MODULE = true;
+/** Catálogo en línea (/catalogo): oculto en sidebar y nav móvil por ahora. */
+export const SHOW_COMERCIAL_CATALOGO_MODULE = false;
 
 function NavIconHome() {
   return (

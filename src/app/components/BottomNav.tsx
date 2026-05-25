@@ -4,12 +4,12 @@ import { useMemo, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
+import { SHOW_COMERCIAL_CATALOGO_MODULE } from "./app-nav-data";
 import { useSession } from "./SessionProvider";
 
 const SHOW_BODEGA_IN_SIDEBAR = false;
 const SHOW_SUCURSALES_MODULE = true;
 const SHOW_CIERRES_MODULE = false;
-const SHOW_COMERCIAL_CATALOGO_MODULE = true;
 
 /* Iconos del panel "Más" */
 function IconGarantias() {
