@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
+import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
 import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/app/components/SessionProvider";
 import { creditRowPending } from "@/app/creditos/credit-ui";
@@ -289,7 +290,7 @@ function warrantySaleLineTotal(
   );
 }
 
-export default function DashboardPage() {
+function DashboardPage() {
   const searchParams = useSearchParams();
   const queryBranchId = searchParams.get("branchId");
   const { branchId, profile, ready: sessionReady, refreshSession } = useSession();
@@ -2195,3 +2196,10 @@ function CashCloseModal({
   );
 }
 
+export default function DashboardPageRoute() {
+  return (
+    <SearchParamsBoundary>
+      <DashboardPage />
+    </SearchParamsBoundary>
+  );
+}

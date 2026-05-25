@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
 import { createClient } from "@/lib/supabase/client";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { workspaceAvatarSeed } from "@/app/components/app-nav-data";
@@ -196,7 +197,7 @@ const SALE_STATUS_LABELS: Record<string, string> = {
 
 const FEED_PAGE_SIZE = 20;
 
-export default function ActivityFeedPage() {
+function ActivityFeedPage() {
   const searchParams = useSearchParams();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [currentBranch, setCurrentBranch] = useState<BranchOption | null>(null);
@@ -850,5 +851,13 @@ export default function ActivityFeedPage() {
         )}
       </section>
     </div>
+  );
+}
+
+export default function ActividadesPage() {
+  return (
+    <SearchParamsBoundary>
+      <ActivityFeedPage />
+    </SearchParamsBoundary>
   );
 }

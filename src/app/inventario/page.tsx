@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
 import { createClient } from "@/lib/supabase/client";
 import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
 import { PlanLimitHeaderNote, PLAN_LIMIT_DISABLED_BUTTON_CLASS } from "@/app/components/PlanLimitNotice";
@@ -192,7 +193,7 @@ function InventoryFilters({
   );
 }
 
-export default function InventoryPage() {
+function InventoryPage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [stockSplitByProduct, setStockSplitByProduct] = useState<Record<string, StockSplit>>({});
   const [hasBodega, setHasBodega] = useState<boolean | null>(null);
@@ -867,5 +868,13 @@ export default function InventoryPage() {
       {paginationBar}
 
     </div>
+  );
+}
+
+export default function InventarioPage() {
+  return (
+    <SearchParamsBoundary>
+      <InventoryPage />
+    </SearchParamsBoundary>
   );
 }

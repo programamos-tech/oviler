@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
 import { createClient } from "@/lib/supabase/client";
 import { resolveActiveBranchId } from "@/lib/active-branch";
 import { MdOutlineEdit, MdOutlineVisibility } from "react-icons/md";
@@ -36,7 +37,7 @@ type CustomerRow = {
   customer_addresses: CustomerAddress[] | null;
 };
 
-export default function CustomersPage() {
+function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState("");
@@ -516,5 +517,13 @@ export default function CustomersPage() {
 
       {paginationBar}
     </div>
+  );
+}
+
+export default function ClientesPage() {
+  return (
+    <SearchParamsBoundary>
+      <CustomersPage />
+    </SearchParamsBoundary>
   );
 }
