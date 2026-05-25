@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+import { useSession } from "@/app/components/SessionProvider";
+import {
+  fetchClienteDetailBundle,
+  fetchClienteDetailExtras,
+  getCachedClienteDetail,
+} from "@/lib/clientes-detail-cache";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
@@ -63,11 +68,6 @@ type SaleRow = {
   created_at: string;
 };
 
-type SaleItemRow = {
-  product_id: string;
-  quantity: number;
-};
-
 type TopProduct = {
   product_id: string;
   product_name: string;
@@ -95,132 +95,99 @@ type CustomerCreditRow = {
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { branch, ready: sessionReady } = useSession();
+  const branchId = branch?.id ?? null;
   const id = params?.id as string | undefined;
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [sales, setSales] = useState<SaleRow[]>([]);
+  const [salesTruncated, setSalesTruncated] = useState(false);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
+  const [topProductsLoading, setTopProductsLoading] = useState(false);
   const [warrantySummary, setWarrantySummary] = useState<WarrantySummary>({ total: 0, processedRefunds: 0 });
   const [credits, setCredits] = useState<CustomerCreditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const onBranch = () => setActiveBranchEpoch((n) => n + 1);
-    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
-    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
-  }, []);
-
-  useEffect(() => {
-    if (!id) return;
-    const supabase = createClient();
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
+  const applyDetailBundle = useCallback(
+    (bundle: {
+      customer: Customer;
+      sales: SaleRow[];
+      salesTruncated: boolean;
+      credits: CustomerCreditRow[];
+      warrantySummary: WarrantySummary;
+      topProducts: TopProduct[];
+    }) => {
+      setCustomer(bundle.customer);
+      setSales(bundle.sales);
+      setSalesTruncated(bundle.salesTruncated);
+      setCredits(bundle.credits);
+      setWarrantySummary(bundle.warrantySummary);
+      setTopProducts(bundle.topProducts);
       setNotFound(false);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) {
-        setLoading(false);
-        return;
-      }
-      const currentBranch = await resolveActiveBranchId(supabase, user.id);
-      if (!currentBranch || cancelled) {
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
-      const { data: customerData, error: customerError } = await supabase
-        .from("customers")
-        .select("id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)")
-        .eq("id", id)
-        .eq("branch_id", currentBranch)
-        .single();
+    },
+    []
+  );
 
-      if (cancelled) return;
-      if (customerError || !customerData) {
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
-      setCustomer(customerData as Customer);
-
-      const { data: salesData } = await supabase
-        .from("sales")
-        .select("id, invoice_number, total, status, created_at")
-        .eq("customer_id", id)
-        .order("created_at", { ascending: false });
-
-      if (cancelled) return;
-      setSales((salesData ?? []) as SaleRow[]);
-
-      const { data: creditsData } = await supabase
-        .from("customer_credits")
-        .select("id, public_ref, title, total_amount, amount_paid, due_date, status, cancelled_at, sale_id, sales(invoice_number)")
-        .eq("branch_id", currentBranch)
-        .eq("customer_id", id)
-        .order("created_at", { ascending: false });
-      if (!cancelled) {
-        setCredits((creditsData ?? []) as unknown as CustomerCreditRow[]);
-      }
-
-      const { data: warrantiesData } = await supabase
-        .from("warranties")
-        .select("status, warranty_type")
-        .eq("customer_id", id);
-      if (!cancelled) {
-        const list = (warrantiesData ?? []) as Array<{ status: string; warranty_type: string }>;
-        setWarrantySummary({
-          total: list.length,
-          processedRefunds: list.filter((w) => w.status === "processed" && w.warranty_type === "refund").length,
-        });
-      }
-
-      const saleIds = (salesData ?? []).map((s: { id: string }) => s.id);
-      if (saleIds.length > 0) {
-        try {
-          const { data: itemsData } = await supabase
-            .from("sale_items")
-            .select("product_id, quantity")
-            .in("sale_id", saleIds);
-
-          if (!cancelled && itemsData && itemsData.length > 0) {
-            const byProduct: Record<string, number> = {};
-            for (const row of itemsData as SaleItemRow[]) {
-              byProduct[row.product_id] = (byProduct[row.product_id] ?? 0) + (row.quantity ?? 0);
-            }
-            const sorted = Object.entries(byProduct)
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 10)
-              .map(([product_id, total_quantity]) => ({ product_id, total_quantity }));
-            const productIds = sorted.map((p) => p.product_id);
-            const { data: productsData } = await supabase
-              .from("products")
-              .select("id, name")
-              .in("id", productIds);
-            const nameById: Record<string, string> = {};
-            (productsData ?? []).forEach((p: { id: string; name: string }) => {
-              nameById[p.id] = p.name ?? "—";
-            });
-            setTopProducts(
-              sorted.map(({ product_id, total_quantity }) => ({
-                product_id,
-                product_name: nameById[product_id] ?? "—",
-                total_quantity,
-              }))
-            );
-          }
-        } catch {
-          // sale_items puede no existir aún; top productos queda vacío
-        }
-      }
+  useEffect(() => {
+    if (!sessionReady || !id) return;
+    if (!branchId) {
+      setNotFound(true);
       setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const cached = getCachedClienteDetail(id, branchId, detailRefreshKey);
+    if (!cached) setLoading(true);
+
+    (async () => {
+      try {
+        const bundle = await fetchClienteDetailBundle(id, branchId, detailRefreshKey);
+        if (cancelled) return;
+        if (!bundle) {
+          setNotFound(true);
+          setCustomer(null);
+          return;
+        }
+        applyDetailBundle(bundle as unknown as Parameters<typeof applyDetailBundle>[0]);
+      } catch {
+        if (!cancelled) {
+          setNotFound(true);
+          setCustomer(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
-    return () => { cancelled = true; };
-  }, [id, activeBranchEpoch]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, branchId, sessionReady, detailRefreshKey, applyDetailBundle]);
+
+  useEffect(() => {
+    if (!id || !branchId || !customer) return;
+    if (topProducts.length > 0) return;
+
+    let cancelled = false;
+    setTopProductsLoading(true);
+
+    (async () => {
+      const extras = await fetchClienteDetailExtras(id, branchId, detailRefreshKey);
+      if (cancelled || !extras) return;
+      setTopProducts(extras.topProducts);
+    })().finally(() => {
+      if (!cancelled) setTopProductsLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, branchId, customer, detailRefreshKey, topProducts.length]);
 
   async function handleDelete() {
     if (!customer?.id) return;
@@ -400,6 +367,7 @@ export default function CustomerDetailPage() {
             </h2>
             <p className="mt-1 text-[12px] font-medium text-slate-500 dark:text-slate-400">
               Ventas con numeración de factura en esta sucursal. Abre el detalle para ver ítems y pagos.
+              {salesTruncated ? " Mostrando las 100 más recientes." : ""}
             </p>
             {sales.length === 0 ? (
               <div className="mt-4 flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/30 py-10 dark:border-slate-700 dark:bg-slate-800/20">
@@ -446,7 +414,9 @@ export default function CustomerDetailPage() {
           <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
             Top productos comprados
           </h2>
-            {topProducts.length === 0 ? (
+            {topProductsLoading ? (
+              <div className="mt-5 min-h-[200px] animate-pulse rounded-2xl border border-dashed border-slate-200 bg-slate-50/30 dark:border-slate-700 dark:bg-slate-800/20" aria-hidden />
+            ) : topProducts.length === 0 ? (
               <div className="mt-4 flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/30 py-10 dark:border-slate-700 dark:bg-slate-800/20">
                 <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">Sin datos aún</p>
                 <p className="mt-2 max-w-[280px] text-center text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">

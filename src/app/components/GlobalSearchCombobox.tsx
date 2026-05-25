@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchGlobalSearch, type GlobalSearchResult } from "@/lib/global-search-query";
 
@@ -18,6 +17,8 @@ type Props = {
   /** Color del icono lupa (por defecto gris; p. ej. en navbar oscuro `text-white/45`) */
   searchIconClassName?: string;
   placeholder?: string;
+  /** Variante visual del panel (navbar oscuro en móvil). */
+  variant?: "light" | "dark";
 };
 
 export function GlobalSearchCombobox({
@@ -26,6 +27,7 @@ export function GlobalSearchCombobox({
   searchIconLeftClass = "left-3",
   searchIconClassName,
   placeholder = "Productos, SKU o clientes…",
+  variant = "light",
 }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -33,7 +35,7 @@ export function GlobalSearchCombobox({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<GlobalSearchResult | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(query.trim()), DEBOUNCE_MS);
@@ -61,15 +63,6 @@ export function GlobalSearchCombobox({
 
   const showPanel = open && query.trim().length >= MIN_CHARS;
 
-  useEffect(() => {
-    if (!showPanel) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [showPanel]);
-
   const close = useCallback(() => {
     setOpen(false);
   }, []);
@@ -81,6 +74,16 @@ export function GlobalSearchCombobox({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [showPanel, close]);
+
+  useEffect(() => {
+    if (!showPanel) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (rootRef.current && !rootRef.current.contains(target)) close();
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
   }, [showPanel, close]);
 
   const onSubmit = (e: React.FormEvent) => {
@@ -98,58 +101,14 @@ export function GlobalSearchCombobox({
     setQuery("");
   };
 
-  const modal =
-    showPanel && typeof document !== "undefined"
-      ? createPortal(
-          <>
-            <button
-              type="button"
-              className="fixed inset-0 z-[190] cursor-default bg-black/35 backdrop-blur-[1px]"
-              aria-label="Cerrar búsqueda"
-              onClick={close}
-            />
-            <div
-              id="global-search-results"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Resultados de búsqueda"
-              className="fixed left-1/2 top-[max(5rem,env(safe-area-inset-top,0px)+3rem)] z-[200] flex max-h-[min(70vh,26rem)] w-[min(calc(100vw-1.5rem),28rem)] -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
-            >
-              <div className="border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                  Coincidencias
-                </p>
-                <p className="truncate text-[13px] font-medium text-slate-800 dark:text-slate-100">“{query.trim()}”</p>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                {loading ? (
-                  <p className="px-3 py-6 text-center text-[13px] text-slate-500 dark:text-slate-400">Buscando…</p>
-                ) : data ? (
-                  <GlobalSearchResultBody data={data} onPick={go} searchTerm={debounced} />
-                ) : null}
-              </div>
-              <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-800">
-                <button
-                  type="button"
-                  className="w-full rounded-xl py-2 text-[12px] font-semibold text-[color:var(--shell-sidebar)] hover:bg-slate-50 dark:hover:bg-white/5"
-                  onClick={() => {
-                    const t = query.trim();
-                    if (t) router.push(`/buscar?q=${encodeURIComponent(t)}`);
-                    close();
-                  }}
-                >
-                  Ver página de búsqueda completa
-                </button>
-              </div>
-            </div>
-          </>,
-          document.body
-        )
-      : null;
+  const panelClass =
+    variant === "dark"
+      ? "border-white/15 bg-[#1a2332] shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+      : "border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900";
 
   return (
     <form onSubmit={onSubmit} className={formClassName} role="search">
-      <div className="relative w-full">
+      <div ref={rootRef} className="relative w-full">
         <svg
           className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 ${searchIconClassName ?? "text-slate-400 dark:text-zinc-500"} ${searchIconLeftClass}`}
           fill="none"
@@ -160,7 +119,6 @@ export function GlobalSearchCombobox({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
-          ref={inputRef}
           type="search"
           value={query}
           onChange={(e) => {
@@ -169,13 +127,79 @@ export function GlobalSearchCombobox({
           }}
           onFocus={() => setOpen(true)}
           placeholder={placeholder}
-          className={inputClassName}
+          className={`${inputClassName}${query ? " pr-10" : ""}`}
           autoComplete="off"
           aria-label="Buscar productos o clientes"
           aria-expanded={showPanel}
           aria-controls={showPanel ? "global-search-results" : undefined}
         />
-        {modal}
+        {query ? (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setData(null);
+              setOpen(false);
+            }}
+            className={`absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition-colors ${
+              variant === "dark"
+                ? "text-white/50 hover:bg-white/10 hover:text-white/80"
+                : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
+            }`}
+            aria-label="Limpiar búsqueda"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        ) : null}
+
+        {showPanel ? (
+          <div
+            id="global-search-results"
+            role="listbox"
+            aria-label="Resultados de búsqueda"
+            className={`absolute left-0 right-0 top-[calc(100%+0.375rem)] z-[120] max-h-[min(70vh,22rem)] overflow-hidden rounded-xl border ${panelClass}`}
+          >
+            <div className="max-h-[min(70vh,22rem)] overflow-y-auto py-2">
+              {loading ? (
+                <p
+                  className={`px-4 py-6 text-center text-[13px] ${
+                    variant === "dark" ? "text-white/50" : "text-slate-500 dark:text-slate-400"
+                  }`}
+                >
+                  Buscando…
+                </p>
+              ) : data ? (
+                <GlobalSearchResultBody data={data} onPick={go} searchTerm={debounced} variant={variant} />
+              ) : null}
+            </div>
+            {data && !loading ? (
+              <div
+                className={`border-t px-3 py-2 ${
+                  variant === "dark" ? "border-white/10" : "border-slate-100 dark:border-slate-800"
+                }`}
+              >
+                <button
+                  type="button"
+                  className={`w-full rounded-lg py-2 text-[12px] font-semibold transition-colors ${
+                    variant === "dark"
+                      ? "text-sky-300 hover:bg-white/5"
+                      : "text-[color:var(--shell-sidebar)] hover:bg-slate-50 dark:hover:bg-white/5"
+                  }`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    const t = query.trim();
+                    if (t) router.push(`/buscar?q=${encodeURIComponent(t)}`);
+                    close();
+                  }}
+                >
+                  Ver todos los resultados
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </form>
   );
@@ -185,10 +209,12 @@ function GlobalSearchResultBody({
   data,
   onPick,
   searchTerm,
+  variant,
 }: {
   data: GlobalSearchResult;
   onPick: (href: string) => void;
   searchTerm: string;
+  variant: "light" | "dark";
 }) {
   const hasProducts = data.canProducts && data.products.length > 0;
   const hasCustomers = data.canCustomers && data.customers.length > 0;
@@ -199,100 +225,158 @@ function GlobalSearchResultBody({
 
   if (!data.canProducts && !data.canCustomers) {
     return (
-      <p className="px-3 py-4 text-[13px] text-slate-500 dark:text-slate-400">No tienes permiso para ver inventario ni clientes.</p>
+      <p className={`px-4 py-4 text-[13px] ${variant === "dark" ? "text-white/55" : "text-slate-500 dark:text-slate-400"}`}>
+        No tienes permiso para ver inventario ni clientes.
+      </p>
     );
   }
 
   if (allEmpty) {
     return (
-      <div className="space-y-4">
-        <p className="px-2 py-3 text-center text-[13px] text-slate-600 dark:text-slate-400">Sin coincidencias para “{searchTerm}”.</p>
-        <FooterLinks data={data} searchTerm={searchTerm} />
+      <div className="space-y-3 px-2">
+        <p className={`px-2 py-3 text-center text-[13px] ${variant === "dark" ? "text-white/55" : "text-slate-600 dark:text-slate-400"}`}>
+          Sin coincidencias para “{searchTerm}”.
+        </p>
+        <FooterLinks data={data} searchTerm={searchTerm} variant={variant} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {data.canProducts ? (
+    <div className="space-y-1">
+      {data.canCustomers && hasCustomers ? (
         <section>
-          <h3 className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-            Productos
-          </h3>
-          {hasProducts ? (
-            <ul className="space-y-0.5">
-              {data.products.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className="w-full rounded-xl px-3 py-2.5 text-left text-[13px] font-medium text-slate-900 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-white/10"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => onPick(`/inventario/${p.id}`)}
-                  >
-                    <span className="block truncate">{p.name}</span>
-                    {p.sku ? <span className="block truncate text-[12px] font-normal text-slate-500 dark:text-slate-400">{p.sku}</span> : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : !allEmpty ? (
-            <p className="px-2 py-1 text-[12px] text-slate-500 dark:text-slate-400">Ningún producto.</p>
-          ) : null}
-        </section>
-      ) : null}
-
-      {data.canCustomers ? (
-        <section>
-          <h3 className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+          <h3 className="px-4 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wide text-sky-600 dark:text-sky-400">
             Clientes
           </h3>
-          {hasCustomers ? (
-            <ul className="space-y-0.5">
-              {data.customers.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    className="w-full rounded-xl px-3 py-2.5 text-left text-[13px] font-medium text-slate-900 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-white/10"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => onPick(`/clientes/${c.id}`)}
-                  >
-                    <span className="block truncate">{c.name}</span>
-                    <span className="block truncate text-[12px] font-normal text-slate-500 dark:text-slate-400">
-                      {[c.cedula, c.phone].filter(Boolean).join(" · ") || "—"}
+          <ul>
+            {data.customers.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  role="option"
+                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                    variant === "dark" ? "hover:bg-white/5" : "hover:bg-slate-50 dark:hover:bg-white/5"
+                  }`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onPick(`/clientes/${c.id}`)}
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-300">
+                    <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={`block truncate text-[14px] font-semibold ${
+                        variant === "dark" ? "text-white" : "text-slate-900 dark:text-slate-100"
+                      }`}
+                    >
+                      {c.name}
                     </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : !allEmpty ? (
-            <p className="px-2 py-1 text-[12px] text-slate-500 dark:text-slate-400">Ningún cliente.</p>
-          ) : null}
+                    <span className={`block truncate text-[12px] ${variant === "dark" ? "text-white/45" : "text-slate-500 dark:text-slate-400"}`}>
+                      {c.cedula ? `Doc. ${c.cedula}` : c.phone ? c.phone : "—"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-sky-600 dark:text-sky-400">
+                    Cliente
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 
-      <FooterLinks data={data} searchTerm={searchTerm} />
+      {hasCustomers && hasProducts ? (
+        <div className={`mx-4 border-t ${variant === "dark" ? "border-white/10" : "border-slate-100 dark:border-slate-800"}`} />
+      ) : null}
+
+      {data.canProducts && hasProducts ? (
+        <section>
+          <h3 className="px-4 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+            Productos
+          </h3>
+          <ul>
+            {data.products.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  role="option"
+                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                    variant === "dark" ? "hover:bg-white/5" : "hover:bg-slate-50 dark:hover:bg-white/5"
+                  }`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onPick(`/inventario/${p.id}`)}
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300">
+                    <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={`block truncate text-[14px] font-semibold ${
+                        variant === "dark" ? "text-white" : "text-slate-900 dark:text-slate-100"
+                      }`}
+                    >
+                      {p.name}
+                    </span>
+                    <span className={`block truncate text-[12px] ${variant === "dark" ? "text-white/45" : "text-slate-500 dark:text-slate-400"}`}>
+                      {p.sku ? `Ref. ${p.sku}` : "Sin referencia"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                    Producto
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <div className={`mx-4 border-t pt-2 ${variant === "dark" ? "border-white/10" : "border-slate-100 dark:border-slate-800"}`}>
+        <FooterLinks data={data} searchTerm={searchTerm} variant={variant} />
+      </div>
     </div>
   );
 }
 
-function FooterLinks({ data, searchTerm }: { data: GlobalSearchResult; searchTerm: string }) {
+function FooterLinks({
+  data,
+  searchTerm,
+  variant,
+}: {
+  data: GlobalSearchResult;
+  searchTerm: string;
+  variant: "light" | "dark";
+}) {
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-slate-100 pt-3 text-[12px] dark:border-slate-800">
+    <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-1 text-[12px] ${variant === "dark" ? "text-white/45" : ""}`}>
       {data.canProducts ? (
         <Link
           href={`/inventario?q=${encodeURIComponent(searchTerm)}`}
-          className="font-semibold text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
+          className={`font-semibold hover:underline ${
+            variant === "dark" ? "text-emerald-300" : "text-emerald-700 dark:text-emerald-400"
+          }`}
+          onMouseDown={(e) => e.preventDefault()}
         >
-          Abrir inventario filtrado
+          Inventario filtrado
         </Link>
       ) : null}
-      {data.canProducts && data.canCustomers ? <span className="text-slate-300 dark:text-slate-600">·</span> : null}
+      {data.canProducts && data.canCustomers ? (
+        <span className={variant === "dark" ? "text-white/25" : "text-slate-300 dark:text-slate-600"}>·</span>
+      ) : null}
       {data.canCustomers ? (
         <Link
           href={`/clientes?q=${encodeURIComponent(searchTerm)}`}
-          className="font-semibold text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300"
+          className={`font-semibold hover:underline ${
+            variant === "dark" ? "text-sky-300" : "text-sky-700 dark:text-sky-400"
+          }`}
+          onMouseDown={(e) => e.preventDefault()}
         >
-          Abrir clientes filtrados
+          Clientes filtrados
         </Link>
       ) : null}
     </div>

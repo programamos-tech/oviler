@@ -5,6 +5,11 @@ import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { useSession } from "@/app/components/SessionProvider";
+import {
+  fetchGarantiaDetailBundle,
+  getCachedGarantiaDetail,
+} from "@/lib/garantias-detail-cache";
 import Breadcrumb from "@/app/components/Breadcrumb";
 
 /** Inventario puede ser UNIQUE(product_id, branch_id) o UNIQUE(product_id, branch_id, location). */
@@ -203,9 +208,12 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 export default function WarrantyDetailPage() {
   const params = useParams();
   const id = params?.id as string | undefined;
+  const { branch, ready: sessionReady } = useSession();
+  const branchId = branch?.id ?? null;
   const [warranty, setWarranty] = useState<WarrantyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -230,36 +238,33 @@ export default function WarrantyDetailPage() {
   }, [showStatusDropdown]);
 
   useEffect(() => {
-    if (!id) return;
-    const supabase = createClient();
+    if (!sessionReady || !id) return;
+    if (!branchId) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
+    if (!getCachedGarantiaDetail(id, branchId, detailRefreshKey)) setLoading(true);
+
     (async () => {
-      const { data, error } = await supabase
-        .from("warranties")
-        .select(`
-          *,
-          customers(name),
-          products:products!warranties_product_id_fkey(name),
-          sales(invoice_number, created_at, branch_id, payment_method, amount_cash, amount_transfer, total),
-          sale_items(unit_price, quantity, discount_percent, discount_amount),
-          requested_by_user:users!warranties_requested_by_fkey(name),
-          reviewed_by_user:users!warranties_reviewed_by_fkey(name),
-          processed_by_user:users!processed_by(name),
-          replacement_product:products!warranties_replacement_product_id_fkey(name)
-        `)
-        .eq("id", id)
-        .single();
+      const bundle = await fetchGarantiaDetailBundle(id, branchId, detailRefreshKey);
       if (cancelled) return;
-      if (error || !data) {
+      if (!bundle) {
         setNotFound(true);
         setWarranty(null);
       } else {
-        setWarranty(data as WarrantyDetail);
+        setWarranty(bundle.warranty as unknown as WarrantyDetail);
+        setNotFound(false);
       }
       setLoading(false);
     })();
-    return () => { cancelled = true; };
-  }, [id]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, branchId, sessionReady, detailRefreshKey]);
 
   const handleApprove = async () => {
     if (!id) return;

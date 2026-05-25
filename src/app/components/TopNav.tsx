@@ -277,6 +277,7 @@ export default function TopNav() {
         <div className="mx-auto flex max-w-[1600px] min-w-0 flex-row items-center gap-1.5 sm:flex-col sm:items-stretch sm:gap-2 sm:pt-0.5">
           <GlobalSearchCombobox
             formClassName="min-w-0 flex-1 sm:w-full sm:flex-none"
+            variant="dark"
             inputClassName="h-9 w-full min-w-0 rounded-full border border-white/15 bg-white/[0.07] py-1.5 pl-9 pr-2.5 text-[13px] text-white outline-none placeholder:text-white/40 focus:border-white/30 focus:bg-white/[0.1] focus:ring-2 focus:ring-white/15 sm:h-10 sm:pl-9"
             searchIconLeftClass="left-3"
             searchIconClassName="text-white/45"

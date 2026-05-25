@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+import { useSession } from "@/app/components/SessionProvider";
+import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import {
+  fetchInventarioDetailBundle,
+  getCachedInventarioDetail,
+  type InventarioDetailProduct,
+} from "@/lib/inventario-detail-cache";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
 import LocationPathWithIcons from "@/app/components/LocationPathWithIcons";
@@ -15,18 +21,7 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
 }
 
-type Product = {
-  id: string;
-  name: string;
-  sku: string | null;
-  category_id: string | null;
-  category_name?: string | null;
-  brand: string | null;
-  description: string | null;
-  base_price: number | null;
-  base_cost: number | null;
-  apply_iva: boolean;
-};
+type Product = InventarioDetailProduct;
 
 function salePrice(p: Product): number {
   const base = Number(p.base_price) || 0;
@@ -36,6 +31,8 @@ function salePrice(p: Product): number {
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { branch, ready: sessionReady } = useSession();
+  const branchId = branch?.id ?? null;
   const id = params?.id as string | undefined;
   const [product, setProduct] = useState<Product | null>(null);
   const [stock, setStock] = useState<number>(0);
@@ -53,176 +50,65 @@ export default function ProductDetailPage() {
   const SHOW_TRANSFER_OPTION = true;
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     const onBranch = () => setActiveBranchEpoch((n) => n + 1);
     window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
     return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
   }, []);
 
   useEffect(() => {
-    if (!id) return;
-    const supabase = createClient();
+    if (!id || !sessionReady) {
+      if (sessionReady) setLoading(true);
+      return;
+    }
+    if (!branchId) {
+      setNotFound(true);
+      setLoading(false);
+      setLocationsLoading(false);
+      return;
+    }
+
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLocationsLoading(true);
+    const cached = getCachedInventarioDetail(id, branchId);
+    if (cached) {
+      setProduct(cached.product);
+      setHasBodega(cached.hasBodega);
+      setStockLocal(cached.stockLocal);
+      setStockBodega(cached.stockBodega);
+      setStock(cached.stockTotal);
+      setStockReserved(cached.stockReserved);
+      setLocationRows(cached.locationRows);
+      setNotFound(false);
+      setLoading(false);
+      setLocationsLoading(false);
+    } else {
+      setLoading(true);
+      setLocationsLoading(true);
+    }
+
     (async () => {
-      const [{ data: p, error: productError }, { data: authData }] = await Promise.all([
-        supabase
-          .from("products")
-          .select("id, name, sku, category_id, brand, description, base_price, base_cost, apply_iva, categories(name)")
-          .eq("id", id)
-          .single(),
-        supabase.auth.getUser(),
-      ]);
-
-      if (productError || !p || cancelled) {
-        if (!cancelled) setNotFound(true);
-        setLoading(false);
-        setLocationsLoading(false);
-        return;
-      }
-
-      const catRow = p.categories as { name: string } | { name: string }[] | null | undefined;
-      const categoryName = Array.isArray(catRow) ? catRow[0]?.name : catRow?.name;
-      const productData: Product = {
-        ...(p as Product),
-        category_name: categoryName ?? undefined,
-      };
-      if (!cancelled) setProduct(productData);
-
-      const user = authData.user;
-      if (!user || cancelled) {
-        if (!cancelled) setLoading(false);
-        setLocationsLoading(false);
-        return;
-      }
-
-      const activeBranch = await resolveActiveBranchId(supabase, user.id);
-      if (!activeBranch || cancelled) {
-        if (!cancelled) setLoading(false);
-        setLocationsLoading(false);
-        return;
-      }
-      const STATUSES_THAT_RESERVE = ["pending", "preparing", "packing"];
-
-      const [{ data: branchRow }, invRes, reservedRes] = await Promise.all([
-        supabase.from("branches").select("has_bodega").eq("id", activeBranch).single(),
-        supabase
-          .from("inventory")
-          .select("quantity, location")
-          .eq("product_id", id)
-          .eq("branch_id", activeBranch),
-        supabase
-          .from("sale_items")
-          .select("quantity, sales!inner(branch_id, status)")
-          .eq("product_id", id)
-          .eq("sales.branch_id", activeBranch)
-          .in("sales.status", STATUSES_THAT_RESERVE),
-      ]);
-      if (!cancelled) setHasBodega(branchRow?.has_bodega !== false);
-
-      let local = 0;
-      let bodega = 0;
-      for (const r of invRes.data ?? []) {
-        const q = r.quantity ?? 0;
-        const loc = (r as { location?: string }).location;
-        if (loc === "bodega") bodega += q;
-        else local += q;
-      }
-      const total = local + bodega;
-      if (!cancelled) {
-        setStock(total);
-        setStockLocal(local);
-        setStockBodega(bodega);
-      }
-
-      const reserved = (reservedRes.data ?? []).reduce((sum, row) => {
-        const raw = row as { quantity: number; sales: { branch_id: string; status: string } | { branch_id: string; status: string }[] | null };
-        const s = Array.isArray(raw.sales) ? raw.sales[0] ?? null : raw.sales;
-        if (!s || s.status === "cancelled") return sum;
-        return sum + (Number(raw.quantity) || 0);
-      }, 0);
-      if (!cancelled) setStockReserved(reserved);
-
-      if (!cancelled) setLoading(false);
-
-      const { data: ilDataRaw } = await supabase
-        .from("inventory_locations")
-        .select("location_id, quantity")
-        .eq("product_id", id);
+      const bundle = await fetchInventarioDetailBundle(id, branchId);
       if (cancelled) return;
-      const { data: branchLocIds } = await supabase.from("locations").select("id").eq("branch_id", activeBranch);
-      const allowedLocIds = new Set((branchLocIds ?? []).map((r: { id: string }) => r.id));
-      const ilData = (ilDataRaw ?? []).filter((r) => allowedLocIds.has(r.location_id));
-      const locIds = ilData.map((r) => r.location_id).filter(Boolean);
-      if (locIds.length === 0) {
-        if (!cancelled) {
-          setLocationRows([]);
-          setLocationsLoading(false);
-        }
-        return;
+      if (!bundle) {
+        setNotFound(true);
+        setProduct(null);
+      } else {
+        setProduct(bundle.product);
+        setHasBodega(bundle.hasBodega);
+        setStockLocal(bundle.stockLocal);
+        setStockBodega(bundle.stockBodega);
+        setStock(bundle.stockTotal);
+        setStockReserved(bundle.stockReserved);
+        setLocationRows(bundle.locationRows);
+        setNotFound(false);
       }
-
-      const { data: locs } = await supabase
-        .from("locations")
-        .select(`
-            id,
-            name,
-            code,
-            branch_id,
-            level,
-            stands (
-              name,
-              aisles (
-                name,
-                zones (
-                  name,
-                  floors (
-                    name,
-                    level,
-                    warehouses (
-                      name
-                    )
-                  )
-                )
-              )
-            )
-          `)
-        .in("id", locIds)
-        .eq("branch_id", activeBranch);
-      if (!cancelled && locs) {
-        const rows: { quantity: number; path: string; locationId: string }[] = [];
-        for (const il of ilData) {
-          const loc = locs.find((l: { id: string }) => l.id === il.location_id) as {
-            id: string;
-            name: string;
-            level?: number;
-            stands?: {
-              name: string;
-              aisles?: {
-                name: string;
-                zones?: {
-                  name: string;
-                  floors?: { name: string; level?: number; warehouses?: { name: string } };
-                };
-              };
-            };
-          } | undefined;
-          const stand = loc?.stands;
-          if (!stand?.aisles) continue;
-          const a = stand.aisles;
-          const z = a.zones;
-          const f = z?.floors;
-          const w = f?.warehouses;
-          const path = [w?.name, z?.name, a?.name, stand?.name, loc?.level != null ? `Nivel ${loc.level}` : loc?.name].filter(Boolean).join(" → ");
-          rows.push({ quantity: il.quantity, path, locationId: loc!.id });
-        }
-        setLocationRows(rows);
-      }
-      if (!cancelled) setLocationsLoading(false);
+      setLoading(false);
+      setLocationsLoading(false);
     })();
-    return () => { cancelled = true; };
-  }, [id, activeBranchEpoch]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, branchId, sessionReady, activeBranchEpoch]);
 
   async function handleDelete() {
     if (!product?.id) return;

@@ -4,8 +4,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
-import { createClient } from "@/lib/supabase/client";
-import { resolveActiveBranchId } from "@/lib/active-branch";
+import { useSession } from "@/app/components/SessionProvider";
+import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import {
+  clearClientesListCache,
+  clientesListCacheKey,
+  getCachedClientesList,
+  prefetchClienteDetails,
+  setCachedClientesList,
+} from "@/lib/clientes-detail-cache";
 import { MdOutlineEdit, MdOutlineVisibility } from "react-icons/md";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
@@ -38,8 +45,11 @@ type CustomerRow = {
 };
 
 function CustomersPage() {
+  const { branch, ready: sessionReady } = useSession();
+  const branchId = branch?.id ?? null;
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -51,8 +61,19 @@ function CustomersPage() {
   const hasFocusedList = useRef(false);
   const fetchRequestId = useRef(0);
   const prevDebouncedSearch = useRef<string | undefined>(undefined);
+  const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBranch = () => {
+      setActiveBranchEpoch((n) => n + 1);
+      setPage(1);
+    };
+    window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+    return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
+  }, []);
 
   useEffect(() => {
     const qp = searchParams.get("q");
@@ -78,80 +99,83 @@ function CustomersPage() {
   }, [debouncedSearch]);
 
   useEffect(() => {
-    const supabase = createClient();
+    if (!sessionReady) {
+      setLoading(true);
+      return;
+    }
+    if (!branchId) {
+      setCustomers([]);
+      setTotalCount(0);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     let cancelled = false;
     const reqId = ++fetchRequestId.current;
+    const cacheKey = clientesListCacheKey({
+      branchId,
+      page,
+      search: debouncedSearch,
+      refreshKey,
+    });
+    const cached = getCachedClientesList(cacheKey);
+    const useCache = Boolean(cached);
+
+    if (useCache) {
+      setRefreshing(true);
+    } else if (customers.length === 0) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) {
-        if (!cancelled && reqId === fetchRequestId.current) setLoading(false);
-        return;
-      }
-      const [userRes, branchId] = await Promise.all([
-        supabase.from("users").select("organization_id").eq("id", user.id).single(),
-        resolveActiveBranchId(supabase, user.id),
-      ]);
-      if (cancelled) return;
-      const userRow = userRes.data;
-      if (!userRow?.organization_id) {
-        if (!cancelled && reqId === fetchRequestId.current) setLoading(false);
-        return;
-      }
-      if (!branchId) {
+      try {
+        type Bundle = { customers: CustomerRow[]; totalCount: number };
+        let bundle: Bundle;
+
+        if (useCache) {
+          bundle = cached as Bundle;
+        } else {
+          const params = new URLSearchParams({
+            branchId,
+            page: String(page),
+            pageSize: String(PAGE_SIZE),
+            search: debouncedSearch,
+          });
+          const res = await fetch(`/api/clientes/query-bundle?${params.toString()}`, {
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const err = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(err.error ?? "No se pudo cargar clientes");
+          }
+          bundle = (await res.json()) as Bundle;
+          setCachedClientesList(cacheKey, bundle);
+        }
+
+        if (cancelled || reqId !== fetchRequestId.current) return;
+        setCustomers(bundle.customers);
+        setTotalCount(bundle.totalCount);
+        prefetchClienteDetails(bundle.customers.map((c) => c.id), branchId);
+      } catch {
         if (!cancelled && reqId === fetchRequestId.current) {
           setCustomers([]);
           setTotalCount(0);
-          setLoading(false);
         }
-        return;
+      } finally {
+        if (!cancelled && reqId === fetchRequestId.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
-
-      const from = (page - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      let q = supabase
-        .from("customers")
-        .select("id, organization_id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)", { count: "exact" })
-        .eq("organization_id", userRow.organization_id)
-        .eq("branch_id", branchId)
-        .eq("active", true)
-        .order("name", { ascending: true })
-        .range(from, to);
-
-      const qTrim = debouncedSearch.trim();
-      if (qTrim) {
-        q = q.or(`name.ilike.%${qTrim}%,cedula.ilike.%${qTrim}%,email.ilike.%${qTrim}%,phone.ilike.%${qTrim}%`);
-      }
-
-      let { data: customersData, count, error } = await q;
-      if (cancelled || reqId !== fetchRequestId.current) return;
-      // Si falla (ej. columna active no existe), intentar sin filtrar por active
-      if (error) {
-        const q2 = supabase
-          .from("customers")
-          .select("id, organization_id, name, cedula, email, phone, created_at, customer_addresses(id, label, address, reference_point, is_default, display_order)", { count: "exact" })
-          .eq("organization_id", userRow.organization_id)
-          .eq("branch_id", branchId)
-          .order("name", { ascending: true })
-          .range(from, to);
-        const q2WithSearch = qTrim ? q2.or(`name.ilike.%${qTrim}%,cedula.ilike.%${qTrim}%,email.ilike.%${qTrim}%,phone.ilike.%${qTrim}%`) : q2;
-        const res2 = await q2WithSearch;
-        if (cancelled || reqId !== fetchRequestId.current) return;
-        customersData = res2.data;
-        count = res2.count;
-        error = res2.error;
-      }
-      if (cancelled || reqId !== fetchRequestId.current) return;
-      if (!error) {
-        setCustomers((customersData ?? []) as CustomerRow[]);
-        setTotalCount(count ?? 0);
-      } else {
-        setCustomers([]);
-        setTotalCount(0);
-      }
-      setLoading(false);
     })();
-    return () => { cancelled = true; };
-  }, [refreshKey, page, debouncedSearch]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionReady, branchId, refreshKey, page, debouncedSearch, activeBranchEpoch]);
 
   useEffect(() => {
     setSelectedIndex((i) => Math.min(i, Math.max(0, customers.length - 1)));
@@ -273,7 +297,7 @@ function CustomersPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setLoading(true);
+                  clearClientesListCache();
                   setRefreshKey((k) => k + 1);
                 }}
             className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
@@ -373,6 +397,7 @@ function CustomersPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/clientes/${c.id}`)}
+                    onMouseEnter={() => branchId && prefetchClienteDetails([c.id], branchId)}
                     className={`cursor-pointer grid grid-cols-[minmax(200px,2fr)_minmax(72px,0.75fr)_minmax(100px,1.1fr)_minmax(88px,0.95fr)_minmax(120px,1.4fr)_minmax(96px,auto)] gap-x-6 py-4 transition-colors ${
                       isSelected
                         ? "bg-[var(--shell-workspace)]"
@@ -453,6 +478,7 @@ function CustomersPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/clientes/${c.id}`)}
+                    onMouseEnter={() => branchId && prefetchClienteDetails([c.id], branchId)}
                     className={`cursor-pointer rounded-xl border border-[var(--berea-card-border)] bg-[var(--shell-workspace)] px-5 py-4 transition-colors ${
                       isSelected
                         ? "ring-2 ring-[var(--berea-accent)]/30"

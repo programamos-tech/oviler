@@ -3,8 +3,14 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+import { useSession } from "@/app/components/SessionProvider";
+import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import {
+  fetchCreditoClienteBundle,
+  fetchCreditoDetailBundle,
+  getCachedCreditoCliente,
+  prefetchCreditoDetails,
+} from "@/lib/creditos-detail-cache";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
 import { MdReceiptLong } from "react-icons/md";
@@ -46,6 +52,8 @@ export default function CreditosClientePage() {
   const params = useParams();
   const customerId = String(params.customerId ?? "");
   const router = useRouter();
+  const { branch, ready: sessionReady } = useSession();
+  const branchId = branch?.id ?? null;
   const [customer, setCustomer] = useState<CustomerRow | null>(null);
   const [credits, setCredits] = useState<CreditRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,58 +61,54 @@ export default function CreditosClientePage() {
   const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     const onBranch = () => setActiveBranchEpoch((n) => n + 1);
     window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
     return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
   }, []);
 
   useEffect(() => {
-    if (!customerId) return;
-    const supabase = createClient();
+    if (!customerId || !sessionReady) {
+      if (sessionReady) setLoading(true);
+      return;
+    }
+    if (!branchId) {
+      setError("Sin sucursal asignada.");
+      setCustomer(null);
+      setCredits([]);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
-    (async () => {
+    const cached = getCachedCreditoCliente(customerId, branchId);
+    if (cached) {
+      setCustomer(cached.customer);
+      setCredits(cached.credits as CreditRow[]);
+      setLoading(false);
+    } else {
       setLoading(true);
-      setError(null);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user || cancelled) {
-        setLoading(false);
-        return;
-      }
-      const currentBranch = await resolveActiveBranchId(supabase, user.id);
-      if (!currentBranch) {
-        setError("Sin sucursal asignada.");
-        setLoading(false);
-        return;
-      }
-      const [custRes, crRes] = await Promise.all([
-        supabase.from("customers").select("id, name").eq("id", customerId).eq("branch_id", currentBranch).maybeSingle(),
-        supabase
-          .from("customer_credits")
-          .select("id, public_ref, total_amount, amount_paid, due_date, status, cancelled_at, sale_id, sales(invoice_number)")
-          .eq("branch_id", currentBranch)
-          .eq("customer_id", customerId)
-          .order("created_at", { ascending: false }),
-      ]);
+    }
+    setError(null);
+
+    (async () => {
+      const bundle = await fetchCreditoClienteBundle(customerId, branchId);
       if (cancelled) return;
-      if (custRes.error || !custRes.data) {
+      if (!bundle) {
         setError("Cliente no encontrado en esta sucursal.");
         setCustomer(null);
         setCredits([]);
-        setLoading(false);
-        return;
+      } else {
+        setCustomer(bundle.customer);
+        setCredits(bundle.credits as CreditRow[]);
+        prefetchCreditoDetails(bundle.credits.map((c) => c.id));
       }
-      setCustomer(custRes.data as CustomerRow);
-      if (crRes.error) setError(crRes.error.message);
-      setCredits((crRes.data ?? []) as unknown as CreditRow[]);
       setLoading(false);
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [customerId, activeBranchEpoch]);
+  }, [customerId, branchId, sessionReady, activeBranchEpoch]);
 
   const totalCred = credits.reduce((s, c) => s + Number(c.total_amount), 0);
   const totalPag = credits.reduce((s, c) => s + Number(c.amount_paid), 0);
@@ -223,6 +227,9 @@ export default function CreditosClientePage() {
                             e.preventDefault();
                             router.push(`/creditos/${c.id}`);
                           }
+                        }}
+                        onMouseEnter={() => {
+                          void fetchCreditoDetailBundle(c.id).catch(() => undefined);
                         }}
                       >
                         <td className="py-3.5 pr-4 font-mono font-medium text-[var(--berea-ink)]">#{c.public_ref}</td>

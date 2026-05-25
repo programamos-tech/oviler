@@ -2,10 +2,17 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { logActivity } from "@/lib/activities";
+import {
+  fetchCreditoDetailBundle,
+  getCachedCreditoDetail,
+  invalidateCreditoDetail,
+  type CreditPaymentRow,
+} from "@/lib/creditos-detail-cache";
+import type { CreditDetailPayload } from "@/lib/creditos-normalize";
 import { MdBadge, MdBusiness, MdPerson, MdSchedule, MdStorefront } from "react-icons/md";
 import { getPaymentListChipClass, getStatusListChipClass } from "@/app/ventas/sales-mode";
 import {
@@ -16,7 +23,6 @@ import {
   formatDateTime,
   formatMoney,
   paymentMethodLabel,
-  type CreditStatus,
 } from "../credit-ui";
 
 const REPORTS_SURFACE = "berea-reports-surface";
@@ -46,11 +52,6 @@ function displayInvoiceNumber(invoiceNumber: string) {
   return sin || invoiceNumber;
 }
 
-function first<T>(x: T | T[] | null | undefined): T | null {
-  if (x == null) return null;
-  return Array.isArray(x) ? (x[0] ?? null) : x;
-}
-
 type SaleItemRow = {
   id: string;
   quantity: number;
@@ -60,47 +61,8 @@ type SaleItemRow = {
   products: { name: string; sku: string | null } | null;
 };
 
-type SaleEmbed = {
-  id: string;
-  invoice_number: string;
-  payment_method: string;
-  payment_pending: boolean | null;
-  status: string;
-  users: { name: string } | null;
-  sale_items: SaleItemRow[];
-};
-
-type CreditDetail = {
-  id: string;
-  public_ref: string;
-  total_amount: number;
-  amount_paid: number;
-  due_date: string;
-  status: CreditStatus;
-  cancelled_at: string | null;
-  notes: string | null;
-  created_at: string;
-  customer_id: string;
-  sale_id: string | null;
-  branch_id: string;
-  customers: { id: string; name: string } | null;
-  branches: { name: string } | null;
-  created_by_profile: { name: string } | null;
-  sales: SaleEmbed | null;
-};
-
-type PaymentRow = {
-  id: string;
-  amount: number;
-  payment_method: "cash" | "transfer" | "mixed";
-  amount_cash: number | null;
-  amount_transfer: number | null;
-  payment_source?: "customer_payment" | "warranty_refund" | string | null;
-  notes: string | null;
-  created_at: string;
-  created_by: string;
-  users?: { name: string } | null;
-};
+type CreditDetail = CreditDetailPayload;
+type PaymentRow = CreditPaymentRow;
 
 function lineItemSubtotal(it: SaleItemRow): number {
   const raw = it.quantity * it.unit_price;
@@ -161,61 +123,6 @@ function parseMoneyInput(s: string): number {
   return Math.round((intVal + fracNum) * 100) / 100;
 }
 
-function normalizeCreditRow(raw: Record<string, unknown>): CreditDetail {
-  const customers = first(raw.customers as { id: string; name: string } | { id: string; name: string }[] | null);
-  const branches = first(raw.branches as { name: string } | { name: string }[] | null);
-  const created_by_profile = first(
-    raw.created_by_profile as { name: string } | { name: string }[] | null
-  );
-  const saleRaw = first(raw.sales as Record<string, unknown> | Record<string, unknown>[] | null);
-  let sales: SaleEmbed | null = null;
-  if (saleRaw && typeof saleRaw === "object" && "id" in saleRaw) {
-    const itemsRaw = saleRaw.sale_items;
-    const itemsList = Array.isArray(itemsRaw) ? itemsRaw : itemsRaw ? [itemsRaw] : [];
-    const saleUsers = first(saleRaw.users as { name: string } | { name: string }[] | null);
-    sales = {
-      id: String(saleRaw.id),
-      invoice_number: String(saleRaw.invoice_number ?? ""),
-      payment_method: String(saleRaw.payment_method ?? "transfer"),
-      payment_pending: saleRaw.payment_pending === true,
-      status: String(saleRaw.status ?? ""),
-      users: saleUsers,
-      sale_items: itemsList.map((it) => {
-        const row = it as Record<string, unknown>;
-        const prod = first(
-          row.products as { name: string; sku: string | null } | { name: string; sku: string | null }[] | null | undefined
-        );
-        return {
-          id: String(row.id),
-          quantity: Number(row.quantity) || 0,
-          unit_price: Number(row.unit_price) || 0,
-          discount_percent: Number(row.discount_percent) || 0,
-          discount_amount: Number(row.discount_amount) || 0,
-          products: prod,
-        };
-      }),
-    };
-  }
-  return {
-    id: String(raw.id),
-    public_ref: String(raw.public_ref),
-    total_amount: Number(raw.total_amount),
-    amount_paid: Number(raw.amount_paid),
-    due_date: String(raw.due_date),
-    status: raw.status as CreditStatus,
-    cancelled_at: raw.cancelled_at ? String(raw.cancelled_at) : null,
-    notes: raw.notes != null ? String(raw.notes) : null,
-    created_at: String(raw.created_at),
-    customer_id: String(raw.customer_id),
-    sale_id: raw.sale_id ? String(raw.sale_id) : null,
-    branch_id: String(raw.branch_id),
-    customers,
-    branches,
-    created_by_profile,
-    sales,
-  };
-}
-
 function CreditoDetalleInner() {
   const params = useParams();
   const creditId = String(params.creditId ?? "");
@@ -233,65 +140,40 @@ function CreditoDetalleInner() {
   const [abonoNotes, setAbonoNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-
-  const load = useCallback(async () => {
-    if (!creditId) return;
-    const supabase = createClient();
-    setLoading(true);
-    setError(null);
-    const creditSelect = `id, public_ref, total_amount, amount_paid, due_date, status, cancelled_at, notes, created_at, customer_id, sale_id, branch_id, created_by,
-        customers(id, name),
-        branches(name),
-        created_by_profile:users!customer_credits_created_by_fkey(name),
-        sales(
-          id,
-          invoice_number,
-          payment_method,
-          payment_pending,
-          status,
-          users!user_id(name),
-          sale_items(
-            id,
-            quantity,
-            unit_price,
-            discount_percent,
-            discount_amount,
-            products(name, sku)
-          )
-        )`;
-    const paySelect =
-      "id, amount, payment_method, amount_cash, amount_transfer, payment_source, notes, created_at, created_by, users!credit_payments_created_by_fkey(name)";
-
-    const [
-      { data: cRow, error: cErr },
-      { data: pays, error: pErr },
-    ] = await Promise.all([
-      supabase.from("customer_credits").select(creditSelect).eq("id", creditId).maybeSingle(),
-      supabase
-        .from("credit_payments")
-        .select(paySelect)
-        .eq("credit_id", creditId)
-        .order("created_at", { ascending: false }),
-    ]);
-
-    if (cErr || !cRow) {
-      setError(cErr?.message ?? "Crédito no encontrado.");
-      setCredit(null);
-      setPayments([]);
-      setLoading(false);
-      return;
-    }
-    setCredit(normalizeCreditRow(cRow as unknown as Record<string, unknown>));
-    if (pErr) setError(pErr.message);
-    setPayments((pays ?? []) as unknown as PaymentRow[]);
-    setLoading(false);
-  }, [creditId]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    // Carga de detalle: `load` actualiza estado acorde a Supabase
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load();
-  }, [load]);
+    if (!creditId) return;
+    let cancelled = false;
+
+    const cached = getCachedCreditoDetail(creditId, refreshKey);
+    if (cached) {
+      setCredit(cached.credit);
+      setPayments(cached.payments);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+
+    (async () => {
+      const bundle = await fetchCreditoDetailBundle(creditId, refreshKey);
+      if (cancelled) return;
+      if (!bundle) {
+        setError("Crédito no encontrado.");
+        setCredit(null);
+        setPayments([]);
+      } else {
+        setCredit(bundle.credit);
+        setPayments(bundle.payments);
+      }
+      setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [creditId, refreshKey]);
 
   useEffect(() => {
     if (searchParams.get("abonar") === "1") {
@@ -373,7 +255,8 @@ function CreditoDetalleInner() {
     setTransferStr("");
     setAbonoNotes("");
     router.replace(`/creditos/${credit.id}`);
-    void load();
+    invalidateCreditoDetail(credit.id);
+    setRefreshKey((k) => k + 1);
     void (async () => {
       const { data: orgRow } = await supabase.from("users").select("organization_id").eq("id", user.id).maybeSingle();
       const orgId = orgRow?.organization_id;
@@ -415,7 +298,8 @@ function CreditoDetalleInner() {
       setError(uErr.message);
       return;
     }
-    void load();
+    invalidateCreditoDetail(credit.id);
+    setRefreshKey((k) => k + 1);
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
     if (uid) {

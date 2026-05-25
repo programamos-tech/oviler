@@ -187,8 +187,8 @@ export default function SalesPage() {
   const [searchQueryDebounced, setSearchQueryDebounced] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
-  const [dateFrom, setDateFrom] = useState<Date | null>(() => startOfToday());
-  const [dateTo, setDateTo] = useState<Date | null>(() => startOfToday());
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -525,9 +525,8 @@ export default function SalesPage() {
     setSearchQuery("");
     setStatusFilter("all");
     setPaymentFilter("all");
-    const t = startOfToday();
-    setDateFrom(t);
-    setDateTo(t);
+    setDateFrom(null);
+    setDateTo(null);
     setPage(1);
   };
 

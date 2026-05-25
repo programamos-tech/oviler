@@ -2,9 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchWithSalesMode } from "@/lib/active-branch";
+import { useEffect, useState } from "react";
+import { useSession } from "@/app/components/SessionProvider";
+import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import {
+  clearGarantiasListCache,
+  garantiasListCacheKey,
+  getCachedGarantiasList,
+  prefetchGarantiaDetails,
+  setCachedGarantiasList,
+} from "@/lib/garantias-detail-cache";
+
+const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 300;
 
 const REPORTS_SURFACE = "berea-reports-surface";
 
@@ -12,17 +22,6 @@ const bereaFieldClass =
   "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
 
 const bereaFilterLabel = "block text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]";
-
-const WARRANTY_LIST_SELECT = `
-  *,
-  customers(name),
-  products:products!warranties_product_id_fkey(name),
-  sales(invoice_number, created_at, branch_id),
-  sale_items(unit_price, quantity),
-  requested_by_user:users!warranties_requested_by_fkey(name),
-  reviewed_by_user:users!warranties_reviewed_by_fkey(name),
-  replacement_product:products!warranties_replacement_product_id_fkey(name)
-`;
 
 function formatDateShort(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
@@ -35,29 +34,12 @@ function formatTime(dateStr: string) {
 
 type WarrantyRow = {
   id: string;
-  sale_id: string | null;
-  sale_item_id: string | null;
-  branch_id: string | null;
-  quantity: number;
-  customer_id: string;
-  product_id: string;
   warranty_type: "exchange" | "refund" | "repair";
-  reason: string;
   status: "pending" | "approved" | "rejected" | "processed";
-  requested_by: string;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  rejection_reason: string | null;
-  replacement_product_id: string | null;
   created_at: string;
-  updated_at: string;
   customers: { name: string } | null;
   products: { name: string } | null;
   sales: { invoice_number: string; created_at: string; branch_id?: string | null } | null;
-  sale_items: { unit_price: number; quantity: number } | null;
-  requested_by_user: { name: string } | null;
-  reviewed_by_user: { name: string } | null;
-  replacement_product: { name: string } | null;
 };
 
 const WARRANTY_TYPE_LABELS: Record<string, string> = {
@@ -157,119 +139,134 @@ function WarrantyFilters({
 
 export default function WarrantiesPage() {
   const router = useRouter();
+  const { branch, ready: sessionReady } = useSession();
+  const branchId = branch?.id ?? null;
   const [warranties, setWarranties] = useState<WarrantyRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchQueryDebounced, setSearchQueryDebounced] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const onBranch = () => setActiveBranchEpoch((n) => n + 1);
+    const onBranch = () => {
+      setActiveBranchEpoch((n) => n + 1);
+      setPage(1);
+    };
     window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
     return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => setSearchQueryDebounced(searchQuery), 300);
+    const t = setTimeout(() => setSearchQueryDebounced(searchQuery), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [searchQuery]);
 
   useEffect(() => {
-    const supabase = createClient();
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true);
-    setLoadError(null);
-    (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user || cancelled) {
-        setWarranties([]);
-        setLoading(false);
-        return;
-      }
+    setPage(1);
+  }, [searchQueryDebounced, statusFilter, typeFilter]);
 
-      const { branchId: currentBranchId } = await resolveActiveBranchWithSalesMode(supabase, user.id);
-      if (cancelled) return;
-      if (!currentBranchId) {
-        setWarranties([]);
-        setLoadError(null);
-        setLoading(false);
-        return;
-      }
-
-      const selectByBranch = WARRANTY_LIST_SELECT;
-      const selectBySaleBranch = WARRANTY_LIST_SELECT.replace(
-        "sales(invoice_number, created_at, branch_id)",
-        "sales!inner(invoice_number, created_at, branch_id)"
-      );
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const applyListFilters = (base: any) => {
-        let q = base;
-        if (statusFilter !== "all") q = q.eq("status", statusFilter);
-        if (typeFilter !== "all") q = q.eq("warranty_type", typeFilter);
-        return q.order("created_at", { ascending: false });
-      };
-
-      const q1 = applyListFilters(
-        supabase.from("warranties").select(selectByBranch).eq("branch_id", currentBranchId)
-      );
-      const q2 = applyListFilters(
-        supabase
-          .from("warranties")
-          .select(selectBySaleBranch)
-          .not("sale_id", "is", null)
-          .eq("sales.branch_id", currentBranchId)
-      );
-
-      const [{ data: byDirectBranch, error: err1 }, { data: bySaleBranch, error: err2 }] = await Promise.all([q1, q2]);
-      if (cancelled) return;
-      const error = err1 || err2;
-      if (error) {
-        console.error("Error loading warranties:", err1, err2);
-        setLoadError((error as { message?: string }).message || "Error al cargar garantías");
-        setWarranties([]);
-        setLoading(false);
-        return;
-      }
-
-      const byId = new Map<string, WarrantyRow>();
-      for (const w of (byDirectBranch ?? []) as WarrantyRow[]) {
-        if (!byId.has(w.id)) byId.set(w.id, w);
-      }
-      for (const w of (bySaleBranch ?? []) as WarrantyRow[]) {
-        if (!byId.has(w.id)) byId.set(w.id, w);
-      }
-      const merged = Array.from(byId.values()).sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      setWarranties(merged);
+  useEffect(() => {
+    if (!sessionReady) {
+      setLoading(true);
+      return;
+    }
+    if (!branchId) {
+      setWarranties([]);
+      setTotalCount(0);
+      setLoadError(null);
       setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    let cancelled = false;
+    const cacheKey = garantiasListCacheKey({
+      branchId,
+      page,
+      search: searchQueryDebounced,
+      status: statusFilter,
+      type: typeFilter,
+      refreshKey,
+    });
+    const cached = getCachedGarantiasList(cacheKey);
+    const useCache = Boolean(cached);
+
+    if (useCache) setRefreshing(true);
+    else if (warranties.length === 0) setLoading(true);
+    else setRefreshing(true);
+
+    setLoadError(null);
+
+    (async () => {
+      try {
+        type Bundle = { warranties: WarrantyRow[]; totalCount: number };
+        let bundle: Bundle;
+
+        if (useCache) {
+          bundle = cached as Bundle;
+        } else {
+          const params = new URLSearchParams({
+            branchId,
+            page: String(page),
+            pageSize: String(PAGE_SIZE),
+            search: searchQueryDebounced,
+            status: statusFilter,
+            type: typeFilter,
+          });
+          const res = await fetch(`/api/garantias/query-bundle?${params.toString()}`, {
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const err = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(err.error ?? "Error al cargar garantías");
+          }
+          bundle = (await res.json()) as Bundle;
+          setCachedGarantiasList(cacheKey, bundle);
+        }
+
+        if (cancelled) return;
+        setWarranties(bundle.warranties);
+        setTotalCount(bundle.totalCount);
+        prefetchGarantiaDetails(bundle.warranties.map((w) => w.id), branchId);
+      } catch (e) {
+        if (!cancelled) {
+          setLoadError(e instanceof Error ? e.message : "Error al cargar garantías");
+          setWarranties([]);
+          setTotalCount(0);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [statusFilter, typeFilter, activeBranchEpoch]);
+  }, [
+    sessionReady,
+    branchId,
+    page,
+    searchQueryDebounced,
+    statusFilter,
+    typeFilter,
+    refreshKey,
+    activeBranchEpoch,
+  ]);
 
-  const filteredWarranties = useMemo(() => {
-    return warranties.filter((w) => {
-      const q = searchQueryDebounced.trim().toLowerCase();
-      if (q) {
-        const matchId = w.id.toLowerCase().includes(q) || w.id.slice(0, 8).toUpperCase().includes(q.toUpperCase());
-        const matchCustomer = w.customers?.name?.toLowerCase().includes(q);
-        const matchProduct = w.products?.name?.toLowerCase().includes(q);
-        const matchInvoice = w.sales?.invoice_number?.toLowerCase().includes(q);
-        if (!matchId && !matchCustomer && !matchProduct && !matchInvoice) return false;
-      }
-      return true;
-    });
-  }, [warranties, searchQueryDebounced]);
+  const filteredWarranties = warranties;
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const showPagination = !loading && !loadError && totalCount > PAGE_SIZE;
 
   const actionIconClass =
     "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-subtle)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-accent)]";
@@ -294,15 +291,30 @@ export default function WarrantiesPage() {
             Gestiona solicitudes, revisa estados y procesa cambios o devoluciones.
           </p>
         </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 self-start lg:self-center">
         <Link
           href="/garantias/nueva"
-          className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] lg:self-center"
+          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Nueva garantía
         </Link>
+        <button
+          type="button"
+          onClick={() => {
+            clearGarantiasListCache();
+            setRefreshKey((k) => k + 1);
+          }}
+          className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Actualizar
+        </button>
+        </div>
       </header>
 
       {loadError && (
@@ -323,20 +335,16 @@ export default function WarrantiesPage() {
             <WarrantyFilters {...filterProps} />
             <div className="px-2 py-8 text-center sm:px-4">
               <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
-                {warranties.length === 0
-                  ? statusFilter === "all"
-                    ? "Aún no hay garantías registradas"
-                    : `No hay garantías con estado "${STATUS_LABELS[statusFilter]}"`
+                {totalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim()
+                  ? "Aún no hay garantías registradas"
                   : "Ninguna garantía coincide con la búsqueda o filtros"}
               </p>
               <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
-                {warranties.length === 0
-                  ? statusFilter === "all"
-                    ? "Registra tu primera garantía para verla aquí."
-                    : "Prueba cambiando el filtro de estado."
+                {totalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim()
+                  ? "Registra tu primera garantía para verla aquí."
                   : "Prueba cambiando la búsqueda, el estado o el tipo de garantía."}
               </p>
-              {statusFilter === "all" && warranties.length === 0 && (
+              {totalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim() && (
                 <Link
                   href="/garantias/nueva"
                   className="mt-6 inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
@@ -347,7 +355,7 @@ export default function WarrantiesPage() {
             </div>
           </div>
         ) : (
-          <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
+          <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}${refreshing ? " opacity-[0.72] transition-opacity duration-200" : ""}`}>
             <WarrantyFilters {...filterProps} />
 
             <div className="hidden overflow-x-auto xl:block">
@@ -370,6 +378,7 @@ export default function WarrantiesPage() {
                       role="button"
                       tabIndex={0}
                       onClick={() => router.push(`/garantias/${warranty.id}`)}
+                      onMouseEnter={() => branchId && prefetchGarantiaDetails([warranty.id], branchId)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
@@ -424,6 +433,7 @@ export default function WarrantiesPage() {
                   role="button"
                   tabIndex={0}
                   onClick={() => router.push(`/garantias/${warranty.id}`)}
+                  onMouseEnter={() => branchId && prefetchGarantiaDetails([warranty.id], branchId)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
@@ -478,6 +488,34 @@ export default function WarrantiesPage() {
           </div>
         )}
       </section>
+
+      {showPagination && (
+        <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 sm:px-5 ${REPORTS_SURFACE}`}>
+          <p className="text-[13px] font-medium text-[var(--berea-ink-muted)]">
+            {totalCount} {totalCount === 1 ? "garantía" : "garantías"} · Página {page} de {totalPages}
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
+              aria-label="Página anterior"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--berea-ink-muted)] transition-colors hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
+              aria-label="Página siguiente"
+            >
+              ›
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

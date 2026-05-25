@@ -4,11 +4,25 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
+import { useSession } from "@/app/components/SessionProvider";
 import { createClient } from "@/lib/supabase/client";
 import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
 import { PlanLimitHeaderNote, PLAN_LIMIT_DISABLED_BUTTON_CLASS } from "@/app/components/PlanLimitNotice";
-import { escapeSearchForFilter } from "@/lib/escape-search-for-filter";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import {
+  clearInventarioListCache,
+  fetchInventarioDetailBundle,
+  getCachedInventarioList,
+  inventarioListCacheKey,
+  prefetchInventarioDetails,
+  setCachedInventarioList,
+  type InventarioProductRow,
+} from "@/lib/inventario-detail-cache";
+import {
+  parseStockStatusOption,
+  stockForScope,
+  type StockScope,
+} from "@/lib/inventario-list-filters";
 
 const REPORTS_SURFACE = "berea-reports-surface";
 
@@ -25,47 +39,13 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
 }
 
-type ProductRow = {
-  id: string;
-  name: string;
-  sku: string | null;
-  category_id: string | null;
-  base_price: number | null;
-  base_cost: number | null;
-  apply_iva: boolean;
-  description: string | null;
-};
+type ProductRow = InventarioProductRow;
 
 type CategoryOption = { id: string; name: string };
 
 function salePrice(p: ProductRow): number {
   const base = Number(p.base_price) || 0;
   return p.apply_iva ? base + Math.round(base * IVA_RATE) : base;
-}
-
-type StockFilter = "all" | "sin-stock" | "bajo" | "con-stock";
-
-/** Sobre qué cantidad aplican «Sin stock» / «Stock bajo» / «Con stock». */
-type StockScope = "total" | "local" | "bodega";
-
-type StockSplit = { local: number; bodega: number };
-
-function stockForScope(split: StockSplit | undefined, scope: StockScope): number {
-  const s = split ?? { local: 0, bodega: 0 };
-  if (scope === "local") return s.local;
-  if (scope === "bodega") return s.bodega;
-  return s.local + s.bodega;
-}
-
-/** Valor del único select «Estado»: `all` o `sin-stock|bajo|con-stock` + `:` + alcance. */
-function parseStockStatusOption(v: string): { kind: StockFilter; scope: StockScope } {
-  if (v === "all") return { kind: "all", scope: "total" };
-  const parts = v.split(":");
-  if (parts.length !== 2) return { kind: "all", scope: "total" };
-  const [k, s] = parts;
-  if (k !== "sin-stock" && k !== "bajo" && k !== "con-stock") return { kind: "all", scope: "total" };
-  if (s !== "total" && s !== "local" && s !== "bodega") return { kind: "all", scope: "total" };
-  return { kind: k as StockFilter, scope: s as StockScope };
 }
 
 function StockEstadoSelect({
@@ -194,11 +174,15 @@ function InventoryFilters({
 }
 
 function InventoryPage() {
+  const { branch, ready: sessionReady, profile } = useSession();
+  const branchId = branch?.id ?? null;
   const [products, setProducts] = useState<ProductRow[]>([]);
-  const [stockSplitByProduct, setStockSplitByProduct] = useState<Record<string, StockSplit>>({});
+  const [stockSplitByProduct, setStockSplitByProduct] = useState<Record<string, { local: number; bodega: number }>>({});
   const [hasBodega, setHasBodega] = useState<boolean | null>(null);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [effectiveSearchQuery, setEffectiveSearchQuery] = useState("");
   /** Estado de stock + alcance (local / bodega / total) en un solo valor. */
@@ -213,8 +197,6 @@ function InventoryPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const hasFocusedList = useRef(false);
-  const prevFetchDepsRef = useRef({ refreshKey: 0, page: 1, categoryFilter: "", activeBranchEpoch: 0 });
-  const isFirstFetchRef = useRef(true);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -228,47 +210,18 @@ function InventoryPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    const orgId = profile?.organization_id;
+    if (!orgId) return;
     const supabase = createClient();
     let cancelled = false;
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
-      const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
-      if (!userRow?.organization_id || cancelled) return;
-      const [snap, allCats] = await Promise.all([
-        loadOrgPlanSnapshot(supabase, userRow.organization_id),
-        (async () => {
-          const PAGE = 1000;
-          const out: CategoryOption[] = [];
-          let from = 0;
-          while (true) {
-            const { data: cats } = await supabase
-              .from("categories")
-              .select("id, name")
-              .eq("organization_id", userRow.organization_id)
-              .order("display_order", { ascending: true })
-              .order("name", { ascending: true })
-              .range(from, from + PAGE - 1);
-            if (cancelled) return [];
-            if (!cats?.length) break;
-            out.push(...(cats as CategoryOption[]));
-            if (cats.length < PAGE) break;
-            from += PAGE;
-          }
-          return out;
-        })(),
-      ]);
-      if (!cancelled) {
-        setPlanSnapshot(snap);
-        setCategories(allCats);
-      }
+      const snap = await loadOrgPlanSnapshot(supabase, orgId);
+      if (!cancelled) setPlanSnapshot(snap);
     })();
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [profile?.organization_id, refreshKey]);
 
   useEffect(() => {
     const t = setTimeout(() => setEffectiveSearchQuery(searchQuery), SEARCH_DEBOUNCE_MS);
@@ -276,106 +229,109 @@ function InventoryPage() {
   }, [searchQuery]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const onBranch = () => setActiveBranchEpoch((n) => n + 1);
+    const onBranch = () => {
+      setActiveBranchEpoch((n) => n + 1);
+      setPage(1);
+    };
     window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
     return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
   }, []);
 
   useEffect(() => {
-    const supabase = createClient();
+    setPage(1);
+  }, [effectiveSearchQuery, categoryFilter, stockStatusOption]);
+
+  useEffect(() => {
+    if (!sessionReady) {
+      setLoading(true);
+      return;
+    }
+    if (!branchId) {
+      setProducts([]);
+      setStockSplitByProduct({});
+      setCategories([]);
+      setTotalCount(0);
+      setLoadError(null);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     let cancelled = false;
-    const prev = prevFetchDepsRef.current;
-    const searchOnly =
-      !isFirstFetchRef.current &&
-      prev.refreshKey === refreshKey &&
-      prev.page === page &&
-      prev.categoryFilter === categoryFilter &&
-      prev.activeBranchEpoch === activeBranchEpoch;
-    isFirstFetchRef.current = false;
-    prevFetchDepsRef.current = { refreshKey, page, categoryFilter, activeBranchEpoch };
-    if (!searchOnly) setLoading(true);
+    const cacheKey = inventarioListCacheKey({
+      branchId,
+      page,
+      search: effectiveSearchQuery,
+      categoryId: categoryFilter,
+      stockStatus: stockStatusOption,
+      refreshKey,
+    });
+    const cached = getCachedInventarioList(cacheKey);
+    const useCache = Boolean(cached);
+
+    if (useCache) setRefreshing(true);
+    else if (products.length === 0) setLoading(true);
+    else setRefreshing(true);
+
+    setLoadError(null);
+
     (async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user || cancelled) return;
-        const [userRes, branchId] = await Promise.all([
-          supabase.from("users").select("organization_id").eq("id", user.id).single(),
-          resolveActiveBranchId(supabase, user.id),
-        ]);
-        if (!userRes.data?.organization_id || cancelled) return;
-        if (!branchId || cancelled) {
-          if (!cancelled) {
-            setProducts([]);
-            setTotalCount(0);
-            setStockSplitByProduct({});
-            setLoading(false);
+        let bundle = cached;
+        if (!bundle) {
+          const params = new URLSearchParams({
+            branchId,
+            page: String(page),
+            pageSize: String(PAGE_SIZE),
+            search: effectiveSearchQuery,
+            stockStatus: stockStatusOption,
+          });
+          if (categoryFilter) params.set("categoryId", categoryFilter);
+          const res = await fetch(`/api/inventario/query-bundle?${params.toString()}`, {
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const err = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(err.error ?? "Error al cargar inventario");
           }
-          return;
+          bundle = (await res.json()) as NonNullable<typeof cached>;
+          setCachedInventarioList(cacheKey, bundle);
         }
-        const orgId = userRes.data.organization_id;
 
-        const from = (page - 1) * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-        let productQ = supabase
-          .from("products")
-          .select("id, name, sku, category_id, base_price, base_cost, apply_iva, description", { count: "exact" })
-          .eq("organization_id", orgId)
-          .order("name", { ascending: true })
-          .range(from, to);
-        const qTrim = effectiveSearchQuery.trim();
-        if (qTrim) {
-          const escaped = escapeSearchForFilter(qTrim);
-          productQ = productQ.or(`name.ilike.%${escaped}%,sku.ilike.%${escaped}%`);
-        }
-        if (categoryFilter) productQ = productQ.eq("category_id", categoryFilter);
-
-        const [
-          { data: branchRow },
-          { data: productsData, count },
-        ] = await Promise.all([supabase.from("branches").select("has_bodega").eq("id", branchId).single(), productQ]);
         if (cancelled) return;
-        if (!cancelled) setHasBodega(branchRow?.has_bodega !== false);
-        setProducts(productsData ?? []);
-        setTotalCount(count ?? 0);
-
-        const productIds = (productsData ?? []).map((p) => p.id);
-        if (productIds.length === 0) {
-          setStockSplitByProduct({});
-          setLoading(false);
-          return;
-        }
-
-        const { data: invData } = await supabase
-          .from("inventory")
-          .select("product_id, quantity, location")
-          .eq("branch_id", branchId)
-          .in("product_id", productIds);
-
-        const splitBy: Record<string, StockSplit> = {};
-        if (invData) {
-          for (const row of invData) {
-            const pid = row.product_id;
-            const q = row.quantity ?? 0;
-            const loc = (row as { location?: string | null }).location;
-            if (!splitBy[pid]) splitBy[pid] = { local: 0, bodega: 0 };
-            if (loc === "bodega") splitBy[pid].bodega += q;
-            else splitBy[pid].local += q;
-          }
-        }
-        if (!cancelled) setStockSplitByProduct(splitBy);
-      } catch {
+        setProducts(bundle.products);
+        setStockSplitByProduct(bundle.stockSplitByProduct);
+        setCategories(bundle.categories);
+        setHasBodega(bundle.hasBodega);
+        setTotalCount(bundle.totalCount);
+        prefetchInventarioDetails(bundle.products.map((p) => p.id), branchId);
+      } catch (e) {
         if (!cancelled) {
+          setLoadError(e instanceof Error ? e.message : "Error al cargar inventario");
           setProducts([]);
           setTotalCount(0);
-          setStockSplitByProduct({});
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     })();
-    return () => { cancelled = true; };
-  }, [refreshKey, page, effectiveSearchQuery, categoryFilter, activeBranchEpoch]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    sessionReady,
+    branchId,
+    page,
+    effectiveSearchQuery,
+    categoryFilter,
+    stockStatusOption,
+    refreshKey,
+    activeBranchEpoch,
+  ]);
 
   useEffect(() => {
     if (hasBodega !== false) return;
@@ -392,42 +348,25 @@ function InventoryPage() {
   const stockStatusParsed = parseStockStatusOption(stockStatusOption);
   const effectiveStockScope: StockScope = hasBodega === true ? stockStatusParsed.scope : "total";
 
-  const filteredProducts = products.filter((p) => {
-    const split = stockSplitByProduct[p.id];
-    const stock = stockForScope(split, effectiveStockScope);
-    const matchSearch =
-      !searchQuery.trim() ||
-      p.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
-      (p.sku?.toLowerCase().includes(searchQuery.trim().toLowerCase()) ?? false);
-    const k = stockStatusParsed.kind;
-    const matchStock =
-      k === "all" ||
-      (k === "sin-stock" && stock === 0) ||
-      (k === "bajo" && stock > 0 && stock <= 10) ||
-      (k === "con-stock" && stock > 10);
-    const matchCategory = !categoryFilter || p.category_id === categoryFilter;
-    return matchSearch && matchStock && matchCategory;
-  });
-
   useEffect(() => {
-    setSelectedIndex((i) => Math.min(i, Math.max(0, filteredProducts.length - 1)));
-  }, [filteredProducts.length]);
+    setSelectedIndex((i) => Math.min(i, Math.max(0, products.length - 1)));
+  }, [products.length]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (filteredProducts.length === 0) return;
+      if (products.length === 0) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, filteredProducts.length - 1));
+        setSelectedIndex((i) => Math.min(i + 1, products.length - 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        router.push(`/inventario/${filteredProducts[selectedIndex].id}`);
+        router.push(`/inventario/${products[selectedIndex].id}`);
       }
     },
-    [filteredProducts, selectedIndex, router]
+    [products, selectedIndex, router]
   );
 
   useEffect(() => {
@@ -435,17 +374,21 @@ function InventoryPage() {
   }, [selectedIndex]);
 
   useEffect(() => {
-    if (!loading && filteredProducts.length > 0 && listRef.current && !hasFocusedList.current) {
+    if (!loading && products.length > 0 && listRef.current && !hasFocusedList.current) {
       hasFocusedList.current = true;
       listRef.current.focus({ preventScroll: true });
     }
-  }, [loading, filteredProducts.length]);
+  }, [loading, products.length]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const showPagination = !loading && totalCount > PAGE_SIZE;
   /** Sin filas en BD: sin búsqueda ni categoría en servidor (no confundir con “0 coincidencias”). */
   const isDatabaseEmpty =
-    !loading && totalCount === 0 && !effectiveSearchQuery.trim() && !categoryFilter;
+    !loading &&
+    totalCount === 0 &&
+    !effectiveSearchQuery.trim() &&
+    !categoryFilter &&
+    stockStatusOption === "all";
   const pageNumbers = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     const around = 2;
@@ -578,7 +521,11 @@ function InventoryPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button
                 type="button"
-                onClick={() => setRefreshKey((k) => k + 1)}
+                onClick={() => {
+                  clearInventarioListCache();
+                  setRefreshKey((k) => k + 1);
+                }}
+                disabled={loading || refreshing}
                 className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -614,6 +561,12 @@ function InventoryPage() {
         </div>
       </header>
 
+      {loadError && (
+        <div className={`rounded-xl px-6 py-4 text-[14px] font-medium text-amber-900 ${REPORTS_SURFACE}`}>
+          {loadError}
+        </div>
+      )}
+
       <section
         ref={listRef}
         tabIndex={0}
@@ -623,7 +576,7 @@ function InventoryPage() {
       >
         {loading ? (
           <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
-        ) : filteredProducts.length === 0 ? (
+        ) : products.length === 0 ? (
           <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
             <InventoryFilters {...filterProps} stockStatusId="inv-stock-status-empty" />
 
@@ -680,13 +633,13 @@ function InventoryPage() {
                 <div className="min-w-0 w-full text-right text-[13px] font-semibold text-[var(--berea-ink-muted)]">Precio</div>
                 <div className="min-w-0 text-right text-[13px] font-semibold text-[var(--berea-ink-muted)]">Acciones</div>
               </div>
-              {filteredProducts.map((p, index) => {
+              {products.map((p, index) => {
                 const split = stockSplitByProduct[p.id] ?? { local: 0, bodega: 0 };
                 const stock = stockForScope(split, effectiveStockScope);
                 const price = salePrice(p);
                 const stockStatus = stockStatusChip(stock);
                 const isSelected = index === selectedIndex;
-                const isLast = index === filteredProducts.length - 1;
+                const isLast = index === products.length - 1;
                 return (
                   <div
                     key={p.id}
@@ -694,6 +647,9 @@ function InventoryPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/inventario/${p.id}`)}
+                    onMouseEnter={() => {
+                      if (branchId) void fetchInventarioDetailBundle(p.id, branchId).catch(() => undefined);
+                    }}
                     className={`${desktopInventoryRowGrid} cursor-pointer transition-colors border-b border-[var(--berea-card-border)]/60 ${
                       isLast ? "border-b-0" : ""
                     } ${
@@ -766,7 +722,7 @@ function InventoryPage() {
 
             {/* Mobile: tarjetas apiladas (misma lista, otra vista) */}
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:hidden">
-              {filteredProducts.map((p, index) => {
+              {products.map((p, index) => {
                 const split = stockSplitByProduct[p.id] ?? { local: 0, bodega: 0 };
                 const stock = stockForScope(split, effectiveStockScope);
                 const price = salePrice(p);

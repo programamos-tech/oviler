@@ -2,20 +2,29 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
+import { useEffect, useState } from "react";
+import { useSession } from "@/app/components/SessionProvider";
+import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import {
+  clearCreditosListCache,
+  creditosListCacheKey,
+  fetchCreditoClienteBundle,
+  getCachedCreditosList,
+  prefetchCreditoCliente,
+  setCachedCreditosList,
+} from "@/lib/creditos-detail-cache";
+import type { GroupedCreditClient } from "@/lib/creditos-grouping";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
 import {
   clientAggregateChip,
-  clientAggregateStatusFromCredits,
-  creditRowPending,
   formatDateShort,
   formatMoney,
   type ClientAggregateStatus,
-  type CreditStatus,
 } from "./credit-ui";
+
+const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 300;
 
 const REPORTS_SURFACE = "berea-reports-surface";
 
@@ -33,28 +42,6 @@ const CREDIT_STATUS_FILTER_OPTIONS: { value: CreditStatusFilter; label: string }
   { value: "completed", label: "Completado" },
   { value: "cancelled", label: "Anulado" },
 ];
-
-type CreditRow = {
-  id: string;
-  customer_id: string;
-  total_amount: number;
-  amount_paid: number;
-  due_date: string;
-  status: CreditStatus;
-  cancelled_at: string | null;
-  customers: { id: string; name: string } | null;
-};
-
-type GroupedClient = {
-  customerId: string;
-  name: string;
-  credits: CreditRow[];
-  invoiceCount: number;
-  totalAmount: number;
-  totalPending: number;
-  nextDue: string | null;
-  aggregateStatus: ReturnType<typeof clientAggregateStatusFromCredits>;
-};
 
 function CreditFilters({
   search,
@@ -108,118 +95,126 @@ function CreditFilters({
 
 export default function CreditosPage() {
   const router = useRouter();
-  const [branchId, setBranchId] = useState<string | null>(null);
-  const [rows, setRows] = useState<CreditRow[]>([]);
+  const { branch, ready: sessionReady } = useSession();
+  const branchId = branch?.id ?? null;
+  const [grouped, setGrouped] = useState<GroupedCreditClient[]>([]);
+  const [creditRowCount, setCreditRowCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
   const [statusFilter, setStatusFilter] = useState<CreditStatusFilter>("all");
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
-  const fetchRequestId = useRef(0);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     const onBranch = () => {
       setActiveBranchEpoch((n) => n + 1);
+      setPage(1);
     };
     window.addEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
     return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => setSearchDebounced(search), 300);
+    const t = setTimeout(() => setSearchDebounced(search), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [search]);
 
   useEffect(() => {
-    const supabase = createClient();
-    const reqId = ++fetchRequestId.current;
-    let cancelled = false;
-    (async () => {
+    setPage(1);
+  }, [searchDebounced, statusFilter]);
+
+  useEffect(() => {
+    if (!sessionReady) {
       setLoading(true);
+      return;
+    }
+    if (!branchId) {
+      setGrouped([]);
+      setCreditRowCount(0);
+      setTotalCount(0);
       setError(null);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled || reqId !== fetchRequestId.current) {
-        if (!cancelled && reqId === fetchRequestId.current) setLoading(false);
-        return;
-      }
-      const currentBranch = await resolveActiveBranchId(supabase, user.id);
-      if (!currentBranch || cancelled || reqId !== fetchRequestId.current) {
-        if (!cancelled && reqId === fetchRequestId.current) {
-          setBranchId(null);
-          setRows([]);
-          setLoading(false);
-        }
-        return;
-      }
-      if (cancelled || reqId !== fetchRequestId.current) return;
-      setBranchId(currentBranch);
-      const { data, error: qErr } = await supabase
-        .from("customer_credits")
-        .select("id, customer_id, total_amount, amount_paid, due_date, status, cancelled_at, customers(id, name)")
-        .eq("branch_id", currentBranch)
-        .order("created_at", { ascending: false });
-      if (cancelled || reqId !== fetchRequestId.current) return;
-      if (qErr) {
-        setError(qErr.message);
-        setRows([]);
-      } else {
-        setRows((data ?? []) as unknown as CreditRow[]);
-      }
       setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    let cancelled = false;
+    const cacheKey = creditosListCacheKey({
+      branchId,
+      page,
+      search: searchDebounced,
+      status: statusFilter,
+      refreshKey,
+    });
+    const cached = getCachedCreditosList(cacheKey);
+    const useCache = Boolean(cached);
+
+    if (useCache) setRefreshing(true);
+    else if (grouped.length === 0) setLoading(true);
+    else setRefreshing(true);
+
+    setError(null);
+
+    (async () => {
+      try {
+        type Bundle = {
+          grouped: GroupedCreditClient[];
+          totalCount: number;
+          creditRowCount: number;
+        };
+        let bundle: Bundle;
+
+        if (useCache) {
+          bundle = cached as Bundle;
+        } else {
+          const params = new URLSearchParams({
+            branchId,
+            page: String(page),
+            pageSize: String(PAGE_SIZE),
+            search: searchDebounced,
+            status: statusFilter,
+          });
+          const res = await fetch(`/api/creditos/query-bundle?${params.toString()}`, {
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const err = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(err.error ?? "Error al cargar créditos");
+          }
+          bundle = (await res.json()) as Bundle;
+          setCachedCreditosList(cacheKey, bundle);
+        }
+
+        if (cancelled) return;
+        setGrouped(bundle.grouped);
+        setTotalCount(bundle.totalCount);
+        setCreditRowCount(bundle.creditRowCount);
+        prefetchCreditoCliente(bundle.grouped.map((g) => g.customerId), branchId);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Error al cargar créditos");
+          setGrouped([]);
+          setTotalCount(0);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [refreshKey, activeBranchEpoch]);
+  }, [sessionReady, branchId, page, searchDebounced, statusFilter, refreshKey, activeBranchEpoch]);
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, CreditRow[]>();
-    for (const r of rows) {
-      const list = map.get(r.customer_id) ?? [];
-      list.push(r);
-      map.set(r.customer_id, list);
-    }
-    const out: GroupedClient[] = [];
-    for (const [, credits] of map) {
-      const first = credits[0];
-      const name = first?.customers?.name ?? "Cliente";
-      const customerId = first?.customer_id ?? "";
-      const totalAmount = credits.reduce((s, c) => s + Number(c.total_amount), 0);
-      const totalPending = credits.reduce(
-        (s, c) => s + creditRowPending(Number(c.total_amount), Number(c.amount_paid), Boolean(c.cancelled_at)),
-        0
-      );
-      const open = credits.filter((c) => !c.cancelled_at && c.status !== "cancelled");
-      const pendingCredits = open.filter(
-        (c) => creditRowPending(Number(c.total_amount), Number(c.amount_paid), false) > 0.005
-      );
-      let nextDue: string | null = null;
-      if (pendingCredits.length) {
-        const dates = pendingCredits.map((c) => c.due_date).sort();
-        nextDue = dates[0] ?? null;
-      }
-      out.push({
-        customerId,
-        name,
-        credits,
-        invoiceCount: credits.length,
-        totalAmount,
-        totalPending,
-        nextDue,
-        aggregateStatus: clientAggregateStatusFromCredits(credits),
-      });
-    }
-    out.sort((a, b) => a.name.localeCompare(b.name, "es"));
-    const q = searchDebounced.trim().toLowerCase();
-    let next = !q ? out : out.filter((g) => g.name.toLowerCase().includes(q) || g.customerId.toLowerCase().includes(q));
-    if (statusFilter !== "all") {
-      next = next.filter((g) => g.aggregateStatus === statusFilter);
-    }
-    return next;
-  }, [rows, searchDebounced, statusFilter]);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const actionIconClass =
     "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-subtle)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-accent)]";
@@ -251,10 +246,10 @@ export default function CreditosPage() {
           <button
             type="button"
             onClick={() => {
-              setLoading(true);
+              clearCreditosListCache();
               setRefreshKey((k) => k + 1);
             }}
-            disabled={loading}
+            disabled={loading || refreshing}
             className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
           >
             <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -295,7 +290,7 @@ export default function CreditosPage() {
           <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
             <CreditFilters {...filterProps} />
 
-            {rows.length === 0 ? (
+            {creditRowCount === 0 ? (
               <div className="px-2 py-8 text-center sm:px-4">
                 <p className="text-[15px] font-semibold text-[var(--berea-ink)]">Aún no hay créditos</p>
                 <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
@@ -353,6 +348,9 @@ export default function CreditosPage() {
                                 e.preventDefault();
                                 router.push(`/creditos/cliente/${g.customerId}`);
                               }
+                            }}
+                            onMouseEnter={() => {
+                              if (branchId) void fetchCreditoClienteBundle(g.customerId, branchId).catch(() => undefined);
                             }}
                           >
                             <td className="py-4 pr-4">
@@ -444,6 +442,36 @@ export default function CreditosPage() {
                     );
                   })}
                 </div>
+
+                {totalCount > PAGE_SIZE && (
+                  <div className="flex flex-col items-center justify-between gap-3 border-t border-[var(--berea-card-border)] pt-4 sm:flex-row">
+                    <p className="text-[13px] text-[var(--berea-ink-muted)]">
+                      {totalCount} {totalCount === 1 ? "cliente" : "clientes"}
+                      {refreshing ? " · actualizando…" : ""}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={page <= 1 || loading}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        className={`inline-flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold text-[var(--berea-ink)] disabled:opacity-40 ${REPORTS_SURFACE}`}
+                      >
+                        Anterior
+                      </button>
+                      <span className="text-[13px] tabular-nums text-[var(--berea-ink-muted)]">
+                        {page} / {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={page >= totalPages || loading}
+                        onClick={() => setPage((p) => p + 1)}
+                        className={`inline-flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold text-[var(--berea-ink)] disabled:opacity-40 ${REPORTS_SURFACE}`}
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
