@@ -143,7 +143,7 @@ export function prefetchClienteDetails(ids: string[], branchId: string) {
 }
 
 const listCache = new Map<string, { at: number; payload: unknown }>();
-export const CLIENTES_LIST_CACHE_MS = 30_000;
+export const CLIENTES_LIST_CACHE_MS = 120_000;
 
 export function clientesListCacheKey(parts: Record<string, string | number>) {
   return Object.entries(parts)
@@ -164,4 +164,45 @@ export function setCachedClientesList(key: string, payload: unknown) {
 
 export function clearClientesListCache() {
   listCache.clear();
+}
+
+const listInflight = new Map<string, Promise<unknown>>();
+
+export function defaultClientesListCacheKey(branchId: string, refreshKey = 0) {
+  return clientesListCacheKey({ branchId, page: 1, search: "", refreshKey });
+}
+
+export async function prefetchClientesList(branchId: string, refreshKey = 0): Promise<void> {
+  const cacheKey = defaultClientesListCacheKey(branchId, refreshKey);
+  if (getCachedClientesList(cacheKey)) return;
+
+  const pending = listInflight.get(cacheKey);
+  if (pending) {
+    await pending;
+    return;
+  }
+
+  const params = new URLSearchParams({
+    branchId,
+    page: "1",
+    pageSize: "20",
+    search: "",
+  });
+
+  const run = (async () => {
+    const res = await fetch(`/api/clientes/query-bundle?${params.toString()}`, {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const bundle = await res.json();
+    setCachedClientesList(cacheKey, bundle);
+    return bundle;
+  })();
+
+  listInflight.set(cacheKey, run);
+  try {
+    await run;
+  } finally {
+    listInflight.delete(cacheKey);
+  }
 }

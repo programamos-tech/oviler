@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSession } from "@/app/components/SessionProvider";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import {
+  shouldShowListSkeleton,
+  visibleCountFromCache,
+  visibleRowsFromCache,
+} from "@/lib/list-page-display";
 import {
   clearCreditosListCache,
   creditosListCacheKey,
@@ -101,7 +106,7 @@ export default function CreditosPage() {
   const [creditRowCount, setCreditRowCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -109,6 +114,37 @@ export default function CreditosPage() {
   const [statusFilter, setStatusFilter] = useState<CreditStatusFilter>("all");
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
+
+  const listCacheKey = useMemo(() => {
+    if (!branchId) return null;
+    return creditosListCacheKey({
+      branchId,
+      page,
+      search: searchDebounced,
+      status: statusFilter,
+      refreshKey,
+    });
+  }, [branchId, page, searchDebounced, statusFilter, refreshKey]);
+
+  type CreditosListBundle = {
+    grouped: GroupedCreditClient[];
+    totalCount: number;
+    creditRowCount: number;
+  };
+
+  const cachedList = useMemo(
+    () => (listCacheKey ? (getCachedCreditosList(listCacheKey) as CreditosListBundle | null) : null),
+    [listCacheKey]
+  );
+  const displayGrouped = useMemo(
+    () => visibleRowsFromCache(grouped, cachedList?.grouped),
+    [grouped, cachedList]
+  );
+  const displayTotalCount = useMemo(
+    () => visibleCountFromCache(totalCount, cachedList?.totalCount),
+    [totalCount, cachedList]
+  );
+  const showListLoading = shouldShowListSkeleton(loading, displayGrouped.length, sessionReady);
 
   useEffect(() => {
     const onBranch = () => {
@@ -129,10 +165,7 @@ export default function CreditosPage() {
   }, [searchDebounced, statusFilter]);
 
   useEffect(() => {
-    if (!sessionReady) {
-      setLoading(true);
-      return;
-    }
+    if (!sessionReady) return;
     if (!branchId) {
       setGrouped([]);
       setCreditRowCount(0);
@@ -152,43 +185,49 @@ export default function CreditosPage() {
       refreshKey,
     });
     const cached = getCachedCreditosList(cacheKey);
-    const useCache = Boolean(cached);
 
-    if (useCache) setRefreshing(true);
-    else if (grouped.length === 0) setLoading(true);
+    type Bundle = {
+      grouped: GroupedCreditClient[];
+      totalCount: number;
+      creditRowCount: number;
+    };
+
+    if (cached) {
+      const bundle = cached as Bundle;
+      setGrouped(bundle.grouped);
+      setTotalCount(bundle.totalCount);
+      setCreditRowCount(bundle.creditRowCount);
+      setError(null);
+      setLoading(false);
+      setRefreshing(false);
+      prefetchCreditoCliente(bundle.grouped.map((g) => g.customerId), branchId);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (grouped.length === 0) setLoading(true);
     else setRefreshing(true);
-
     setError(null);
 
     (async () => {
       try {
-        type Bundle = {
-          grouped: GroupedCreditClient[];
-          totalCount: number;
-          creditRowCount: number;
-        };
-        let bundle: Bundle;
-
-        if (useCache) {
-          bundle = cached as Bundle;
-        } else {
-          const params = new URLSearchParams({
-            branchId,
-            page: String(page),
-            pageSize: String(PAGE_SIZE),
-            search: searchDebounced,
-            status: statusFilter,
-          });
-          const res = await fetch(`/api/creditos/query-bundle?${params.toString()}`, {
-            credentials: "include",
-          });
-          if (!res.ok) {
-            const err = (await res.json().catch(() => ({}))) as { error?: string };
-            throw new Error(err.error ?? "Error al cargar créditos");
-          }
-          bundle = (await res.json()) as Bundle;
-          setCachedCreditosList(cacheKey, bundle);
+        const params = new URLSearchParams({
+          branchId,
+          page: String(page),
+          pageSize: String(PAGE_SIZE),
+          search: searchDebounced,
+          status: statusFilter,
+        });
+        const res = await fetch(`/api/creditos/query-bundle?${params.toString()}`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error ?? "Error al cargar créditos");
         }
+        const bundle = (await res.json()) as Bundle;
+        setCachedCreditosList(cacheKey, bundle);
 
         if (cancelled) return;
         setGrouped(bundle.grouped);
@@ -214,7 +253,7 @@ export default function CreditosPage() {
     };
   }, [sessionReady, branchId, page, searchDebounced, statusFilter, refreshKey, activeBranchEpoch]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(displayTotalCount / PAGE_SIZE));
 
   const actionIconClass =
     "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-subtle)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-accent)]";
@@ -249,7 +288,7 @@ export default function CreditosPage() {
               clearCreditosListCache();
               setRefreshKey((k) => k + 1);
             }}
-            disabled={loading || refreshing}
+            disabled={showListLoading || refreshing}
             className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] disabled:pointer-events-none disabled:opacity-50 ${REPORTS_SURFACE}`}
           >
             <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -277,7 +316,7 @@ export default function CreditosPage() {
       )}
 
       <section className="outline-none">
-        {loading ? (
+        {showListLoading ? (
           <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
         ) : !branchId ? (
           <div className={`rounded-xl px-6 py-10 text-center ${REPORTS_SURFACE}`}>
@@ -303,7 +342,7 @@ export default function CreditosPage() {
                   Nuevo crédito
                 </Link>
               </div>
-            ) : grouped.length === 0 ? (
+            ) : displayGrouped.length === 0 ? (
               <div className="px-2 py-8 text-center sm:px-4">
                 <p className="text-[15px] font-semibold text-[var(--berea-ink)]">Sin resultados</p>
                 <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
@@ -333,7 +372,7 @@ export default function CreditosPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {grouped.map((g) => {
+                      {displayGrouped.map((g) => {
                         const chip = clientAggregateChip(g.aggregateStatus);
                         const avatarSeed = `${g.customerId}-${getAvatarVariant(null)}`;
                         return (
@@ -402,7 +441,7 @@ export default function CreditosPage() {
                 </div>
 
                 <div className="grid gap-4 pt-2 sm:grid-cols-2 xl:hidden">
-                  {grouped.map((g) => {
+                  {displayGrouped.map((g) => {
                     const chip = clientAggregateChip(g.aggregateStatus);
                     const avatarSeed = `${g.customerId}-${getAvatarVariant(null)}`;
                     return (
@@ -443,16 +482,16 @@ export default function CreditosPage() {
                   })}
                 </div>
 
-                {totalCount > PAGE_SIZE && (
+                {displayTotalCount > PAGE_SIZE && (
                   <div className="flex flex-col items-center justify-between gap-3 border-t border-[var(--berea-card-border)] pt-4 sm:flex-row">
                     <p className="text-[13px] text-[var(--berea-ink-muted)]">
-                      {totalCount} {totalCount === 1 ? "cliente" : "clientes"}
+                      {displayTotalCount} {displayTotalCount === 1 ? "cliente" : "clientes"}
                       {refreshing ? " · actualizando…" : ""}
                     </p>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        disabled={page <= 1 || loading}
+                        disabled={page <= 1 || showListLoading}
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
                         className={`inline-flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold text-[var(--berea-ink)] disabled:opacity-40 ${REPORTS_SURFACE}`}
                       >
@@ -463,7 +502,7 @@ export default function CreditosPage() {
                       </span>
                       <button
                         type="button"
-                        disabled={page >= totalPages || loading}
+                        disabled={page >= totalPages || showListLoading}
                         onClick={() => setPage((p) => p + 1)}
                         className={`inline-flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold text-[var(--berea-ink)] disabled:opacity-40 ${REPORTS_SURFACE}`}
                       >

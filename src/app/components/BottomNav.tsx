@@ -3,6 +3,7 @@
 import { useMemo, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { prefetchModuleList } from "@/lib/module-list-prefetch";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
 import { SHOW_COMERCIAL_CATALOGO_MODULE } from "./app-nav-data";
 import { useSession } from "./SessionProvider";
@@ -287,6 +288,10 @@ export default function BottomNav() {
     return href !== "#" && pathname.startsWith(href);
   };
 
+  const prefetchNav = (href: string) => {
+    prefetchModuleList(href, branch?.id, branch?.sales_mode);
+  };
+
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-30 min-w-0 max-w-full border-t border-slate-200/90 bg-white/95 pb-[env(safe-area-inset-bottom)] pt-2 text-slate-700 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95 dark:text-zinc-200 lg:hidden"
@@ -302,6 +307,10 @@ export default function BottomNav() {
               <Link
                 key={`${item.href}-${item.label}`}
                 href={item.href}
+                prefetch
+                onMouseEnter={() => prefetchNav(item.href)}
+                onFocus={() => prefetchNav(item.href)}
+                onTouchStart={() => prefetchNav(item.href)}
                 className={`flex min-w-[4.5rem] max-w-[5.25rem] shrink-0 snap-start flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center transition-colors sm:min-w-[4.75rem] ${
                   active ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : "text-slate-400 dark:text-slate-500"
                 }`}

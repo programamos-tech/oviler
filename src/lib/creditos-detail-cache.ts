@@ -1,6 +1,6 @@
 import type { CreditDetailPayload } from "@/lib/creditos-normalize";
 
-export const CREDITOS_LIST_CACHE_MS = 30_000;
+export const CREDITOS_LIST_CACHE_MS = 120_000;
 export const CREDITO_DETAIL_CACHE_MS = 45_000;
 
 export type CreditPaymentRow = {
@@ -61,6 +61,54 @@ export function setCachedCreditosList(key: string, payload: unknown) {
 
 export function clearCreditosListCache() {
   listCache.clear();
+}
+
+const listInflight = new Map<string, Promise<unknown>>();
+
+export function defaultCreditosListCacheKey(branchId: string, refreshKey = 0) {
+  return creditosListCacheKey({
+    branchId,
+    page: 1,
+    search: "",
+    status: "all",
+    refreshKey,
+  });
+}
+
+export async function prefetchCreditosList(branchId: string, refreshKey = 0): Promise<void> {
+  const cacheKey = defaultCreditosListCacheKey(branchId, refreshKey);
+  if (getCachedCreditosList(cacheKey)) return;
+
+  const pending = listInflight.get(cacheKey);
+  if (pending) {
+    await pending;
+    return;
+  }
+
+  const params = new URLSearchParams({
+    branchId,
+    page: "1",
+    pageSize: "20",
+    search: "",
+    status: "all",
+  });
+
+  const run = (async () => {
+    const res = await fetch(`/api/creditos/query-bundle?${params.toString()}`, {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const bundle = await res.json();
+    setCachedCreditosList(cacheKey, bundle);
+    return bundle;
+  })();
+
+  listInflight.set(cacheKey, run);
+  try {
+    await run;
+  } finally {
+    listInflight.delete(cacheKey);
+  }
 }
 
 function creditDetailKey(id: string, refreshKey: number) {

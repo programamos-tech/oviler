@@ -2,10 +2,21 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useRef, useCallback, Fragment } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo, Fragment } from "react";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
 import { getSalesDateBounds } from "@/lib/sales-list-filters";
+import {
+  shouldShowListSkeleton,
+  visibleCountFromCache,
+  visibleRowsFromCache,
+} from "@/lib/list-page-display";
 import { prefetchSaleDetails } from "@/lib/ventas-detail-cache";
+import {
+  clearVentasListCache,
+  getCachedVentasList,
+  setCachedVentasList,
+  ventasListCacheKey,
+} from "@/lib/ventas-list-cache";
 import { useSession } from "@/app/components/SessionProvider";
 import { MdOutlineLocalShipping, MdOutlinePublic, MdOutlineReceiptLong, MdOutlineStorefront } from "react-icons/md";
 import {
@@ -18,15 +29,6 @@ import {
 } from "./sales-mode";
 import DatePickerCard from "@/app/components/DatePickerCard";
 const PAGE_SIZE = 20;
-const VENTAS_CACHE_MS = 30_000;
-const ventasListCache = new Map<string, { at: number; payload: unknown }>();
-
-function ventasCacheKey(parts: Record<string, string | number>) {
-  return Object.entries(parts)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
-    .join("|");
-}
 
 type PaymentTotals = {
   cash: number;
@@ -180,7 +182,7 @@ export default function SalesPage() {
   const { branch, ready: sessionReady } = useSession();
   const branchId = branch?.id ?? null;
   const [sales, setSales] = useState<SaleRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   /** Evita un refetch por tecla al buscar (menos carga y sensación más fluida). */
@@ -197,6 +199,53 @@ export default function SalesPage() {
   const [paymentTotals, setPaymentTotals] = useState<PaymentTotalsResponse | null>(null);
   const salesMode: SalesMode = branch?.sales_mode === "orders" ? "orders" : "sales";
   const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
+
+  const dateBoundsForCache = useMemo(() => getSalesDateBounds(dateFrom, dateTo), [dateFrom, dateTo]);
+  const listCacheKey = useMemo(() => {
+    if (!branchId) return null;
+    return ventasListCacheKey({
+      branchId,
+      page,
+      search: searchQueryDebounced,
+      status: statusFilter,
+      payment: paymentFilter,
+      dateStart: dateBoundsForCache?.start ?? "",
+      dateEnd: dateBoundsForCache?.end ?? "",
+      salesMode,
+      refreshKey,
+    });
+  }, [
+    branchId,
+    page,
+    searchQueryDebounced,
+    statusFilter,
+    paymentFilter,
+    dateBoundsForCache,
+    salesMode,
+    refreshKey,
+  ]);
+
+  type VentasListBundle = {
+    sales: SaleRow[];
+    totalCount: number;
+    paymentTotals: PaymentTotalsResponse | null;
+  };
+
+  const cachedList = useMemo(
+    () => (listCacheKey ? (getCachedVentasList(listCacheKey) as VentasListBundle | null) : null),
+    [listCacheKey]
+  );
+  const displaySales = useMemo(
+    () => visibleRowsFromCache(sales, cachedList?.sales),
+    [sales, cachedList]
+  );
+  const displayTotalCount = useMemo(
+    () => visibleCountFromCache(totalCount, cachedList?.totalCount),
+    [totalCount, cachedList]
+  );
+  const displayPaymentTotals = paymentTotals ?? cachedList?.paymentTotals ?? null;
+  const showListLoading = shouldShowListSkeleton(loading, displaySales.length, sessionReady);
+
   const listRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | HTMLTableRowElement | null)[]>([]);
   const hasFocusedList = useRef(false);
@@ -218,10 +267,7 @@ export default function SalesPage() {
   }, [searchQuery]);
 
   useEffect(() => {
-    if (!sessionReady) {
-      setLoading(true);
-      return;
-    }
+    if (!sessionReady) return;
     if (!branchId) {
       setLoadError(null);
       setSales([]);
@@ -234,7 +280,7 @@ export default function SalesPage() {
 
     let cancelled = false;
     const dateBounds = getSalesDateBounds(dateFrom, dateTo);
-    const cacheKey = ventasCacheKey({
+    const cacheKey = ventasListCacheKey({
       branchId,
       page,
       search: searchQueryDebounced,
@@ -245,30 +291,27 @@ export default function SalesPage() {
       salesMode,
       refreshKey,
     });
-    const cached = ventasListCache.get(cacheKey);
-    const useCache = cached && Date.now() - cached.at < VENTAS_CACHE_MS;
+    const cached = getCachedVentasList(cacheKey);
 
-    if (useCache) {
-      setRefreshing(true);
-    } else if (sales.length === 0) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
+    type Bundle = {
+      sales: SaleRow[];
+      totalCount: number;
+      paymentTotals: PaymentTotalsResponse | null;
+    };
 
-    (async () => {
-      try {
-        type Bundle = {
-          sales: SaleRow[];
-          totalCount: number;
-          paymentTotals: PaymentTotalsResponse | null;
-        };
+    if (cached) {
+      const bundle = cached as Bundle;
+      setLoadError(null);
+      setSales(bundle.sales);
+      setTotalCount(bundle.totalCount);
+      setPaymentTotals(bundle.paymentTotals);
+      setLoading(false);
+      setRefreshing(false);
+      prefetchSaleDetails(bundle.sales.map((s) => s.id));
 
-        let bundle: Bundle;
-        if (useCache) {
-          bundle = cached!.payload as Bundle;
-        } else {
-          const params = new URLSearchParams({
+      if (!bundle.paymentTotals) {
+        void (async () => {
+          const totalsParams = new URLSearchParams({
             branchId,
             salesMode,
             page: String(page),
@@ -276,48 +319,85 @@ export default function SalesPage() {
             search: searchQueryDebounced,
             status: statusFilter,
             payment: paymentFilter,
-            skipTotals: "1",
+            onlyTotals: "1",
+            totalCount: String(bundle.totalCount),
           });
-          if (dateBounds?.start) params.set("dateStart", dateBounds.start);
-          if (dateBounds?.end) params.set("dateEnd", dateBounds.end);
-
-          const res = await fetch(`/api/ventas/query-bundle?${params.toString()}`, {
-            credentials: "include",
-          });
-          if (!res.ok) {
-            const err = (await res.json().catch(() => ({}))) as { error?: string };
-            throw new Error(err.error ?? "No se pudo cargar ventas");
+          if (dateBounds?.start) totalsParams.set("dateStart", dateBounds.start);
+          if (dateBounds?.end) totalsParams.set("dateEnd", dateBounds.end);
+          try {
+            const totalsRes = await fetch(`/api/ventas/query-bundle?${totalsParams.toString()}`, {
+              credentials: "include",
+            });
+            if (!totalsRes.ok || cancelled) return;
+            const totalsJson = (await totalsRes.json()) as { paymentTotals: PaymentTotalsResponse | null };
+            setPaymentTotals(totalsJson.paymentTotals);
+            setCachedVentasList(cacheKey, { ...bundle, paymentTotals: totalsJson.paymentTotals });
+          } catch {
+            // Totales en segundo plano.
           }
-          const json = (await res.json()) as Omit<Bundle, "paymentTotals"> & {
-            paymentTotals?: PaymentTotalsResponse | null;
-          };
-          bundle = { ...json, paymentTotals: json.paymentTotals ?? null };
-          ventasListCache.set(cacheKey, { at: Date.now(), payload: bundle });
+        })();
+      }
 
-          void (async () => {
-            const totalsParams = new URLSearchParams(params);
-            totalsParams.delete("skipTotals");
-            totalsParams.set("onlyTotals", "1");
-            totalsParams.set("totalCount", String(json.totalCount));
-            try {
-              const totalsRes = await fetch(`/api/ventas/query-bundle?${totalsParams.toString()}`, {
-                credentials: "include",
-              });
-              if (!totalsRes.ok || cancelled) return;
-              const totalsJson = (await totalsRes.json()) as { paymentTotals: PaymentTotalsResponse | null };
-              setPaymentTotals(totalsJson.paymentTotals);
-              const cachedBundle = ventasListCache.get(cacheKey);
-              if (cachedBundle) {
-                ventasListCache.set(cacheKey, {
-                  at: cachedBundle.at,
-                  payload: { ...(cachedBundle.payload as Bundle), paymentTotals: totalsJson.paymentTotals },
-                });
-              }
-            } catch {
-              // Totales en segundo plano: no bloquear la lista.
-            }
-          })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (sales.length === 0) setLoading(true);
+    else setRefreshing(true);
+
+    (async () => {
+      try {
+        let bundle: Bundle;
+        const params = new URLSearchParams({
+          branchId,
+          salesMode,
+          page: String(page),
+          pageSize: String(PAGE_SIZE),
+          search: searchQueryDebounced,
+          status: statusFilter,
+          payment: paymentFilter,
+          skipTotals: "1",
+        });
+        if (dateBounds?.start) params.set("dateStart", dateBounds.start);
+        if (dateBounds?.end) params.set("dateEnd", dateBounds.end);
+
+        const res = await fetch(`/api/ventas/query-bundle?${params.toString()}`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error ?? "No se pudo cargar ventas");
         }
+        const json = (await res.json()) as Omit<Bundle, "paymentTotals"> & {
+          paymentTotals?: PaymentTotalsResponse | null;
+        };
+        bundle = { ...json, paymentTotals: json.paymentTotals ?? null };
+        setCachedVentasList(cacheKey, bundle);
+
+        void (async () => {
+          const totalsParams = new URLSearchParams(params);
+          totalsParams.delete("skipTotals");
+          totalsParams.set("onlyTotals", "1");
+          totalsParams.set("totalCount", String(json.totalCount));
+          try {
+            const totalsRes = await fetch(`/api/ventas/query-bundle?${totalsParams.toString()}`, {
+              credentials: "include",
+            });
+            if (!totalsRes.ok || cancelled) return;
+            const totalsJson = (await totalsRes.json()) as { paymentTotals: PaymentTotalsResponse | null };
+            setPaymentTotals(totalsJson.paymentTotals);
+            const cachedBundle = getCachedVentasList(cacheKey) as Bundle | null;
+            if (cachedBundle) {
+              setCachedVentasList(cacheKey, {
+                ...cachedBundle,
+                paymentTotals: totalsJson.paymentTotals,
+              });
+            }
+          } catch {
+            // Totales en segundo plano: no bloquear la lista.
+          }
+        })();
 
         if (cancelled) return;
         setLoadError(null);
@@ -325,38 +405,6 @@ export default function SalesPage() {
         setTotalCount(bundle.totalCount);
         setPaymentTotals(bundle.paymentTotals);
         prefetchSaleDetails(bundle.sales.map((s) => s.id));
-
-        if (!bundle.paymentTotals && useCache) {
-          void (async () => {
-            const totalsParams = new URLSearchParams({
-              branchId,
-              salesMode,
-              page: String(page),
-              pageSize: String(PAGE_SIZE),
-              search: searchQueryDebounced,
-              status: statusFilter,
-              payment: paymentFilter,
-              onlyTotals: "1",
-              totalCount: String(bundle.totalCount),
-            });
-            if (dateBounds?.start) totalsParams.set("dateStart", dateBounds.start);
-            if (dateBounds?.end) totalsParams.set("dateEnd", dateBounds.end);
-            try {
-              const totalsRes = await fetch(`/api/ventas/query-bundle?${totalsParams.toString()}`, {
-                credentials: "include",
-              });
-              if (!totalsRes.ok || cancelled) return;
-              const totalsJson = (await totalsRes.json()) as { paymentTotals: PaymentTotalsResponse | null };
-              setPaymentTotals(totalsJson.paymentTotals);
-              ventasListCache.set(cacheKey, {
-                at: Date.now(),
-                payload: { ...bundle, paymentTotals: totalsJson.paymentTotals },
-              });
-            } catch {
-              // Totales en segundo plano.
-            }
-          })();
-        }
       } catch (e) {
         if (!cancelled) {
           setLoadError(e instanceof Error ? e.message : "Error inesperado al cargar ventas");
@@ -394,36 +442,36 @@ export default function SalesPage() {
   }, [searchQuery, statusFilter, paymentFilter, dateFrom, dateTo]);
 
   useEffect(() => {
-    setSelectedIndex((i) => Math.min(i, Math.max(0, sales.length - 1)));
-  }, [sales.length]);
+    cardRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedIndex]);
+
+  useEffect(() => {
+    setSelectedIndex((i) => Math.min(i, Math.max(0, displaySales.length - 1)));
+  }, [displaySales.length]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (sales.length === 0) return;
+      if (displaySales.length === 0) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, sales.length - 1));
+        setSelectedIndex((i) => Math.min(i + 1, displaySales.length - 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        router.push(`/ventas/${sales[selectedIndex].id}`);
+        router.push(`/ventas/${displaySales[selectedIndex].id}`);
       }
     },
-    [sales, selectedIndex, router]
+    [displaySales, selectedIndex, router]
   );
 
   useEffect(() => {
-    cardRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [selectedIndex]);
-
-  useEffect(() => {
-    if (!loading && sales.length > 0 && listRef.current && !hasFocusedList.current) {
+    if (!showListLoading && displaySales.length > 0 && listRef.current && !hasFocusedList.current) {
       hasFocusedList.current = true;
       listRef.current.focus({ preventScroll: true });
     }
-  }, [loading, sales.length]);
+  }, [showListLoading, displaySales.length]);
 
   const copy = getCopy(salesMode);
   const paymentLabel = (p: SaleRow) =>
@@ -431,8 +479,8 @@ export default function SalesPage() {
   const statusLabel = (s: SaleRow) => getStatusLabelForSale(s.status, s.is_delivery);
   const statusFilterOptions = salesMode === "orders" ? ORDER_STATUS_FILTERS : SALES_STATUS_FILTERS;
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const showPagination = !loading && !loadError && totalCount > 0 && totalCount > PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(displayTotalCount / PAGE_SIZE));
+  const showPagination = !showListLoading && !loadError && displayTotalCount > 0 && displayTotalCount > PAGE_SIZE;
   const pageNumbers = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     const around = 2;
@@ -454,7 +502,7 @@ export default function SalesPage() {
   const paginationBar = showPagination && (
     <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 sm:px-5 ${REPORTS_SURFACE}`}>
       <p className="text-[13px] font-medium text-[var(--berea-ink-muted)] md:text-[14px]">
-        {totalCount} {totalCount === 1 ? "registro" : "registros"}
+        {displayTotalCount} {displayTotalCount === 1 ? "registro" : "registros"}
         {totalPages > 1 && (
           <>
             {" "}
@@ -590,8 +638,8 @@ export default function SalesPage() {
           </p>
         </div>
         <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:gap-3">
-          {!loading && !loadError && paymentTotals ? (
-            <PaymentTotalsStrip totals={paymentTotals} totalCount={totalCount} />
+          {!showListLoading && !loadError && displayPaymentTotals ? (
+            <PaymentTotalsStrip totals={displayPaymentTotals} totalCount={displayTotalCount} />
           ) : null}
           {refreshing ? (
             <span className="hidden text-[12px] font-medium text-[var(--berea-accent)] sm:inline">
@@ -602,7 +650,7 @@ export default function SalesPage() {
             <button
               type="button"
               onClick={() => {
-                ventasListCache.clear();
+                clearVentasListCache();
                 setRefreshKey((k) => k + 1);
               }}
               className={`inline-flex h-10 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)] ${REPORTS_SURFACE}`}
@@ -632,7 +680,7 @@ export default function SalesPage() {
         className="outline-none"
         aria-label="Lista de facturas y pedidos. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
-        {loading && sales.length === 0 ? (
+        {showListLoading ? (
           <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
         ) : loadError ? (
           <div className={`rounded-xl px-6 py-10 text-center ${REPORTS_SURFACE}`}>
@@ -754,7 +802,7 @@ export default function SalesPage() {
                 </div>
               </div>
 
-            {totalCount === 0 && !hasActiveFilters ? (
+            {displayTotalCount === 0 && !hasActiveFilters ? (
               <div className="px-2 py-8 text-center sm:px-4">
                 <p className="text-[15px] font-semibold text-[var(--berea-ink)]">{copy.emptyTitle}</p>
                 <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
@@ -767,7 +815,7 @@ export default function SalesPage() {
                   {copy.newButton}
                 </Link>
               </div>
-            ) : sales.length === 0 ? (
+            ) : displaySales.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[var(--berea-card-border)] px-6 py-14 text-center">
                 <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
                   Ningún documento coincide con la búsqueda o los filtros
@@ -793,7 +841,7 @@ export default function SalesPage() {
                   </tr>
                 </thead>
                 <tbody>
-              {sales.map((s, index) => {
+              {displaySales.map((s, index) => {
                 const isSelected = index === selectedIndex;
                 const customerName = s.customers?.name ?? "Cliente final";
                 const tone = rowStatusTone(s.status);
@@ -849,7 +897,7 @@ export default function SalesPage() {
 
             {/* Mobile: tarjetas Berea */}
             <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2 xl:hidden">
-              {sales.map((s, index) => {
+              {displaySales.map((s, index) => {
                 const isSelected = index === selectedIndex;
                 const customerName = s.customers?.name ?? "Cliente final";
                 const tone = rowStatusTone(s.status);

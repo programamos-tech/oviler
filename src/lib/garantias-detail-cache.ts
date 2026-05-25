@@ -82,7 +82,7 @@ export function prefetchGarantiaDetails(ids: string[], branchId: string) {
 }
 
 const listCache = new Map<string, { at: number; payload: unknown }>();
-export const GARANTIAS_LIST_CACHE_MS = 30_000;
+export const GARANTIAS_LIST_CACHE_MS = 120_000;
 
 export function garantiasListCacheKey(parts: Record<string, string | number>) {
   return Object.entries(parts)
@@ -103,4 +103,54 @@ export function setCachedGarantiasList(key: string, payload: unknown) {
 
 export function clearGarantiasListCache() {
   listCache.clear();
+}
+
+const listInflight = new Map<string, Promise<unknown>>();
+
+export function defaultGarantiasListCacheKey(branchId: string, refreshKey = 0) {
+  return garantiasListCacheKey({
+    branchId,
+    page: 1,
+    search: "",
+    status: "all",
+    type: "all",
+    refreshKey,
+  });
+}
+
+export async function prefetchGarantiasList(branchId: string, refreshKey = 0): Promise<void> {
+  const cacheKey = defaultGarantiasListCacheKey(branchId, refreshKey);
+  if (getCachedGarantiasList(cacheKey)) return;
+
+  const pending = listInflight.get(cacheKey);
+  if (pending) {
+    await pending;
+    return;
+  }
+
+  const params = new URLSearchParams({
+    branchId,
+    page: "1",
+    pageSize: "20",
+    search: "",
+    status: "all",
+    type: "all",
+  });
+
+  const run = (async () => {
+    const res = await fetch(`/api/garantias/query-bundle?${params.toString()}`, {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const bundle = await res.json();
+    setCachedGarantiasList(cacheKey, bundle);
+    return bundle;
+  })();
+
+  listInflight.set(cacheKey, run);
+  try {
+    await run;
+  } finally {
+    listInflight.delete(cacheKey);
+  }
 }

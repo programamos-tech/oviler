@@ -1,4 +1,4 @@
-export const INVENTARIO_LIST_CACHE_MS = 30_000;
+export const INVENTARIO_LIST_CACHE_MS = 120_000;
 export const INVENTARIO_DETAIL_CACHE_MS = 45_000;
 
 export type InventarioProductRow = {
@@ -68,6 +68,55 @@ export function setCachedInventarioList(key: string, payload: InventarioListBund
 
 export function clearInventarioListCache() {
   listCache.clear();
+}
+
+const listInflight = new Map<string, Promise<InventarioListBundle | null>>();
+
+export function defaultInventarioListCacheKey(branchId: string, refreshKey = 0) {
+  return inventarioListCacheKey({
+    branchId,
+    page: 1,
+    search: "",
+    categoryId: "",
+    stockStatus: "all",
+    refreshKey,
+  });
+}
+
+export async function prefetchInventarioList(branchId: string, refreshKey = 0): Promise<void> {
+  const cacheKey = defaultInventarioListCacheKey(branchId, refreshKey);
+  if (getCachedInventarioList(cacheKey)) return;
+
+  const pending = listInflight.get(cacheKey);
+  if (pending) {
+    await pending;
+    return;
+  }
+
+  const params = new URLSearchParams({
+    branchId,
+    page: "1",
+    pageSize: "20",
+    search: "",
+    stockStatus: "all",
+  });
+
+  const run = (async () => {
+    const res = await fetch(`/api/inventario/query-bundle?${params.toString()}`, {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const bundle = (await res.json()) as InventarioListBundle;
+    setCachedInventarioList(cacheKey, bundle);
+    return bundle;
+  })();
+
+  listInflight.set(cacheKey, run);
+  try {
+    await run;
+  } finally {
+    listInflight.delete(cacheKey);
+  }
 }
 
 function detailKey(id: string, branchId: string, refreshKey: number) {

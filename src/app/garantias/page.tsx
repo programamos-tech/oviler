@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSession } from "@/app/components/SessionProvider";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import {
+  shouldShowListSkeleton,
+  visibleCountFromCache,
+  visibleRowsFromCache,
+} from "@/lib/list-page-display";
 import {
   clearGarantiasListCache,
   garantiasListCacheKey,
@@ -142,7 +147,7 @@ export default function WarrantiesPage() {
   const { branch, ready: sessionReady } = useSession();
   const branchId = branch?.id ?? null;
   const [warranties, setWarranties] = useState<WarrantyRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -153,6 +158,34 @@ export default function WarrantiesPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
+
+  const listCacheKey = useMemo(() => {
+    if (!branchId) return null;
+    return garantiasListCacheKey({
+      branchId,
+      page,
+      search: searchQueryDebounced,
+      status: statusFilter,
+      type: typeFilter,
+      refreshKey,
+    });
+  }, [branchId, page, searchQueryDebounced, statusFilter, typeFilter, refreshKey]);
+
+  type GarantiasListBundle = { warranties: WarrantyRow[]; totalCount: number };
+
+  const cachedList = useMemo(
+    () => (listCacheKey ? (getCachedGarantiasList(listCacheKey) as GarantiasListBundle | null) : null),
+    [listCacheKey]
+  );
+  const displayWarranties = useMemo(
+    () => visibleRowsFromCache(warranties, cachedList?.warranties),
+    [warranties, cachedList]
+  );
+  const displayTotalCount = useMemo(
+    () => visibleCountFromCache(totalCount, cachedList?.totalCount),
+    [totalCount, cachedList]
+  );
+  const showListLoading = shouldShowListSkeleton(loading, displayWarranties.length, sessionReady);
 
   useEffect(() => {
     const onBranch = () => {
@@ -173,10 +206,7 @@ export default function WarrantiesPage() {
   }, [searchQueryDebounced, statusFilter, typeFilter]);
 
   useEffect(() => {
-    if (!sessionReady) {
-      setLoading(true);
-      return;
-    }
+    if (!sessionReady) return;
     if (!branchId) {
       setWarranties([]);
       setTotalCount(0);
@@ -196,40 +226,45 @@ export default function WarrantiesPage() {
       refreshKey,
     });
     const cached = getCachedGarantiasList(cacheKey);
-    const useCache = Boolean(cached);
 
-    if (useCache) setRefreshing(true);
-    else if (warranties.length === 0) setLoading(true);
+    type Bundle = { warranties: WarrantyRow[]; totalCount: number };
+
+    if (cached) {
+      const bundle = cached as Bundle;
+      setWarranties(bundle.warranties);
+      setTotalCount(bundle.totalCount);
+      setLoadError(null);
+      setLoading(false);
+      setRefreshing(false);
+      prefetchGarantiaDetails(bundle.warranties.map((w) => w.id), branchId);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (warranties.length === 0) setLoading(true);
     else setRefreshing(true);
-
     setLoadError(null);
 
     (async () => {
       try {
-        type Bundle = { warranties: WarrantyRow[]; totalCount: number };
-        let bundle: Bundle;
-
-        if (useCache) {
-          bundle = cached as Bundle;
-        } else {
-          const params = new URLSearchParams({
-            branchId,
-            page: String(page),
-            pageSize: String(PAGE_SIZE),
-            search: searchQueryDebounced,
-            status: statusFilter,
-            type: typeFilter,
-          });
-          const res = await fetch(`/api/garantias/query-bundle?${params.toString()}`, {
-            credentials: "include",
-          });
-          if (!res.ok) {
-            const err = (await res.json().catch(() => ({}))) as { error?: string };
-            throw new Error(err.error ?? "Error al cargar garantías");
-          }
-          bundle = (await res.json()) as Bundle;
-          setCachedGarantiasList(cacheKey, bundle);
+        const params = new URLSearchParams({
+          branchId,
+          page: String(page),
+          pageSize: String(PAGE_SIZE),
+          search: searchQueryDebounced,
+          status: statusFilter,
+          type: typeFilter,
+        });
+        const res = await fetch(`/api/garantias/query-bundle?${params.toString()}`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error ?? "Error al cargar garantías");
         }
+        const bundle = (await res.json()) as Bundle;
+        setCachedGarantiasList(cacheKey, bundle);
 
         if (cancelled) return;
         setWarranties(bundle.warranties);
@@ -263,10 +298,10 @@ export default function WarrantiesPage() {
     activeBranchEpoch,
   ]);
 
-  const filteredWarranties = warranties;
+  const filteredWarranties = displayWarranties;
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const showPagination = !loading && !loadError && totalCount > PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(displayTotalCount / PAGE_SIZE));
+  const showPagination = !showListLoading && !loadError && displayTotalCount > PAGE_SIZE;
 
   const actionIconClass =
     "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-subtle)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-accent)]";
@@ -328,23 +363,23 @@ export default function WarrantiesPage() {
       )}
 
       <section className="outline-none">
-        {loading ? (
+        {showListLoading ? (
           <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
         ) : filteredWarranties.length === 0 ? (
           <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
             <WarrantyFilters {...filterProps} />
             <div className="px-2 py-8 text-center sm:px-4">
               <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
-                {totalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim()
+                {displayTotalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim()
                   ? "Aún no hay garantías registradas"
                   : "Ninguna garantía coincide con la búsqueda o filtros"}
               </p>
               <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
-                {totalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim()
+                {displayTotalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim()
                   ? "Registra tu primera garantía para verla aquí."
                   : "Prueba cambiando la búsqueda, el estado o el tipo de garantía."}
               </p>
-              {totalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim() && (
+              {displayTotalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim() && (
                 <Link
                   href="/garantias/nueva"
                   className="mt-6 inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
@@ -492,7 +527,7 @@ export default function WarrantiesPage() {
       {showPagination && (
         <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 sm:px-5 ${REPORTS_SURFACE}`}>
           <p className="text-[13px] font-medium text-[var(--berea-ink-muted)]">
-            {totalCount} {totalCount === 1 ? "garantía" : "garantías"} · Página {page} de {totalPages}
+            {displayTotalCount} {displayTotalCount === 1 ? "garantía" : "garantías"} · Página {page} de {totalPages}
           </p>
           <div className="flex items-center gap-1">
             <button

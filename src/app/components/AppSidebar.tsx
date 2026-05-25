@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { prefetchModuleList } from "@/lib/module-list-prefetch";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
 import { workspaceHelpWhatsAppUrl } from "@/lib/programamos-contact";
 import type { ReactNode } from "react";
@@ -172,10 +173,20 @@ export default function AppSidebar() {
     });
   }, []);
 
+  const prefetchNav = useCallback(
+    (href: string) => {
+      prefetchModuleList(href, branch?.id, branch?.sales_mode);
+    },
+    [branch?.id, branch?.sales_mode]
+  );
+
   const renderNavLink = (href: string, label: string, icon: ReactNode, active: boolean, indent = false) => (
     <Link
       key={href + label}
       href={href}
+      prefetch
+      onMouseEnter={() => prefetchNav(href)}
+      onFocus={() => prefetchNav(href)}
       className={`${navItemBase} ${indent ? "pl-11 pr-3 py-2 text-[12px]" : ""} ${
         active ? navItemActive : navItemIdle
       }`}
@@ -208,7 +219,13 @@ export default function AppSidebar() {
     return (
       <div key={entry.label} className="space-y-0.5">
         <div className={`${navItemBase} ${parentActive ? navItemActive : navItemIdle}`}>
-          <Link href={entry.href} className="flex min-w-0 flex-1 items-center gap-3">
+          <Link
+            href={entry.href}
+            prefetch
+            onMouseEnter={() => prefetchNav(entry.href)}
+            onFocus={() => prefetchNav(entry.href)}
+            className="flex min-w-0 flex-1 items-center gap-3"
+          >
             <span
               className={`sidebar-nav-icon flex shrink-0 items-center justify-center ${
                 parentActive ? "text-[var(--shell-nav-fg)]" : "text-[var(--shell-nav-fg-subtle)]"

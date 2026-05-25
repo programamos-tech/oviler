@@ -6,6 +6,7 @@ import { BereaAuthLogo } from "@/app/(auth)/login/BereaAuthLogo";
 import { BEREA_SESSION_READY_EVENT } from "./SessionProvider";
 
 const AUTH_PATHS = ["/login", "/registro", "/onboarding"];
+const BOOT_SHOWN_KEY = "berea-boot-shown-tab";
 
 function isPageReload(): boolean {
   if (typeof window === "undefined") return false;
@@ -23,6 +24,32 @@ function needsSessionBoot(pathname: string): boolean {
   return true;
 }
 
+function hasBootShownThisTab(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return sessionStorage.getItem(BOOT_SHOWN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markBootShownThisTab() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(BOOT_SHOWN_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Solo al recargar la pestaña o al entrar por primera vez al área autenticada (p. ej. post-login). */
+function shouldRunBoot(pathname: string, bootStartedThisDocument: boolean): boolean {
+  if (shouldSkipBootLoader(pathname)) return false;
+  if (!needsSessionBoot(pathname)) return false;
+  if (isPageReload()) return !bootStartedThisDocument;
+  return !hasBootShownThisTab();
+}
+
 export default function BereaBootLoader() {
   const pathname = usePathname();
   const needSession = useMemo(() => needsSessionBoot(pathname), [pathname]);
@@ -31,9 +58,16 @@ export default function BereaBootLoader() {
   const [exiting, setExiting] = useState(false);
   const gates = useRef({ doc: false, session: false, startedAt: 0 });
   const progressRef = useRef(0);
+  const documentBootStartedRef = useRef(false);
+  const runningRef = useRef(false);
 
   useEffect(() => {
-    if (!isPageReload() || shouldSkipBootLoader(pathname)) return;
+    if (!shouldRunBoot(pathname, documentBootStartedRef.current)) return;
+    if (runningRef.current) return;
+
+    if (isPageReload()) documentBootStartedRef.current = true;
+    runningRef.current = true;
+    if (!isPageReload()) markBootShownThisTab();
 
     gates.current = { doc: false, session: false, startedAt: performance.now() };
     progressRef.current = 0;
@@ -55,6 +89,14 @@ export default function BereaBootLoader() {
     let raf = 0;
     let done = false;
 
+    const finish = () => {
+      runningRef.current = false;
+      progressRef.current = 100;
+      setProgress(100);
+      window.setTimeout(() => setExiting(true), 120);
+      window.setTimeout(() => setActive(false), 520);
+    };
+
     const tick = () => {
       const elapsed = performance.now() - gates.current.startedAt;
       let target = 8 + Math.min(58, elapsed / 70);
@@ -72,10 +114,7 @@ export default function BereaBootLoader() {
 
       if (!done && canFinish) {
         done = true;
-        progressRef.current = 100;
-        setProgress(100);
-        window.setTimeout(() => setExiting(true), 120);
-        window.setTimeout(() => setActive(false), 520);
+        finish();
         return;
       }
 
@@ -88,6 +127,9 @@ export default function BereaBootLoader() {
       cancelAnimationFrame(raf);
       window.removeEventListener("load", markDoc);
       window.removeEventListener(BEREA_SESSION_READY_EVENT, onSession);
+      if (!done) {
+        runningRef.current = false;
+      }
     };
   }, [pathname, needSession]);
 

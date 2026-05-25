@@ -11,6 +11,7 @@ import PresenceHeartbeat from "./PresenceHeartbeat";
 import { SessionProvider, useSession } from "./SessionProvider";
 import { createClient } from "@/lib/supabase/client";
 import { canAccessPath, type AppRole } from "@/lib/permissions";
+import { prefetchAllModuleLists } from "@/lib/module-list-prefetch";
 import { trialRemainingLabel } from "@/lib/trial-ux";
 
 const AUTH_PATHS = ["/login", "/registro", "/onboarding"];
@@ -19,7 +20,7 @@ function AppShellPanel({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
-  const { ready, profile, license } = useSession();
+  const { ready, profile, license, branch } = useSession();
   const [unlockCode, setUnlockCode] = useState("");
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
@@ -32,6 +33,11 @@ function AppShellPanel({ children }: { children: React.ReactNode }) {
   const isAllowed = !ready || !profile || canAccessPath(role, pathname, customPermissions);
   const unlockRequired = !isInterno && ready && license.requires_unlock && !unlockDismissed;
   const unlockPeriodEnd = license.license_period_end;
+
+  useEffect(() => {
+    if (!ready || !branch?.id) return;
+    prefetchAllModuleLists(branch.id, branch.sales_mode);
+  }, [ready, branch?.id, branch?.sales_mode]);
 
   useEffect(() => {
     if (!ready || !profile) return;

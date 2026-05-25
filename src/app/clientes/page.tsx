@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
 import { useSession } from "@/app/components/SessionProvider";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import {
+  shouldShowListSkeleton,
+  visibleCountFromCache,
+  visibleRowsFromCache,
+} from "@/lib/list-page-display";
 import {
   clearClientesListCache,
   clientesListCacheKey,
@@ -48,7 +53,7 @@ function CustomersPage() {
   const { branch, ready: sessionReady } = useSession();
   const branchId = branch?.id ?? null;
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -64,6 +69,32 @@ function CustomersPage() {
   const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  type ClientesListBundle = { customers: CustomerRow[]; totalCount: number };
+
+  const listCacheKey = useMemo(() => {
+    if (!branchId) return null;
+    return clientesListCacheKey({
+      branchId,
+      page,
+      search: debouncedSearch,
+      refreshKey,
+    });
+  }, [branchId, page, debouncedSearch, refreshKey]);
+
+  const cachedList = useMemo(
+    () => (listCacheKey ? (getCachedClientesList(listCacheKey) as ClientesListBundle | null) : null),
+    [listCacheKey]
+  );
+  const displayCustomers = useMemo(
+    () => visibleRowsFromCache(customers, cachedList?.customers),
+    [customers, cachedList]
+  );
+  const displayTotalCount = useMemo(
+    () => visibleCountFromCache(totalCount, cachedList?.totalCount),
+    [totalCount, cachedList]
+  );
+  const showListLoading = shouldShowListSkeleton(loading, displayCustomers.length, sessionReady);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -99,10 +130,7 @@ function CustomersPage() {
   }, [debouncedSearch]);
 
   useEffect(() => {
-    if (!sessionReady) {
-      setLoading(true);
-      return;
-    }
+    if (!sessionReady) return;
     if (!branchId) {
       setCustomers([]);
       setTotalCount(0);
@@ -120,40 +148,41 @@ function CustomersPage() {
       refreshKey,
     });
     const cached = getCachedClientesList(cacheKey);
-    const useCache = Boolean(cached);
 
-    if (useCache) {
-      setRefreshing(true);
-    } else if (customers.length === 0) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
+    type Bundle = { customers: CustomerRow[]; totalCount: number };
+
+    if (cached) {
+      const bundle = cached as Bundle;
+      setCustomers(bundle.customers);
+      setTotalCount(bundle.totalCount);
+      setLoading(false);
+      setRefreshing(false);
+      prefetchClienteDetails(bundle.customers.map((c) => c.id), branchId);
+      return () => {
+        cancelled = true;
+      };
     }
+
+    if (customers.length === 0) setLoading(true);
+    else setRefreshing(true);
 
     (async () => {
       try {
-        type Bundle = { customers: CustomerRow[]; totalCount: number };
-        let bundle: Bundle;
-
-        if (useCache) {
-          bundle = cached as Bundle;
-        } else {
-          const params = new URLSearchParams({
-            branchId,
-            page: String(page),
-            pageSize: String(PAGE_SIZE),
-            search: debouncedSearch,
-          });
-          const res = await fetch(`/api/clientes/query-bundle?${params.toString()}`, {
-            credentials: "include",
-          });
-          if (!res.ok) {
-            const err = (await res.json().catch(() => ({}))) as { error?: string };
-            throw new Error(err.error ?? "No se pudo cargar clientes");
-          }
-          bundle = (await res.json()) as Bundle;
-          setCachedClientesList(cacheKey, bundle);
+        const params = new URLSearchParams({
+          branchId,
+          page: String(page),
+          pageSize: String(PAGE_SIZE),
+          search: debouncedSearch,
+        });
+        const res = await fetch(`/api/clientes/query-bundle?${params.toString()}`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error ?? "No se pudo cargar clientes");
         }
+        const bundle = (await res.json()) as Bundle;
+        setCachedClientesList(cacheKey, bundle);
 
         if (cancelled || reqId !== fetchRequestId.current) return;
         setCustomers(bundle.customers);
@@ -178,39 +207,39 @@ function CustomersPage() {
   }, [sessionReady, branchId, refreshKey, page, debouncedSearch, activeBranchEpoch]);
 
   useEffect(() => {
-    setSelectedIndex((i) => Math.min(i, Math.max(0, customers.length - 1)));
-  }, [customers.length]);
+    cardRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedIndex]);
+
+  useEffect(() => {
+    setSelectedIndex((i) => Math.min(i, Math.max(0, displayCustomers.length - 1)));
+  }, [displayCustomers.length]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (customers.length === 0) return;
+      if (displayCustomers.length === 0) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, customers.length - 1));
+        setSelectedIndex((i) => Math.min(i + 1, displayCustomers.length - 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        router.push(`/clientes/${customers[selectedIndex].id}`);
+        router.push(`/clientes/${displayCustomers[selectedIndex].id}`);
       }
     },
-    [customers, selectedIndex, router]
+    [displayCustomers, selectedIndex, router]
   );
 
   useEffect(() => {
-    cardRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [selectedIndex]);
-
-  useEffect(() => {
-    if (!loading && customers.length > 0 && listRef.current && !hasFocusedList.current) {
+    if (!showListLoading && displayCustomers.length > 0 && listRef.current && !hasFocusedList.current) {
       hasFocusedList.current = true;
       listRef.current.focus({ preventScroll: true });
     }
-  }, [loading, customers.length]);
+  }, [showListLoading, displayCustomers.length]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const showPagination = !loading && totalCount > PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(displayTotalCount / PAGE_SIZE));
+  const showPagination = !showListLoading && displayTotalCount > PAGE_SIZE;
   const pageNumbers = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     const around = 2;
@@ -226,7 +255,7 @@ function CustomersPage() {
   const paginationBar = showPagination && (
     <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 sm:px-5 ${REPORTS_SURFACE}`}>
       <p className="text-[13px] font-medium text-[var(--berea-ink-muted)] md:text-[14px]">
-        {totalCount} {totalCount === 1 ? "cliente" : "clientes"}
+        {displayTotalCount} {displayTotalCount === 1 ? "cliente" : "clientes"}
         {totalPages > 1 && <> · Página {page} de {totalPages}</>}
       </p>
       {totalPages > 1 && (
@@ -280,7 +309,7 @@ function CustomersPage() {
     "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-subtle)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-accent)]";
 
   const showSearch =
-    totalCount > 0 ||
+    displayTotalCount > 0 ||
     searchInput.trim() !== "" ||
     debouncedSearch.trim() !== "";
 
@@ -326,9 +355,9 @@ function CustomersPage() {
         className="outline-none"
         aria-label="Lista de clientes. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
-        {loading ? (
+        {showListLoading ? (
           <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
-        ) : !showSearch && customers.length === 0 ? (
+        ) : !showSearch && displayCustomers.length === 0 ? (
           <div className={`rounded-xl px-6 py-10 text-center ${REPORTS_SURFACE}`}>
             <p className="text-[15px] font-semibold text-[var(--berea-ink)]">Aún no tienes clientes</p>
             <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
@@ -360,7 +389,7 @@ function CustomersPage() {
                   />
                 </div>
               )}
-            {customers.length === 0 ? (
+            {displayCustomers.length === 0 ? (
               <div className="px-2 py-8 text-center sm:px-4">
                 <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
                   {debouncedSearch.trim() ? "Ningún cliente coincide con la búsqueda" : "Sin resultados en esta página"}
@@ -384,7 +413,7 @@ function CustomersPage() {
                 <div className="min-w-0 text-right font-semibold">Acciones</div>
               </div>
               <div className="">
-              {customers.map((c, index) => {
+              {displayCustomers.map((c, index) => {
                 const isSelected = index === selectedIndex;
                 const addrs = c.customer_addresses ?? [];
                 const sortedAddrs = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);
@@ -465,7 +494,7 @@ function CustomersPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2 xl:hidden">
-              {customers.map((c, index) => {
+              {displayCustomers.map((c, index) => {
                 const isSelected = index === selectedIndex;
                 const addrs = c.customer_addresses ?? [];
                 const sortedAddrs = [...addrs].sort((a, b) => (a.is_default ? -1 : 0) - (b.is_default ? -1 : 0) || a.display_order - b.display_order);

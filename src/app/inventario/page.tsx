@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
 import { useSession } from "@/app/components/SessionProvider";
 import { createClient } from "@/lib/supabase/client";
@@ -10,12 +10,18 @@ import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapsh
 import { PlanLimitHeaderNote, PLAN_LIMIT_DISABLED_BUTTON_CLASS } from "@/app/components/PlanLimitNotice";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
 import {
+  shouldShowListSkeleton,
+  visibleCountFromCache,
+  visibleRowsFromCache,
+} from "@/lib/list-page-display";
+import {
   clearInventarioListCache,
   fetchInventarioDetailBundle,
   getCachedInventarioList,
   inventarioListCacheKey,
   prefetchInventarioDetails,
   setCachedInventarioList,
+  type InventarioListBundle,
   type InventarioProductRow,
 } from "@/lib/inventario-detail-cache";
 import {
@@ -180,7 +186,7 @@ function InventoryPage() {
   const [stockSplitByProduct, setStockSplitByProduct] = useState<Record<string, { local: number; bodega: number }>>({});
   const [hasBodega, setHasBodega] = useState<boolean | null>(null);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -199,6 +205,38 @@ function InventoryPage() {
   const hasFocusedList = useRef(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const listCacheKey = useMemo(() => {
+    if (!branchId) return null;
+    return inventarioListCacheKey({
+      branchId,
+      page,
+      search: effectiveSearchQuery,
+      categoryId: categoryFilter,
+      stockStatus: stockStatusOption,
+      refreshKey,
+    });
+  }, [branchId, page, effectiveSearchQuery, categoryFilter, stockStatusOption, refreshKey]);
+
+  const cachedList = useMemo(
+    () => (listCacheKey ? getCachedInventarioList(listCacheKey) : null),
+    [listCacheKey]
+  );
+  const displayProducts = useMemo(
+    () => visibleRowsFromCache(products, cachedList?.products),
+    [products, cachedList]
+  );
+  const displayCategories = categories.length > 0 ? categories : cachedList?.categories ?? [];
+  const displayStockSplit = useMemo(() => {
+    if (Object.keys(stockSplitByProduct).length > 0) return stockSplitByProduct;
+    return cachedList?.stockSplitByProduct ?? {};
+  }, [stockSplitByProduct, cachedList]);
+  const displayHasBodega = hasBodega ?? cachedList?.hasBodega ?? null;
+  const displayTotalCount = useMemo(
+    () => visibleCountFromCache(totalCount, cachedList?.totalCount),
+    [totalCount, cachedList]
+  );
+  const showListLoading = shouldShowListSkeleton(loading, displayProducts.length, sessionReady);
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -242,10 +280,7 @@ function InventoryPage() {
   }, [effectiveSearchQuery, categoryFilter, stockStatusOption]);
 
   useEffect(() => {
-    if (!sessionReady) {
-      setLoading(true);
-      return;
-    }
+    if (!sessionReady) return;
     if (!branchId) {
       setProducts([]);
       setStockSplitByProduct({});
@@ -267,36 +302,45 @@ function InventoryPage() {
       refreshKey,
     });
     const cached = getCachedInventarioList(cacheKey);
-    const useCache = Boolean(cached);
 
-    if (useCache) setRefreshing(true);
-    else if (products.length === 0) setLoading(true);
+    if (cached) {
+      setProducts(cached.products);
+      setStockSplitByProduct(cached.stockSplitByProduct);
+      setCategories(cached.categories);
+      setHasBodega(cached.hasBodega);
+      setTotalCount(cached.totalCount);
+      setLoadError(null);
+      setLoading(false);
+      setRefreshing(false);
+      prefetchInventarioDetails(cached.products.map((p) => p.id), branchId);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (products.length === 0) setLoading(true);
     else setRefreshing(true);
-
     setLoadError(null);
 
     (async () => {
       try {
-        let bundle = cached;
-        if (!bundle) {
-          const params = new URLSearchParams({
-            branchId,
-            page: String(page),
-            pageSize: String(PAGE_SIZE),
-            search: effectiveSearchQuery,
-            stockStatus: stockStatusOption,
-          });
-          if (categoryFilter) params.set("categoryId", categoryFilter);
-          const res = await fetch(`/api/inventario/query-bundle?${params.toString()}`, {
-            credentials: "include",
-          });
-          if (!res.ok) {
-            const err = (await res.json().catch(() => ({}))) as { error?: string };
-            throw new Error(err.error ?? "Error al cargar inventario");
-          }
-          bundle = (await res.json()) as NonNullable<typeof cached>;
-          setCachedInventarioList(cacheKey, bundle);
+        const params = new URLSearchParams({
+          branchId,
+          page: String(page),
+          pageSize: String(PAGE_SIZE),
+          search: effectiveSearchQuery,
+          stockStatus: stockStatusOption,
+        });
+        if (categoryFilter) params.set("categoryId", categoryFilter);
+        const res = await fetch(`/api/inventario/query-bundle?${params.toString()}`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error ?? "Error al cargar inventario");
         }
+        const bundle = (await res.json()) as InventarioListBundle;
+        setCachedInventarioList(cacheKey, bundle);
 
         if (cancelled) return;
         setProducts(bundle.products);
@@ -346,27 +390,27 @@ function InventoryPage() {
   }, [hasBodega]);
 
   const stockStatusParsed = parseStockStatusOption(stockStatusOption);
-  const effectiveStockScope: StockScope = hasBodega === true ? stockStatusParsed.scope : "total";
+  const effectiveStockScope: StockScope = displayHasBodega === true ? stockStatusParsed.scope : "total";
 
   useEffect(() => {
-    setSelectedIndex((i) => Math.min(i, Math.max(0, products.length - 1)));
-  }, [products.length]);
+    setSelectedIndex((i) => Math.min(i, Math.max(0, displayProducts.length - 1)));
+  }, [displayProducts.length]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (products.length === 0) return;
+      if (displayProducts.length === 0) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, products.length - 1));
+        setSelectedIndex((i) => Math.min(i + 1, displayProducts.length - 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        router.push(`/inventario/${products[selectedIndex].id}`);
+        router.push(`/inventario/${displayProducts[selectedIndex].id}`);
       }
     },
-    [products, selectedIndex, router]
+    [displayProducts, selectedIndex, router]
   );
 
   useEffect(() => {
@@ -374,18 +418,18 @@ function InventoryPage() {
   }, [selectedIndex]);
 
   useEffect(() => {
-    if (!loading && products.length > 0 && listRef.current && !hasFocusedList.current) {
+    if (!showListLoading && displayProducts.length > 0 && listRef.current && !hasFocusedList.current) {
       hasFocusedList.current = true;
       listRef.current.focus({ preventScroll: true });
     }
-  }, [loading, products.length]);
+  }, [showListLoading, displayProducts.length]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const showPagination = !loading && totalCount > PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(displayTotalCount / PAGE_SIZE));
+  const showPagination = !showListLoading && displayTotalCount > PAGE_SIZE;
   /** Sin filas en BD: sin búsqueda ni categoría en servidor (no confundir con “0 coincidencias”). */
   const isDatabaseEmpty =
-    !loading &&
-    totalCount === 0 &&
+    !showListLoading &&
+    displayTotalCount === 0 &&
     !effectiveSearchQuery.trim() &&
     !categoryFilter &&
     stockStatusOption === "all";
@@ -439,14 +483,14 @@ function InventoryPage() {
       setCategoryFilter(value);
       setPage(1);
     },
-    categories,
-    hasBodega,
+    categories: displayCategories,
+    hasBodega: displayHasBodega,
   };
 
   const paginationBar = showPagination && (
     <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 sm:px-5 ${REPORTS_SURFACE}`}>
       <p className="text-[13px] font-medium text-[var(--berea-ink-muted)] md:text-[14px]">
-        {totalCount} {totalCount === 1 ? "producto" : "productos"}
+        {displayTotalCount} {displayTotalCount === 1 ? "producto" : "productos"}
         {totalPages > 1 && <> · Página {page} de {totalPages}</>}
       </p>
       {totalPages > 1 && (
@@ -498,11 +542,11 @@ function InventoryPage() {
 
   /** Grid alineado encabezado + filas: 8 cols con bodega (local + bodega separados), 7 sin. */
   const desktopInventoryHeaderGrid =
-    hasBodega === true
+    displayHasBodega === true
       ? "grid grid-cols-[minmax(120px,1.35fr)_minmax(72px,0.78fr)_minmax(96px,0.95fr)_minmax(48px,0.34fr)_minmax(48px,0.34fr)_minmax(82px,0.68fr)_minmax(96px,0.78fr)_minmax(124px,auto)] gap-x-3 sm:gap-x-5 items-center px-4 sm:px-5 py-3"
       : "grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(90px,0.8fr)_minmax(115px,0.9fr)_minmax(140px,auto)] gap-x-6 items-center px-5 py-3";
   const desktopInventoryRowGrid =
-    hasBodega === true
+    displayHasBodega === true
       ? "grid grid-cols-[minmax(120px,1.35fr)_minmax(72px,0.78fr)_minmax(96px,0.95fr)_minmax(48px,0.34fr)_minmax(48px,0.34fr)_minmax(82px,0.68fr)_minmax(96px,0.78fr)_minmax(124px,auto)] gap-x-3 sm:gap-x-5 items-center px-4 sm:px-5 py-4"
       : "grid grid-cols-[minmax(120px,1.5fr)_1fr_1fr_1fr_minmax(90px,0.8fr)_minmax(115px,0.9fr)_minmax(140px,auto)] gap-x-6 items-center px-5 py-4";
 
@@ -574,9 +618,9 @@ function InventoryPage() {
         className="outline-none"
         aria-label="Lista de productos. Usa flechas arriba y abajo para moverte, Enter para abrir."
       >
-        {loading ? (
+        {showListLoading ? (
           <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
-        ) : products.length === 0 ? (
+        ) : displayProducts.length === 0 ? (
           <div className={`space-y-6 rounded-xl p-5 sm:p-6 ${REPORTS_SURFACE}`}>
             <InventoryFilters {...filterProps} stockStatusId="inv-stock-status-empty" />
 
@@ -621,7 +665,7 @@ function InventoryPage() {
                 <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Producto</div>
                 <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Código</div>
                 <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Categoría</div>
-                {hasBodega === true ? (
+                {displayHasBodega === true ? (
                   <>
                     <div className="min-w-0 text-right sm:text-left text-[13px] font-semibold text-[var(--berea-ink-muted)]">Local</div>
                     <div className="min-w-0 text-right sm:text-left text-[13px] font-semibold text-[var(--berea-ink-muted)]">Bodega</div>
@@ -633,13 +677,13 @@ function InventoryPage() {
                 <div className="min-w-0 w-full text-right text-[13px] font-semibold text-[var(--berea-ink-muted)]">Precio</div>
                 <div className="min-w-0 text-right text-[13px] font-semibold text-[var(--berea-ink-muted)]">Acciones</div>
               </div>
-              {products.map((p, index) => {
-                const split = stockSplitByProduct[p.id] ?? { local: 0, bodega: 0 };
+              {displayProducts.map((p, index) => {
+                const split = displayStockSplit[p.id] ?? { local: 0, bodega: 0 };
                 const stock = stockForScope(split, effectiveStockScope);
                 const price = salePrice(p);
                 const stockStatus = stockStatusChip(stock);
                 const isSelected = index === selectedIndex;
-                const isLast = index === products.length - 1;
+                const isLast = index === displayProducts.length - 1;
                 return (
                   <div
                     key={p.id}
@@ -665,9 +709,9 @@ function InventoryPage() {
                     <p className="truncate text-[14px] text-[var(--berea-ink-muted)]">{p.sku || "—"}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[14px] text-[var(--berea-ink-muted)]">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p>
+                    <p className="truncate text-[14px] text-[var(--berea-ink-muted)]">{displayCategories.find((c) => c.id === p.category_id)?.name ?? "—"}</p>
                   </div>
-                  {hasBodega === true ? (
+                  {displayHasBodega === true ? (
                     <>
                       <div className="min-w-0 text-right sm:text-left">
                         <p className="text-[14px] font-medium tabular-nums text-[var(--berea-ink)]">{split.local}</p>
@@ -722,8 +766,8 @@ function InventoryPage() {
 
             {/* Mobile: tarjetas apiladas (misma lista, otra vista) */}
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:hidden">
-              {products.map((p, index) => {
-                const split = stockSplitByProduct[p.id] ?? { local: 0, bodega: 0 };
+              {displayProducts.map((p, index) => {
+                const split = displayStockSplit[p.id] ?? { local: 0, bodega: 0 };
                 const stock = stockForScope(split, effectiveStockScope);
                 const price = salePrice(p);
                 const stockStatus = stockStatusChip(stock);
@@ -744,8 +788,8 @@ function InventoryPage() {
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Producto</span><p className="truncate text-right text-[15px] font-semibold text-[var(--berea-ink)]">{p.name}</p></div>
                       <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Código</span><p className="text-[14px] text-[var(--berea-ink-muted)]">{p.sku || "—"}</p></div>
-                      <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Categoría</span><p className="text-[14px] text-[var(--berea-ink-muted)]">{categories.find((c) => c.id === p.category_id)?.name ?? "—"}</p></div>
-                      {hasBodega === true ? (
+                      <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Categoría</span><p className="text-[14px] text-[var(--berea-ink-muted)]">{displayCategories.find((c) => c.id === p.category_id)?.name ?? "—"}</p></div>
+                      {displayHasBodega === true ? (
                         <>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Stock local</span>
