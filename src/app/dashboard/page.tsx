@@ -101,6 +101,21 @@ type DashboardData = {
 /** Días mostrados en la tendencia de ingresos (siempre anclada a “hoy” calendario). */
 const INCOME_TREND_DAY_COUNT = 7;
 
+const DASHBOARD_BUNDLE_CACHE_MS = 25_000;
+const dashboardBundleCache = new Map<string, { at: number; payload: unknown }>();
+
+function dashboardBundleCacheKey(
+  branchId: string,
+  start: string,
+  end: string,
+  yStart: string,
+  yEnd: string,
+  trendStart: string,
+  trendEnd: string
+) {
+  return [branchId, start, end, yStart, yEnd, trendStart, trendEnd].join("|");
+}
+
 /** Reporte completo: rango de fechas, bloque inventario/resultado y gráfica de tendencia. Cajero solo ve día a día. */
 function hasFullDashboardReports(role: string | null | undefined): boolean {
   const r = String(role ?? "").toLowerCase();
@@ -316,8 +331,10 @@ function DashboardPage() {
   today.setHours(0, 0, 0, 0);
 
   useEffect(() => {
-    void refreshSession(queryBranchId);
-  }, [queryBranchId, refreshSession]);
+    if (queryBranchId && queryBranchId !== branchId) {
+      void refreshSession(queryBranchId);
+    }
+  }, [queryBranchId, branchId, refreshSession]);
 
   const reportsFullAccess = hasFullDashboardReports(dashboardRole);
 
@@ -338,7 +355,6 @@ function DashboardPage() {
       return;
     }
     let cancelled = false;
-    setLoading(true);
     const dateMode = reportsFullAccess ? dateFilterMode : "today";
     const { start, end } =
       dateMode === "today"
@@ -356,23 +372,22 @@ function DashboardPage() {
     const { start: trendWindowStartIso, end: trendWindowEndIso } = getRangeBounds(trendWindowStart, trendWindowEndDay);
 
     const supabase = createClient();
+    const cacheKey = dashboardBundleCacheKey(
+      branchId,
+      start,
+      end,
+      yStart,
+      yEnd,
+      trendWindowStartIso,
+      trendWindowEndIso
+    );
+    const cached = dashboardBundleCache.get(cacheKey);
+    const useCache = cached && Date.now() - cached.at < DASHBOARD_BUNDLE_CACHE_MS;
+    if (!useCache) setLoading(true);
 
     (async () => {
       try {
-      const bundleRes = await fetch(
-        `/api/dashboard/query-bundle?${new URLSearchParams({
-          branchId,
-          start,
-          end,
-          yStart,
-          yEnd,
-          trendStart: trendWindowStartIso,
-          trendEnd: trendWindowEndIso,
-        }).toString()}`,
-        { credentials: "include" }
-      );
-      if (!bundleRes.ok) throw new Error("No se pudo cargar el dashboard");
-      const bundle = (await bundleRes.json()) as {
+      let bundle: {
         salesDay: unknown[];
         salesPrevDay: unknown[];
         expensesPrevDay: unknown[];
@@ -399,6 +414,27 @@ function DashboardPage() {
   }>;
         topProducts: TopSoldProduct[];
       };
+
+      if (useCache) {
+        bundle = cached!.payload as typeof bundle;
+      } else {
+        const bundleRes = await fetch(
+          `/api/dashboard/query-bundle?${new URLSearchParams({
+            branchId,
+            start,
+            end,
+            yStart,
+            yEnd,
+            trendStart: trendWindowStartIso,
+            trendEnd: trendWindowEndIso,
+          }).toString()}`,
+          { credentials: "include" }
+        );
+        if (!bundleRes.ok) throw new Error("No se pudo cargar el dashboard");
+        bundle = (await bundleRes.json()) as typeof bundle;
+        dashboardBundleCache.set(cacheKey, { at: Date.now(), payload: bundle });
+      }
+
       if (cancelled) return;
 
       const salesDay = bundle.salesDay as Array<{
@@ -1165,7 +1201,10 @@ function DashboardPage() {
         loading={loading}
         hideSensitive={hideSensitiveInfo}
         onToggleHideSensitive={() => setHideSensitiveInfo((v) => !v)}
-        onRefresh={() => setRefreshKey((k) => k + 1)}
+        onRefresh={() => {
+          dashboardBundleCache.clear();
+          setRefreshKey((k) => k + 1);
+        }}
         userName={displayName}
         reportsFullAccess={reportsFullAccess}
         dateFilterMode={effectiveDateMode}

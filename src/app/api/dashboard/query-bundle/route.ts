@@ -8,6 +8,54 @@ export const dynamic = "force-dynamic";
 const CREDIT_PAY_SELECT =
   "amount, payment_method, amount_cash, amount_transfer, payment_source, created_at, customer_credits!inner(branch_id, public_ref, sale_id, total_amount)";
 
+const MAX_SALE_IDS_FOR_ITEMS = 400;
+
+async function sumUnitsSoldForSales(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  saleIds: string[]
+): Promise<number> {
+  if (saleIds.length === 0) return 0;
+  const { data: prevItems } = await supabase
+    .from("sale_items")
+    .select("quantity")
+    .in("sale_id", saleIds.slice(0, MAX_SALE_IDS_FOR_ITEMS));
+  return (prevItems ?? []).reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
+}
+
+async function resolveSlowMoverLowStock(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  completedSaleIds: string[]
+) {
+  if (completedSaleIds.length === 0) return [];
+
+  const { data: periodItems } = await supabase
+    .from("sale_items")
+    .select("product_id, quantity, products(name)")
+    .in("sale_id", completedSaleIds.slice(0, MAX_SALE_IDS_FOR_ITEMS));
+
+  const byProduct: Record<string, { id: string; name: string; units: number }> = {};
+  for (const it of periodItems ?? []) {
+    const productId = String(it.product_id ?? "");
+    if (!productId) continue;
+    const p = it.products;
+    const product = Array.isArray(p) ? p[0] : p;
+    const name = (product as { name?: string } | null)?.name ?? "—";
+    if (!byProduct[productId]) byProduct[productId] = { id: productId, name, units: 0 };
+    byProduct[productId].units += Number(it.quantity ?? 0);
+  }
+
+  return Object.values(byProduct)
+    .sort((a, b) => a.units - b.units || a.name.localeCompare(b.name, "es"))
+    .slice(0, 5)
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      quantity: row.units,
+      min_stock: 0,
+      kind: "slow_mover" as const,
+    }));
+}
+
 export async function GET(request: NextRequest) {
   const branchId = request.nextUrl.searchParams.get("branchId");
   const start = request.nextUrl.searchParams.get("start");
@@ -51,7 +99,7 @@ export async function GET(request: NextRequest) {
     creditPaymentsPrev,
     creditPaymentsTrend,
     customerCreditsBranch,
-    inventoryData,
+    inventoryMerged,
     defectiveData,
     expensesPeriod,
     warrantiesInPeriod,
@@ -59,7 +107,6 @@ export async function GET(request: NextRequest) {
     recentSales,
     newCustomers,
     newCustomersPrev,
-    inventoryForStock,
   ] = await Promise.all([
     supabase
       .from("sales")
@@ -115,7 +162,7 @@ export async function GET(request: NextRequest) {
       .eq("branch_id", branchId),
     supabase
       .from("inventory")
-      .select("product_id, quantity, products(base_cost, base_price)")
+      .select("product_id, quantity, min_stock, products(base_cost, base_price, name)")
       .eq("branch_id", branchId),
     supabase
       .from("defective_products")
@@ -170,15 +217,9 @@ export async function GET(request: NextRequest) {
       .eq("branch_id", branchId)
       .gte("created_at", yStart)
       .lte("created_at", yEnd),
-    supabase
-      .from("inventory")
-      .select("product_id, quantity, min_stock, products(name)")
-      .eq("branch_id", branchId)
-      .order("quantity", { ascending: true })
-      .limit(50),
   ]);
 
-  const inventoryRows = (inventoryForStock.data ?? [])
+  const inventoryRows = (inventoryMerged.data ?? [])
     .map((row) => {
       const p = row.products;
       const product = Array.isArray(p) ? p[0] : p;
@@ -201,63 +242,36 @@ export async function GET(request: NextRequest) {
     kind: "inventory" | "slow_mover";
   }> = inventoryRows.slice(0, 5).map((row) => ({ ...row, kind: "inventory" as const }));
 
-  if (lowStock.length === 0) {
-    const completedSaleIds = ((salesDay.data ?? []) as Array<{
-      id: string;
-      status: string;
-      payment_pending?: boolean | null;
-    }>)
-      .filter((s) => s.status === "completed" && !s.payment_pending)
-      .map((s) => s.id);
-
-    if (completedSaleIds.length > 0) {
-      const { data: periodItems } = await supabase
-        .from("sale_items")
-        .select("product_id, quantity, products(name)")
-        .in("sale_id", completedSaleIds.slice(0, 800));
-
-      const byProduct: Record<string, { id: string; name: string; units: number }> = {};
-      for (const it of periodItems ?? []) {
-        const productId = String(it.product_id ?? "");
-        if (!productId) continue;
-        const p = it.products;
-        const product = Array.isArray(p) ? p[0] : p;
-        const name = (product as { name?: string } | null)?.name ?? "—";
-        if (!byProduct[productId]) byProduct[productId] = { id: productId, name, units: 0 };
-        byProduct[productId].units += Number(it.quantity ?? 0);
-      }
-
-      lowStock = Object.values(byProduct)
-        .sort((a, b) => a.units - b.units || a.name.localeCompare(b.name, "es"))
-        .slice(0, 5)
-        .map((row) => ({
-          id: row.id,
-          name: row.name,
-          quantity: row.units,
-          min_stock: 0,
-          kind: "slow_mover" as const,
-        }));
-    }
-  }
-
-  const prevCompletedSaleIds = ((salesPrevDay.data ?? []) as Array<{ id: string; status: string; payment_pending?: boolean | null }>)
+  const prevCompletedSaleIds = ((salesPrevDay.data ?? []) as Array<{
+    id: string;
+    status: string;
+    payment_pending?: boolean | null;
+  }>)
     .filter((s) => s.status === "completed" && !s.payment_pending)
     .map((s) => s.id);
 
-  let prevUnitsSold = 0;
-  if (prevCompletedSaleIds.length > 0) {
-    const { data: prevItems } = await supabase
-      .from("sale_items")
-      .select("quantity")
-      .in("sale_id", prevCompletedSaleIds.slice(0, 800));
-    prevUnitsSold = (prevItems ?? []).reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
-  }
+  const completedSaleIdsForSlowMover =
+    lowStock.length === 0
+      ? ((salesDay.data ?? []) as Array<{ id: string; status: string; payment_pending?: boolean | null }>)
+          .filter((s) => s.status === "completed" && !s.payment_pending)
+          .map((s) => s.id)
+      : [];
 
-  let topProducts: Awaited<ReturnType<typeof resolveTopSoldProducts>> = [];
-  try {
-    topProducts = await resolveTopSoldProducts(supabase, branchId, start, end);
-  } catch (err) {
-    console.error("Error resolving top sold products:", err);
+  const [prevUnitsSold, topProducts, slowMoverRows] = await Promise.all([
+    sumUnitsSoldForSales(supabase, prevCompletedSaleIds),
+    resolveTopSoldProducts(supabase, branchId, start, end, DASHBOARD_CARD_ITEM_LIMIT, {
+      skipExtendedLookback: true,
+    }).catch((err) => {
+      console.error("Error resolving top sold products:", err);
+      return [];
+    }),
+    lowStock.length === 0
+      ? resolveSlowMoverLowStock(supabase, completedSaleIdsForSlowMover)
+      : Promise.resolve([]),
+  ]);
+
+  if (lowStock.length === 0 && slowMoverRows.length > 0) {
+    lowStock = slowMoverRows;
   }
 
   return NextResponse.json({
@@ -269,7 +283,7 @@ export async function GET(request: NextRequest) {
     creditPaymentsPrev: creditPaymentsPrev.data ?? [],
     creditPaymentsTrend: creditPaymentsTrend.data ?? [],
     customerCreditsBranch: customerCreditsBranch.data ?? [],
-    inventoryData: inventoryData.data ?? [],
+    inventoryData: inventoryMerged.data ?? [],
     defectiveData: defectiveData.data ?? [],
     expensesPeriod: expensesPeriod.data ?? [],
     warrantiesInPeriod: warrantiesInPeriod.data ?? [],

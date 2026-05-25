@@ -888,11 +888,24 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
       </header>
 
       {loading ? (
-        <div
-          className={`berea-loading-shimmer min-h-[420px] rounded-xl ${reportsSurfaceClass}`}
-          aria-busy
-          aria-label="Cargando reportes"
-        />
+        <div className="space-y-4" aria-busy aria-label="Cargando reportes">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div className="grid grid-cols-2 gap-2 sm:gap-2.5 lg:col-span-9 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`berea-loading-shimmer h-[5.5rem] rounded-xl ${reportsSurfaceClass}`}
+                />
+              ))}
+            </div>
+            <div className={`berea-loading-shimmer min-h-[200px] rounded-xl lg:col-span-3 ${reportsSurfaceClass}`} />
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div className={`berea-loading-shimmer min-h-[220px] rounded-xl lg:col-span-7 ${reportsSurfaceClass}`} />
+            <div className={`berea-loading-shimmer min-h-[220px] rounded-xl lg:col-span-5 ${reportsSurfaceClass}`} />
+          </div>
+          <div className={`berea-loading-shimmer min-h-[160px] rounded-xl ${reportsSurfaceClass}`} />
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">

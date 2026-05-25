@@ -41,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="overflow-x-hidden">
+    <html lang="es" className="overflow-x-hidden" data-theme="light" style={{ colorScheme: "light" }}>
       <head>
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
@@ -51,7 +51,7 @@ export default function RootLayout({
       <body
         className={`${plusJakarta.variable} ${geistMono.variable} ${youngSerif.variable} antialiased min-h-screen overflow-x-hidden bg-background text-foreground`}
       >
-        <div className="flex min-h-screen min-w-0 max-w-full flex-col overflow-x-hidden bg-[rgb(var(--background))] text-slate-900 dark:bg-[rgb(var(--background))] dark:text-slate-100">
+        <div className="flex min-h-screen min-w-0 max-w-full flex-col overflow-x-hidden bg-[rgb(var(--background))] text-slate-900">
           <AppShell>{children}</AppShell>
         </div>
       </body>

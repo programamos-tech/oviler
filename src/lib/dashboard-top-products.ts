@@ -10,6 +10,15 @@ const SALE_ITEMS_SELECT =
 const SALE_ID_CHUNK = 60;
 const PAGE_SIZE = 1000;
 const EXTENDED_LOOKBACK_DAYS = 90;
+/** Límite de ventas a analizar en el dashboard (evita N+1 masivo en días muy movidos). */
+const DASHBOARD_MAX_SALES_FOR_TOP = 250;
+
+export type ResolveTopSoldProductsOptions = {
+  limit?: number;
+  /** No amplía a 90 días si el período trae pocos productos (más rápido en reportes). */
+  skipExtendedLookback?: boolean;
+  maxSales?: number;
+};
 
 type RawSaleItem = {
   product_id: string;
@@ -56,7 +65,8 @@ async function topSoldProductsInRange(
   branchId: string,
   rangeStart: string,
   rangeEnd: string,
-  limit = DASHBOARD_CARD_ITEM_LIMIT
+  limit = DASHBOARD_CARD_ITEM_LIMIT,
+  maxSales = DASHBOARD_MAX_SALES_FOR_TOP
 ): Promise<TopSoldProduct[]> {
   const { data: sales, error } = await supabase
     .from("sales")
@@ -64,7 +74,9 @@ async function topSoldProductsInRange(
     .eq("branch_id", branchId)
     .eq("status", "completed")
     .gte("created_at", rangeStart)
-    .lte("created_at", rangeEnd);
+    .lte("created_at", rangeEnd)
+    .order("created_at", { ascending: false })
+    .limit(maxSales);
   if (error) throw error;
 
   const saleIds = (sales ?? []).map((row) => String(row.id));
@@ -80,10 +92,12 @@ export async function resolveTopSoldProducts(
   branchId: string,
   start: string,
   end: string,
-  limit = DASHBOARD_CARD_ITEM_LIMIT
+  limit = DASHBOARD_CARD_ITEM_LIMIT,
+  options: ResolveTopSoldProductsOptions = {}
 ): Promise<TopSoldProduct[]> {
-  const periodTop = await topSoldProductsInRange(supabase, branchId, start, end, limit);
-  if (periodTop.length >= limit) return periodTop;
+  const maxSales = options.maxSales ?? DASHBOARD_MAX_SALES_FOR_TOP;
+  const periodTop = await topSoldProductsInRange(supabase, branchId, start, end, limit, maxSales);
+  if (options.skipExtendedLookback || periodTop.length >= limit) return periodTop;
 
   const extendedStart = new Date(start);
   extendedStart.setDate(extendedStart.getDate() - EXTENDED_LOOKBACK_DAYS);
@@ -92,7 +106,8 @@ export async function resolveTopSoldProducts(
     branchId,
     extendedStart.toISOString(),
     end,
-    limit
+    limit,
+    maxSales
   );
   return extendedTop.slice(0, limit);
 }
