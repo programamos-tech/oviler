@@ -144,6 +144,10 @@ body {
   background-image: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(247, 242, 238, 0.04), transparent 55%);
 }
 
+.shell-nav {
+  background-image: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(247, 242, 238, 0.04), transparent 55%);
+}
+
 .shell-sidebar nav a,
 .shell-sidebar nav button,
 .shell-nav a,
@@ -582,6 +586,31 @@ body {
 }
 
 .shell-sidebar .sidebar-logo-link:hover .sidebar-logo-img {
+  opacity: 0.88;
+}
+
+/* TopNav móvil/tablet — logo Berea compacto sobre shell oscuro */
+.shell-nav .topnav-logo-crop {
+  display: flex;
+  height: 2.125rem;
+  width: 7.25rem;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.shell-nav .topnav-logo-img {
+  display: block;
+  flex-shrink: 0;
+  height: 8.5rem;
+  width: 8.5rem;
+  max-width: none;
+  object-fit: contain;
+  object-position: center 54%;
+  filter: brightness(5.5) contrast(1.35) sepia(0.12) saturate(0.4) brightness(1.08);
+}
+
+.shell-nav a:hover .topnav-logo-img {
   opacity: 0.88;
 }
 

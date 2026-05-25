@@ -11,18 +11,17 @@ import { isFreeTrialActive, trialRemainingLabel } from "@/lib/trial-ux";
 import { workspaceAvatarSeed } from "./app-nav-data";
 import WorkspaceCharacterAvatar from "./WorkspaceCharacterAvatar";
 import { workspaceRoleLabel, workspaceUserDisplayName } from "./workspace-title";
-import { OvilerWordmark } from "./OvilerWordmark";
 import { bernabePlanUpgradeWhatsAppUrl, workspaceHelpWhatsAppUrl } from "@/lib/programamos-contact";
 import { normalizePlanType } from "@/lib/plan-catalog";
 import { LITE_PLAN_DISPLAY_NAME } from "@/lib/license-display";
 import { GlobalSearchCombobox } from "@/app/components/GlobalSearchCombobox";
 import { useSession } from "./SessionProvider";
 
-/** Iconos en la barra superior móvil (mismo tono que el sidebar) */
+/** Iconos en la barra superior móvil/tablet (paleta Berea shell) */
 const MOBILE_NAV_ICON =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--shell-nav-fg-muted)] transition-colors hover:bg-[var(--shell-nav-hover-bg)] hover:text-[var(--shell-nav-fg)]";
 const MOBILE_NAV_PLUS =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--shell-nav-fg)] text-[var(--shell-nav-bg)] shadow-[0_1px_3px_rgba(0,0,0,0.35)] transition-colors hover:bg-[var(--shell-nav-fg-muted)]";
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--shell-nav-fg)] text-[var(--shell-sidebar)] shadow-[0_1px_3px_rgba(0,0,0,0.28)] transition-colors hover:bg-[var(--shell-sidebar-accent)]";
 
 export default function TopNav() {
   const pathname = usePathname();
@@ -87,32 +86,27 @@ export default function TopNav() {
   }, [router]);
 
   return (
-    <nav className="shell-nav sticky top-0 z-50 flex min-w-0 max-w-full flex-col overflow-x-hidden border-b border-[var(--shell-nav-border)] bg-[var(--shell-nav-bg)] pt-[env(safe-area-inset-top,0px)] text-[var(--shell-nav-fg)] shadow-[0_4px_24px_rgba(0,0,0,0.2)] lg:hidden">
+    <nav className="shell-nav sticky top-0 z-50 flex min-w-0 max-w-full flex-col overflow-x-hidden overflow-y-visible border-b border-[var(--shell-nav-border)] bg-[var(--shell-nav-bg)] pt-[env(safe-area-inset-top,0px)] text-[var(--shell-nav-fg)] shadow-[0_4px_24px_rgba(0,0,0,0.18)] lg:hidden">
       <div className="mx-auto flex h-14 min-h-[3.5rem] w-full min-w-0 max-w-[1600px] items-center justify-between gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
-        {/* Marca producto + logo sucursal */}
+        {/* Marca Berea + logo sucursal */}
         <div className="flex min-w-0 flex-1 items-center justify-start gap-2.5 sm:gap-3">
           <Link
             href="/dashboard"
             className={
               branch
-                ? "flex min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-2 rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35"
-                : "flex min-w-0 shrink items-center rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/35"
+                ? "flex min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-2.5 rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--shell-nav-fg)]/35"
+                : "flex min-w-0 shrink items-center rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--shell-nav-fg)]/35"
             }
-            title={branch?.name ? `Bernabé Comercios · ${branch.name}` : "Bernabé Comercios"}
+            title={branch?.name ? `Berea Comercios · ${branch.name}` : "Berea Comercios"}
+            aria-label="Berea Comercios — Ir al inicio"
           >
-            <span className="min-w-0 flex-1 overflow-hidden text-[var(--shell-nav-fg)] [&_span]:!text-[var(--shell-nav-fg)]">
-              <OvilerWordmark
-                variant="onDark"
-                companyName="Bernabé"
-                companyClassName="text-[0.95em] !text-[var(--shell-nav-fg)]"
-                logoSrc="/laptop.png"
-                className="w-full min-w-0 text-[1.02rem] font-bold sm:text-[1.08rem] !text-[var(--shell-nav-fg)]"
-              />
+            <span className="topnav-logo-crop shrink-0">
+              <img src="/logo-berea.2.png" alt="" className="topnav-logo-img" decoding="async" />
             </span>
             {branch ? (
               <>
                 <span className="h-8 w-px shrink-0 rounded-full bg-[var(--shell-nav-border)]" aria-hidden />
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--shell-nav-hover-bg)]">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)]">
                   {branch.logo_url ? (
                     <img
                       src={branch.logo_url}
@@ -155,7 +149,7 @@ export default function TopNav() {
           {user?.email?.toLowerCase() === "bernabe@tech.com" ? (
             <Link
               href={isInterno ? "/dashboard" : "/interno"}
-              className="hidden h-8 items-center rounded-lg border border-white/20 bg-white/[0.07] px-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-white/[0.12] sm:inline-flex"
+              className="hidden h-8 items-center rounded-lg border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)] px-2.5 text-[11px] font-semibold text-[var(--shell-nav-fg)] transition-colors hover:bg-[var(--shell-nav-hover-bg)] sm:inline-flex"
               title={isInterno ? "Volver a la plataforma" : "Ir a BackOffice"}
             >
               {isInterno ? "Volver a la plataforma" : "BackOffice"}
@@ -166,7 +160,7 @@ export default function TopNav() {
               className="flex min-w-0 items-center lg:hidden"
               title={`${LITE_PLAN_DISPLAY_NAME} · ${trialRemainingLabel(trialEndsAt)} restantes`}
             >
-              <span className="inline-flex max-w-[130px] items-center truncate rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[10px] font-semibold text-white/90">
+              <span className="inline-flex max-w-[130px] items-center truncate rounded-lg border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)] px-2 py-1 text-[10px] font-semibold text-[var(--shell-nav-fg-muted)]">
                 <span className="mr-0.5 shrink-0" aria-hidden>
                   ⏱
                 </span>
@@ -191,11 +185,11 @@ export default function TopNav() {
             <button
               type="button"
               onClick={() => setUserMenuOpen((o) => !o)}
-              className="flex max-w-[11rem] items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-white hover:bg-white/10 sm:max-w-none sm:px-2"
+              className="flex max-w-[11rem] items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[var(--shell-nav-fg)] hover:bg-[var(--shell-nav-hover-bg)] sm:max-w-none sm:px-2"
               aria-label="Perfil"
               aria-expanded={userMenuOpen}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/15">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-[var(--shell-nav-border)]">
                 {user?.avatar_url && !user.avatar_url.startsWith("avatar:") ? (
                   <img
                     src={user.avatar_url}
@@ -212,18 +206,18 @@ export default function TopNav() {
                 )}
               </div>
               <div className="hidden min-w-0 flex-col text-left leading-tight sm:flex">
-                <span className="max-w-[140px] truncate text-[13px] font-medium text-white lg:max-w-[180px]">
+                <span className="max-w-[140px] truncate text-[13px] font-medium text-[var(--shell-nav-fg)] lg:max-w-[180px]">
                   {workspaceUserDisplayName(user, authMeta)}
                 </span>
-                <span className="max-w-[140px] truncate text-[11px] font-medium text-white/50 lg:max-w-[180px]">
+                <span className="max-w-[140px] truncate text-[11px] font-medium text-[var(--shell-nav-fg-muted)] lg:max-w-[180px]">
                   {workspaceRoleLabel(user?.role)}
                 </span>
               </div>
-              <span className="max-w-[5.5rem] truncate text-[12px] font-medium text-white/90 sm:hidden">
+              <span className="max-w-[5.5rem] truncate text-[12px] font-medium text-[var(--shell-nav-fg)] sm:hidden">
                 {workspaceUserDisplayName(user, authMeta)}
               </span>
               <svg
-                className={`h-4 w-4 shrink-0 text-white/45 transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
+                className={`h-4 w-4 shrink-0 text-[var(--shell-nav-fg-subtle)] transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -273,16 +267,17 @@ export default function TopNav() {
         Móvil (max-sm): 2 franjas — (1) marca+acciones (2) buscador e iconos en una fila.
         Desde sm y mientras el sidebar está oculto (hasta lg): 3 franjas — (1) marca+acciones (2) buscador ancho completo (3) ayuda/actividades/cuenta.
       */}
-      <div className="border-t border-white/10 px-4 pb-2.5 pt-2 sm:px-6 sm:pb-2">
+      <div className="border-t border-[var(--shell-nav-border)] px-4 pb-2.5 pt-2 sm:px-6 sm:pb-2">
         <div className="mx-auto flex max-w-[1600px] min-w-0 flex-row items-center gap-1.5 sm:flex-col sm:items-stretch sm:gap-2 sm:pt-0.5">
           <GlobalSearchCombobox
             formClassName="min-w-0 flex-1 sm:w-full sm:flex-none"
             variant="dark"
-            inputClassName="h-9 w-full min-w-0 rounded-full border border-white/15 bg-white/[0.07] py-1.5 pl-9 pr-2.5 text-[13px] text-white outline-none placeholder:text-white/40 focus:border-white/30 focus:bg-white/[0.1] focus:ring-2 focus:ring-white/15 sm:h-10 sm:pl-9"
+            placeholder="Buscar en Berea…"
+            inputClassName="h-9 w-full min-w-0 rounded-full border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)] py-1.5 pl-9 pr-2.5 text-[13px] text-[var(--shell-nav-fg)] outline-none placeholder:text-[var(--shell-nav-fg-subtle)] focus:border-[var(--berea-accent-soft)] focus:bg-[var(--shell-nav-hover-bg)] focus:ring-2 focus:ring-[var(--berea-accent-soft)] sm:h-10 sm:pl-9"
             searchIconLeftClass="left-3"
-            searchIconClassName="text-white/45"
+            searchIconClassName="text-[var(--shell-nav-fg-subtle)]"
           />
-          <div className="flex shrink-0 items-center justify-end gap-0.5 sm:w-full sm:justify-center sm:gap-2 sm:border-t sm:border-white/10 sm:pt-2">
+          <div className="flex shrink-0 items-center justify-end gap-0.5 sm:w-full sm:justify-center sm:gap-2 sm:border-t sm:border-[var(--shell-nav-border)] sm:pt-2">
             <a
               href={workspaceHelpWhatsAppUrl()}
               target="_blank"

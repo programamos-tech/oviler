@@ -103,7 +103,7 @@ export function GlobalSearchCombobox({
 
   const panelClass =
     variant === "dark"
-      ? "border-white/15 bg-[#1a2332] shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+      ? "border-[var(--shell-nav-border)] bg-[var(--shell-nav-bg)] shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
       : "border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900";
 
   return (
@@ -143,7 +143,7 @@ export function GlobalSearchCombobox({
             }}
             className={`absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition-colors ${
               variant === "dark"
-                ? "text-white/50 hover:bg-white/10 hover:text-white/80"
+                ? "text-[var(--shell-nav-fg-subtle)] hover:bg-[var(--shell-nav-hover-bg)] hover:text-[var(--shell-nav-fg)]"
                 : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
             }`}
             aria-label="Limpiar búsqueda"
@@ -165,7 +165,7 @@ export function GlobalSearchCombobox({
               {loading ? (
                 <p
                   className={`px-4 py-6 text-center text-[13px] ${
-                    variant === "dark" ? "text-white/50" : "text-slate-500 dark:text-slate-400"
+                    variant === "dark" ? "text-[var(--shell-nav-fg-muted)]" : "text-slate-500 dark:text-slate-400"
                   }`}
                 >
                   Buscando…
@@ -177,14 +177,14 @@ export function GlobalSearchCombobox({
             {data && !loading ? (
               <div
                 className={`border-t px-3 py-2 ${
-                  variant === "dark" ? "border-white/10" : "border-slate-100 dark:border-slate-800"
+                  variant === "dark" ? "border-[var(--shell-nav-border)]" : "border-slate-100 dark:border-slate-800"
                 }`}
               >
                 <button
                   type="button"
                   className={`w-full rounded-lg py-2 text-[12px] font-semibold transition-colors ${
                     variant === "dark"
-                      ? "text-sky-300 hover:bg-white/5"
+                      ? "text-[var(--shell-nav-fg)] hover:bg-[var(--shell-nav-hover-bg)]"
                       : "text-[color:var(--shell-sidebar)] hover:bg-slate-50 dark:hover:bg-white/5"
                   }`}
                   onMouseDown={(e) => e.preventDefault()}
@@ -225,7 +225,7 @@ function GlobalSearchResultBody({
 
   if (!data.canProducts && !data.canCustomers) {
     return (
-      <p className={`px-4 py-4 text-[13px] ${variant === "dark" ? "text-white/55" : "text-slate-500 dark:text-slate-400"}`}>
+      <p className={`px-4 py-4 text-[13px] ${variant === "dark" ? "text-[var(--shell-nav-fg-muted)]" : "text-slate-500 dark:text-slate-400"}`}>
         No tienes permiso para ver inventario ni clientes.
       </p>
     );
@@ -234,7 +234,7 @@ function GlobalSearchResultBody({
   if (allEmpty) {
     return (
       <div className="space-y-3 px-2">
-        <p className={`px-2 py-3 text-center text-[13px] ${variant === "dark" ? "text-white/55" : "text-slate-600 dark:text-slate-400"}`}>
+        <p className={`px-2 py-3 text-center text-[13px] ${variant === "dark" ? "text-[var(--shell-nav-fg-muted)]" : "text-slate-600 dark:text-slate-400"}`}>
           Sin coincidencias para “{searchTerm}”.
         </p>
         <FooterLinks data={data} searchTerm={searchTerm} variant={variant} />
@@ -256,7 +256,7 @@ function GlobalSearchResultBody({
                   type="button"
                   role="option"
                   className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                    variant === "dark" ? "hover:bg-white/5" : "hover:bg-slate-50 dark:hover:bg-white/5"
+                    variant === "dark" ? "hover:bg-[var(--shell-nav-hover-bg)]" : "hover:bg-slate-50 dark:hover:bg-white/5"
                   }`}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => onPick(`/clientes/${c.id}`)}
@@ -269,12 +269,12 @@ function GlobalSearchResultBody({
                   <span className="min-w-0 flex-1">
                     <span
                       className={`block truncate text-[14px] font-semibold ${
-                        variant === "dark" ? "text-white" : "text-slate-900 dark:text-slate-100"
+                        variant === "dark" ? "text-[var(--shell-nav-fg)]" : "text-slate-900 dark:text-slate-100"
                       }`}
                     >
                       {c.name}
                     </span>
-                    <span className={`block truncate text-[12px] ${variant === "dark" ? "text-white/45" : "text-slate-500 dark:text-slate-400"}`}>
+                    <span className={`block truncate text-[12px] ${variant === "dark" ? "text-[var(--shell-nav-fg-subtle)]" : "text-slate-500 dark:text-slate-400"}`}>
                       {c.cedula ? `Doc. ${c.cedula}` : c.phone ? c.phone : "—"}
                     </span>
                   </span>
@@ -289,7 +289,7 @@ function GlobalSearchResultBody({
       ) : null}
 
       {hasCustomers && hasProducts ? (
-        <div className={`mx-4 border-t ${variant === "dark" ? "border-white/10" : "border-slate-100 dark:border-slate-800"}`} />
+        <div className={`mx-4 border-t ${variant === "dark" ? "border-[var(--shell-nav-border)]" : "border-slate-100 dark:border-slate-800"}`} />
       ) : null}
 
       {data.canProducts && hasProducts ? (
@@ -304,7 +304,7 @@ function GlobalSearchResultBody({
                   type="button"
                   role="option"
                   className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                    variant === "dark" ? "hover:bg-white/5" : "hover:bg-slate-50 dark:hover:bg-white/5"
+                    variant === "dark" ? "hover:bg-[var(--shell-nav-hover-bg)]" : "hover:bg-slate-50 dark:hover:bg-white/5"
                   }`}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => onPick(`/inventario/${p.id}`)}
@@ -317,12 +317,12 @@ function GlobalSearchResultBody({
                   <span className="min-w-0 flex-1">
                     <span
                       className={`block truncate text-[14px] font-semibold ${
-                        variant === "dark" ? "text-white" : "text-slate-900 dark:text-slate-100"
+                        variant === "dark" ? "text-[var(--shell-nav-fg)]" : "text-slate-900 dark:text-slate-100"
                       }`}
                     >
                       {p.name}
                     </span>
-                    <span className={`block truncate text-[12px] ${variant === "dark" ? "text-white/45" : "text-slate-500 dark:text-slate-400"}`}>
+                    <span className={`block truncate text-[12px] ${variant === "dark" ? "text-[var(--shell-nav-fg-subtle)]" : "text-slate-500 dark:text-slate-400"}`}>
                       {p.sku ? `Ref. ${p.sku}` : "Sin referencia"}
                     </span>
                   </span>
@@ -336,7 +336,7 @@ function GlobalSearchResultBody({
         </section>
       ) : null}
 
-      <div className={`mx-4 border-t pt-2 ${variant === "dark" ? "border-white/10" : "border-slate-100 dark:border-slate-800"}`}>
+      <div className={`mx-4 border-t pt-2 ${variant === "dark" ? "border-[var(--shell-nav-border)]" : "border-slate-100 dark:border-slate-800"}`}>
         <FooterLinks data={data} searchTerm={searchTerm} variant={variant} />
       </div>
     </div>
@@ -353,7 +353,7 @@ function FooterLinks({
   variant: "light" | "dark";
 }) {
   return (
-    <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-1 text-[12px] ${variant === "dark" ? "text-white/45" : ""}`}>
+    <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-1 text-[12px] ${variant === "dark" ? "text-[var(--shell-nav-fg-subtle)]" : ""}`}>
       {data.canProducts ? (
         <Link
           href={`/inventario?q=${encodeURIComponent(searchTerm)}`}
@@ -366,7 +366,7 @@ function FooterLinks({
         </Link>
       ) : null}
       {data.canProducts && data.canCustomers ? (
-        <span className={variant === "dark" ? "text-white/25" : "text-slate-300 dark:text-slate-600"}>·</span>
+        <span className={variant === "dark" ? "text-[var(--shell-nav-border)]" : "text-slate-300 dark:text-slate-600"}>·</span>
       ) : null}
       {data.canCustomers ? (
         <Link
