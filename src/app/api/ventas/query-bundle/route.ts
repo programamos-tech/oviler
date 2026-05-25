@@ -5,6 +5,7 @@ import {
   type SalesListPaymentFilter,
   type SalesListStatusFilter,
 } from "@/lib/sales-list-filters";
+import { assertVentasBranchAccess } from "@/lib/ventas-branch-auth";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,29 @@ function sumSalesPaymentTotals(rows: SaleTotalsRow[]) {
   return { cash, transfer, mixed, countedSales };
 }
 
+function buildPaymentTotals(
+  totalsRows: SaleTotalsRow[] | null,
+  totalCount: number,
+  skipped: boolean
+) {
+  if (skipped) {
+    return {
+      cash: 0,
+      transfer: 0,
+      mixed: 0,
+      countedSales: 0,
+      truncated: false,
+      skipped: true,
+    };
+  }
+  if (!totalsRows) return null;
+  const summed = sumSalesPaymentTotals(totalsRows);
+  return {
+    ...summed,
+    truncated: totalCount > PAYMENT_TOTALS_LIMIT && totalsRows.length >= PAYMENT_TOTALS_LIMIT,
+  };
+}
+
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const branchId = sp.get("branchId");
@@ -58,6 +82,7 @@ export async function GET(request: NextRequest) {
   const dateStart = sp.get("dateStart");
   const dateEnd = sp.get("dateEnd");
   const skipTotals = sp.get("skipTotals") === "1";
+  const onlyTotals = sp.get("onlyTotals") === "1";
 
   if (!branchId) {
     return NextResponse.json({ error: "branchId requerido" }, { status: 400 });
@@ -69,13 +94,8 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: assignment } = await supabase
-    .from("user_branches")
-    .select("branch_id")
-    .eq("user_id", user.id)
-    .eq("branch_id", branchId)
-    .maybeSingle();
-  if (!assignment) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const allowed = await assertVentasBranchAccess(supabase, user.id, branchId);
+  if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const filters = {
     branchId,
@@ -87,6 +107,39 @@ export async function GET(request: NextRequest) {
     dateEnd,
   };
 
+  const dateRange = hasSalesDateRange(dateStart, dateEnd);
+
+  if (onlyTotals) {
+    const totalCount = Math.max(0, parseInt(sp.get("totalCount") ?? "0", 10) || 0);
+    const shouldFetchTotals =
+      !skipTotals && (dateRange || totalCount <= TOTALS_WITHOUT_DATE_MAX_COUNT);
+
+    if (!shouldFetchTotals) {
+      return NextResponse.json(
+        { paymentTotals: buildPaymentTotals(null, totalCount, true) },
+        { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=30" } }
+      );
+    }
+
+    const { data: totalsRows, error: totalsError } = await applySalesListFilters(
+      supabase.from("sales").select(TOTALS_SELECT),
+      filters
+    )
+      .order("created_at", { ascending: false })
+      .limit(PAYMENT_TOTALS_LIMIT);
+
+    if (totalsError) {
+      return NextResponse.json({ error: totalsError.message }, { status: 500 });
+    }
+
+    return NextResponse.json(
+      {
+        paymentTotals: buildPaymentTotals(totalsRows as SaleTotalsRow[], totalCount, false),
+      },
+      { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=30" } }
+    );
+  }
+
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -97,54 +150,34 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
     .range(from, to);
 
-  const { data: salesData, error: queryError, count } = await listQuery;
+  const listResult = await listQuery;
 
-  if (queryError) {
-    return NextResponse.json({ error: queryError.message }, { status: 500 });
+  if (listResult.error) {
+    return NextResponse.json({ error: listResult.error.message }, { status: 500 });
   }
 
-  const totalCount = count ?? 0;
-  const dateRange = hasSalesDateRange(dateStart, dateEnd);
+  const totalCount = listResult.count ?? 0;
   const shouldFetchTotals =
     !skipTotals && (dateRange || totalCount <= TOTALS_WITHOUT_DATE_MAX_COUNT);
 
-  let paymentTotals: {
-    cash: number;
-    transfer: number;
-    mixed: number;
-    countedSales: number;
-    truncated: boolean;
-    skipped?: boolean;
-  } | null = null;
+  let paymentTotals: ReturnType<typeof buildPaymentTotals> = null;
 
   if (shouldFetchTotals) {
-    const totalsQuery = applySalesListFilters(
+    const { data: totalsRows, error: totalsError } = await applySalesListFilters(
       supabase.from("sales").select(TOTALS_SELECT),
       filters
     )
       .order("created_at", { ascending: false })
       .limit(PAYMENT_TOTALS_LIMIT);
 
-    const { data: totalsRows, error: totalsError } = await totalsQuery;
-    if (!totalsError && totalsRows) {
-      const summed = sumSalesPaymentTotals(totalsRows as SaleTotalsRow[]);
-      paymentTotals = {
-        ...summed,
-        truncated: totalCount > PAYMENT_TOTALS_LIMIT && totalsRows.length >= PAYMENT_TOTALS_LIMIT,
-      };
+    if (!totalsError) {
+      paymentTotals = buildPaymentTotals(totalsRows as SaleTotalsRow[], totalCount, false);
     }
   } else if (!skipTotals) {
-    paymentTotals = {
-      cash: 0,
-      transfer: 0,
-      mixed: 0,
-      countedSales: 0,
-      truncated: false,
-      skipped: true,
-    };
+    paymentTotals = buildPaymentTotals(null, totalCount, true);
   }
 
-  const sales = (salesData ?? []).map((s: Record<string, unknown>) => {
+  const sales = (listResult.data ?? []).map((s: Record<string, unknown>) => {
     const row = s as {
       customers: { name: string } | { name: string }[] | null;
     };

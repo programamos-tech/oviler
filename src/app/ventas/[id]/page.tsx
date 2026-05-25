@@ -23,6 +23,11 @@ import {
   type SalesMode,
 } from "../sales-mode";
 import { creditStatusChip } from "@/app/creditos/credit-ui";
+import {
+  fetchSaleDetailBundle,
+  fetchSaleDetailExtras,
+  getCachedSaleDetail,
+} from "@/lib/ventas-detail-cache";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -44,9 +49,6 @@ function displayInvoiceNumber(invoiceNumber: string) {
 
 /** Crédito vinculado a la venta (cabecera / estado de pago). */
 type LinkedCreditBanner = { id: string; public_ref: string; cancelled_at: string | null };
-
-const DETAIL_CACHE_MS = 30_000;
-const saleDetailCache = new Map<string, { at: number; payload: unknown }>();
 
 async function fetchLinkedCreditForSale(
   supabase: ReturnType<typeof createClient>,
@@ -277,35 +279,20 @@ export default function SaleDetailPage() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    const cacheKey = `${id}|${detailRefreshKey}`;
-    const cached = saleDetailCache.get(cacheKey);
-    const useCache = cached && Date.now() - cached.at < DETAIL_CACHE_MS;
+    const cached = getCachedSaleDetail(id, detailRefreshKey);
 
-    if (!useCache && !sale) setLoading(true);
+    if (!cached) setLoading(true);
 
     (async () => {
       try {
-        let bundle: SaleDetailBundle;
-        if (useCache) {
-          bundle = cached!.payload as SaleDetailBundle;
-        } else {
-          const res = await fetch(`/api/ventas/${id}/detail`, { credentials: "include" });
-          if (res.status === 404) {
-            if (!cancelled) {
-              setNotFound(true);
-              setSale(null);
-            }
-            return;
-          }
-          if (!res.ok) {
-            const err = (await res.json().catch(() => ({}))) as { error?: string };
-            throw new Error(err.error ?? "No se pudo cargar la venta");
-          }
-          bundle = (await res.json()) as SaleDetailBundle;
-          saleDetailCache.set(cacheKey, { at: Date.now(), payload: bundle });
-        }
+        const bundle = await fetchSaleDetailBundle(id, detailRefreshKey);
         if (cancelled) return;
-        applyDetailBundle(bundle);
+        if (!bundle) {
+          setNotFound(true);
+          setSale(null);
+          return;
+        }
+        applyDetailBundle(bundle as unknown as SaleDetailBundle);
       } catch {
         if (!cancelled) {
           setNotFound(true);
@@ -320,6 +307,34 @@ export default function SaleDetailPage() {
       cancelled = true;
     };
   }, [id, detailRefreshKey, applyDetailBundle]);
+
+  useEffect(() => {
+    if (!id || !sale) return;
+    const needsDeliveryPersons = sale.is_delivery;
+    const needsProof = Boolean(sale.payment_proof_url);
+    if (!needsDeliveryPersons && !needsProof) return;
+    if (needsDeliveryPersons && deliveryPersonsList.length > 0 && (!needsProof || paymentProofSignedUrl)) return;
+    if (!needsDeliveryPersons && needsProof && paymentProofSignedUrl) return;
+
+    let cancelled = false;
+    (async () => {
+      const extras = await fetchSaleDetailExtras(id, detailRefreshKey);
+      if (cancelled || !extras) return;
+      setDeliveryPersonsList(extras.deliveryPersons);
+      setPaymentProofSignedUrl(extras.paymentProofSignedUrl);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    id,
+    detailRefreshKey,
+    sale?.is_delivery,
+    sale?.payment_proof_url,
+    deliveryPersonsList.length,
+    paymentProofSignedUrl,
+  ]);
 
   useEffect(() => {
     if (!sale?.public_tracking_token || typeof window === "undefined") {

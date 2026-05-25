@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback, Fragment } from "react";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
 import { getSalesDateBounds } from "@/lib/sales-list-filters";
+import { prefetchSaleDetails } from "@/lib/ventas-detail-cache";
 import { useSession } from "@/app/components/SessionProvider";
 import { MdOutlineLocalShipping, MdOutlinePublic, MdOutlineReceiptLong, MdOutlineStorefront } from "react-icons/md";
 import {
@@ -275,6 +276,7 @@ export default function SalesPage() {
             search: searchQueryDebounced,
             status: statusFilter,
             payment: paymentFilter,
+            skipTotals: "1",
           });
           if (dateBounds?.start) params.set("dateStart", dateBounds.start);
           if (dateBounds?.end) params.set("dateEnd", dateBounds.end);
@@ -286,9 +288,35 @@ export default function SalesPage() {
             const err = (await res.json().catch(() => ({}))) as { error?: string };
             throw new Error(err.error ?? "No se pudo cargar ventas");
           }
-          const json = (await res.json()) as Bundle;
-          bundle = json;
+          const json = (await res.json()) as Omit<Bundle, "paymentTotals"> & {
+            paymentTotals?: PaymentTotalsResponse | null;
+          };
+          bundle = { ...json, paymentTotals: json.paymentTotals ?? null };
           ventasListCache.set(cacheKey, { at: Date.now(), payload: bundle });
+
+          void (async () => {
+            const totalsParams = new URLSearchParams(params);
+            totalsParams.delete("skipTotals");
+            totalsParams.set("onlyTotals", "1");
+            totalsParams.set("totalCount", String(json.totalCount));
+            try {
+              const totalsRes = await fetch(`/api/ventas/query-bundle?${totalsParams.toString()}`, {
+                credentials: "include",
+              });
+              if (!totalsRes.ok || cancelled) return;
+              const totalsJson = (await totalsRes.json()) as { paymentTotals: PaymentTotalsResponse | null };
+              setPaymentTotals(totalsJson.paymentTotals);
+              const cachedBundle = ventasListCache.get(cacheKey);
+              if (cachedBundle) {
+                ventasListCache.set(cacheKey, {
+                  at: cachedBundle.at,
+                  payload: { ...(cachedBundle.payload as Bundle), paymentTotals: totalsJson.paymentTotals },
+                });
+              }
+            } catch {
+              // Totales en segundo plano: no bloquear la lista.
+            }
+          })();
         }
 
         if (cancelled) return;
@@ -296,6 +324,39 @@ export default function SalesPage() {
         setSales(bundle.sales);
         setTotalCount(bundle.totalCount);
         setPaymentTotals(bundle.paymentTotals);
+        prefetchSaleDetails(bundle.sales.map((s) => s.id));
+
+        if (!bundle.paymentTotals && useCache) {
+          void (async () => {
+            const totalsParams = new URLSearchParams({
+              branchId,
+              salesMode,
+              page: String(page),
+              pageSize: String(PAGE_SIZE),
+              search: searchQueryDebounced,
+              status: statusFilter,
+              payment: paymentFilter,
+              onlyTotals: "1",
+              totalCount: String(bundle.totalCount),
+            });
+            if (dateBounds?.start) totalsParams.set("dateStart", dateBounds.start);
+            if (dateBounds?.end) totalsParams.set("dateEnd", dateBounds.end);
+            try {
+              const totalsRes = await fetch(`/api/ventas/query-bundle?${totalsParams.toString()}`, {
+                credentials: "include",
+              });
+              if (!totalsRes.ok || cancelled) return;
+              const totalsJson = (await totalsRes.json()) as { paymentTotals: PaymentTotalsResponse | null };
+              setPaymentTotals(totalsJson.paymentTotals);
+              ventasListCache.set(cacheKey, {
+                at: Date.now(),
+                payload: { ...bundle, paymentTotals: totalsJson.paymentTotals },
+              });
+            } catch {
+              // Totales en segundo plano.
+            }
+          })();
+        }
       } catch (e) {
         if (!cancelled) {
           setLoadError(e instanceof Error ? e.message : "Error inesperado al cargar ventas");
@@ -744,6 +805,7 @@ export default function SalesPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/ventas/${s.id}`)}
+                    onMouseEnter={() => prefetchSaleDetails([s.id])}
                     className={`cursor-pointer transition-colors ${
                       isSelected ? "bg-[var(--shell-workspace)]" : "hover:bg-[var(--shell-workspace)]/70"
                     }`}
@@ -799,6 +861,7 @@ export default function SalesPage() {
                     role="button"
                     tabIndex={-1}
                     onClick={() => router.push(`/ventas/${s.id}`)}
+                    onMouseEnter={() => prefetchSaleDetails([s.id])}
                     className={`cursor-pointer rounded-xl border border-[var(--berea-card-border)] bg-[var(--shell-workspace)] px-5 py-4 transition-colors ${
                       isSelected ? "ring-2 ring-[var(--berea-accent)]/30" : "hover:bg-white"
                     }`}
