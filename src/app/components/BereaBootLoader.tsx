@@ -1,18 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BereaAuthLogo } from "@/app/(auth)/login/BereaAuthLogo";
 import { BEREA_SESSION_READY_EVENT } from "./SessionProvider";
 
 const AUTH_PATHS = ["/login", "/registro", "/onboarding"];
-const STATUS_LINES = [
-  "Iniciando Berea Comercios…",
-  "Preparando tu sucursal…",
-  "Sincronizando inventario…",
-  "Cargando reportes…",
-  "Casi listo…",
-] as const;
 
 function isPageReload(): boolean {
   if (typeof window === "undefined") return false;
@@ -36,7 +29,6 @@ export default function BereaBootLoader() {
   const [active, setActive] = useState(false);
   const [progress, setProgress] = useState(0);
   const [exiting, setExiting] = useState(false);
-  const [statusIndex, setStatusIndex] = useState(0);
   const gates = useRef({ doc: false, session: false, startedAt: 0 });
   const progressRef = useRef(0);
 
@@ -48,7 +40,6 @@ export default function BereaBootLoader() {
     setActive(true);
     setExiting(false);
     setProgress(0);
-    setStatusIndex(0);
 
     const markDoc = () => {
       gates.current.doc = true;
@@ -84,7 +75,7 @@ export default function BereaBootLoader() {
         progressRef.current = 100;
         setProgress(100);
         window.setTimeout(() => setExiting(true), 120);
-        window.setTimeout(() => setActive(false), 620);
+        window.setTimeout(() => setActive(false), 520);
         return;
       }
 
@@ -100,14 +91,6 @@ export default function BereaBootLoader() {
     };
   }, [pathname, needSession]);
 
-  useEffect(() => {
-    if (!active) return;
-    const id = window.setInterval(() => {
-      setStatusIndex((i) => (i + 1) % STATUS_LINES.length);
-    }, 1400);
-    return () => clearInterval(id);
-  }, [active]);
-
   if (!active) return null;
 
   const pct = Math.round(progress);
@@ -122,39 +105,11 @@ export default function BereaBootLoader() {
       aria-label="Cargando Berea Comercios"
     >
       <div className="berea-boot-panel">
-        <div className="berea-boot-logo-wrap">
-          <Image
-            src="/logo-berea.2.png"
-            alt=""
-            width={72}
-            height={72}
-            className="berea-boot-logo"
-            priority
-          />
+        <BereaAuthLogo />
+        <div className="berea-boot-progress">
+          <div className="berea-boot-progress-fill" style={{ width: `${pct}%` }} />
         </div>
-        <p className="berea-boot-title">Berea Comercios</p>
-        <p className="berea-boot-subtitle">Preparando tu espacio de trabajo</p>
-
-        <div className="berea-boot-bar-frame">
-          <div className="berea-boot-bar-track">
-            <div className="berea-boot-bar-fill" style={{ width: `${pct}%` }} />
-            <div className="berea-boot-bar-shine" style={{ left: `${Math.max(0, pct - 18)}%` }} />
-          </div>
-          <div className="berea-boot-bar-segments" aria-hidden>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <span key={i} />
-            ))}
-          </div>
-        </div>
-
-        <div className="berea-boot-meta">
-          <span className="berea-boot-pct">{pct}%</span>
-          <span className="berea-boot-status" key={statusIndex}>
-            {STATUS_LINES[statusIndex]}
-          </span>
-        </div>
-
-        <p className="berea-boot-hint">Pulsa F5 para actualizar datos</p>
+        <p className="berea-boot-caption">Cargando tu espacio de trabajo…</p>
       </div>
     </div>
   );
