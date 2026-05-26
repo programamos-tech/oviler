@@ -1,3 +1,5 @@
+import { getLocalCalendarDayBounds, startOfLocalCalendarDay } from "@/lib/calendar-day-bounds";
+
 export const VENTAS_LIST_CACHE_MS = 120_000;
 
 const listCache = new Map<string, { at: number; payload: unknown }>();
@@ -25,14 +27,15 @@ export function clearVentasListCache() {
 }
 
 export function defaultVentasListCacheKey(branchId: string, salesMode: string, refreshKey = 0) {
+  const { start, end } = getLocalCalendarDayBounds(startOfLocalCalendarDay());
   return ventasListCacheKey({
     branchId,
     page: 1,
     search: "",
     status: "all",
     payment: "all",
-    dateStart: "",
-    dateEnd: "",
+    dateStart: start,
+    dateEnd: end,
     salesMode,
     refreshKey,
   });
@@ -52,6 +55,7 @@ export async function prefetchVentasList(
     return;
   }
 
+  const { start, end } = getLocalCalendarDayBounds(startOfLocalCalendarDay());
   const params = new URLSearchParams({
     branchId,
     salesMode,
@@ -60,6 +64,8 @@ export async function prefetchVentasList(
     search: "",
     status: "all",
     payment: "all",
+    dateStart: start,
+    dateEnd: end,
     skipTotals: "1",
   });
 

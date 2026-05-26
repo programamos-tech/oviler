@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback, useMemo, Fragment } from "react";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import { isSameLocalCalendarDay, startOfLocalCalendarDay } from "@/lib/calendar-day-bounds";
+import { useLocalCalendarToday } from "@/app/components/useLocalCalendarToday";
 import { getSalesDateBounds } from "@/lib/sales-list-filters";
 import {
   shouldShowListSkeleton,
@@ -49,12 +51,6 @@ function formatTime(dateStr: string) {
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
-}
-
-function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
 }
 
 /** Número de factura para mostrar: sin prefijo FV- (normaliza datos antiguos) */
@@ -189,8 +185,10 @@ export default function SalesPage() {
   const [searchQueryDebounced, setSearchQueryDebounced] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
-  const [dateFrom, setDateFrom] = useState<Date | null>(null);
-  const [dateTo, setDateTo] = useState<Date | null>(null);
+  const [dateFrom, setDateFrom] = useState<Date | null>(() => startOfLocalCalendarDay());
+  const [dateTo, setDateTo] = useState<Date | null>(() => startOfLocalCalendarDay());
+  const calendarToday = useLocalCalendarToday();
+  const [pinToToday, setPinToToday] = useState(true);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -562,23 +560,42 @@ export default function SalesPage() {
   const actionIconClass =
     "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-subtle)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-accent)]";
 
+  const isFilteredToTodayOnly =
+    dateFrom !== null &&
+    dateTo !== null &&
+    isSameLocalCalendarDay(dateFrom, dateTo) &&
+    isSameLocalCalendarDay(dateFrom, calendarToday);
+
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
     statusFilter !== "all" ||
     paymentFilter !== "all" ||
-    dateFrom !== null ||
-    dateTo !== null;
+    !isFilteredToTodayOnly;
 
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
     setPaymentFilter("all");
-    setDateFrom(null);
-    setDateTo(null);
+    setPinToToday(true);
+    setDateFrom(calendarToday);
+    setDateTo(calendarToday);
     setPage(1);
   };
 
-  const today = startOfToday();
+  useEffect(() => {
+    if (!dateFrom || !dateTo) return;
+    const onToday =
+      isSameLocalCalendarDay(dateFrom, dateTo) && isSameLocalCalendarDay(dateFrom, calendarToday);
+    setPinToToday(onToday);
+  }, [dateFrom, dateTo, calendarToday]);
+
+  useEffect(() => {
+    if (!pinToToday) return;
+    setDateFrom(calendarToday);
+    setDateTo(calendarToday);
+  }, [pinToToday, calendarToday]);
+
+  const today = calendarToday;
 
   const channelIconWrap = (sale: SaleRow) => {
     const unpaid =
@@ -760,12 +777,12 @@ export default function SalesPage() {
                           id="ventas-filter-from"
                           value={dateFrom}
                           onChange={(d) => {
+                            setPinToToday(false);
                             setDateFrom(d);
                             if (d && dateTo && d > dateTo) setDateTo(d);
                           }}
                           max={dateTo ?? today}
                           placeholder="Desde"
-                          allowClear
                           fullWidth
                           size="md"
                           triggerTone="berea"
@@ -775,13 +792,13 @@ export default function SalesPage() {
                           id="ventas-filter-to"
                           value={dateTo}
                           onChange={(d) => {
+                            setPinToToday(false);
                             setDateTo(d);
                             if (d && dateFrom && d < dateFrom) setDateFrom(d);
                           }}
                           min={dateFrom ?? undefined}
                           max={today}
                           placeholder="Hasta"
-                          allowClear
                           fullWidth
                           size="md"
                           triggerTone="berea"

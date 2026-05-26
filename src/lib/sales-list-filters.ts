@@ -1,3 +1,5 @@
+import { getLocalCalendarDayBounds, isSameLocalCalendarDay } from "@/lib/calendar-day-bounds";
+
 /** Filtros compartidos lista de ventas (cliente + API). */
 
 export type SalesListStatusFilter =
@@ -61,13 +63,13 @@ export function getSalesDateBounds(
   if (!dateFrom && !dateTo) return null;
   const startDate = dateFrom ?? dateTo!;
   const endDate = dateTo ?? dateFrom!;
-  const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0);
-  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
-  if (start.getTime() > end.getTime()) {
-    return {
-      start: new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 0, 0, 0, 0).toISOString(),
-      end: new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59, 999).toISOString(),
-    };
+  if (startDate.getTime() > endDate.getTime()) {
+    return getLocalCalendarDayBounds(endDate);
   }
-  return { start: start.toISOString(), end: end.toISOString() };
+  if (isSameLocalCalendarDay(startDate, endDate)) {
+    return getLocalCalendarDayBounds(startDate);
+  }
+  const fromBounds = getLocalCalendarDayBounds(startDate);
+  const toBounds = getLocalCalendarDayBounds(endDate);
+  return { start: fromBounds.start, end: toBounds.end };
 }

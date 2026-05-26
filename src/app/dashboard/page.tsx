@@ -8,6 +8,12 @@ import { useSession } from "@/app/components/SessionProvider";
 import { creditRowPending } from "@/app/creditos/credit-ui";
 import { cashTransferFromLine, addCreditPaymentSplits as addCreditPaymentsToCashTransfer } from "@/lib/cash-transfer-from-line";
 import BereaReportsDashboard from "@/app/components/dashboard/BereaReportsDashboard";
+import { useLocalCalendarToday } from "@/app/components/useLocalCalendarToday";
+import {
+  getLocalCalendarDayBounds,
+  isSameLocalCalendarDay,
+  startOfLocalCalendarDay,
+} from "@/lib/calendar-day-bounds";
 import { getExpenseConceptKind } from "@/lib/expense-concept-kind";
 import {
   mergeDashboardActivityFeed,
@@ -235,15 +241,6 @@ function applyExpensesToCashTransfer(
 
 const IVA_RATE = 0.19;
 
-function getDayBounds(date: Date): { start: string; end: string } {
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const day = date.getDate();
-  const start = new Date(year, month, day, 0, 0, 0, 0);
-  const end = new Date(year, month, day, 23, 59, 59, 999);
-  return { start: start.toISOString(), end: end.toISOString() };
-}
-
 function getRangeBounds(dateFrom: Date, dateTo: Date): { start: string; end: string } {
   const start = new Date(dateFrom.getFullYear(), dateFrom.getMonth(), dateFrom.getDate(), 0, 0, 0, 0);
   const end = new Date(dateTo.getFullYear(), dateTo.getMonth(), dateTo.getDate(), 23, 59, 59, 999);
@@ -286,10 +283,9 @@ function DashboardPage() {
   type DateFilterMode = "today" | "range";
 
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>("today");
-  const [selectedDay, setSelectedDay] = useState<Date>(() => {
-    const t = new Date();
-    return new Date(t.getFullYear(), t.getMonth(), t.getDate());
-  });
+  const [selectedDay, setSelectedDay] = useState<Date>(() => startOfLocalCalendarDay());
+  const [pinReportToToday, setPinReportToToday] = useState(true);
+  const calendarToday = useLocalCalendarToday();
   const [dateFrom, setDateFrom] = useState<Date>(() => firstDayOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date>(() => {
     const t = new Date();
@@ -301,8 +297,12 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const dashboardRole = profile?.role ?? null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = calendarToday;
+
+  useEffect(() => {
+    if (dateFilterMode !== "today" || !pinReportToToday) return;
+    setSelectedDay(calendarToday);
+  }, [calendarToday, dateFilterMode, pinReportToToday]);
 
   useEffect(() => {
     if (queryBranchId && queryBranchId !== branchId) {
@@ -332,12 +332,12 @@ function DashboardPage() {
     const dateMode = reportsFullAccess ? dateFilterMode : "today";
     const { start, end } =
       dateMode === "today"
-        ? getDayBounds(selectedDay)
+        ? getLocalCalendarDayBounds(selectedDay)
         : getRangeBounds(dateFrom, dateTo);
     const anchorForPrevDay = dateMode === "today" ? selectedDay : dateTo;
     const dayBeforeRef = new Date(anchorForPrevDay);
     dayBeforeRef.setDate(dayBeforeRef.getDate() - 1);
-    const { start: yStart, end: yEnd } = getDayBounds(dayBeforeRef);
+    const { start: yStart, end: yEnd } = getLocalCalendarDayBounds(dayBeforeRef);
 
     const trendWindowEndDay = new Date();
     trendWindowEndDay.setHours(0, 0, 0, 0);
@@ -1068,9 +1068,25 @@ function DashboardPage() {
         userName={displayName}
         reportsFullAccess={reportsFullAccess}
         dateFilterMode={effectiveDateMode}
-        onDateFilterMode={(mode) => startDataTransition(() => setDateFilterMode(mode))}
+        onDateFilterMode={(mode) =>
+          startDataTransition(() => {
+            setDateFilterMode(mode);
+            if (mode === "today") {
+              setPinReportToToday(true);
+              setSelectedDay(calendarToday);
+            }
+          })
+        }
         selectedDay={selectedDay}
-        onSelectedDay={(d) => startDataTransition(() => setSelectedDay(d))}
+        onSelectedDay={(d) =>
+          startDataTransition(() => {
+            setSelectedDay(d);
+            setPinReportToToday(isSameLocalCalendarDay(d, calendarToday));
+          })
+        }
+        isViewingCalendarToday={
+          effectiveDateMode === "today" && isSameLocalCalendarDay(selectedDay, calendarToday)
+        }
         dateFrom={dateFrom}
         dateTo={dateTo}
         onDateFrom={(d) => startDataTransition(() => setDateFrom(d))}
@@ -1204,7 +1220,7 @@ function CashCloseModal({
 
     (async () => {
       setLoading(true);
-      const { start, end } = getDayBounds(selectedDate);
+      const { start, end } = getLocalCalendarDayBounds(selectedDate);
 
       const creditPaySelectClose =
         "amount, payment_method, amount_cash, amount_transfer, payment_source, created_at, customer_credits!inner(branch_id, public_ref)";

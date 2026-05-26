@@ -53,6 +53,8 @@ export type BereaDashboardProps = {
   onDateFrom: (d: Date) => void;
   onDateTo: (d: Date) => void;
   today: Date;
+  /** Día seleccionado coincide con el calendario de hoy (modo “Hoy” en vivo). */
+  isViewingCalendarToday?: boolean;
   showDeltas: boolean;
   formatValue: (n: number, type?: "currency" | "number") => string;
   kpis: {
@@ -739,6 +741,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
     onDateFrom,
     onDateTo,
     today,
+    isViewingCalendarToday = true,
     showDeltas,
     formatValue,
     kpis,
@@ -805,7 +808,13 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
             Hola, {firstName}!
           </h1>
           <p className="mt-1 text-[13px] text-[var(--berea-ink-muted)]">
-            Así va tu negocio hoy
+            {isViewingCalendarToday && dateFilterMode === "today"
+              ? "Así va tu negocio hoy"
+              : `Resumen del ${selectedDay.toLocaleDateString("es-CO", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}`}
             {refreshing ? (
               <span className="ml-2 inline-flex items-center gap-1 text-[12px] text-[var(--berea-accent)]">
                 <span className="berea-refresh-dot" aria-hidden />
