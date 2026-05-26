@@ -112,10 +112,9 @@ export default function RegistroPage() {
             <BereaAuthLogo href="/" />
 
             <header className="berea-auth-card-header">
-              <h1>Solicitar licencia</h1>
+              <h1>Crea tu cuenta</h1>
               <p>
-                Completa el formulario para activar Berea Comercios y gestionar inventario y ventas desde un solo
-                panel.
+                Regístrate gratis y prueba Berea Comercios: inventario, ventas, clientes y reportes en un solo panel.
               </p>
             </header>
 
@@ -181,11 +180,11 @@ export default function RegistroPage() {
               </div>
 
               <p className="text-[13px] leading-relaxed text-[var(--berea-ink-muted)]">
-                Al solicitar tu licencia, aceptas nuestros términos de servicio y política de privacidad.
+                Al crear tu cuenta, aceptas nuestros términos de servicio y política de privacidad.
               </p>
 
               <button type="submit" disabled={loading} className="berea-auth-btn-primary">
-                {loading ? "Enviando solicitud…" : "Solicitar licencia"}
+                {loading ? "Creando tu cuenta…" : "Crear cuenta"}
               </button>
             </form>
 

@@ -18,7 +18,7 @@ function LoginContent() {
     const err = searchParams.get("error");
     if (err === "no_organization") {
       setError(
-        "Tu cuenta no está vinculada a ninguna organización. Si ya tenías una cuenta, pide al administrador que en Supabase (tabla users) asigne tu organization_id. Si prefieres un registro nuevo, usa «Solicitar licencia»."
+        "Tu cuenta no está vinculada a ninguna organización. Si ya tenías una cuenta, pide al administrador que te asigne acceso. Si no, crea una cuenta nueva con el botón «Crear cuenta»."
       );
     } else if (err === "inactive") {
       setError(
@@ -86,7 +86,7 @@ function LoginContent() {
               : ` Detalle: ${userError.message}`;
           setError(
             "Tu cuenta no está vinculada a ninguna organización." + hint +
-            " Si prefieres un registro nuevo, usa «Solicitar licencia»."
+            " Si no tienes cuenta, usa «Crear cuenta»."
           );
           setLoading(false);
           return;
@@ -96,7 +96,7 @@ function LoginContent() {
           await supabase.auth.signOut();
           setError(
             "Tu cuenta no está vinculada a ninguna organización (organization_id vacío en la tabla users). " +
-            "En Supabase asigna tu organization_id en la tabla users. Si prefieres un registro nuevo, usa «Solicitar licencia»."
+            "Pide al administrador que vincule tu cuenta a una organización, o crea una cuenta nueva con «Crear cuenta»."
           );
           setLoading(false);
           return;
@@ -216,12 +216,24 @@ function LoginContent() {
               <button type="submit" disabled={loading} className="berea-auth-btn-primary">
                 {loading ? "Iniciando sesión…" : "Iniciar sesión"}
               </button>
+
+              <div className="berea-auth-register-block">
+                <div className="berea-auth-divider" aria-hidden>
+                  o
+                </div>
+                <Link href="/registro" className="berea-auth-btn-secondary">
+                  Crear cuenta
+                </Link>
+                <p className="berea-auth-register-hint">
+                  Prueba Berea Comercios gratis: inventario, ventas y clientes en minutos.
+                </p>
+              </div>
             </form>
 
             <p className="berea-auth-footer">
-              ¿Necesitas una licencia?{" "}
+              ¿Primera vez en Berea?{" "}
               <Link href="/registro" className="berea-auth-link-accent hover:underline">
-                Solicitar licencia
+                Regístrate aquí
               </Link>
             </p>
           </div>
