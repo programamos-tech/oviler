@@ -589,27 +589,34 @@ body {
   opacity: 0.88;
 }
 
-/* TopNav móvil/tablet — logo Berea compacto sobre shell oscuro (sin recorte lateral) */
+/* TopNav móvil/tablet — zoom al wordmark (PNG cuadrado con mucho margen) */
 .shell-nav .topnav-logo-crop {
   display: block;
+  height: 2.5rem;
+  width: 8.25rem;
+  min-width: 7.5rem;
+  max-width: min(46vw, 9.5rem);
   flex-shrink: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .shell-nav .topnav-logo-img {
   display: block;
-  height: 2rem;
-  width: auto;
-  max-width: 8.5rem;
+  height: 9.5rem;
+  width: 9.5rem;
+  max-width: none;
   object-fit: contain;
-  /* Misma referencia que el sidebar: wordmark centrado en el PNG cuadrado */
-  object-position: center 54%;
+  /* Alinea el icono B + wordmark (no el centro vacío del PNG) */
+  object-position: left 54%;
+  transform: translateY(-28%);
   filter: brightness(5.5) contrast(1.35) sepia(0.12) saturate(0.4) brightness(1.08);
 }
 
 @media (min-width: 640px) {
-  .shell-nav .topnav-logo-img {
-    height: 2.125rem;
+  .shell-nav .topnav-logo-crop {
+    height: 2.625rem;
+    width: 9.5rem;
+    max-width: 9.5rem;
   }
 }
 
