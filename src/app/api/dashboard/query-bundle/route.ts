@@ -8,6 +8,12 @@ import {
 } from "@/lib/dashboard-margins";
 import { resolveTopSoldProducts } from "@/lib/dashboard-top-products";
 import { filterRowsByCreatedAtRange } from "@/lib/calendar-day-bounds";
+import {
+  isHistDemoCreditPayment,
+  isHistDemoExpenseConcept,
+  isHistDemoInvoice,
+  isHistDemoWarrantyReason,
+} from "@/lib/demo-data-markers";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +21,7 @@ export const dynamic = "force-dynamic";
 const BUNDLE_CACHE_SECONDS = 30;
 
 const CREDIT_PAY_SELECT =
-  "amount, payment_method, amount_cash, amount_transfer, payment_source, created_at, customer_credits!inner(branch_id, public_ref, sale_id, total_amount)";
+  "amount, payment_method, amount_cash, amount_transfer, payment_source, notes, created_at, customer_credits!inner(branch_id, public_ref, sale_id, total_amount)";
 
 const MAX_SALE_IDS_FOR_ITEMS = 400;
 const SALE_ITEM_MARGIN_SELECT =
@@ -191,7 +197,7 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false }),
     supabase
       .from("warranties")
-      .select("id, branch_id, warranty_type, created_at, sales(branch_id)")
+      .select("id, branch_id, warranty_type, reason, created_at, sales(branch_id)")
       .eq("branch_id", branchId)
       .gte("created_at", start)
       .lte("created_at", end),
@@ -273,7 +279,32 @@ export async function GET(request: NextRequest) {
     (systemActivitiesRes.data ?? []) as WithCreatedAt[],
     start,
     end
+  ).filter((row) => {
+    const summary = String((row as { summary?: string }).summary ?? "");
+    return !summary.trimStart().startsWith("[Hist demo]");
+  });
+
+  const salesDayOperational = (salesDayRows as Array<{ invoice_number?: string }>).filter(
+    (s) => !isHistDemoInvoice(s.invoice_number)
   );
+  const salesPrevOperational = (salesPrevRows as Array<{ invoice_number?: string }>).filter(
+    (s) => !isHistDemoInvoice(s.invoice_number)
+  );
+  const creditPaymentsPeriodOperational = (
+    creditPaymentsPeriodRows as Array<{ notes?: string | null; payment_source?: string | null }>
+  ).filter((p) => !isHistDemoCreditPayment(p));
+  const creditPaymentsPrevOperational = (
+    creditPaymentsPrevRows as Array<{ notes?: string | null; payment_source?: string | null }>
+  ).filter((p) => !isHistDemoCreditPayment(p));
+  const expensesPeriodOperational = (
+    expensesPeriodRows as Array<{ concept?: string | null }>
+  ).filter((e) => !isHistDemoExpenseConcept(e.concept));
+  const warrantiesOperational = (
+    warrantiesRows as Array<{ reason?: string | null }>
+  ).filter((w) => !isHistDemoWarrantyReason(w.reason));
+  const recentSalesOperational = (
+    recentSalesRows as Array<{ invoice_number?: string }>
+  ).filter((s) => !isHistDemoInvoice(s.invoice_number));
 
   const inventoryRows = (inventoryMerged.data ?? [])
     .map((row) => {
@@ -299,7 +330,7 @@ export async function GET(request: NextRequest) {
   }> = inventoryRows.slice(0, 5).map((row) => ({ ...row, kind: "inventory" as const }));
 
   const prevCompletedSaleIds = (
-    salesPrevRows as unknown as Array<{
+    salesPrevOperational as unknown as Array<{
       id: string;
       status: string;
       payment_pending?: boolean | null;
@@ -309,7 +340,7 @@ export async function GET(request: NextRequest) {
     .map((s) => s.id);
 
   const periodCompletedSaleIds = (
-    salesDayRows as unknown as Array<{
+    salesDayOperational as unknown as Array<{
       id: string;
       status: string;
       payment_pending?: boolean | null;
@@ -322,7 +353,7 @@ export async function GET(request: NextRequest) {
 
   const abonoSaleIds = [
     ...new Set(
-      (creditPaymentsPeriodRows as unknown as CreditPaymentMarginRow[])
+      (creditPaymentsPeriodOperational as unknown as CreditPaymentMarginRow[])
         .filter((p) => p.payment_source !== "warranty_refund")
         .map((p) => {
           const c = p.customer_credits;
@@ -389,7 +420,7 @@ export async function GET(request: NextRequest) {
   const grossMarginPaid = Math.round(grossMarginFromItemRows(periodMarginItems));
   const marginFromAbonos = Math.round(
     computeMarginFromCreditAbonos(
-      creditPaymentsPeriodRows as unknown as CreditPaymentMarginRow[],
+      creditPaymentsPeriodOperational as unknown as CreditPaymentMarginRow[],
       abonoSaleItems,
       (abonoSalesRes.data ?? []) as Array<{ id: string; total: number; delivery_fee?: number | null }>
     )
@@ -397,19 +428,19 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(
     {
-    salesDay: salesDayRows,
-    salesPrevDay: salesPrevRows,
+    salesDay: salesDayOperational,
+    salesPrevDay: salesPrevOperational,
     expensesPrevDay: expensesPrevDay.data ?? [],
     salesTrendWindow: salesTrendWindow.data ?? [],
-    creditPaymentsPeriod: creditPaymentsPeriodRows,
-    creditPaymentsPrev: creditPaymentsPrevRows,
+    creditPaymentsPeriod: creditPaymentsPeriodOperational,
+    creditPaymentsPrev: creditPaymentsPrevOperational,
     creditPaymentsTrend: creditPaymentsTrend.data ?? [],
     customerCreditsBranch: customerCreditsBranch.data ?? [],
     inventoryData: inventoryMerged.data ?? [],
     defectiveData: defectiveData.data ?? [],
-    expensesPeriod: expensesPeriodRows,
-    warrantiesInPeriod: warrantiesRows,
-    recentSales: recentSalesRows,
+    expensesPeriod: expensesPeriodOperational,
+    warrantiesInPeriod: warrantiesOperational,
+    recentSales: recentSalesOperational,
     newCustomersCount: newCustomers.count ?? 0,
     newCustomersPrevCount: newCustomersPrev.count ?? 0,
     prevUnitsSold,

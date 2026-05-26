@@ -246,6 +246,10 @@ BEGIN
       IF i % 2 = 0 THEN
         v_paid := ROUND(v_total * (0.15 + (i % 5) * 0.05), 0);
         v_payment_at := v_created + ((1 + (i % 4)) || ' days')::interval;
+        IF v_payment_at >= DATE_TRUNC('day', NOW()) THEN
+          v_payment_at := DATE_TRUNC('day', NOW()) - INTERVAL '1 day'
+            + ((9 + (i % 8)) || ' hours')::interval;
+        END IF;
         INSERT INTO credit_payments (
           credit_id, amount, payment_method, amount_cash, amount_transfer,
           notes, created_by, created_at, payment_source
@@ -267,6 +271,10 @@ BEGIN
       -- Vencido: 1–2 abonos parciales (40–65 % del total)
       v_paid := ROUND(v_total * (0.25 + (i % 4) * 0.1), 0);
       v_payment_at := v_created + ((2 + (i % 6)) || ' days')::interval;
+      IF v_payment_at >= DATE_TRUNC('day', NOW()) THEN
+        v_payment_at := DATE_TRUNC('day', NOW()) - INTERVAL '1 day'
+          + ((10 + (i % 7)) || ' hours')::interval;
+      END IF;
       INSERT INTO credit_payments (
         credit_id, amount, payment_method, notes, created_by, created_at, payment_source
       )
@@ -279,13 +287,18 @@ BEGIN
 
       IF i % 3 = 0 AND v_paid < v_total * 0.55 THEN
         v_remain := ROUND(v_total * 0.2, 0);
+        v_payment_at := v_payment_at + INTERVAL '5 days';
+        IF v_payment_at >= DATE_TRUNC('day', NOW()) THEN
+          v_payment_at := DATE_TRUNC('day', NOW()) - INTERVAL '2 days'
+            + ((11 + (i % 6)) || ' hours')::interval;
+        END IF;
         INSERT INTO credit_payments (
           credit_id, amount, payment_method, notes, created_by, created_at, payment_source
         )
         VALUES (
           v_credit_id, v_remain, 'transfer',
           '[Hist demo] Segundo abono parcial',
-          v_user_id, v_payment_at + INTERVAL '5 days', 'customer_payment'
+          v_user_id, v_payment_at, 'customer_payment'
         );
       END IF;
 
@@ -305,6 +318,11 @@ BEGIN
         END IF;
 
         v_payment_at := v_created + ((j * 4 + (i % 5)) || ' days')::interval;
+        -- Nunca programar abonos demo en “hoy” o futuro (caja del dashboard en 0 al inicio del día).
+        IF v_payment_at >= DATE_TRUNC('day', NOW()) THEN
+          v_payment_at := DATE_TRUNC('day', NOW()) - INTERVAL '1 day'
+            + ((8 + ((i + j) % 10)) || ' hours')::interval;
+        END IF;
 
         IF i % 11 = 0 AND j = 2 THEN
           INSERT INTO credit_payments (

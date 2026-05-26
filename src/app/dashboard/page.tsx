@@ -16,6 +16,7 @@ import {
   startOfLocalCalendarDay,
 } from "@/lib/calendar-day-bounds";
 import { getExpenseConceptKind } from "@/lib/expense-concept-kind";
+import { isHistDemoCreditPayment } from "@/lib/demo-data-markers";
 import {
   mergeDashboardActivityFeed,
   DASHBOARD_CARD_ITEM_LIMIT,
@@ -188,6 +189,7 @@ type CreditPaymentRow = {
   amount_cash: number | null;
   amount_transfer: number | null;
   payment_source?: string | null;
+  notes?: string | null;
   created_at: string;
   customer_credits:
     | { branch_id: string; public_ref: string; sale_id?: string | null; total_amount?: number | string | null }
@@ -196,7 +198,7 @@ type CreditPaymentRow = {
 };
 
 function isCreditPaymentCashInflow(p: CreditPaymentRow): boolean {
-  return p.payment_source !== "warranty_refund";
+  return p.payment_source !== "warranty_refund" && !isHistDemoCreditPayment(p);
 }
 
 function creditPublicRef(p: CreditPaymentRow): string {
