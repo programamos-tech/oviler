@@ -26,3 +26,23 @@ export function getLocalCalendarDayBounds(date: Date): { start: string; end: str
   const end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59, 999);
   return { start: start.toISOString(), end: end.toISOString() };
 }
+
+export function isTimestampInRange(iso: string, rangeStart: string, rangeEnd: string): boolean {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return false;
+  return t >= new Date(rangeStart).getTime() && t <= new Date(rangeEnd).getTime();
+}
+
+export function isTimestampInLocalCalendarDay(iso: string, day: Date): boolean {
+  const { start, end } = getLocalCalendarDayBounds(day);
+  return isTimestampInRange(iso, start, end);
+}
+
+/** Filtra filas con `created_at` al rango [start, end] (ISO). */
+export function filterRowsByCreatedAtRange<T extends { created_at: string }>(
+  rows: T[],
+  rangeStart: string,
+  rangeEnd: string
+): T[] {
+  return rows.filter((row) => isTimestampInRange(row.created_at, rangeStart, rangeEnd));
+}

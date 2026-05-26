@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useTransition } from "react";
+import { useState, useEffect, useMemo, useRef, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
 import { createClient } from "@/lib/supabase/client";
@@ -10,6 +10,7 @@ import { cashTransferFromLine, addCreditPaymentSplits as addCreditPaymentsToCash
 import BereaReportsDashboard from "@/app/components/dashboard/BereaReportsDashboard";
 import { useLocalCalendarToday } from "@/app/components/useLocalCalendarToday";
 import {
+  filterRowsByCreatedAtRange,
   getLocalCalendarDayBounds,
   isSameLocalCalendarDay,
   startOfLocalCalendarDay,
@@ -178,6 +179,7 @@ type DaySaleRow = {
   delivery_fee: number | null;
   status: string;
   payment_pending?: boolean | null;
+  created_at: string;
 };
 
 type CreditPaymentRow = {
@@ -296,12 +298,14 @@ function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const loadedPeriodKeyRef = useRef<string | null>(null);
   const dashboardRole = profile?.role ?? null;
   const today = calendarToday;
 
   useEffect(() => {
     if (dateFilterMode !== "today" || !pinReportToToday) return;
     setSelectedDay(calendarToday);
+    dashboardBundleCache.clear();
   }, [calendarToday, dateFilterMode, pinReportToToday]);
 
   useEffect(() => {
@@ -356,7 +360,13 @@ function DashboardPage() {
     );
     const cached = dashboardBundleCache.get(cacheKey);
     const useCache = cached && Date.now() - cached.at < DASHBOARD_BUNDLE_CACHE_MS;
-    if (useCache) {
+    const periodChanged = loadedPeriodKeyRef.current !== cacheKey;
+    if (periodChanged) {
+      loadedPeriodKeyRef.current = cacheKey;
+      setDashboardData(null);
+      setLoading(true);
+      setRefreshing(false);
+    } else if (useCache) {
       setRefreshing(true);
     } else if (!dashboardData) {
       setLoading(true);
@@ -410,7 +420,7 @@ function DashboardPage() {
             trendStart: trendWindowStartIso,
             trendEnd: trendWindowEndIso,
           }).toString()}`,
-          { credentials: "include" }
+          { credentials: "include", cache: "no-store" }
         );
         if (!bundleRes.ok) throw new Error("No se pudo cargar el dashboard");
         bundle = (await bundleRes.json()) as typeof bundle;
@@ -419,7 +429,10 @@ function DashboardPage() {
 
       if (cancelled) return;
 
-      const salesDay = bundle.salesDay as Array<{
+      const filterPeriod = <T extends { created_at: string }>(rows: T[]) =>
+        filterRowsByCreatedAtRange(rows, start, end);
+
+      const salesDayRaw = bundle.salesDay as Array<{
         id: string;
         total: number;
         payment_method: string;
@@ -433,7 +446,12 @@ function DashboardPage() {
         payment_pending?: boolean | null;
         created_at: string;
       }>;
-      const salesPrevDay = bundle.salesPrevDay as DaySaleRow[];
+      const salesDay = filterPeriod(salesDayRaw);
+      const salesPrevDay = filterRowsByCreatedAtRange(
+        bundle.salesPrevDay as DaySaleRow[],
+        yStart,
+        yEnd
+      );
       const expensesPrevDay = bundle.expensesPrevDay as Array<{ amount: number; payment_method: string }>;
       const salesTrendWindow = bundle.salesTrendWindow as Array<{
         total: number;
@@ -441,23 +459,54 @@ function DashboardPage() {
         delivery_fee: number | null;
         payment_pending?: boolean | null;
       }>;
-      const creditPaymentsPeriod = bundle.creditPaymentsPeriod as CreditPaymentRow[];
-      const creditPaymentsPrev = bundle.creditPaymentsPrev as CreditPaymentRow[];
+      const creditPaymentsPeriod = filterPeriod(
+        bundle.creditPaymentsPeriod as CreditPaymentRow[]
+      );
+      const creditPaymentsPrev = filterRowsByCreatedAtRange(
+        bundle.creditPaymentsPrev as CreditPaymentRow[],
+        yStart,
+        yEnd
+      );
       const creditPaymentsTrend = bundle.creditPaymentsTrend as CreditPaymentRow[];
       const customerCreditsBranch = bundle.customerCreditsBranch;
       const inventoryData = bundle.inventoryData;
       const defectiveData = bundle.defectiveData;
-      const expensesPeriod = bundle.expensesPeriod as Array<{
+      const expensesPeriod = filterPeriod(
+        bundle.expensesPeriod as Array<{
         amount: number;
         payment_method: string;
         concept?: string | null;
         notes?: string | null;
         created_at: string;
-      }>;
-      const warrantiesInPeriod = bundle.warrantiesInPeriod as Array<{
-        branch_id?: string | null;
-        sales?: { branch_id?: string | null }[] | { branch_id?: string | null } | null;
-      }>;
+      }>
+      );
+      const warrantiesInPeriod = filterPeriod(
+        bundle.warrantiesInPeriod as Array<{
+          branch_id?: string | null;
+          warranty_type?: string | null;
+          created_at: string;
+          sales?: { branch_id?: string | null }[] | { branch_id?: string | null } | null;
+        }>
+      );
+
+      const recentSalesRaw = filterPeriod(
+        (bundle.recentSales ?? []) as Array<{
+          id: string;
+          invoice_number: string;
+          total: number;
+          status: string;
+          is_delivery?: boolean | null;
+          channel?: string | null;
+          payment_pending?: boolean | null;
+          delivery_fee?: number | null;
+          created_at: string;
+          customers?: { name: string } | Array<{ name: string }> | null;
+        }>
+      );
+
+      const systemActivitiesFiltered = filterPeriod(
+        (bundle.systemActivities ?? []) as SystemActivityRow[]
+      );
 
       const outstandingCredits = ((customerCreditsBranch ?? []) as Array<{
         total_amount: number;
@@ -794,18 +843,6 @@ function DashboardPage() {
       const newCustomers = Number(bundle.newCustomersCount ?? 0);
       const lowStock = bundle.lowStock ?? [];
 
-      const recentSalesRaw = (bundle.recentSales ?? []) as Array<{
-        id: string;
-        invoice_number: string;
-        total: number;
-        status: string;
-        is_delivery?: boolean | null;
-        channel?: string | null;
-        payment_pending?: boolean | null;
-        delivery_fee?: number | null;
-        created_at: string;
-        customers?: { name: string } | Array<{ name: string }> | null;
-      }>;
       const recentOrders = recentSalesRaw.slice(0, DASHBOARD_CARD_ITEM_LIMIT).map((s) => {
         const c = s.customers;
         const customer_name = (Array.isArray(c) ? c[0]?.name : c?.name) ?? "Cliente";
@@ -841,7 +878,7 @@ function DashboardPage() {
         }));
 
       const activities = mergeDashboardActivityFeed({
-        systemActivities: (bundle.systemActivities ?? []) as SystemActivityRow[],
+        systemActivities: systemActivitiesFiltered,
         sales: recentSalesRaw,
         creditPayments: abonosPeriod.filter(isCreditPaymentCashInflow),
         expenses: expenseRowsPeriod,
@@ -895,9 +932,12 @@ function DashboardPage() {
 
       const totalExpensesDay = totalExpensesCash + totalExpensesTransfer;
 
-      const grossProfit = Math.round(
-        Number(bundle.grossMarginPaid ?? 0) + Number(bundle.marginFromAbonos ?? 0)
-      );
+      const hasPeriodMarginActivity =
+        completed.some((s) => !s.payment_pending) ||
+        abonosPeriod.some(isCreditPaymentCashInflow);
+      const grossProfit = hasPeriodMarginActivity
+        ? Math.round(Number(bundle.grossMarginPaid ?? 0) + Number(bundle.marginFromAbonos ?? 0))
+        : 0;
       const dailyResult = Math.round(grossProfit - operationalExpenses);
       const netProfit = Math.round(totalIncome);
 
@@ -1080,8 +1120,9 @@ function DashboardPage() {
         selectedDay={selectedDay}
         onSelectedDay={(d) =>
           startDataTransition(() => {
-            setSelectedDay(d);
-            setPinReportToToday(isSameLocalCalendarDay(d, calendarToday));
+            const day = startOfLocalCalendarDay(d);
+            setSelectedDay(day);
+            setPinReportToToday(isSameLocalCalendarDay(day, calendarToday));
           })
         }
         isViewingCalendarToday={

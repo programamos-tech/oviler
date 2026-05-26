@@ -7,6 +7,7 @@ import {
   type CreditPaymentMarginRow,
 } from "@/lib/dashboard-margins";
 import { resolveTopSoldProducts } from "@/lib/dashboard-top-products";
+import { filterRowsByCreatedAtRange } from "@/lib/calendar-day-bounds";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -231,6 +232,49 @@ export async function GET(request: NextRequest) {
       .lte("created_at", yEnd),
   ]);
 
+  type WithCreatedAt = { created_at: string };
+
+  const salesDayRows = filterRowsByCreatedAtRange(
+    (salesDay.data ?? []) as WithCreatedAt[],
+    start,
+    end
+  );
+  const salesPrevRows = filterRowsByCreatedAtRange(
+    (salesPrevDay.data ?? []) as WithCreatedAt[],
+    yStart,
+    yEnd
+  );
+  const creditPaymentsPeriodRows = filterRowsByCreatedAtRange(
+    (creditPaymentsPeriod.data ?? []) as WithCreatedAt[],
+    start,
+    end
+  );
+  const creditPaymentsPrevRows = filterRowsByCreatedAtRange(
+    (creditPaymentsPrev.data ?? []) as WithCreatedAt[],
+    yStart,
+    yEnd
+  );
+  const expensesPeriodRows = filterRowsByCreatedAtRange(
+    (expensesPeriod.data ?? []) as WithCreatedAt[],
+    start,
+    end
+  );
+  const warrantiesRows = filterRowsByCreatedAtRange(
+    (warrantiesInPeriod.data ?? []) as WithCreatedAt[],
+    start,
+    end
+  );
+  const recentSalesRows = filterRowsByCreatedAtRange(
+    (recentSales.data ?? []) as WithCreatedAt[],
+    start,
+    end
+  );
+  const systemActivitiesRows = filterRowsByCreatedAtRange(
+    (systemActivitiesRes.data ?? []) as WithCreatedAt[],
+    start,
+    end
+  );
+
   const inventoryRows = (inventoryMerged.data ?? [])
     .map((row) => {
       const p = row.products;
@@ -254,19 +298,23 @@ export async function GET(request: NextRequest) {
     kind: "inventory" | "slow_mover";
   }> = inventoryRows.slice(0, 5).map((row) => ({ ...row, kind: "inventory" as const }));
 
-  const prevCompletedSaleIds = ((salesPrevDay.data ?? []) as Array<{
-    id: string;
-    status: string;
-    payment_pending?: boolean | null;
-  }>)
+  const prevCompletedSaleIds = (
+    salesPrevRows as unknown as Array<{
+      id: string;
+      status: string;
+      payment_pending?: boolean | null;
+    }>
+  )
     .filter((s) => s.status === "completed" && !s.payment_pending)
     .map((s) => s.id);
 
-  const periodCompletedSaleIds = ((salesDay.data ?? []) as Array<{
-    id: string;
-    status: string;
-    payment_pending?: boolean | null;
-  }>)
+  const periodCompletedSaleIds = (
+    salesDayRows as unknown as Array<{
+      id: string;
+      status: string;
+      payment_pending?: boolean | null;
+    }>
+  )
     .filter((s) => s.status === "completed" && !s.payment_pending)
     .map((s) => s.id);
 
@@ -274,7 +322,7 @@ export async function GET(request: NextRequest) {
 
   const abonoSaleIds = [
     ...new Set(
-      ((creditPaymentsPeriod.data ?? []) as CreditPaymentMarginRow[])
+      (creditPaymentsPeriodRows as unknown as CreditPaymentMarginRow[])
         .filter((p) => p.payment_source !== "warranty_refund")
         .map((p) => {
           const c = p.customer_credits;
@@ -341,7 +389,7 @@ export async function GET(request: NextRequest) {
   const grossMarginPaid = Math.round(grossMarginFromItemRows(periodMarginItems));
   const marginFromAbonos = Math.round(
     computeMarginFromCreditAbonos(
-      (creditPaymentsPeriod.data ?? []) as CreditPaymentMarginRow[],
+      creditPaymentsPeriodRows as unknown as CreditPaymentMarginRow[],
       abonoSaleItems,
       (abonoSalesRes.data ?? []) as Array<{ id: string; total: number; delivery_fee?: number | null }>
     )
@@ -349,32 +397,32 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(
     {
-    salesDay: salesDay.data ?? [],
-    salesPrevDay: salesPrevDay.data ?? [],
+    salesDay: salesDayRows,
+    salesPrevDay: salesPrevRows,
     expensesPrevDay: expensesPrevDay.data ?? [],
     salesTrendWindow: salesTrendWindow.data ?? [],
-    creditPaymentsPeriod: creditPaymentsPeriod.data ?? [],
-    creditPaymentsPrev: creditPaymentsPrev.data ?? [],
+    creditPaymentsPeriod: creditPaymentsPeriodRows,
+    creditPaymentsPrev: creditPaymentsPrevRows,
     creditPaymentsTrend: creditPaymentsTrend.data ?? [],
     customerCreditsBranch: customerCreditsBranch.data ?? [],
     inventoryData: inventoryMerged.data ?? [],
     defectiveData: defectiveData.data ?? [],
-    expensesPeriod: expensesPeriod.data ?? [],
-    warrantiesInPeriod: warrantiesInPeriod.data ?? [],
-    recentSales: recentSales.data ?? [],
+    expensesPeriod: expensesPeriodRows,
+    warrantiesInPeriod: warrantiesRows,
+    recentSales: recentSalesRows,
     newCustomersCount: newCustomers.count ?? 0,
     newCustomersPrevCount: newCustomersPrev.count ?? 0,
     prevUnitsSold,
     periodUnitsSold,
     grossMarginPaid,
     marginFromAbonos,
-    systemActivities: systemActivitiesRes.data ?? [],
+    systemActivities: systemActivitiesRows,
     lowStock,
     topProducts,
     },
     {
       headers: {
-        "Cache-Control": `private, max-age=${BUNDLE_CACHE_SECONDS}, stale-while-revalidate=${BUNDLE_CACHE_SECONDS * 2}`,
+        "Cache-Control": "private, no-store",
       },
     }
   );
