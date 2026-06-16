@@ -2,8 +2,8 @@ import Link from "next/link";
 
 export function BereaLandingLogo({ href = "/" }: { href?: string }) {
   const mark = (
-    <span className="berea-landing-logo-crop">
-      <img src="/logo-berea.2.png" alt="Berea Comercios" className="berea-landing-logo-img" decoding="async" />
+    <span className="berea-tech-logo-frame berea-tech-logo-frame--nav">
+      <img src="/logo-berea-tech.png" alt="Berea Comercios" decoding="async" />
     </span>
   );
 

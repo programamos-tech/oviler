@@ -86,7 +86,7 @@ export default function TopNav() {
   }, [router]);
 
   return (
-    <nav className="shell-nav sticky top-0 z-50 flex min-w-0 max-w-full flex-col overflow-x-hidden overflow-y-visible border-b border-[var(--shell-nav-border)] bg-[var(--shell-nav-bg)] pt-[env(safe-area-inset-top,0px)] text-[var(--shell-nav-fg)] shadow-[0_4px_24px_rgba(0,0,0,0.18)] lg:hidden">
+    <nav className="shell-nav sticky top-0 z-50 flex min-w-0 max-w-full flex-col overflow-x-hidden overflow-y-visible border-b border-[var(--shell-nav-border)] bg-[var(--shell-nav-bg)] pt-[env(safe-area-inset-top,0px)] text-[var(--shell-nav-fg)] lg:hidden">
       <div className="mx-auto flex h-14 min-h-[3.5rem] w-full min-w-0 max-w-[1600px] items-center justify-between gap-3 px-4 pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] sm:gap-4 sm:px-6 lg:px-8">
         {/* Marca Berea + logo sucursal */}
         <div className="flex min-w-0 flex-1 items-center justify-start gap-2.5 overflow-visible sm:gap-3">
@@ -100,8 +100,8 @@ export default function TopNav() {
             title={branch?.name ? `Berea Comercios · ${branch.name}` : "Berea Comercios"}
             aria-label="Berea Comercios — Ir al inicio"
           >
-            <span className="topnav-logo-crop shrink-0">
-              <img src="/logo-berea.2.png" alt="" className="topnav-logo-img" decoding="async" />
+            <span className="berea-tech-logo-frame berea-tech-logo-frame--topnav shrink-0">
+              <img src="/logo-berea-tech.png" alt="" decoding="async" />
             </span>
             {branch ? (
               <>

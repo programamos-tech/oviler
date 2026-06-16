@@ -3,12 +3,22 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
+import { logActivity } from "@/lib/activities";
 import { createClient } from "@/lib/supabase/client";
 import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchId } from "@/lib/active-branch";
-import { logActivity } from "@/lib/activities";
+import {
+  clearInventarioListCache,
+  invalidateInventarioDetail,
+} from "@/lib/inventario-detail-cache";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+import { isValidImei, parseImeiList, formatImeiDisplay, resolveImeiUnitIdsFromText } from "@/lib/imei";
 
-type ProductOption = { id: string; name: string; sku: string | null };
+const IME = STORE_TECH_COPY.imei;
+
+type ProductOption = { id: string; name: string; sku: string | null; requires_imei?: boolean };
+type ImeiStockUnit = { id: string; imei: string; location: "local" | "bodega" };
+type ImeiMovement = "entrada" | "baja";
 
 function UpdateStockContent() {
   const router = useRouter();
@@ -25,9 +35,19 @@ function UpdateStockContent() {
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const searchDropdownRef = useRef<HTMLDivElement>(null);
   const [currentStock, setCurrentStock] = useState<number | null>(null);
+  const [stockLocalQty, setStockLocalQty] = useState(0);
+  const [stockBodegaQty, setStockBodegaQty] = useState(0);
   const [movementType, setMovementType] = useState<"entrada" | "ajuste">("ajuste");
+  const [imeiMovement, setImeiMovement] = useState<ImeiMovement>("entrada");
+  const [stockImeiUnits, setStockImeiUnits] = useState<ImeiStockUnit[]>([]);
+  const [loadingImeiUnits, setLoadingImeiUnits] = useState(false);
+  const [selectedImeiUnitIds, setSelectedImeiUnitIds] = useState<string[]>([]);
+  const [imeiSelectText, setImeiSelectText] = useState("");
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
+  const [imeiBulkText, setImeiBulkText] = useState("");
+  const [productRequiresImei, setProductRequiresImei] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [loadingProduct, setLoadingProduct] = useState(!!productIdFromUrl);
   const [saving, setSaving] = useState(false);
   const [branchReloadToken, setBranchReloadToken] = useState(0);
@@ -42,23 +62,48 @@ function UpdateStockContent() {
   const fetchCurrentStock = useCallback(
     async (pid: string, bid: string, loc: "local" | "bodega", withLocation: boolean) => {
       const supabase = createClient();
-      const q = supabase
+      const { data: rows } = await supabase
         .from("inventory")
         .select("quantity, location")
         .eq("product_id", pid)
         .eq("branch_id", bid);
-      const { data: rows } = await q;
-      let total = 0;
-      if (withLocation) {
-        const row = (rows ?? []).find((r: { location: string }) => r.location === loc);
-        total = row ? (row.quantity ?? 0) : 0;
-      } else {
-        total = (rows ?? []).reduce((s: number, r: { quantity?: number }) => s + (r.quantity ?? 0), 0);
+      let local = 0;
+      let bodega = 0;
+      for (const r of rows ?? []) {
+        const q = r.quantity ?? 0;
+        if ((r as { location?: string }).location === "bodega") bodega += q;
+        else local += q;
       }
-      setCurrentStock(total);
+      setStockLocalQty(local);
+      setStockBodegaQty(bodega);
+      if (withLocation) {
+        setCurrentStock(loc === "bodega" ? bodega : local);
+      } else {
+        setCurrentStock(local + bodega);
+      }
     },
     []
   );
+
+  const fetchStockImeiUnits = useCallback(async (pid: string, bid: string) => {
+    setLoadingImeiUnits(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("product_imei_units")
+      .select("id, imei, location")
+      .eq("branch_id", bid)
+      .eq("product_id", pid)
+      .eq("status", "in_stock")
+      .order("imei");
+    setStockImeiUnits(
+      (data ?? []).map((r) => ({
+        id: r.id as string,
+        imei: r.imei as string,
+        location: (r.location === "bodega" ? "bodega" : "local") as "local" | "bodega",
+      }))
+    );
+    setLoadingImeiUnits(false);
+  }, []);
 
   const loadProductAndStock = useCallback(
     async (productId: string) => {
@@ -70,12 +115,13 @@ function UpdateStockContent() {
 
       const { data: product } = await supabase
         .from("products")
-        .select("id, name, sku")
+        .select("id, name, sku, requires_imei")
         .eq("id", productId)
         .single();
       if (!product) return;
 
-      setSelectedProduct({ id: product.id, name: product.name, sku: product.sku });
+      setSelectedProduct({ id: product.id, name: product.name, sku: product.sku, requires_imei: !!product.requires_imei });
+      setProductRequiresImei(!!product.requires_imei);
       setBranchId(bid);
     },
     []
@@ -114,7 +160,27 @@ function UpdateStockContent() {
   useEffect(() => {
     if (!selectedProduct?.id || !branchId) return;
     fetchCurrentStock(selectedProduct.id, branchId, location, hasBodega);
-  }, [selectedProduct?.id, branchId, location, hasBodega, fetchCurrentStock]);
+    if (productRequiresImei) {
+      fetchStockImeiUnits(selectedProduct.id, branchId);
+    } else {
+      setStockImeiUnits([]);
+    }
+  }, [selectedProduct?.id, branchId, location, hasBodega, productRequiresImei, fetchCurrentStock, fetchStockImeiUnits]);
+
+  useEffect(() => {
+    if (!productRequiresImei) return;
+    setImeiMovement("entrada");
+    setMovementType("entrada");
+    setQuantity("");
+    setSelectedImeiUnitIds([]);
+    setImeiSelectText("");
+  }, [productRequiresImei, selectedProduct?.id]);
+
+  useEffect(() => {
+    setSelectedImeiUnitIds([]);
+    setImeiSelectText("");
+    setImeiBulkText("");
+  }, [imeiMovement, selectedProduct?.id]);
 
   useEffect(() => {
     const q = productSearchQuery.trim();
@@ -133,7 +199,7 @@ function UpdateStockContent() {
       if (!userRow?.organization_id || cancelled) return;
       const { data } = await supabase
         .from("products")
-        .select("id, name, sku")
+        .select("id, name, sku, requires_imei")
         .eq("organization_id", userRow.organization_id)
         .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
         .order("name", { ascending: true })
@@ -162,21 +228,185 @@ function UpdateStockContent() {
 
   const qtyNum = quantity === "" ? null : parseInt(quantity, 10);
   const validQty = qtyNum !== null && !Number.isNaN(qtyNum) && qtyNum >= 0;
-  const afterStock =
-    currentStock !== null && validQty
-      ? movementType === "entrada"
-        ? currentStock + qtyNum
-        : qtyNum
-      : null;
+  const imeiList = parseImeiList(imeiBulkText);
+  const imeiListValid = imeiList.length > 0 && imeiList.every(isValidImei);
+  const hasInvalidImeis = imeiList.length > 0 && !imeiList.every(isValidImei);
+  const pastedUnitIds = resolveImeiUnitIdsFromText(stockImeiUnits, imeiSelectText);
+  const effectiveSelectedIds = [
+    ...new Set([
+      ...selectedImeiUnitIds,
+      ...pastedUnitIds.ids,
+    ]),
+  ];
+  const totalStock = stockLocalQty + stockBodegaQty;
 
-  const canSubmit = selectedProduct && branchId && validQty;
+  const afterStock = (() => {
+    if (!selectedProduct) return null;
+    if (productRequiresImei) {
+      if (imeiMovement === "entrada" && imeiListValid) {
+        return totalStock + imeiList.length;
+      }
+      if (imeiMovement === "baja" && effectiveSelectedIds.length > 0) {
+        return totalStock - effectiveSelectedIds.length;
+      }
+      return null;
+    }
+    if (currentStock === null || !validQty) return null;
+    return movementType === "entrada" ? currentStock + (qtyNum ?? 0) : (qtyNum ?? 0);
+  })();
+
+  const bajaReasonValid = reason.trim().length >= 3;
+
+  const canSubmit = (() => {
+    if (!selectedProduct || !branchId) return false;
+    if (productRequiresImei) {
+      if (imeiMovement === "entrada") return imeiListValid;
+      if (imeiMovement === "baja") {
+        return effectiveSelectedIds.length > 0 && pastedUnitIds.missing.length === 0 && bajaReasonValid;
+      }
+      return false;
+    }
+    return validQty;
+  })();
+
+  function toggleImeiUnit(id: string) {
+    setSelectedImeiUnitIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  const imeiMovementLabel: Record<ImeiMovement, string> = {
+    entrada: IME.movementEntrada,
+    baja: IME.movementBaja,
+  };
 
   async function handleSubmit() {
-    if (!canSubmit || !selectedProduct || !branchId || qtyNum === null) return;
+    if (!canSubmit || !selectedProduct || !branchId) return;
     setSaving(true);
+    setSubmitError(null);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: userRow } = user ? await supabase.from("users").select("organization_id").eq("id", user.id).single() : { data: null };
+    const { data: userRow } = user
+      ? await supabase.from("users").select("organization_id, name").eq("id", user.id).single()
+      : { data: null };
+    const actorName = userRow?.name?.trim() || null;
+
+    if (productRequiresImei) {
+      if (imeiMovement === "entrada") {
+        const invalid = imeiList.find((x) => !isValidImei(x));
+        if (invalid) {
+          setSubmitError(`${IME.invalidImei}: ${invalid}`);
+          setSaving(false);
+          return;
+        }
+      const { error: rpcErr } = await supabase.rpc("register_product_imei_units", {
+        p_branch_id: branchId,
+        p_product_id: selectedProduct.id,
+        p_imeis: imeiList,
+        p_location: hasBodega ? location : "local",
+      });
+      if (rpcErr) {
+        setSubmitError(rpcErr.message.includes("unique") ? IME.duplicateImei : rpcErr.message);
+        setSaving(false);
+        return;
+      }
+      const prevTotal = stockLocalQty + stockBodegaQty;
+      const newTotal = prevTotal + imeiList.length;
+      if (user && userRow?.organization_id) {
+        try {
+          await logActivity(supabase, {
+            organizationId: userRow.organization_id,
+            branchId,
+            userId: user.id,
+            action: "stock_adjusted",
+            entityType: "product",
+            entityId: selectedProduct.id,
+            summary: `Entrada ${imeiList.length} IMEI(s) en ${hasBodega && location === "bodega" ? "bodega" : "local"}: ${selectedProduct.name} (estaba ${prevTotal}, quedó ${newTotal})`,
+            metadata: {
+              productName: selectedProduct.name,
+              sku: selectedProduct.sku ?? null,
+              imeiCount: imeiList.length,
+              location: hasBodega ? location : "local",
+              imeiMovement: "entrada",
+              previousQuantity: prevTotal,
+              newQuantity: newTotal,
+              delta: imeiList.length,
+            },
+          });
+        } catch {
+          /* ignore */
+        }
+      }
+      } else if (imeiMovement === "baja") {
+        if (!bajaReasonValid) {
+          setSubmitError(IME.bajaReasonMissing);
+          setSaving(false);
+          return;
+        }
+        if (pastedUnitIds.missing.length > 0) {
+          setSubmitError(`${IME.imeiNotInStock}: ${pastedUnitIds.missing[0]}`);
+          setSaving(false);
+          return;
+        }
+        const removedImeis = stockImeiUnits
+          .filter((u) => effectiveSelectedIds.includes(u.id))
+          .map((u) => u.imei);
+        const prevTotal = stockLocalQty + stockBodegaQty;
+        const newTotal = prevTotal - effectiveSelectedIds.length;
+        const { error: rpcErr } = await supabase.rpc("remove_product_imei_units", {
+          p_branch_id: branchId,
+          p_product_id: selectedProduct.id,
+          p_imei_unit_ids: effectiveSelectedIds,
+          p_reason: reason.trim(),
+        });
+        if (rpcErr) {
+          setSubmitError(rpcErr.message);
+          setSaving(false);
+          return;
+        }
+        if (user && userRow?.organization_id) {
+          try {
+            await logActivity(supabase, {
+              organizationId: userRow.organization_id,
+              branchId,
+              userId: user.id,
+              action: "stock_adjusted",
+              entityType: "product",
+              entityId: selectedProduct.id,
+              summary: `Baja ${effectiveSelectedIds.length} IMEI(s): ${selectedProduct.name} — ${reason.trim()} (estaba ${prevTotal}, quedó ${newTotal})`,
+              metadata: {
+                productName: selectedProduct.name,
+                sku: selectedProduct.sku ?? null,
+                imeiCount: effectiveSelectedIds.length,
+                imeiMovement: "baja",
+                reason: reason.trim(),
+                imeis: removedImeis,
+                previousQuantity: prevTotal,
+                newQuantity: newTotal,
+                delta: newTotal - prevTotal,
+                userName: actorName,
+              },
+            });
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      setSaving(false);
+      setImeiBulkText("");
+      setImeiSelectText("");
+      setSelectedImeiUnitIds([]);
+      setReason("");
+      invalidateInventarioDetail(selectedProduct.id);
+      clearInventarioListCache();
+      router.push(`/inventario/${selectedProduct.id}?refresh=${Date.now()}`);
+      return;
+    }
+
+    if (qtyNum === null) {
+      setSaving(false);
+      return;
+    }
     const newQty = movementType === "entrada" ? (currentStock ?? 0) + qtyNum : qtyNum;
 
     if (hasBodega) {
@@ -246,7 +476,9 @@ function UpdateStockContent() {
     setQuantity("");
     setReason("");
     setCurrentStock(newQty);
-    router.push(`/inventario/${selectedProduct.id}`);
+    invalidateInventarioDetail(selectedProduct.id);
+    clearInventarioListCache();
+    router.push(`/inventario/${selectedProduct.id}?refresh=${Date.now()}`);
   }
 
   return (
@@ -342,9 +574,11 @@ function UpdateStockContent() {
                             type="button"
                             onClick={() => {
                               setSelectedProduct(p);
+                              setProductRequiresImei(!!p.requires_imei);
                               setProductSearchQuery("");
                               setSearchDropdownOpen(false);
                               setProductSearchResults([]);
+                              setImeiBulkText("");
                             }}
                             className="flex w-full flex-col items-start gap-0.5 px-4 py-2.5 text-left text-[13px] hover:bg-slate-100 dark:hover:bg-slate-800"
                           >
@@ -366,6 +600,32 @@ function UpdateStockContent() {
               <label className="mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
                 Tipo de movimiento
               </label>
+              {productRequiresImei ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {(["entrada", "baja"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setImeiMovement(mode)}
+                        className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-medium transition-colors ${
+                          imeiMovement === mode
+                            ? "border border-slate-400 bg-slate-200/80 text-[color:var(--shell-sidebar)] dark:border-zinc-500/55 dark:bg-zinc-700/40 dark:text-zinc-300"
+                            : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        {imeiMovementLabel[mode]}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
+                    {imeiMovement === "entrada"
+                      ? IME.movementEntradaHint
+                      : IME.movementBajaHint}
+                  </p>
+                </>
+              ) : (
+                <>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -395,9 +655,11 @@ function UpdateStockContent() {
               <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
                 Reemplazar: el valor que ingresas es el nuevo stock total. Entrada: sumas esa cantidad al stock actual.
               </p>
+                </>
+              )}
             </div>
 
-            {hasBodega && (
+            {hasBodega && (!productRequiresImei || imeiMovement === "entrada") && (
               <div className="mt-4">
                 <label className="mb-2 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
                   Ubicación
@@ -427,11 +689,94 @@ function UpdateStockContent() {
                   </button>
                 </div>
                 <p className="mt-2 text-[12px] text-slate-500 dark:text-slate-400">
-                  Indica si la entrada o el ajuste aplica al stock en local o en bodega.
+                  Indica si la entrada aplica al stock en local o en bodega.
                 </p>
               </div>
             )}
 
+            {productRequiresImei && (
+              <p className="mt-2 rounded-lg border border-sky-200/80 bg-sky-50/80 px-3 py-2 text-[12px] text-sky-900 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-100">
+                {IME.requiresHint}
+              </p>
+            )}
+
+            {productRequiresImei && imeiMovement === "entrada" ? (
+              <>
+                <label className="mb-1 mt-4 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
+                  {IME.registerTitle}
+                </label>
+                <p className="mb-2 text-[12px] text-slate-500 dark:text-slate-400">{IME.registerHint}</p>
+                <textarea
+                  rows={5}
+                  value={imeiBulkText}
+                  onChange={(e) => setImeiBulkText(e.target.value)}
+                  placeholder={IME.registerPlaceholder}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 font-mono text-[13px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200"
+                />
+                <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                  {imeiList.length > 0
+                    ? `${imeiList.length} IMEI(s) detectados${imeiListValid ? ` → +${imeiList.length} al stock` : hasInvalidImeis ? " (revisa que tengan 15 dígitos)" : ""}`
+                    : "Un IMEI por línea (15 dígitos cada uno)"}
+                </p>
+              </>
+            ) : productRequiresImei && imeiMovement === "baja" ? (
+              <>
+                <label className="mb-1 mt-4 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
+                  {IME.selectUnitsTitle}
+                </label>
+                <p className="mb-2 text-[12px] text-slate-500 dark:text-slate-400">
+                  Marca las unidades o pega los IMEIs abajo.
+                </p>
+                {loadingImeiUnits ? (
+                  <p className="text-[13px] text-slate-500">Cargando unidades…</p>
+                ) : stockImeiUnits.length === 0 ? (
+                  <p className="text-[13px] text-slate-500 dark:text-slate-400">{IME.selectUnitsEmpty}</p>
+                ) : (
+                  <ul className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">
+                    {stockImeiUnits.map((unit) => {
+                      const checked = effectiveSelectedIds.includes(unit.id);
+                      return (
+                        <li key={unit.id}>
+                          <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleImeiUnit(unit.id)}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                            <span className="font-mono text-[12px] text-slate-800 dark:text-slate-100">
+                              {formatImeiDisplay(unit.imei)}
+                            </span>
+                            {hasBodega && (
+                              <span className="ml-auto text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                {unit.location === "bodega" ? "Bodega" : "Local"}
+                              </span>
+                            )}
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <textarea
+                  rows={3}
+                  value={imeiSelectText}
+                  onChange={(e) => setImeiSelectText(e.target.value)}
+                  placeholder="O pega IMEIs aquí (uno por línea)"
+                  className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 font-mono text-[13px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200"
+                />
+                {pastedUnitIds.missing.length > 0 ? (
+                  <p className="mt-1 text-[12px] text-red-600 dark:text-red-400">
+                    {IME.imeiNotInStock}: {pastedUnitIds.missing.join(", ")}
+                  </p>
+                ) : effectiveSelectedIds.length > 0 ? (
+                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                    {`${IME.removeCount}: ${effectiveSelectedIds.length}`}
+                  </p>
+                ) : null}
+              </>
+            ) : !productRequiresImei ? (
+              <>
             <label className="mb-1 mt-4 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
               Cantidad
             </label>
@@ -445,19 +790,43 @@ function UpdateStockContent() {
                 className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-zinc-500"
               />
             </div>
+              </>
+            ) : null}
+
+            {submitError ? (
+              <p className="mt-3 text-[13px] font-medium text-red-600 dark:text-red-400">{submitError}</p>
+            ) : null}
 
             <label className="mb-1 mt-4 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
-              Motivo (opcional)
+              {productRequiresImei && imeiMovement === "baja" ? "Motivo de la baja" : "Motivo (opcional)"}
+              {productRequiresImei && imeiMovement === "baja" ? (
+                <span className="ml-1 font-normal text-red-600 dark:text-red-400">*</span>
+              ) : null}
             </label>
+            {productRequiresImei && imeiMovement === "baja" ? (
+              <p className="mb-2 text-[12px] text-slate-500 dark:text-slate-400">{IME.bajaReasonRequired}</p>
+            ) : null}
             <div className="mt-2">
               <textarea
                 rows={3}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Ej. Entrada por compra a proveedor"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-zinc-500"
+                required={productRequiresImei && imeiMovement === "baja"}
+                placeholder={
+                  productRequiresImei && imeiMovement === "baja"
+                    ? IME.bajaReasonPlaceholder
+                    : STORE_TECH_COPY.inventario.stockNotePlaceholder
+                }
+                className={`w-full rounded-xl border bg-slate-50/90 px-4 py-3 text-[13px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:bg-slate-800/80 dark:text-slate-200 dark:placeholder:text-slate-500 ${
+                  productRequiresImei && imeiMovement === "baja" && reason.trim().length > 0 && !bajaReasonValid
+                    ? "border-red-300 focus:border-red-400 dark:border-red-800"
+                    : "border-slate-200 focus:border-[color:var(--shell-sidebar)] dark:border-slate-700"
+                }`}
               />
             </div>
+            {productRequiresImei && imeiMovement === "baja" && reason.trim().length > 0 && !bajaReasonValid ? (
+              <p className="mt-1 text-[12px] text-red-600 dark:text-red-400">{IME.bajaReasonMissing}</p>
+            ) : null}
           </div>
         </div>
 
@@ -473,21 +842,45 @@ function UpdateStockContent() {
               </div>
               <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
                 <p className="font-semibold text-slate-800 dark:text-slate-100">Tipo</p>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">{movementType === "entrada" ? "Entrada (sumar)" : "Reemplazar stock"}</p>
+                <p className="mt-1 text-slate-600 dark:text-slate-400">
+                  {productRequiresImei
+                    ? imeiMovementLabel[imeiMovement]
+                    : movementType === "entrada"
+                      ? "Entrada (sumar)"
+                      : "Reemplazar stock"}
+                </p>
               </div>
               {hasBodega && (
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
                   <p className="font-semibold text-slate-800 dark:text-slate-100">Ubicación</p>
-                  <p className="mt-1 text-slate-600 dark:text-slate-400">{location === "local" ? "Local" : "Bodega"}</p>
+                  <p className="mt-1 text-slate-600 dark:text-slate-400">
+                    {location === "local" ? "Local" : "Bodega"}
+                  </p>
                 </div>
               )}
               <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
                 <p className="font-semibold text-slate-800 dark:text-slate-100">Stock actual</p>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">{selectedProduct && currentStock !== null ? currentStock : "—"}</p>
+                <p className="mt-1 text-slate-600 dark:text-slate-400">
+                  {selectedProduct
+                    ? productRequiresImei && hasBodega
+                      ? `${totalStock} total (Local ${stockLocalQty} · Bodega ${stockBodegaQty})`
+                      : productRequiresImei
+                        ? totalStock
+                        : currentStock !== null
+                          ? currentStock
+                          : "—"
+                    : "—"}
+                </p>
               </div>
               <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/25">
                 <p className="font-semibold text-slate-800 dark:text-slate-100">Después del movimiento</p>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">{afterStock !== null ? afterStock : "—"}</p>
+                <p className="mt-1 text-slate-600 dark:text-slate-400">
+                  {afterStock !== null
+                    ? afterStock
+                    : productRequiresImei && imeiMovement === "entrada" && imeiList.length > 0
+                      ? "— (IMEI inválido)"
+                      : "—"}
+                </p>
               </div>
             </div>
           </div>
@@ -497,17 +890,46 @@ function UpdateStockContent() {
               <div className="text-[13px] font-medium text-slate-600 dark:text-slate-400">
                 <p className="font-semibold text-slate-700 dark:text-slate-100">Paso final</p>
                 <p className="mt-1">
-                  Cuando confirmes, se registrará el movimiento en el inventario.
+                  {productRequiresImei
+                    ? imeiMovement === "entrada"
+                      ? "Confirma para cargar las unidades al inventario (1 IMEI = 1 unidad)."
+                      : "Indica el motivo y confirma: las unidades saldrán del stock."
+                    : "Cuando confirmes, se registrará el movimiento en el inventario."}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={!canSubmit || saving}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:pointer-events-none disabled:opacity-50"
+                className="inline-flex h-10 w-full flex-col items-center justify-center gap-0.5 rounded-xl bg-[color:var(--shell-sidebar)] px-4 py-2 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:pointer-events-none disabled:opacity-50"
               >
-                {saving ? "Guardando…" : "Actualizar stock"}
+                <span>{saving ? "Guardando…" : "Actualizar stock"}</span>
+                {!saving && productRequiresImei && imeiMovement === "entrada" && imeiListValid ? (
+                  <span className="text-[11px] font-normal text-white/85">+{imeiList.length} unidad{imeiList.length === 1 ? "" : "es"}</span>
+                ) : null}
+                {!saving && productRequiresImei && imeiMovement === "baja" && effectiveSelectedIds.length > 0 ? (
+                  <span className="text-[11px] font-normal text-white/85">−{effectiveSelectedIds.length} unidad{effectiveSelectedIds.length === 1 ? "" : "es"}</span>
+                ) : null}
               </button>
+              {!canSubmit && !saving && selectedProduct ? (
+                <p className="text-[12px] text-slate-500 dark:text-slate-400">
+                  {productRequiresImei
+                    ? imeiMovement === "entrada"
+                      ? imeiList.length === 0
+                        ? "Pega al menos un IMEI de 15 dígitos."
+                        : hasInvalidImeis
+                          ? IME.invalidImei
+                          : null
+                      : effectiveSelectedIds.length === 0
+                        ? "Selecciona o pega al menos un IMEI en stock."
+                        : !bajaReasonValid
+                          ? IME.bajaReasonMissing
+                          : pastedUnitIds.missing.length > 0
+                            ? IME.imeiNotInStock
+                            : null
+                    : "Ingresa una cantidad válida."}
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

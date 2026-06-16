@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const E = STORE_TECH_COPY.egresos;
 const REPORTS_SURFACE = "berea-reports-surface";
 
 const bereaFieldClass =
@@ -81,7 +84,7 @@ function ExpenseFilters({
           type="search"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Buscar por concepto o notas..."
+          placeholder={E.searchPlaceholder}
           className={`${bereaFieldClass} py-2.5 pl-11 pr-4`}
         />
       </div>
@@ -186,12 +189,12 @@ export default function ExpensesPage() {
     <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
       <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
         <div className="min-w-0">
-          <Breadcrumb items={[{ label: "Egresos" }]} />
+          <Breadcrumb items={[{ label: E.breadcrumb }]} />
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
-            Egresos y gastos
+            {E.title}
           </h1>
           <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
-            Registro de salidas de dinero de la sucursal. Busca por concepto o notas y filtra por forma de pago.
+            {E.subtitle}
           </p>
         </div>
         <Link
@@ -201,7 +204,7 @@ export default function ExpensesPage() {
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Nuevo egreso
+          {E.newButton}
         </Link>
       </header>
 
@@ -228,7 +231,7 @@ export default function ExpensesPage() {
             <div className="mt-4 rounded-xl border border-dashed border-[var(--berea-card-border)] bg-[var(--shell-workspace)]/40 p-8 text-center">
             <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
               {expenses.length === 0
-                ? (paymentFilter === "all" ? "Aún no hay egresos registrados" : `No hay egresos con pago "${PAYMENT_LABELS[paymentFilter]}"`)
+                ? (paymentFilter === "all" ? E.emptyAll : E.emptyFiltered(PAYMENT_LABELS[paymentFilter]))
                 : "Ningún egreso coincide con la búsqueda"}
             </p>
             <p className="mt-1 text-[13px] text-[var(--berea-ink-muted)]">

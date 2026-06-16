@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { limitsRowForPlan } from '@/lib/plan-catalog'
+import { seedDefaultTechCategoriesForOrg } from '@/lib/default-tech-categories'
 
 export async function POST(request: Request) {
   try {
@@ -87,6 +88,11 @@ export async function POST(request: Request) {
         { error: orgError?.message || 'Error al crear la organización' },
         { status: 500 }
       )
+    }
+
+    const { error: categoriesError } = await seedDefaultTechCategoriesForOrg(admin, orgData.id)
+    if (categoriesError) {
+      console.error('Error seeding default tech categories:', categoriesError)
     }
 
     const { error: userError } = await admin.from('users').insert({

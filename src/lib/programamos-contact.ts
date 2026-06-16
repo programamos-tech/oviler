@@ -6,11 +6,15 @@ export function programamosWhatsAppUrl(prefill: string): string {
   return `https://wa.me/${WA_PHONE}?text=${text}`;
 }
 
+/** WhatsApp ayuda en sidebar / header (Berea Tech). */
+export const WORKSPACE_HELP_WA_E164 = "573152802343";
+
+export const WORKSPACE_HELP_WA_DISPLAY = "315 280 2343";
+
 /** Icono de ayuda (WhatsApp) en el navbar / header del workspace. */
 export function workspaceHelpWhatsAppUrl(): string {
-  return programamosWhatsAppUrl(
-    "Hola Andrés Russ, te escribo desde Berea Comercios y necesito ayuda con…"
-  );
+  const prefill = "Hola, Andrew! Necesito un soporte desde Berea tech...";
+  return `https://wa.me/${WORKSPACE_HELP_WA_E164}?text=${encodeURIComponent(prefill)}`;
 }
 
 export const PROGRAMAMOS_WA_LICENSE =
@@ -19,7 +23,7 @@ export const PROGRAMAMOS_WA_LICENSE =
   );
 
 /** Licencia comercial — contacto directo (WhatsApp y llamada). */
-export const COMMERCIAL_LICENSE_WA_E164 = "573004934434";
+export const COMMERCIAL_LICENSE_WA_E164 = WORKSPACE_HELP_WA_E164;
 
 export const COMMERCIAL_LICENSE_TEL_HREF = `tel:+${COMMERCIAL_LICENSE_WA_E164}`;
 

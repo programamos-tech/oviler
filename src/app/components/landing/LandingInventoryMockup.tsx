@@ -30,14 +30,14 @@ export function LandingInventoryMockup() {
       </div>
 
       <div className="berea-landing-mockup-panel min-w-0 overflow-x-auto rounded-xl border">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] gap-x-2 border-b border-[var(--landing-border)] bg-[var(--landing-surface)] px-2 py-2 text-[9px] font-semibold uppercase tracking-wider berea-landing-mockup-text sm:px-3">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] gap-x-2 border-b border-[var(--landing-mockup-border)] bg-[var(--landing-mockup-surface)] px-2 py-2 text-[9px] font-semibold uppercase tracking-wider berea-landing-mockup-text sm:px-3">
           <span>SKU</span>
           <span>Nombre</span>
           <span className="text-right">Stock</span>
           <span className="text-right">Mín.</span>
           <span className="text-right">Ubic.</span>
         </div>
-        <div className="divide-y divide-[var(--landing-border)]">
+        <div className="divide-y divide-[var(--landing-mockup-border)]">
           {rows.map((r) => (
             <div
               key={r.sku}

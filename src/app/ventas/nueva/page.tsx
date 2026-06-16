@@ -9,6 +9,10 @@ import { ACTIVE_BRANCH_CHANGED_EVENT, resolveActiveBranchWithSalesMode } from "@
 import { workspaceFormInputMdClass } from "@/lib/workspace-field-classes";
 import { logActivity } from "@/lib/activities";
 import { getCopy, getDocumentCopy, type SalesMode } from "../sales-mode";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+import { formatImeiDisplay } from "@/lib/imei";
+
+const IME = STORE_TECH_COPY.imei;
 
 const IVA_RATE = 0.19;
 
@@ -51,6 +55,7 @@ type ProductOption = {
   base_price: number;
   base_cost: number | null;
   apply_iva: boolean;
+  requires_imei?: boolean;
 };
 
 type CartItem = {
@@ -62,6 +67,9 @@ type CartItem = {
   unit_price: number;
   /** Costo de compra por unidad (piso de precio de venta; alerta si queda por debajo) */
   unit_cost: number;
+  requires_imei?: boolean;
+  /** IDs de product_imei_units asignados (uno por unidad vendida) */
+  imei_unit_ids?: string[];
   /** Descuento en % (0-100) o en valor fijo $; solo uno por línea */
   discount_type?: "percent" | "fixed";
   discount_value?: number;
@@ -99,6 +107,9 @@ export default function NewSalePage() {
   const customerItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [productHighlightIndex, setProductHighlightIndex] = useState(0);
   const [stockByProductId, setStockByProductId] = useState<Record<string, number>>({});
+  const [availableImeisByProduct, setAvailableImeisByProduct] = useState<
+    Record<string, { id: string; imei: string; location?: string }[]>
+  >({});
   const [salesMode, setSalesMode] = useState<SalesMode>("orders");
   const [cashClosedToday, setCashClosedToday] = useState(false);
   const productListRef = useRef<HTMLUListElement>(null);
@@ -192,6 +203,42 @@ export default function NewSalePage() {
     if (hasSearch) return notInCart;
     return notInCart.filter((p) => (stockByProductId[p.id] ?? 0) > 0);
   }, [productResults, cart, productSearch, stockByProductId]);
+
+  // IMEIs en stock para productos del carrito que lo requieren
+  useEffect(() => {
+    if (!branchId) return;
+    const productIds = [...new Set(cart.filter((c) => c.requires_imei).map((c) => c.product_id))];
+    if (productIds.length === 0) {
+      setAvailableImeisByProduct({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("product_imei_units")
+        .select("id, imei, product_id, location")
+        .eq("branch_id", branchId)
+        .eq("status", "in_stock")
+        .in("product_id", productIds)
+        .order("imei");
+      if (cancelled) return;
+      const map: Record<string, { id: string; imei: string; location?: string }[]> = {};
+      for (const row of data ?? []) {
+        const pid = row.product_id as string;
+        if (!map[pid]) map[pid] = [];
+        map[pid].push({
+          id: row.id as string,
+          imei: row.imei as string,
+          location: (row.location as string) ?? "local",
+        });
+      }
+      setAvailableImeisByProduct(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId, cart]);
 
   // Ajustar índice al quitar productos de la lista (p. ej. al agregar al carrito)
   useEffect(() => {
@@ -350,7 +397,7 @@ export default function NewSalePage() {
     }
     const { data } = await supabase
       .from("products")
-      .select("id, name, sku, base_price, base_cost, apply_iva")
+      .select("id, name, sku, base_price, base_cost, apply_iva, requires_imei")
       .eq("organization_id", orgId)
       .in("id", idsWithStock)
       .order("name")
@@ -376,7 +423,7 @@ export default function NewSalePage() {
       }
       const { data } = await supabase
         .from("products")
-        .select("id, name, sku, base_price, base_cost, apply_iva")
+        .select("id, name, sku, base_price, base_cost, apply_iva, requires_imei")
         .eq("organization_id", orgId)
         .in("id", scopedProductIds)
         .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
@@ -435,10 +482,31 @@ export default function NewSalePage() {
         const current = next[i];
         const maxQty = stock ?? current.quantity + 1;
         const newQty = Math.min(current.quantity + 1, maxQty);
-        next[i] = { ...current, quantity: newQty, reference: current.reference ?? p.sku ?? "", unit_cost: current.unit_cost ?? p.base_cost ?? 0 };
+        const imeiIds = [...(current.imei_unit_ids ?? [])];
+        while (imeiIds.length < newQty) imeiIds.push("");
+        next[i] = {
+          ...current,
+          quantity: newQty,
+          reference: current.reference ?? p.sku ?? "",
+          unit_cost: current.unit_cost ?? p.base_cost ?? 0,
+          requires_imei: current.requires_imei ?? !!p.requires_imei,
+          imei_unit_ids: current.requires_imei || p.requires_imei ? imeiIds.slice(0, newQty) : undefined,
+        };
         return next;
       }
-      return [...prev, { product_id: p.id, name: p.name, reference: p.sku ?? "", quantity: 1, unit_price: price, unit_cost: p.base_cost ?? 0 }];
+      return [
+        ...prev,
+        {
+          product_id: p.id,
+          name: p.name,
+          reference: p.sku ?? "",
+          quantity: 1,
+          unit_price: price,
+          unit_cost: p.base_cost ?? 0,
+          requires_imei: !!p.requires_imei,
+          imei_unit_ids: p.requires_imei ? [""] : undefined,
+        },
+      ];
     });
     if (clearSearch) {
       setProductSearch("");
@@ -481,9 +549,27 @@ export default function NewSalePage() {
       if (maxQty != null && q > maxQty) q = maxQty;
       q = Math.max(0, q);
       if (q === 0) return next.filter((_, j) => j !== i);
-      next[i] = { ...next[i], quantity: q };
+      const imeiIds = [...(next[i].imei_unit_ids ?? [])];
+      while (imeiIds.length < q) imeiIds.push("");
+      next[i] = {
+        ...next[i],
+        quantity: q,
+        imei_unit_ids: next[i].requires_imei ? imeiIds.slice(0, q) : undefined,
+      };
       return next;
     });
+  }, []);
+
+  const setCartLineImei = useCallback((productId: string, slotIndex: number, unitId: string) => {
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.product_id !== productId || !item.requires_imei) return item;
+        const ids = [...(item.imei_unit_ids ?? [])];
+        while (ids.length < item.quantity) ids.push("");
+        ids[slotIndex] = unitId;
+        return { ...item, imei_unit_ids: ids };
+      })
+    );
   }, []);
 
   // Limpiar mensaje sutil de límite de stock tras 2 s
@@ -586,6 +672,24 @@ export default function NewSalePage() {
       const floor = item.unit_cost > 0 ? item.unit_cost : 0;
       return { ...item, unit_price: Math.max(floor, item.unit_price) };
     });
+
+    for (const item of cartClamped) {
+      if (!item.requires_imei) continue;
+      const ids = item.imei_unit_ids ?? [];
+      if (ids.length !== item.quantity || ids.some((id) => !id)) {
+        setError(IME.assignRequired);
+        submittingRef.current = false;
+        setSubmitting(false);
+        return;
+      }
+      if (new Set(ids).size !== ids.length) {
+        setError("No puedes asignar el mismo IMEI dos veces en la misma factura.");
+        submittingRef.current = false;
+        setSubmitting(false);
+        return;
+      }
+    }
+
     const subtotalClamped = cartClamped.reduce((s, i) => s + lineTotal(i), 0);
     const totalClamped = subtotalClamped + deliveryFeeAmount;
 
@@ -656,8 +760,26 @@ export default function NewSalePage() {
         discount_percent: item.discount_type === "percent" ? (item.discount_value ?? 0) : 0,
         discount_amount: item.discount_type === "fixed" ? (item.discount_value ?? 0) : 0,
       }));
-      const { error: itemsError } = await supabase.from("sale_items").insert(items);
+      const { data: insertedItems, error: itemsError } = await supabase
+        .from("sale_items")
+        .insert(items)
+        .select("id, product_id, quantity");
       if (itemsError) throw itemsError;
+      if (!insertedItems || insertedItems.length !== cartClamped.length) {
+        throw new Error("No se pudieron guardar las líneas de la factura.");
+      }
+
+      for (let i = 0; i < cartClamped.length; i++) {
+        const line = cartClamped[i];
+        const dbLine = insertedItems[i];
+        if (line.requires_imei && line.imei_unit_ids?.length) {
+          const { error: imeiErr } = await supabase.rpc("assign_imei_units_to_sale_item", {
+            p_sale_item_id: dbLine.id,
+            p_imei_unit_ids: line.imei_unit_ids,
+          });
+          if (imeiErr) throw new Error(imeiErr.message);
+        }
+      }
 
       // Mostrador: marcar finalizada de inmediato (reportes/caja cuentan solo completed) y disparar descuento de stock.
       if (!isDelivery) {
@@ -1015,6 +1137,42 @@ export default function NewSalePage() {
                           Quitar
                         </button>
                       </div>
+                      {item.requires_imei ? (
+                        <div className="mt-3 space-y-2 border-t border-slate-200/80 pt-3 dark:border-slate-700">
+                          <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200">{IME.availableInStock}</p>
+                          {(availableImeisByProduct[item.product_id] ?? []).length === 0 ? (
+                            <p className="text-[12px] text-amber-700 dark:text-amber-400">{IME.notInStock}</p>
+                          ) : null}
+                          {Array.from({ length: item.quantity }).map((_, slotIdx) => {
+                            const selectedElsewhere = new Set(
+                              (item.imei_unit_ids ?? []).filter((id, j) => j !== slotIdx && id)
+                            );
+                            const options = (availableImeisByProduct[item.product_id] ?? []).filter(
+                              (u) => !selectedElsewhere.has(u.id) || item.imei_unit_ids?.[slotIdx] === u.id
+                            );
+                            return (
+                              <div key={slotIdx} className="flex flex-wrap items-center gap-2">
+                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                  {IME.selectImei} {item.quantity > 1 ? `#${slotIdx + 1}` : ""}
+                                </span>
+                                <select
+                                  value={item.imei_unit_ids?.[slotIdx] ?? ""}
+                                  onChange={(e) => setCartLineImei(item.product_id, slotIdx, e.target.value)}
+                                  className="h-8 min-w-[12rem] flex-1 rounded border border-slate-300 bg-white px-2 font-mono text-[12px] text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                >
+                                  <option value="">{IME.selectImei}…</option>
+                                  {options.map((u) => (
+                                    <option key={u.id} value={u.id}>
+                                      {formatImeiDisplay(u.imei)}
+                                      {u.location === "bodega" ? " · Bodega" : " · Local"}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
                     </div>
                   ))}
               </div>

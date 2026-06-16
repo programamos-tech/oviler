@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const E = STORE_TECH_COPY.egresos;
+const NAV = STORE_TECH_COPY.nav.modules;
 import { InfoTip } from "@/app/components/InfoTip";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -176,7 +180,7 @@ export default function NewExpensePage() {
     <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
       <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <Breadcrumb items={[{ label: "Egresos", href: "/egresos" }, { label: "Nuevo egreso" }]} />
+            <Breadcrumb items={[{ label: NAV.egresos, href: "/egresos" }, { label: E.newButton }]} />
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
                 Nuevo egreso o gasto
@@ -238,7 +242,7 @@ export default function NewExpensePage() {
                     type="text"
                     value={customConcept}
                     onChange={(e) => setCustomConcept(e.target.value)}
-                    placeholder="Escribe el concepto"
+                    placeholder={E.conceptPlaceholder}
                     className={`mt-2 ${inputClass}`}
                   />
                 )}
@@ -283,7 +287,7 @@ export default function NewExpensePage() {
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Detalle adicional si lo necesitas"
+                  placeholder={E.notesPlaceholder}
                   className={textareaClass}
                 />
               </div>

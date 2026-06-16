@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 import { useSession } from "@/app/components/SessionProvider";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const G = STORE_TECH_COPY.garantias;
 import {
   shouldShowListSkeleton,
   visibleCountFromCache,
@@ -99,7 +102,7 @@ function WarrantyFilters({
           type="search"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Buscar por ID, cliente, producto o factura…"
+          placeholder={G.searchPlaceholder}
           className={`${bereaFieldClass} py-2.5 pl-11 pr-4`}
         />
       </div>
@@ -320,10 +323,10 @@ export default function WarrantiesPage() {
       <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
         <div className="min-w-0 shrink-0">
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
-            Garantías de productos
+            {G.title}
           </h1>
           <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
-            Gestiona solicitudes, revisa estados y procesa cambios o devoluciones.
+            {G.subtitle}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2 self-start lg:self-center">
@@ -371,13 +374,13 @@ export default function WarrantiesPage() {
             <div className="px-2 py-8 text-center sm:px-4">
               <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
                 {displayTotalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim()
-                  ? "Aún no hay garantías registradas"
-                  : "Ninguna garantía coincide con la búsqueda o filtros"}
+                  ? G.emptyTitle
+                  : G.emptyFiltered}
               </p>
               <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
                 {displayTotalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim()
-                  ? "Registra tu primera garantía para verla aquí."
-                  : "Prueba cambiando la búsqueda, el estado o el tipo de garantía."}
+                  ? G.emptyHint
+                  : G.emptyFilteredHint}
               </p>
               {displayTotalCount === 0 && statusFilter === "all" && typeFilter === "all" && !searchQueryDebounced.trim() && (
                 <Link

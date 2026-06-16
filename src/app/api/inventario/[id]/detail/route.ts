@@ -9,7 +9,51 @@ const CACHE_SECONDS = 25;
 const STATUSES_THAT_RESERVE = ["pending", "preparing", "packing"];
 
 const PRODUCT_SELECT =
-  "id, name, sku, category_id, brand, description, base_price, base_cost, apply_iva, categories(name)";
+  "id, name, sku, category_id, brand, description, base_price, base_cost, apply_iva, requires_imei, categories(name)";
+
+type ImeiRemovedRow = {
+  id: string;
+  imei: string;
+  location?: string;
+  removed_at: string;
+  removal_reason: string | null;
+  removed_by?: string | null;
+  removed_by_profile?: { name: string } | { name: string }[] | null;
+};
+
+async function fetchImeiRemovedUnits(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  branchId: string,
+  productId: string
+): Promise<ImeiRemovedRow[]> {
+  const withUser = await supabase
+    .from("product_imei_units")
+    .select(
+      "id, imei, location, removed_at, removal_reason, removed_by, removed_by_profile:users!product_imei_units_removed_by_fkey(name)"
+    )
+    .eq("branch_id", branchId)
+    .eq("product_id", productId)
+    .eq("status", "removed")
+    .order("removed_at", { ascending: false })
+    .limit(50);
+
+  if (!withUser.error) return (withUser.data ?? []) as ImeiRemovedRow[];
+
+  const basic = await supabase
+    .from("product_imei_units")
+    .select("id, imei, location, removed_at, removal_reason")
+    .eq("branch_id", branchId)
+    .eq("product_id", productId)
+    .eq("status", "removed")
+    .order("removed_at", { ascending: false })
+    .limit(50);
+
+  if (basic.error) {
+    console.error("[inventario/detail] imeiRemovedUnits:", basic.error.message);
+    return [];
+  }
+  return (basic.data ?? []) as ImeiRemovedRow[];
+}
 
 export async function GET(
   request: NextRequest,
@@ -51,7 +95,9 @@ export async function GET(
     p.categories as { name: string } | { name: string }[] | null
   );
 
-  const [{ data: branchRow }, invRes, reservedRes, { data: ilDataRaw }, branchLocIdsRes] = await Promise.all([
+  const requiresImei = (p as { requires_imei?: boolean }).requires_imei;
+  const [{ data: branchRow }, invRes, reservedRes, { data: ilDataRaw }, branchLocIdsRes, imeiRes, imeiRemovedRows] =
+    await Promise.all([
     supabase.from("branches").select("has_bodega").eq("id", branchId).single(),
     supabase.from("inventory").select("quantity, location").eq("product_id", productId).eq("branch_id", branchId),
     supabase
@@ -62,6 +108,16 @@ export async function GET(
       .in("sales.status", STATUSES_THAT_RESERVE),
     supabase.from("inventory_locations").select("location_id, quantity").eq("product_id", productId),
     supabase.from("locations").select("id").eq("branch_id", branchId),
+    requiresImei
+      ? supabase
+          .from("product_imei_units")
+          .select("id, imei, status, location, sold_at, sale_id")
+          .eq("branch_id", branchId)
+          .eq("product_id", productId)
+          .eq("status", "in_stock")
+          .order("imei")
+      : Promise.resolve({ data: [] as unknown[], error: null }),
+    requiresImei ? fetchImeiRemovedUnits(supabase, branchId, productId) : Promise.resolve([]),
   ]);
 
   const hasBodega = branchRow?.has_bodega !== false;
@@ -138,6 +194,34 @@ export async function GET(
 
   const { categories: _categories, ...productRest } = p as Record<string, unknown>;
 
+  const imeiUnits = ((imeiRes.data ?? []) as Array<{
+    id: string;
+    imei: string;
+    status: string;
+    location?: string;
+    sold_at: string | null;
+    sale_id: string | null;
+  }>).map((row) => ({
+    id: row.id,
+    imei: row.imei,
+    status: row.status,
+    location: (row.location === "bodega" ? "bodega" : "local") as "local" | "bodega",
+    sold_at: row.sold_at,
+    sale_id: row.sale_id,
+  }));
+
+  const imeiRemovedUnits = imeiRemovedRows.map((row) => {
+    const profile = pickOne(row.removed_by_profile);
+    return {
+      id: row.id,
+      imei: row.imei,
+      location: (row.location === "bodega" ? "bodega" : "local") as "local" | "bodega",
+      removed_at: row.removed_at,
+      removal_reason: row.removal_reason?.trim() || "—",
+      removed_by_name: profile?.name?.trim() || null,
+    };
+  });
+
   return NextResponse.json(
     {
       product: {
@@ -150,6 +234,8 @@ export async function GET(
       stockTotal,
       stockReserved,
       locationRows,
+      imeiUnits,
+      imeiRemovedUnits,
     },
     {
       headers: {

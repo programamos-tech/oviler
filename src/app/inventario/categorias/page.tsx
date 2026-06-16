@@ -6,6 +6,10 @@ import { createClient } from "@/lib/supabase/client";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+import { seedDefaultTechCategoriesForOrg } from "@/lib/default-tech-categories";
+
+const INV = STORE_TECH_COPY.inventario;
 
 const inputClass =
   "h-10 w-full rounded-lg border border-slate-300 bg-white px-4 text-[14px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-ov-pink/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
@@ -45,12 +49,22 @@ export default function CategoriasPage() {
       if (!user || cancelled) return;
       const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
       if (!userRow?.organization_id || cancelled) return;
-      const { data } = await supabase
+      let { data } = await supabase
         .from("categories")
         .select("id, name, display_order")
         .eq("organization_id", userRow.organization_id)
         .order("display_order", { ascending: true })
         .order("name", { ascending: true });
+      if (!cancelled && (data ?? []).length === 0) {
+        await seedDefaultTechCategoriesForOrg(supabase, userRow.organization_id);
+        const refetch = await supabase
+          .from("categories")
+          .select("id, name, display_order")
+          .eq("organization_id", userRow.organization_id)
+          .order("display_order", { ascending: true })
+          .order("name", { ascending: true });
+        data = refetch.data;
+      }
       if (!cancelled) setCategories(data ?? []);
       setLoading(false);
     })();
@@ -141,7 +155,7 @@ export default function CategoriasPage() {
   return (
     <div className="space-y-4">
       <header className="space-y-2">
-        <Breadcrumb items={[{ label: "Inventario", href: "/inventario" }, { label: "Categorías" }]} />
+        <Breadcrumb items={[{ label: STORE_TECH_COPY.nav.modules.inventario, href: "/inventario" }, { label: "Categorías" }]} />
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
@@ -177,7 +191,7 @@ export default function CategoriasPage() {
           <form onSubmit={handleAdd} className="mt-3 flex gap-2">
             <input
               type="text"
-              placeholder="Ej. Alimentos, Aseo, Bebidas"
+              placeholder={INV.categorias.placeholder}
               className={inputClass}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
@@ -200,7 +214,7 @@ export default function CategoriasPage() {
             <p className="mt-3 text-[13px] text-slate-500">Cargando…</p>
           ) : categories.length === 0 ? (
             <p className="mt-3 text-[13px] text-slate-500 dark:text-slate-400">
-              Aún no tienes categorías. Agrega una arriba para usarlas al crear productos.
+              {INV.categorias.empty}
             </p>
           ) : (
             <ul className="mt-3 space-y-2">

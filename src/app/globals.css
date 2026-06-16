@@ -8,49 +8,48 @@ html {
 }
 
 :root {
-  /* Modo claro Berea: lienzo crema muy claro, tarjetas blancas */
-  --background: 250 248 245; /* #faf8f5 — blanco cálido, sin tinte azul */
-  --foreground: 44 40 36; /* berea ink */
+  /* Modo claro Berea: lienzo startup (slate claro), tarjetas blancas */
+  --background: 248 250 252; /* #f8fafc */
+  --foreground: 15 23 42; /* slate-900 */
 
   --ov-surface-soft: 255 255 255;
   --ov-surface-strong: 255 255 255;
 
-  /* Acento UI: grises (CTA / enlaces; antes verde marca) */
-  --ov-primary: 23 23 23;
-  --ov-accent: 38 38 38;
-  --ov-accent-light: 82 82 91;
+  /* Acento UI: azul Berea oscuro (navy chaqueta) */
+  --ov-primary: 21 64 107;
+  --ov-accent: 30 80 130;
+  --ov-accent-light: 61 122 171;
   --ov-muted: 100 116 139;
-  /* Nombre histórico ov-pink: ahora gris oscuro (botones primarios) */
-  --ov-pink: #171717;
-  --ov-pink-hover: #262626;
+  --ov-pink: #15406b;
+  --ov-pink-hover: #0d2137;
   --ov-pink-muted: #64748b;
 
-  /* Shell: botones y acentos = gris oscuro; “sidebar” ya no es verde en claro */
-  --shell-sidebar: #171717;
-  --shell-sidebar-accent: #d4d4d8;
-  --shell-sidebar-cta-hover: #262626;
-  /* Shell nav (sidebar / top móvil): tono cálido Berea */
-  --shell-nav-bg: #20201f;
-  --shell-nav-fg: #f7f2ee;
-  --shell-nav-fg-muted: rgba(247, 242, 238, 0.58);
-  --shell-nav-fg-subtle: rgba(247, 242, 238, 0.38);
-  --shell-nav-active-bg: rgba(120, 98, 72, 0.38);
-  --shell-nav-hover-bg: rgba(247, 242, 238, 0.06);
-  --shell-nav-border: rgba(247, 242, 238, 0.12);
-  --shell-nav-card-bg: rgba(247, 242, 238, 0.04);
-  /* Lienzo principal ERP: crema Berea, más claro que antes pero cálido */
-  --shell-workspace: #faf8f5;
+  /* Shell: navy sólido */
+  --shell-sidebar: #15406b;
+  --shell-sidebar-accent: #3d7aab;
+  --shell-sidebar-cta-hover: #0d2137;
+  /* Sidebar / top móvil: tono Arc (carbón indigo, casi negro) */
+  --shell-nav-bg: #12121a;
+  --shell-nav-fg: #ececef;
+  --shell-nav-fg-muted: rgba(236, 236, 239, 0.68);
+  --shell-nav-fg-subtle: rgba(236, 236, 239, 0.44);
+  --shell-nav-active-bg: rgba(255, 255, 255, 0.11);
+  --shell-nav-hover-bg: rgba(255, 255, 255, 0.06);
+  --shell-nav-border: rgba(255, 255, 255, 0.07);
+  --shell-nav-card-bg: rgba(255, 255, 255, 0.04);
+  /* Lienzo principal ERP */
+  --shell-workspace: #f8fafc;
   --shell-workspace-search-bg: #ffffff;
-  --shell-workspace-search-border: rgba(44, 40, 36, 0.1);
-  --shell-workspace-search-inset: inset 0 0 0 0.5px rgba(44, 40, 36, 0.05);
-  --berea-ink: #2c2824;
-  --berea-ink-muted: rgba(44, 40, 36, 0.58);
-  --berea-ink-subtle: rgba(44, 40, 36, 0.38);
+  --shell-workspace-search-border: rgba(15, 23, 42, 0.08);
+  --shell-workspace-search-inset: inset 0 0 0 0.5px rgba(15, 23, 42, 0.04);
+  --berea-ink: #0f172a;
+  --berea-ink-muted: rgba(15, 23, 42, 0.58);
+  --berea-ink-subtle: rgba(15, 23, 42, 0.38);
   --berea-card: #ffffff;
-  --berea-card-border: rgba(44, 40, 36, 0.08);
-  --berea-accent: #5c4a3a;
-  --berea-accent-hover: #6d5845;
-  --berea-accent-soft: rgba(92, 74, 58, 0.28);
+  --berea-card-border: rgba(15, 23, 42, 0.08);
+  --berea-accent: #15406b;
+  --berea-accent-hover: #0d2137;
+  --berea-accent-soft: rgba(13, 33, 55, 0.14);
 }
 
 @theme inline {
@@ -138,14 +137,8 @@ body {
   font-family: var(--font-shell), var(--font-plus-jakarta), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-.shell-sidebar {
-  background-image: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(247, 242, 238, 0.04), transparent 55%);
-}
-
-.shell-nav {
-  background-image: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(247, 242, 238, 0.04), transparent 55%);
+  background-color: var(--shell-nav-bg) !important;
+  background-image: none !important;
 }
 
 .shell-sidebar nav a,
@@ -168,7 +161,7 @@ body {
 .shell-sidebar .sidebar-nav-item--active {
   background-color: var(--shell-nav-active-bg);
   color: var(--shell-nav-fg);
-  border-radius: 5px;
+  border-radius: 8px;
 }
 
 /* Cards y filas del sidebar: esquinas más cuadradas */
@@ -178,7 +171,7 @@ body {
 }
 
 .shell-sidebar .sidebar-nav-row {
-  border-radius: 5px;
+  border-radius: 8px;
 }
 
 .shell-sidebar .sidebar-icon-box {
@@ -205,7 +198,7 @@ body {
 
 .shell-workspace-header .shell-header-icon-btn:hover {
   color: var(--berea-ink);
-  background-color: rgba(44, 40, 36, 0.06);
+  background-color: rgba(15, 23, 42, 0.06);
 }
 
 .shell-workspace-header .shell-header-icon-btn svg {
@@ -222,7 +215,7 @@ body {
 
 .shell-workspace-header .shell-header-profile-btn:hover {
   border-color: var(--berea-card-border);
-  background-color: rgba(44, 40, 36, 0.04);
+  background-color: rgba(15, 23, 42, 0.04);
 }
 
 .shell-workspace-header .shell-header-profile-name {
@@ -281,7 +274,7 @@ body {
   background-color: var(--shell-workspace-search-bg);
   border: 1px solid var(--shell-workspace-search-border);
   box-shadow:
-    0 1px 2px rgba(44, 40, 36, 0.04),
+    0 1px 2px rgba(15, 23, 42, 0.04),
     var(--shell-workspace-search-inset);
 }
 
@@ -423,21 +416,8 @@ body {
 }
 
 .berea-reports .berea-kpi-card.berea-card-enter::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  border-radius: inherit;
-  background: linear-gradient(
-    105deg,
-    transparent 38%,
-    rgba(255, 255, 255, 0.55) 50%,
-    transparent 62%
-  );
-  transform: translateX(-130%);
-  animation: berea-card-shine 0.75s ease-out forwards;
-  animation-delay: calc(var(--berea-enter-i, 0) * 68ms + 220ms);
-  pointer-events: none;
+  content: none;
+  display: none;
 }
 
 .berea-reports .berea-card-enter .berea-enter-layer {
@@ -472,14 +452,18 @@ body {
 }
 
 .berea-reports .berea-loading-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--shell-workspace) 0%,
-    rgba(255, 255, 255, 0.92) 45%,
-    var(--shell-workspace) 90%
-  );
-  background-size: 200% 100%;
-  animation: berea-skeleton-shimmer 1.4s ease-in-out infinite;
+  background-color: var(--shell-workspace);
+  animation: berea-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes berea-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .berea-reports .berea-refresh-dot {
@@ -542,8 +526,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 4.25rem;
-  padding: 0.625rem 0.25rem 0.5rem;
+  min-height: 5rem;
+  padding: 0.5rem 0.25rem 0.625rem;
 }
 
 /* Menú central: reparte ítems en el alto disponible (sin huecos grandes) */
@@ -556,71 +540,17 @@ body {
   flex-shrink: 0;
 }
 
-/* Recorte + zoom: el PNG es cuadrado con mucho margen negro alrededor del wordmark */
 .shell-sidebar .sidebar-logo-link {
-  display: block;
-  width: 100%;
-  overflow: hidden;
-}
-
-.shell-sidebar .sidebar-logo-crop {
   display: flex;
-  width: 100%;
-  height: 3.25rem;
-  align-items: center;
   justify-content: center;
-  overflow: hidden;
+  width: 100%;
 }
 
-.shell-sidebar .sidebar-logo-img {
-  display: block;
-  flex-shrink: 0;
-  width: 11.5rem;
-  height: 11.5rem;
-  max-width: none;
-  object-fit: contain;
-  /* Centrar el wordmark dentro del cuadrado 1024×1024 */
-  object-position: center 54%;
-  /* PNG gris sobre negro → tono del texto del sidebar */
-  filter: brightness(5.5) contrast(1.35) sepia(0.12) saturate(0.4) brightness(1.08);
-}
-
-.shell-sidebar .sidebar-logo-link:hover .sidebar-logo-img {
+.shell-sidebar .sidebar-logo-link:hover img {
   opacity: 0.88;
 }
 
-/* TopNav móvil/tablet — zoom al wordmark (PNG cuadrado con mucho margen) */
-.shell-nav .topnav-logo-crop {
-  display: block;
-  height: 2.5rem;
-  width: 8.25rem;
-  min-width: 7.5rem;
-  max-width: min(46vw, 9.5rem);
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.shell-nav .topnav-logo-img {
-  display: block;
-  height: 9.5rem;
-  width: 9.5rem;
-  max-width: none;
-  object-fit: contain;
-  /* Alinea el icono B + wordmark (no el centro vacío del PNG) */
-  object-position: left 54%;
-  transform: translateY(-28%);
-  filter: brightness(5.5) contrast(1.35) sepia(0.12) saturate(0.4) brightness(1.08);
-}
-
-@media (min-width: 640px) {
-  .shell-nav .topnav-logo-crop {
-    height: 2.625rem;
-    width: 9.5rem;
-    max-width: 9.5rem;
-  }
-}
-
-.shell-nav a:hover .topnav-logo-img {
+.shell-nav a:hover .berea-tech-logo-frame--topnav img {
   opacity: 0.88;
 }
 
@@ -663,6 +593,7 @@ body {
 
 .berea-auth-card-header {
   margin-top: 1.5rem;
+  text-align: center;
 }
 
 .berea-auth-card-header h1 {
@@ -889,9 +820,7 @@ body {
   flex-direction: column;
   justify-content: center;
   padding: 3rem 2.5rem;
-  background:
-    radial-gradient(ellipse 90% 70% at 80% 10%, rgba(120, 98, 72, 0.35), transparent 55%),
-    linear-gradient(155deg, #3d3228 0%, #2c2824 42%, #20201f 100%);
+  background-color: var(--shell-nav-bg);
   color: var(--shell-nav-fg);
 }
 
@@ -944,10 +873,77 @@ body {
   background-color: rgba(247, 242, 238, 0.55);
 }
 
-/* Logo en tarjeta clara: recorte compacto, sin filtro de sidebar */
-.berea-auth-logo {
-  display: inline-block;
+/* Berea Tech logo — PNG 1:1 con wordmark horizontal centrado */
+.berea-tech-logo-frame {
+  position: relative;
   overflow: hidden;
+  flex-shrink: 0;
+}
+
+.berea-tech-logo-frame > img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -46%);
+  max-width: none;
+  filter: brightness(0) saturate(100%);
+}
+
+.berea-tech-logo-frame--nav {
+  width: 11.5rem;
+  height: 3.5rem;
+}
+
+.berea-tech-logo-frame--nav > img {
+  width: 11.5rem;
+  height: 11.5rem;
+}
+
+.berea-tech-logo-frame--auth {
+  width: 14rem;
+  height: 4.25rem;
+  margin-inline: auto;
+}
+
+.berea-tech-logo-frame--auth > img {
+  width: 14rem;
+  height: 14rem;
+}
+
+.berea-tech-logo-frame--sidebar {
+  width: 12.5rem;
+  height: 4.25rem;
+  margin-inline: auto;
+}
+
+.berea-tech-logo-frame--sidebar > img {
+  width: 12.5rem;
+  height: 12.5rem;
+  transform: translate(-48%, -46%);
+  filter: brightness(0) invert(1);
+  opacity: 0.94;
+}
+
+.berea-tech-logo-frame--topnav {
+  width: 11.5rem;
+  height: 3.5rem;
+  max-width: min(52vw, 11.5rem);
+  margin-inline: auto;
+}
+
+.berea-tech-logo-frame--topnav > img {
+  width: 11.5rem;
+  height: 11.5rem;
+  transform: translate(-48%, -46%);
+  filter: brightness(0) invert(1);
+  opacity: 0.94;
+}
+
+/* Logo en tarjeta clara */
+.berea-auth-logo {
+  display: flex;
+  justify-content: center;
+  width: 100%;
   transition: opacity 0.15s ease;
 }
 
@@ -955,51 +951,36 @@ body {
   opacity: 0.85;
 }
 
-.berea-auth-logo-crop {
-  display: block;
-  height: 2.75rem;
-  width: 9.5rem;
-  overflow: hidden;
-}
-
-.berea-auth-logo-img {
-  display: block;
-  height: 9.5rem;
-  width: 9.5rem;
-  max-width: none;
-  object-fit: contain;
-  object-position: left 54%;
-  transform: translateY(-28%);
-  filter: brightness(0) saturate(100%);
-  opacity: 0.92;
-}
-
-/* Landing — paleta Berea (shell-nav + acento marrón) */
+/* Landing — fondo blanco, texto azul casi negro */
 .berea-landing {
-  --landing-bg: #20201f;
-  --landing-bg-elevated: #2c2824;
-  --landing-fg: #f7f2ee;
-  --landing-fg-muted: rgba(247, 242, 238, 0.58);
-  --landing-fg-subtle: rgba(247, 242, 238, 0.38);
-  --landing-border: rgba(247, 242, 238, 0.12);
-  --landing-surface: rgba(247, 242, 238, 0.04);
-  --landing-surface-hover: rgba(247, 242, 238, 0.07);
-  --landing-accent: #5c4a3a;
-  --landing-accent-hover: #6d5845;
-  --landing-accent-soft: rgba(92, 74, 58, 0.32);
-  --landing-highlight-from: #e8ddd0;
-  --landing-highlight-to: #f7f2ee;
+  --landing-ink: #0a1628;
+  --landing-ink-hover: #050d18;
+  --landing-bg: #ffffff;
+  --landing-bg-elevated: #ffffff;
+  --landing-fg: var(--landing-ink);
+  --landing-fg-muted: rgba(10, 22, 40, 0.72);
+  --landing-fg-subtle: rgba(10, 22, 40, 0.48);
+  --landing-border: rgba(10, 22, 40, 0.12);
+  --landing-surface: rgba(10, 22, 40, 0.04);
+  --landing-surface-hover: rgba(10, 22, 40, 0.07);
+  --landing-accent: var(--landing-ink);
+  --landing-accent-hover: var(--landing-ink-hover);
+  --landing-accent-soft: rgba(10, 22, 40, 0.08);
+  --landing-highlight-from: var(--landing-ink);
+  --landing-highlight-to: var(--landing-ink);
+  /* Mockups: panel oscuro (contraste sobre landing clara) */
+  --landing-mockup-bg: #0d2137;
+  --landing-mockup-fg: #f8fafc;
+  --landing-mockup-fg-muted: rgba(248, 250, 252, 0.72);
+  --landing-mockup-fg-strong: rgba(248, 250, 252, 0.92);
+  --landing-mockup-border: rgba(255, 255, 255, 0.12);
+  --landing-mockup-surface: rgba(255, 255, 255, 0.05);
   background-color: var(--landing-bg);
   color: var(--landing-fg);
 }
 
 .berea-landing-glow {
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, var(--landing-accent-soft), transparent 52%),
-    radial-gradient(ellipse 50% 40% at 100% 40%, rgba(92, 74, 58, 0.12), transparent 45%);
+  display: none;
 }
 
 .berea-landing-header {
@@ -1008,8 +989,7 @@ body {
   z-index: 50;
   width: 100%;
   border-bottom: 1px solid var(--landing-border);
-  background-color: rgba(32, 32, 31, 0.82);
-  backdrop-filter: blur(12px);
+  background-color: var(--landing-bg);
 }
 
 .berea-landing-section {
@@ -1019,7 +999,7 @@ body {
 }
 
 .berea-landing-section--gradient {
-  background: linear-gradient(180deg, var(--landing-bg) 0%, var(--landing-bg-elevated) 100%);
+  background-color: var(--landing-bg);
 }
 
 .berea-landing-section-line {
@@ -1028,12 +1008,7 @@ body {
   inset-inline: 0;
   top: 0;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(120, 98, 72, 0.45),
-    transparent
-  );
+  background-color: var(--landing-border);
 }
 
 .berea-landing-eyebrow {
@@ -1050,10 +1025,7 @@ body {
 }
 
 .berea-landing-accent-text {
-  background: linear-gradient(90deg, var(--landing-highlight-from), var(--landing-highlight-to));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--landing-fg);
 }
 
 .berea-landing-body {
@@ -1098,8 +1070,8 @@ body {
   padding-inline: 1.25rem;
   font-size: 14px;
   font-weight: 700;
-  color: #faf8f5;
-  box-shadow: 0 2px 10px rgba(92, 74, 58, 0.35);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(10, 22, 40, 0.22);
   transition:
     background-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -1107,7 +1079,7 @@ body {
 
 .berea-landing-btn-primary:hover {
   background-color: var(--landing-accent-hover);
-  box-shadow: 0 4px 14px rgba(92, 74, 58, 0.4);
+  box-shadow: 0 4px 14px rgba(10, 22, 40, 0.32);
 }
 
 .berea-landing-btn-secondary {
@@ -1117,25 +1089,25 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 0.75rem;
-  border: 1px solid rgba(247, 242, 238, 0.22);
+  border: 1px solid rgba(10, 22, 40, 0.28);
   background-color: transparent;
   padding-inline: 1.25rem;
   font-size: 14px;
   font-weight: 500;
-  color: rgba(247, 242, 238, 0.9);
+  color: var(--landing-fg);
   transition:
     border-color 0.15s ease,
     background-color 0.15s ease;
 }
 
 .berea-landing-btn-secondary:hover {
-  border-color: rgba(247, 242, 238, 0.32);
+  border-color: rgba(10, 22, 40, 0.42);
   background-color: var(--landing-surface-hover);
 }
 
 .berea-landing-link {
   font-weight: 500;
-  color: #e8ddd0;
+  color: var(--landing-fg-muted);
   text-underline-offset: 2px;
   transition: color 0.15s ease;
 }
@@ -1149,16 +1121,14 @@ body {
   border-radius: 1rem;
   border: 1px solid var(--landing-border);
   background-color: var(--landing-surface);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow: 0 1px 3px rgba(10, 22, 40, 0.06);
   transition:
     border-color 0.2s ease,
     background-color 0.2s ease;
 }
 
 .berea-landing-card:hover {
-  border-color: rgba(247, 242, 238, 0.18);
+  border-color: rgba(10, 22, 40, 0.22);
   background-color: var(--landing-surface-hover);
 }
 
@@ -1169,16 +1139,16 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 0.75rem;
-  border: 1px solid rgba(120, 98, 72, 0.35);
+  border: 1px solid rgba(10, 22, 40, 0.14);
   background-color: var(--landing-accent-soft);
-  color: #e8ddd0;
+  color: var(--landing-fg);
 }
 
 .berea-landing-steps {
   border-radius: 1rem;
   border: 1px solid var(--landing-border);
   background-color: var(--landing-surface);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: 0 1px 3px rgba(10, 22, 40, 0.05);
 }
 
 .berea-landing-steps > li + li {
@@ -1193,15 +1163,15 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 0.5rem;
-  border: 1px solid rgba(120, 98, 72, 0.35);
+  border: 1px solid rgba(10, 22, 40, 0.14);
   background-color: var(--landing-accent-soft);
-  color: #e8ddd0;
+  color: var(--landing-fg);
 }
 
-/* Logo landing (fondo oscuro) */
+/* Logo landing (navbar / footer) */
 .berea-landing-logo {
-  display: inline-block;
-  overflow: hidden;
+  display: inline-flex;
+  flex-shrink: 0;
   transition: opacity 0.15s ease;
 }
 
@@ -1209,70 +1179,40 @@ body {
   opacity: 0.88;
 }
 
-.berea-landing-logo-crop {
-  display: block;
-  height: 2.75rem;
-  width: 9.5rem;
-  overflow: hidden;
-}
-
-.berea-landing-logo-img {
-  display: block;
-  height: 9.5rem;
-  width: 9.5rem;
-  max-width: none;
-  object-fit: contain;
-  object-position: left 54%;
-  transform: translateY(-28%);
-  filter: brightness(5.5) contrast(1.35) sepia(0.12) saturate(0.4) brightness(1.08);
-}
-
 /* Mockups */
 .berea-landing-mockup-glow {
-  pointer-events: none;
-  position: absolute;
-  inset: -1rem;
-  border-radius: 2rem;
-  background: linear-gradient(
-    135deg,
-    var(--landing-accent-soft),
-    transparent 55%,
-    rgba(44, 40, 36, 0.2)
-  );
-  filter: blur(32px);
+  display: none;
 }
 
 .berea-landing-mockup-shell {
   position: relative;
   overflow: hidden;
   border-radius: 1rem;
-  border: 1px solid rgba(247, 242, 238, 0.14);
-  background: linear-gradient(180deg, var(--landing-bg-elevated) 0%, var(--landing-bg) 100%);
-  box-shadow:
-    0 32px 64px -16px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--landing-mockup-border);
+  background-color: var(--landing-mockup-bg);
+  box-shadow: 0 32px 64px -16px rgba(10, 22, 40, 0.32);
 }
 
 .berea-landing-mockup-toolbar {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border-bottom: 1px solid var(--landing-border);
-  background-color: rgba(32, 32, 31, 0.9);
+  border-bottom: 1px solid var(--landing-mockup-border);
+  background-color: var(--landing-mockup-bg);
   padding: 0.625rem 0.75rem;
 }
 
 .berea-landing-mockup-panel {
-  border-color: var(--landing-border);
-  background-color: var(--landing-surface);
+  border-color: var(--landing-mockup-border);
+  background-color: var(--landing-mockup-surface);
 }
 
 .berea-landing-mockup-text {
-  color: var(--landing-fg-muted);
+  color: var(--landing-mockup-fg-muted);
 }
 
 .berea-landing-mockup-text-strong {
-  color: rgba(247, 242, 238, 0.92);
+  color: var(--landing-mockup-fg-strong);
 }
 
 .berea-landing-mockup-btn {

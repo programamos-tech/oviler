@@ -7,6 +7,9 @@ import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
 import { createClient } from "@/lib/supabase/client";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { workspaceAvatarSeed } from "@/app/components/app-nav-data";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const A = STORE_TECH_COPY.actividades;
 
 const REPORTS_SURFACE = "berea-reports-surface";
 
@@ -178,11 +181,148 @@ const ACTION_LABELS_ES: Record<string, string> = {
   credit_cancelled: "Crédito anulado",
 };
 
-function getActionLabel(action: string): string {
-  if (ACTION_LABELS_ES[action]) return ACTION_LABELS_ES[action];
-  const human = action.replace(/_/g, " ").trim();
-  if (!human) return action;
+function getActionLabel(activity: { action: string; summary?: string; metadata?: Record<string, unknown> }): string {
+  const imeiMovement = activity.metadata?.imeiMovement;
+  if (activity.action === "stock_adjusted" && imeiMovement === "baja") return "Baja de stock";
+  if (activity.action === "stock_adjusted" && imeiMovement === "entrada") return "Entrada IMEI";
+  if (activity.action === "stock_adjusted" && imeiMovement === "transferir") return "Transferencia IMEI";
+  if (activity.action === "stock_adjusted" && activity.summary?.startsWith("Baja")) return "Baja de stock";
+  if (activity.action === "stock_adjusted" && activity.summary?.startsWith("Transferió")) return "Transferencia IMEI";
+  if (ACTION_LABELS_ES[activity.action]) return ACTION_LABELS_ES[activity.action];
+  const human = activity.action.replace(/_/g, " ").trim();
+  if (!human) return activity.action;
   return human.charAt(0).toUpperCase() + human.slice(1);
+}
+
+function StockAdjustedActivityBody({
+  metadata,
+  summary,
+  actorName,
+}: {
+  metadata: Record<string, unknown>;
+  summary: string;
+  actorName?: string | null;
+}) {
+  const productName = String(metadata.productName);
+  const sku = typeof metadata.sku === "string" ? metadata.sku : null;
+  const imeiMovement = metadata.imeiMovement as string | undefined;
+  const prev = metadata.previousQuantity;
+  const next = metadata.newQuantity;
+  const delta = metadata.delta;
+  const hasQty =
+    typeof prev === "number" &&
+    typeof next === "number" &&
+    !Number.isNaN(prev) &&
+    !Number.isNaN(next);
+  const imeis = Array.isArray(metadata.imeis) ? (metadata.imeis as string[]) : [];
+  const reason = typeof metadata.reason === "string" ? metadata.reason : null;
+  const performedBy =
+    (typeof metadata.userName === "string" ? metadata.userName.trim() : "") ||
+    actorName?.trim() ||
+    null;
+
+  const qtyLine = hasQty ? (
+    <>
+      {" — estaba "}
+      <span className="font-bold">{prev}</span>
+      {", quedó en "}
+      <span className="font-bold">{next}</span>
+      {typeof delta === "number" && !Number.isNaN(delta) ? (
+        <>
+          {" "}
+          <span className="font-bold">
+            {delta >= 0 ? `(+${delta})` : `(${delta})`}
+          </span>
+        </>
+      ) : null}
+    </>
+  ) : null;
+
+  if (imeiMovement === "baja") {
+    return (
+      <div className="space-y-1">
+        <p className="text-[14px] text-slate-700 dark:text-slate-300">
+          Dio de baja{" "}
+          <span className="font-bold">{Number(metadata.imeiCount) || imeis.length || 1}</span> unidad(es):{" "}
+          <span className="font-bold text-slate-900 dark:text-slate-100">{productName}</span>
+          {sku ? (
+            <>
+              {" "}
+              <span className="font-bold text-slate-800 dark:text-slate-200">({sku})</span>
+            </>
+          ) : null}
+          {qtyLine}
+        </p>
+        {imeis.length > 0 ? (
+          <p className="font-mono text-[12px] text-slate-500 dark:text-slate-400">
+            IMEI: {imeis.join(", ")}
+          </p>
+        ) : null}
+        {reason ? (
+          <p className="text-[12px] text-slate-600 dark:text-slate-400">
+            Motivo: <span className="font-medium">{reason}</span>
+          </p>
+        ) : null}
+        {performedBy ? (
+          <p className="text-[12px] text-slate-600 dark:text-slate-400">
+            Usuario: <span className="font-medium">{performedBy}</span>
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (imeiMovement === "entrada") {
+    return (
+      <p className="text-[14px] text-slate-700 dark:text-slate-300">
+        Registró entrada de{" "}
+        <span className="font-bold">{Number(metadata.imeiCount) || 1}</span> IMEI(s):{" "}
+        <span className="font-bold text-slate-900 dark:text-slate-100">{productName}</span>
+        {sku ? (
+          <>
+            {" "}
+            <span className="font-bold text-slate-800 dark:text-slate-200">({sku})</span>
+          </>
+        ) : null}
+        {qtyLine}
+      </p>
+    );
+  }
+
+  if (imeiMovement === "transferir") {
+    const toLoc = metadata.toLocation === "bodega" ? "bodega" : "local";
+    return (
+      <p className="text-[14px] text-slate-700 dark:text-slate-300">
+        Transfirió{" "}
+        <span className="font-bold">{Number(metadata.imeiCount) || 1}</span> IMEI(s) a {toLoc}:{" "}
+        <span className="font-bold text-slate-900 dark:text-slate-100">{productName}</span>
+        {hasQty ? (
+          <>
+            {" "}
+            <span className="text-[12px] text-slate-500">(stock total {next}, sin cambio)</span>
+          </>
+        ) : null}
+      </p>
+    );
+  }
+
+  if (!hasQty) {
+    return <p className="text-[14px] text-slate-700 dark:text-slate-300">{summary}</p>;
+  }
+
+  return (
+    <p className="text-[14px] text-slate-700 dark:text-slate-300">
+      {metadata.movementType === "entrada" ? "Registró entrada:" : "Ajustó stock:"}{" "}
+      <span className="font-bold text-slate-900 dark:text-slate-100">{productName}</span>
+      {sku ? (
+        <>
+          {" "}
+          <span className="font-bold text-slate-800 dark:text-slate-200">({sku})</span>
+        </>
+      ) : null}
+      {qtyLine}
+    </p>
+  );
 }
 
 const SALE_STATUS_LABELS: Record<string, string> = {
@@ -462,10 +602,10 @@ function ActivityFeedPage() {
       <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
-              Actividades
+              {A.title}
             </h1>
             <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
-              Log de registros y eventos recientes de la sucursal.
+              {A.subtitle}
             </p>
             {!currentBranch && !loading && (
               <p className="mt-1 text-[13px] font-medium text-amber-700 dark:text-amber-400">
@@ -502,7 +642,7 @@ function ActivityFeedPage() {
         {activities.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--berea-card-border)] bg-[var(--shell-workspace)]/40 p-8 text-center">
             <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
-              Aún no hay actividades
+              {A.emptyTitle}
             </p>
             <p className="mt-1 text-[13px] text-[var(--berea-ink-muted)]">
               Las acciones en esta sucursal (crear/editar productos, ajustar stock, crear categorías) aparecerán aquí.
@@ -535,7 +675,7 @@ function ActivityFeedPage() {
                         {actorName(a)}
                       </span>
                       <span className={`${bereaBadgeBase} bg-sky-100 text-sky-950 ring-sky-300 text-[11px] uppercase tracking-wide`}>
-                        {getActionLabel(a.action)}
+                        {getActionLabel(a)}
                       </span>
                       <span className="text-[11px] text-[var(--berea-ink-muted)]">
                         {formatDateTime(a.created_at)} · {timeAgo(a.created_at)}
@@ -552,25 +692,7 @@ function ActivityFeedPage() {
                       </span>
                       <div className="min-w-0 flex-1">
                     {a.action === "stock_adjusted" && a.metadata && typeof a.metadata.productName === "string" ? (
-                      <p className="text-[14px] text-slate-700 dark:text-slate-300">
-                        {a.metadata.movementType === "entrada" ? "Registró entrada:" : "Ajustó stock:"}{" "}
-                        <span className="font-bold text-slate-900 dark:text-slate-100">{String(a.metadata.productName)}</span>
-                        {(() => {
-                          const sku = typeof a.metadata.sku === "string" ? a.metadata.sku : null;
-                          return sku ? (
-                            <>
-                              {" "}
-                              <span className="font-bold text-slate-800 dark:text-slate-200">({sku})</span>
-                            </>
-                          ) : null;
-                        })()}
-                        {" — estaba "}
-                        <span className="font-bold">{Number(a.metadata.previousQuantity)}</span>
-                        {", quedó en "}
-                        <span className="font-bold">{Number(a.metadata.newQuantity)}</span>
-                        {" "}
-                        <span className="font-bold">{Number(a.metadata.delta) >= 0 ? `(+${Number(a.metadata.delta)})` : `(${Number(a.metadata.delta)})`}</span>
-                      </p>
+                      <StockAdjustedActivityBody metadata={a.metadata} summary={a.summary} actorName={actorName(a)} />
                     ) : (a.action === "product_updated" || a.action === "product_created") && a.metadata && typeof a.metadata.name === "string" ? (
                       <p className="text-[14px] text-slate-700 dark:text-slate-300">
                         {a.action === "product_created"
@@ -802,7 +924,7 @@ function ActivityFeedPage() {
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <input
                               type="text"
-                              placeholder="Escribe un comentario..."
+                              placeholder={A.commentPlaceholder}
                               value={commentDraft[a.id] ?? ""}
                               onChange={(e) => setCommentDraft((prev) => ({ ...prev, [a.id]: e.target.value }))}
                               onKeyDown={(e) => {

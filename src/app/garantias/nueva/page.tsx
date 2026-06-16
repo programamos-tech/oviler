@@ -3,10 +3,17 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const G = STORE_TECH_COPY.garantias;
+const NAV = STORE_TECH_COPY.nav.modules;
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { resolveActiveBranchWithSalesMode } from "@/lib/active-branch";
+import { formatImeiDisplay } from "@/lib/imei";
 import { MdSwapHoriz, MdAttachMoney, MdBuild } from "react-icons/md";
+
+const IME = STORE_TECH_COPY.imei;
 
 const IVA_RATE = 0.19;
 
@@ -58,12 +65,16 @@ type SaleItemOption = {
   discount_percent?: number | null;
   discount_amount?: number | null;
   products: { name: string; sku: string | null } | null;
+  imeis?: { id: string; imei: string }[];
 };
+
 
 /** Línea de factura marcada + cuántas unidades entran en esta garantía (≤ cantidad vendida). */
 type SelectedSaleLine = {
   line: SaleItemOption;
   warrantyQty: number;
+  /** IMEIs concretos cuando la línea tiene equipos serializados */
+  imeiUnitIds: string[];
 };
 
 type ProductOption = {
@@ -343,13 +354,27 @@ function NewWarrantyContent() {
     const supabase = createClient();
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from("sale_items")
-        .select("id, product_id, quantity, unit_price, discount_percent, discount_amount, products(name, sku)")
-        .eq("sale_id", selectedSale.id)
-        .order("created_at", { ascending: true });
+      const [itemsRes, imeiRes] = await Promise.all([
+        supabase
+          .from("sale_items")
+          .select("id, product_id, quantity, unit_price, discount_percent, discount_amount, products(name, sku)")
+          .eq("sale_id", selectedSale.id)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("product_imei_units")
+          .select("id, imei, sale_item_id")
+          .eq("sale_id", selectedSale.id)
+          .order("imei"),
+      ]);
       if (cancelled) return;
-      const transformedItems = ((data ?? []) as Array<{
+      const imeisByItem: Record<string, { id: string; imei: string }[]> = {};
+      for (const row of imeiRes.data ?? []) {
+        const sid = row.sale_item_id as string | null;
+        if (!sid) continue;
+        if (!imeisByItem[sid]) imeisByItem[sid] = [];
+        imeisByItem[sid].push({ id: row.id as string, imei: row.imei as string });
+      }
+      const transformedItems = ((itemsRes.data ?? []) as Array<{
         id: string;
         product_id: string;
         quantity: number;
@@ -360,11 +385,13 @@ function NewWarrantyContent() {
       }>).map((item) => ({
         ...item,
         products: Array.isArray(item.products) ? (item.products[0] || null) : item.products,
+        imeis: imeisByItem[item.id] ?? [],
       })) as SaleItemOption[];
       setSaleItems(transformedItems);
       if (transformedItems.length === 1) {
         const only = transformedItems[0];
-        setSelectedSaleLines([{ line: only, warrantyQty: 1 }]);
+        const autoImeis = (only.imeis ?? []).length === 1 ? [only.imeis![0].id] : [];
+        setSelectedSaleLines([{ line: only, warrantyQty: 1, imeiUnitIds: autoImeis }]);
       } else {
         setSelectedSaleLines([]);
       }
@@ -445,11 +472,18 @@ function NewWarrantyContent() {
         setError("Selecciona al menos un producto de la venta (marca las líneas en la lista)");
         return;
       }
-      for (const { line, warrantyQty } of selectedSaleLines) {
+      for (const { line, warrantyQty, imeiUnitIds } of selectedSaleLines) {
         const maxQ = Math.max(1, Number(line.quantity) || 0);
         if (warrantyQty < 1 || warrantyQty > maxQ) {
           setError(`Indica una cantidad válida para ${line.products?.name ?? "el producto"} (entre 1 y ${maxQ}).`);
           return;
+        }
+        const lineImeis = line.imeis ?? [];
+        if (lineImeis.length > 0) {
+          if (imeiUnitIds.length !== warrantyQty) {
+            setError(`${IME.selectImei}: ${line.products?.name ?? "el producto"} (${warrantyQty} ${warrantyQty === 1 ? "unidad" : "unidades"}).`);
+            return;
+          }
         }
       }
     } else {
@@ -478,17 +512,42 @@ function NewWarrantyContent() {
 
     try {
       if (warrantyBySale) {
-        const rows = selectedSaleLines.map(({ line, warrantyQty }) => ({
-          customer_id: selectedSale!.customer_id!,
-          product_id: line.product_id,
-          warranty_type: warrantyType,
-          reason: reason.trim(),
-          requested_by: user.id,
-          replacement_product_id: warrantyType === "exchange" ? selectedReplacementProduct!.id : null,
-          sale_id: selectedSale!.id,
-          sale_item_id: line.id,
-          quantity: warrantyQty,
-        }));
+        const rows: Array<Record<string, unknown>> = [];
+        const imeiIdsToMark: string[] = [];
+
+        for (const { line, warrantyQty, imeiUnitIds } of selectedSaleLines) {
+          const lineImeis = line.imeis ?? [];
+          if (lineImeis.length > 0 && imeiUnitIds.length === warrantyQty) {
+            for (const unitId of imeiUnitIds) {
+              rows.push({
+                customer_id: selectedSale!.customer_id!,
+                product_id: line.product_id,
+                warranty_type: warrantyType,
+                reason: reason.trim(),
+                requested_by: user.id,
+                replacement_product_id: warrantyType === "exchange" ? selectedReplacementProduct!.id : null,
+                sale_id: selectedSale!.id,
+                sale_item_id: line.id,
+                quantity: 1,
+                product_imei_unit_id: unitId,
+              });
+              imeiIdsToMark.push(unitId);
+            }
+          } else {
+            rows.push({
+              customer_id: selectedSale!.customer_id!,
+              product_id: line.product_id,
+              warranty_type: warrantyType,
+              reason: reason.trim(),
+              requested_by: user.id,
+              replacement_product_id: warrantyType === "exchange" ? selectedReplacementProduct!.id : null,
+              sale_id: selectedSale!.id,
+              sale_item_id: line.id,
+              quantity: warrantyQty,
+            });
+          }
+        }
+
         const { error: warrantyError } = await supabase.from("warranties").insert(rows);
         if (warrantyError) {
           if (warrantyError.code === "23505") {
@@ -498,6 +557,13 @@ function NewWarrantyContent() {
           }
           setSubmitting(false);
           return;
+        }
+
+        if (imeiIdsToMark.length > 0) {
+          await supabase
+            .from("product_imei_units")
+            .update({ status: "warranty" })
+            .in("id", imeiIdsToMark);
         }
       } else {
         const payload: Record<string, unknown> = {
@@ -581,7 +647,7 @@ function NewWarrantyContent() {
   return (
     <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
       <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <Breadcrumb items={[{ label: "Garantías", href: "/garantias" }, { label: "Nueva garantía" }]} />
+        <Breadcrumb items={[{ label: NAV.garantias, href: "/garantias" }, { label: G.newButton }]} />
         <div className="mt-3 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-xl">
@@ -790,7 +856,9 @@ function NewWarrantyContent() {
                               setSelectedSaleLines((prev) => {
                                 const exists = prev.some((p) => p.line.id === item.id);
                                 if (exists) return prev.filter((p) => p.line.id !== item.id);
-                                return [...prev, { line: item, warrantyQty: 1 }];
+                                const lineImeis = item.imeis ?? [];
+                                const autoImeis = lineImeis.length === 1 ? [lineImeis[0].id] : [];
+                                return [...prev, { line: item, warrantyQty: 1, imeiUnitIds: autoImeis }];
                               });
                             }}
                             className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-400 text-[color:var(--shell-sidebar)] focus:ring-[color:var(--shell-sidebar)] dark:border-zinc-500 dark:bg-zinc-950"
@@ -823,13 +891,64 @@ function NewWarrantyContent() {
                                 const next = Number.isFinite(raw) ? Math.min(maxQ, Math.max(1, raw)) : 1;
                                 setSelectedSaleLines((prev) =>
                                   prev.map((p) =>
-                                    p.line.id === item.id ? { ...p, warrantyQty: next } : p
+                                    p.line.id === item.id
+                                      ? {
+                                          ...p,
+                                          warrantyQty: next,
+                                          imeiUnitIds: p.imeiUnitIds.slice(0, next),
+                                        }
+                                      : p
                                   )
                                 );
                               }}
                               className="h-9 w-20 rounded-lg border border-slate-300 bg-white px-2 text-center text-[14px] dark:border-zinc-600 dark:bg-zinc-950"
                             />
                             <span className="text-slate-500 dark:text-zinc-500">(máx. {maxQ})</span>
+                          </div>
+                        )}
+                        {checked && (item.imeis ?? []).length > 0 && (
+                          <div className="mt-3 space-y-2 pl-7">
+                            <p className="text-[12px] font-semibold text-slate-700 dark:text-zinc-300">
+                              {IME.warrantyLink} <span className={requiredMarkClass}>*</span>
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-zinc-500">
+                              Selecciona {sel?.warrantyQty ?? 1} IMEI{(sel?.warrantyQty ?? 1) > 1 ? "s" : ""} vendido{(sel?.warrantyQty ?? 1) > 1 ? "s" : ""} en esta factura.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {(item.imeis ?? []).map((u) => {
+                                const picked = sel?.imeiUnitIds.includes(u.id) ?? false;
+                                return (
+                                  <button
+                                    key={u.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedSaleLines((prev) =>
+                                        prev.map((p) => {
+                                          if (p.line.id !== item.id) return p;
+                                          const limit = p.warrantyQty;
+                                          let next = [...p.imeiUnitIds];
+                                          if (next.includes(u.id)) {
+                                            next = next.filter((id) => id !== u.id);
+                                          } else if (next.length < limit) {
+                                            next = [...next, u.id];
+                                          } else if (limit === 1) {
+                                            next = [u.id];
+                                          }
+                                          return { ...p, imeiUnitIds: next };
+                                        })
+                                      );
+                                    }}
+                                    className={`rounded-lg border px-2.5 py-1.5 font-mono text-[12px] transition-colors ${
+                                      picked
+                                        ? "border-[color:var(--shell-sidebar)] bg-slate-200/70 text-[color:var(--shell-sidebar)] dark:border-zinc-400/70 dark:bg-white/10 dark:text-zinc-300"
+                                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                                    }`}
+                                  >
+                                    {formatImeiDisplay(u.imei)}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -855,7 +974,7 @@ function NewWarrantyContent() {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={4}
-              placeholder="Ej. El producto presenta defecto de fábrica. El aceite tiene una fuga en el envase."
+              placeholder={G.issuePlaceholder}
               className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-[14px] text-slate-800 outline-none transition-colors placeholder:text-slate-500 focus:border-[color:var(--shell-sidebar)] focus:bg-white focus:ring-2 focus:ring-slate-400/35 dark:border-zinc-600 dark:bg-zinc-900/80 dark:text-zinc-200 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:bg-zinc-900 dark:focus:ring-zinc-500/35"
             />
           </div>
@@ -978,7 +1097,7 @@ function NewWarrantyContent() {
                     setSelectedReplacementProduct(null);
                     setReplacementProductSearch(e.target.value);
                   }}
-                  placeholder="Buscar por nombre o código"
+                  placeholder={STORE_TECH_COPY.ventas.productSearch}
                   className={warrantyNeutralInputClass}
                 />
                 {selectedReplacementProduct && (

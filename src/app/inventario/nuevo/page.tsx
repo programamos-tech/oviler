@@ -10,6 +10,12 @@ import Breadcrumb from "@/app/components/Breadcrumb";
 import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
 import { BackLink, PlanLimitHeaderNote } from "@/app/components/PlanLimitNotice";
 import LocationPathWithIcons from "@/app/components/LocationPathWithIcons";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+import { seedDefaultTechCategoriesForOrg } from "@/lib/default-tech-categories";
+
+const INV = STORE_TECH_COPY.inventario;
+const INV_N = INV.nuevo;
+const IME = STORE_TECH_COPY.imei;
 
 type Category = { id: string; name: string };
 type Warehouse = { id: string; name: string };
@@ -35,6 +41,7 @@ export default function NewProductPage() {
   const [referencia, setReferencia] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [marca, setMarca] = useState("");
+  const [requiresImei, setRequiresImei] = useState(false);
   const [categoria, setCategoria] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [stockLocal, setStockLocal] = useState(0);
@@ -54,7 +61,6 @@ export default function NewProductPage() {
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [productImageFile, setProductImageFile] = useState<File | null>(null);
   const [planSnapshot, setPlanSnapshot] = useState<OrgPlanSnapshot | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
   const [branchReloadToken, setBranchReloadToken] = useState(0);
@@ -99,11 +105,20 @@ export default function NewProductPage() {
       if (!user || cancelled) return;
       const { data: userRow } = await supabase.from("users").select("organization_id").eq("id", user.id).single();
       if (!userRow?.organization_id || cancelled) return;
-      const { data } = await supabase
+      let { data } = await supabase
         .from("categories")
         .select("id, name")
         .eq("organization_id", userRow.organization_id)
         .order("name", { ascending: true });
+      if (!cancelled && (data ?? []).length === 0) {
+        await seedDefaultTechCategoriesForOrg(supabase, userRow.organization_id);
+        const refetch = await supabase
+          .from("categories")
+          .select("id, name")
+          .eq("organization_id", userRow.organization_id)
+          .order("name", { ascending: true });
+        data = refetch.data;
+      }
       if (!cancelled) setCategories(data ?? []);
     })();
     return () => { cancelled = true; };
@@ -325,6 +340,7 @@ export default function NewProductPage() {
         base_cost: cost,
         base_price: price,
         apply_iva: responsableIva ? aplicarIva : false,
+        requires_imei: requiresImei,
       })
       .select("id")
       .single();
@@ -335,32 +351,15 @@ export default function NewProductPage() {
       return;
     }
 
-    if (productImageFile) {
-      const allowed = ["image/jpeg", "image/png", "image/webp"];
-      if (!allowed.includes(productImageFile.type)) {
-        setError("Imagen no válida. Usa JPG, PNG o WebP.");
-        setSaving(false);
-        return;
-      }
-      if (productImageFile.size > 5 * 1024 * 1024) {
-        setError("La imagen no debe superar 5 MB.");
-        setSaving(false);
-        return;
-      }
-      const ext = productImageFile.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${userRow.organization_id}/${product.id}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("product-images").upload(path, productImageFile, { upsert: true });
-      if (upErr) {
-        setError("Producto creado pero falló la imagen: " + (upErr.message || ""));
-        setSaving(false);
-        return;
-      }
-      const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
-      await supabase.from("products").update({ image_url: urlData.publicUrl }).eq("id", product.id);
-    }
-
     const ql = Math.max(0, Number(stockLocal) || 0);
     const qb = hasBodega ? Math.max(0, Number(stockBodega) || 0) : 0;
+    if (requiresImei && (ql > 0 || qb > 0)) {
+      setError(
+        "Para productos con IMEI, créalo sin stock inicial y registra cada número en Inventario → Actualizar stock."
+      );
+      setSaving(false);
+      return;
+    }
     const locationIdToUse = sinUbicacion ? "" : selectedLocationId;
 
     if (hasBodega) {
@@ -483,14 +482,14 @@ export default function NewProductPage() {
   return (
     <form onSubmit={handleSubmit} className="mx-auto min-w-0 max-w-[1600px] space-y-6">
       <header className="min-w-0 rounded-2xl bg-white px-4 py-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-slate-900 dark:shadow-none sm:px-6 sm:py-6">
-        <Breadcrumb items={[{ label: "Inventario", href: "/inventario" }, { label: "Nuevo producto" }]} />
+        <Breadcrumb items={[{ label: STORE_TECH_COPY.nav.modules.inventario, href: "/inventario" }, { label: INV_N.breadcrumb }]} />
         <div className="mt-3 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-emerald-50">
-              Nuevo producto
+              {INV_N.title}
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Registra un nuevo producto en el catálogo: datos, precio y stock en un solo lugar.
+              {INV_N.subtitle}
             </p>
           </div>
           <Link
@@ -534,7 +533,7 @@ export default function NewProductPage() {
                   Nombre del producto <span className={requiredMarkClass}>*</span>
                 </label>
                 <input
-                  placeholder="Nombre del producto"
+                  placeholder={INV_N.namePlaceholder}
                   className={inputClass}
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
@@ -545,7 +544,7 @@ export default function NewProductPage() {
                   Referencia <span className={requiredMarkClass}>*</span>
                 </label>
                 <input
-                  placeholder="REF-001"
+                  placeholder={INV_N.skuPlaceholder}
                   className={inputClass}
                   value={referencia}
                   onChange={(e) => setReferencia(e.target.value)}
@@ -555,27 +554,17 @@ export default function NewProductPage() {
                 <label className={labelClass}>Descripción (opcional)</label>
                 <textarea
                   rows={2}
-                  placeholder="Descripción detallada del producto (opcional)"
+                  placeholder={INV_N.descriptionPlaceholder}
                   className="w-full rounded-lg border border-slate-200 bg-slate-50/90 px-4 py-3 text-[14px] font-medium text-slate-800 outline-none transition-[border-color,background-color,box-shadow] placeholder:text-slate-400 focus:border-slate-900/25 focus:bg-white focus:ring-2 focus:ring-slate-900/10 dark:border-zinc-700/50 dark:bg-zinc-950/60 dark:text-zinc-100 dark:[color-scheme:dark] dark:focus:border-zinc-500 dark:focus:bg-zinc-900 dark:focus:ring-0 dark:focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] dark:focus-visible:ring-1 dark:focus-visible:ring-zinc-500/30 dark:focus-visible:ring-offset-0 dark:focus-visible:ring-offset-transparent dark:placeholder:text-zinc-500"
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                 />
               </div>
-              <div>
-                <label className={labelClass}>Imagen (catálogo en línea, opcional)</label>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="block w-full text-[13px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200"
-                  onChange={(e) => setProductImageFile(e.target.files?.[0] ?? null)}
-                />
-                <p className="mt-1 text-[12px] text-slate-500">JPG, PNG o WebP. Máx. 5 MB. Visible en el catálogo público.</p>
-              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className={labelClass}>Marca (opcional)</label>
                   <input
-                    placeholder="Marca del producto"
+                    placeholder={INV_N.brandPlaceholder}
                     className={inputClass}
                     value={marca}
                     onChange={(e) => setMarca(e.target.value)}
@@ -605,6 +594,25 @@ export default function NewProductPage() {
                   )}
                 </div>
               </div>
+              <label className="mt-1 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/50">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-slate-400/40"
+                  checked={requiresImei}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setRequiresImei(next);
+                    if (next) {
+                      setStockLocal(0);
+                      setStockBodega(0);
+                    }
+                  }}
+                />
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-semibold text-slate-800 dark:text-slate-100">{IME.requiresLabel}</span>
+                  <span className="mt-0.5 block text-[12px] leading-snug text-slate-500 dark:text-slate-400">{IME.requiresHint}</span>
+                </span>
+              </label>
             </div>
           </div>
 
@@ -612,6 +620,21 @@ export default function NewProductPage() {
             <p className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Control de stock
             </p>
+            {requiresImei ? (
+              <div className="mt-3 rounded-xl border border-sky-200/80 bg-sky-50/90 px-4 py-3 dark:border-sky-900/50 dark:bg-sky-950/25">
+                <p className="text-[13px] font-semibold text-sky-900 dark:text-sky-100">{IME.requiresCreateTitle}</p>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-sky-800/90 dark:text-sky-200/90">
+                  {IME.requiresCreateBody}
+                </p>
+                <Link
+                  href="/inventario/actualizar-stock"
+                  className="mt-3 inline-flex text-[13px] font-semibold text-sky-800 underline underline-offset-2 hover:text-sky-950 dark:text-sky-200 dark:hover:text-sky-50"
+                >
+                  {IME.requiresCreateLink} →
+                </Link>
+              </div>
+            ) : (
+              <>
             {hasBodega === null && (
               <p className="mt-3 text-[13px] text-slate-500 dark:text-slate-400">Cargando sucursal…</p>
             )}
@@ -862,6 +885,8 @@ export default function NewProductPage() {
               <p className="mt-4 text-[12px] font-medium text-slate-500 dark:text-slate-400">
                 Cuando indiques unidades en bodega, se habilitará la asignación a estante o celda.
               </p>
+            )}
+              </>
             )}
           </div>
         </div>

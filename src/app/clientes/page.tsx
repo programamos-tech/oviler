@@ -6,6 +6,9 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
 import { useSession } from "@/app/components/SessionProvider";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const CL = STORE_TECH_COPY.clientes;
 import {
   shouldShowListSkeleton,
   visibleCountFromCache,
@@ -317,9 +320,9 @@ function CustomersPage() {
     <div className="berea-reports mx-auto min-w-0 max-w-[1600px] space-y-5 text-[15px] text-[var(--berea-ink)] sm:space-y-6">
       <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
         <div className="min-w-0 shrink-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">Clientes</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">{CL.title}</h1>
           <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
-            Lista de esta sucursal. Busca por nombre, cédula, email o teléfono.
+            {CL.subtitle}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -359,9 +362,9 @@ function CustomersPage() {
           <div className={`min-h-[280px] animate-pulse rounded-xl ${REPORTS_SURFACE}`} aria-hidden />
         ) : !showSearch && displayCustomers.length === 0 ? (
           <div className={`rounded-xl px-6 py-10 text-center ${REPORTS_SURFACE}`}>
-            <p className="text-[15px] font-semibold text-[var(--berea-ink)]">Aún no tienes clientes</p>
+            <p className="text-[15px] font-semibold text-[var(--berea-ink)]">{CL.emptyTitle}</p>
             <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
-              Registra tu primer cliente para verlo aquí.
+              {CL.emptyHint}
             </p>
             <Link
               href="/clientes/nueva"
@@ -384,7 +387,7 @@ function CustomersPage() {
                     type="search"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder="Buscar por nombre, cédula, email o teléfono…"
+                    placeholder={CL.searchPlaceholder}
                     className={`${bereaFieldClass} py-2.5 pl-11 pr-4`}
                   />
                 </div>

@@ -9,7 +9,6 @@ type Props = {
 export function LandingMockupFrame({ children, className = "", toolbarExtra }: Props) {
   return (
     <div className={`relative mx-auto w-full ${className}`}>
-      <div className="berea-landing-mockup-glow" aria-hidden />
       <div className="berea-landing-mockup-shell">
         <div className="berea-landing-mockup-toolbar">
           <div className="flex gap-1.5">

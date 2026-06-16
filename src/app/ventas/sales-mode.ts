@@ -3,6 +3,10 @@
  * Define copy y etiquetas de estado en la UI.
  */
 
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const V = STORE_TECH_COPY.ventas;
+
 export type SalesMode = "sales" | "orders";
 
 const LABELS_SALES: Record<string, string> = {
@@ -117,9 +121,9 @@ export function getDocumentCopy(isDelivery: boolean): DocumentCopy {
     loading: "Cargando factura…",
     notFound: "Factura no encontrada.",
     stateHeading: "Estado de la factura",
-    productsHeading: "Productos de la factura",
-    productsEmpty: "Sin productos en esta factura",
-    addProductTitle: "Agregar producto a la factura",
+    productsHeading: V.productsHeading,
+    productsEmpty: V.productsEmpty,
+    addProductTitle: V.addProductTitle,
     errAlreadyIn: "Este producto ya está en la factura.",
     searchDup: "Los resultados ya están en la factura",
     cancelTitle: "Anular factura",
@@ -221,19 +225,19 @@ export function getPedidoOrderStatusButtonSurfaceClass(status: string): string {
 
 export const COPY = {
   sales: {
-    sectionTitle: "Ventas",
-    newButton: "Nueva factura",
-    confirmButton: "Confirmar factura",
-    emptyTitle: "Aún no hay ventas",
+    sectionTitle: V.sectionTitle,
+    newButton: V.newButton,
+    confirmButton: V.confirmButton,
+    emptyTitle: V.emptyTitle,
     filterAll: "Todas",
     statusCompleted: "Finalizada",
     statusCancelled: "Anulada",
   },
   orders: {
-    sectionTitle: "Ventas",
-    newButton: "Nueva factura",
-    confirmButton: "Confirmar factura",
-    emptyTitle: "Aún no hay ventas",
+    sectionTitle: V.sectionTitle,
+    newButton: V.newButton,
+    confirmButton: V.confirmButton,
+    emptyTitle: V.emptyTitle,
     filterAll: "Todos",
     statusCompleted: "Finalizado",
     statusCancelled: "Cancelado",

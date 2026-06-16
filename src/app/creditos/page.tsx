@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 import { useSession } from "@/app/components/SessionProvider";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const CR = STORE_TECH_COPY.creditos;
 import {
   shouldShowListSkeleton,
   visibleCountFromCache,
@@ -71,7 +74,7 @@ function CreditFilters({
           type="search"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Buscar cliente…"
+          placeholder={CR.searchPlaceholder}
           className={`${bereaFieldClass} py-2.5 pl-11 pr-4`}
           aria-label="Filtrar por nombre de cliente"
         />
@@ -275,10 +278,10 @@ export default function CreditosPage() {
       <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
         <div className="min-w-0 shrink-0">
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
-            Créditos a clientes
+            {CR.title}
           </h1>
           <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
-            Resumen por cliente de esta sucursal. Entra al detalle para ver cada crédito y registrar abonos.
+            {CR.subtitle}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -331,15 +334,15 @@ export default function CreditosPage() {
 
             {creditRowCount === 0 ? (
               <div className="px-2 py-8 text-center sm:px-4">
-                <p className="text-[15px] font-semibold text-[var(--berea-ink)]">Aún no hay créditos</p>
+                <p className="text-[15px] font-semibold text-[var(--berea-ink)]">{CR.emptyTitle}</p>
                 <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
-                  Crea un crédito vinculado a un cliente para verlo aquí.
+                  {CR.emptyHint}
                 </p>
                 <Link
                   href="/creditos/nuevo"
                   className="mt-6 inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
                 >
-                  Nuevo crédito
+                  {CR.newButton}
                 </Link>
               </div>
             ) : displayGrouped.length === 0 ? (

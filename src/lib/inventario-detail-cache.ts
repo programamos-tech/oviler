@@ -33,6 +33,25 @@ export type InventarioDetailProduct = {
   base_price: number | null;
   base_cost: number | null;
   apply_iva: boolean;
+  requires_imei?: boolean;
+};
+
+export type InventarioImeiUnit = {
+  id: string;
+  imei: string;
+  status: string;
+  location?: "local" | "bodega";
+  sold_at: string | null;
+  sale_id: string | null;
+};
+
+export type InventarioImeiRemovedUnit = {
+  id: string;
+  imei: string;
+  location: "local" | "bodega";
+  removed_at: string;
+  removal_reason: string;
+  removed_by_name: string | null;
 };
 
 export type InventarioDetailBundle = {
@@ -43,6 +62,8 @@ export type InventarioDetailBundle = {
   stockTotal: number;
   stockReserved: number;
   locationRows: Array<{ quantity: number; path: string; locationId: string }>;
+  imeiUnits?: InventarioImeiUnit[];
+  imeiRemovedUnits?: InventarioImeiRemovedUnit[];
 };
 
 const listCache = new Map<string, { at: number; payload: InventarioListBundle }>();
@@ -145,6 +166,9 @@ export function setCachedInventarioDetail(
 export function invalidateInventarioDetail(id: string) {
   for (const key of detailCache.keys()) {
     if (key.startsWith(`${id}|`)) detailCache.delete(key);
+  }
+  for (const key of detailInflight.keys()) {
+    if (key.startsWith(`${id}|`)) detailInflight.delete(key);
   }
 }
 

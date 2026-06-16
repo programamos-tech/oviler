@@ -7,6 +7,11 @@ import { prefetchModuleList } from "@/lib/module-list-prefetch";
 import { canAccessNavModule, canAccessPath, type AppRole } from "@/lib/permissions";
 import { SHOW_COMERCIAL_CATALOGO_MODULE } from "./app-nav-data";
 import { useSession } from "./SessionProvider";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const M = STORE_TECH_COPY.nav.mobile;
+const MS = STORE_TECH_COPY.nav.mobile.short;
+const S = STORE_TECH_COPY.nav.sidebar;
 
 const SHOW_BODEGA_IN_SIDEBAR = false;
 const SHOW_SUCURSALES_MODULE = true;
@@ -112,9 +117,18 @@ function IconCatalogNav() {
   );
 }
 
-const masItems = [
+type BottomNavMasItem = {
+  label: string;
+  shortLabel: string;
+  href: string;
+  icon: ComponentType<object>;
+  items: { label: string; href: string; icon?: ComponentType<object> }[];
+};
+
+const masItems: BottomNavMasItem[] = [
   {
-    label: "Garantías",
+    label: M.garantias,
+    shortLabel: MS.garantias,
     href: "/garantias",
     icon: IconGarantias,
     items: [
@@ -123,7 +137,8 @@ const masItems = [
     ],
   },
   {
-    label: "Créditos",
+    label: M.creditos,
+    shortLabel: MS.creditos,
     href: "/creditos",
     icon: IconCredits,
     items: [
@@ -132,7 +147,8 @@ const masItems = [
     ],
   },
   {
-    label: "Egresos",
+    label: M.egresos,
+    shortLabel: MS.egresos,
     href: "/egresos",
     icon: IconEgresos,
     items: [],
@@ -141,6 +157,7 @@ const masItems = [
     ? [
         {
           label: "Cierres",
+          shortLabel: MS.cierres,
           href: "/cierre-caja",
           icon: IconCierres,
           items: [
@@ -153,13 +170,15 @@ const masItems = [
   ...(SHOW_BODEGA_IN_SIDEBAR
     ? [{
         label: "Bodega",
+        shortLabel: MS.bodega,
         href: "/inventario/ubicaciones",
         icon: IconBodega,
         items: [],
       }]
     : []),
   {
-    label: "Actividades",
+    label: M.actividades,
+    shortLabel: MS.actividades,
     href: "/actividades",
     icon: IconActividades,
     items: [],
@@ -168,6 +187,7 @@ const masItems = [
     ? [
         {
           label: "Catálogo",
+          shortLabel: MS.catalogo,
           href: "/catalogo",
           icon: IconCatalogNav,
           items: [{ label: "Catálogo", href: "/catalogo", icon: IconCatalogNav }],
@@ -176,6 +196,7 @@ const masItems = [
     : []),
   {
     label: "Roles",
+    shortLabel: MS.roles,
     href: "/roles",
     icon: IconRoles,
     items: [
@@ -187,6 +208,7 @@ const masItems = [
     ? [
         {
           label: "Sucursales",
+          shortLabel: MS.sucursales,
           href: "/sucursales",
           icon: IconSucursales,
           items: [
@@ -197,6 +219,7 @@ const masItems = [
         },
         {
           label: "Cuenta",
+          shortLabel: MS.cuenta,
           href: "/cuenta",
           icon: IconCog,
           items: [],
@@ -206,10 +229,10 @@ const masItems = [
 ];
 
 const primaryTabs = [
-  { label: "Reportes", href: "/dashboard", icon: HomeIcon },
-  { label: "Ventas", href: "/ventas", icon: CartIcon },
-  { label: "Clientes", href: "/clientes", icon: UsersIcon },
-  { label: "Productos", href: "/inventario", icon: BoxIcon },
+  { label: S.resumen.label, shortLabel: MS.inicio, href: "/dashboard", icon: HomeIcon },
+  { label: S.inventario.label, shortLabel: MS.inventario, href: "/inventario", icon: BoxIcon },
+  { label: S.ventas.label, shortLabel: MS.ventas, href: "/ventas", icon: CartIcon },
+  { label: S.clientes.label, shortLabel: MS.clientes, href: "/clientes", icon: UsersIcon },
 ] as const;
 
 function masIconToNavIcon(MasIcon: ComponentType<object>) {
@@ -261,7 +284,7 @@ export default function BottomNav() {
 
   const displayMasItems = useMemo(
     () =>
-      (showExpenses === false ? masItems.filter((g) => g.label !== "Egresos") : masItems)
+      (showExpenses === false ? masItems.filter((g) => g.href !== "/egresos") : masItems)
         .filter((group) => canAccessNavModule(userRole, group.label, userPermissions))
         .map((group) => ({
           ...group,
@@ -274,9 +297,10 @@ export default function BottomNav() {
   const bottomNavItems = useMemo(() => {
     const primary = primaryTabs
       .filter((t) => canAccessPath(userRole, t.href, userPermissions))
-      .map((t) => ({ label: t.label, href: t.href, Icon: t.icon }));
+      .map((t) => ({ label: t.label, shortLabel: t.shortLabel, href: t.href, Icon: t.icon }));
     const extra = displayMasItems.map((g) => ({
       label: g.label,
+      shortLabel: g.shortLabel ?? g.label,
       href: g.href,
       Icon: masIconToNavIcon(g.icon),
     }));
@@ -297,9 +321,9 @@ export default function BottomNav() {
       className="fixed bottom-0 left-0 right-0 z-30 min-w-0 max-w-full border-t border-slate-200/90 bg-white/95 pb-[env(safe-area-inset-bottom)] pt-2 text-slate-700 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95 dark:text-zinc-200 lg:hidden"
       aria-label="Navegación principal"
     >
-      {/* Scroll horizontal en el contenedor; fila interna centrada cuando cabe (w-max min-w-full). */}
-      <div className="bottom-nav-scroll w-full min-w-0 touch-pan-x overflow-x-auto overflow-y-hidden overscroll-x-contain px-2 pb-1">
-        <div className="flex w-max min-w-full snap-x snap-mandatory flex-nowrap items-end justify-center gap-0.5">
+      {/* Móvil: solo iconos, repartidos en el ancho. Tablet: etiqueta corta (una palabra). */}
+      <div className="w-full min-w-0 px-1 pb-1 md:bottom-nav-scroll md:touch-pan-x md:overflow-x-auto md:overflow-y-hidden md:overscroll-x-contain md:px-2">
+        <div className="flex w-full flex-nowrap items-end justify-evenly gap-0 md:w-max md:min-w-full md:justify-center md:gap-1">
           {bottomNavItems.map((item) => {
             const active = isActive(item.href);
             const Icon = item.Icon;
@@ -311,14 +335,17 @@ export default function BottomNav() {
                 onMouseEnter={() => prefetchNav(item.href)}
                 onFocus={() => prefetchNav(item.href)}
                 onTouchStart={() => prefetchNav(item.href)}
-                className={`flex min-w-[4.5rem] max-w-[5.25rem] shrink-0 snap-start flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center transition-colors sm:min-w-[4.75rem] ${
+                className={`flex min-w-0 flex-1 basis-0 flex-col items-center justify-end gap-0.5 rounded-lg px-1 py-1.5 text-center transition-colors md:min-w-[4.25rem] md:max-w-[5rem] md:flex-none md:basis-auto md:px-2 ${
                   active ? "text-[color:var(--shell-sidebar)] dark:text-zinc-300" : "text-slate-400 dark:text-slate-500"
                 }`}
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
+                title={item.label}
               >
                 <Icon active={active} />
-                <span className="line-clamp-2 w-full text-[10px] font-medium leading-tight">{item.label}</span>
+                <span className="hidden w-full truncate text-[10px] font-medium leading-tight md:block">
+                  {item.shortLabel}
+                </span>
               </Link>
             );
           })}

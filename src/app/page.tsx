@@ -8,26 +8,22 @@ import { ColombiaFlag } from "@/app/components/landing/ColombiaFlag";
 import { LandingProductShowcaseSection } from "@/app/components/landing/LandingProductShowcaseSection";
 import { LandingImplementationSection } from "@/app/components/landing/LandingImplementationSection";
 
-const LICENSE_START_PRICE = "$799.000";
-
-const LANDING_CALL_TEL = "+573002061711";
-const LANDING_CALL_DISPLAY = "300 206 1711";
+const LANDING_CALL_TEL = "+573152802343";
+const LANDING_CALL_DISPLAY = "315 280 2343";
 
 export const metadata: Metadata = {
   title: "Berea Comercios — Gestiona tu negocio",
   description:
     "Inventario, ventas, clientes y créditos. Berea Comercios para tu negocio. Licencia con soporte.",
   icons: {
-    icon: "/logo-berea.2.png",
-    apple: "/logo-berea.2.png",
+    icon: "/logo-berea-tech.png",
+    apple: "/logo-berea-tech.png",
   },
 };
 
 export default function LandingPage() {
   return (
     <div className="berea-landing min-h-screen">
-      <div className="berea-landing-glow" aria-hidden />
-
       <header className="berea-landing-header">
         <div className="mx-auto flex min-h-14 max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:min-h-16 sm:px-6 lg:px-8">
           <BereaLandingLogo href="/" />
@@ -91,15 +87,14 @@ export default function LandingPage() {
                 </p>
                 <div className="mt-8 flex flex-wrap items-center gap-3">
                   <Link href="/registro" className="berea-landing-btn-primary">
-                    Prueba gratis · luego desde {LICENSE_START_PRICE}
+                    Prueba gratis
                   </Link>
                   <Link href="/login" className="berea-landing-btn-secondary">
                     Ya tengo cuenta
                   </Link>
                 </div>
                 <p className="berea-landing-muted mt-4 text-[12px] leading-relaxed">
-                  Modo prueba con límites reducidos. Plan Estándar o Pro con el equipo Berea por WhatsApp cuando lo
-                  necesites.
+                  Desde Sincelejo, Colombia — licencias, implementación y soporte para comercios en todo el país.
                 </p>
               </div>
 

@@ -36,14 +36,14 @@ export function LandingInvoiceMockup() {
       </div>
 
       <div className="berea-landing-mockup-panel min-w-0 overflow-x-auto rounded-xl border">
-        <div className="grid grid-cols-[minmax(0,0.7fr)_minmax(0,1.4fr)_auto_auto_auto] gap-x-2 border-b border-[var(--landing-border)] bg-[var(--landing-surface)] px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wider berea-landing-mockup-text sm:px-3">
+        <div className="grid grid-cols-[minmax(0,0.7fr)_minmax(0,1.4fr)_auto_auto_auto] gap-x-2 border-b border-[var(--landing-mockup-border)] bg-[var(--landing-mockup-surface)] px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wider berea-landing-mockup-text sm:px-3">
           <span>Ref.</span>
           <span>Producto</span>
           <span className="text-right">Cant.</span>
           <span className="hidden text-right sm:block">P. unit</span>
           <span className="text-right">Subt.</span>
         </div>
-        <div className="divide-y divide-[var(--landing-border)]">
+        <div className="divide-y divide-[var(--landing-mockup-border)]">
           {lines.map((l) => (
             <div
               key={l.ref}
@@ -68,7 +68,7 @@ export function LandingInvoiceMockup() {
           <span>IVA 19%</span>
           <span className="berea-landing-mockup-text-strong tabular-nums">$ 45.695</span>
         </div>
-        <div className="berea-landing-mockup-text-strong flex justify-between border-t border-[var(--landing-border)] pt-2 text-[13px] font-semibold">
+        <div className="berea-landing-mockup-text-strong flex justify-between border-t border-[var(--landing-mockup-border)] pt-2 text-[13px] font-semibold">
           <span>Total</span>
           <span className="tabular-nums">$ 286.195</span>
         </div>

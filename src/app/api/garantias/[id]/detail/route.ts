@@ -10,7 +10,7 @@ const DETAIL_SELECT = `
   id, sale_id, sale_item_id, branch_id, quantity, customer_id, product_id,
   warranty_type, reason, status, requested_by, reviewed_by, reviewed_at,
   rejection_reason, replacement_product_id, resolution_notes, processed_at, processed_by,
-  created_at, updated_at,
+  created_at, updated_at, product_imei_unit_id,
   customers(name),
   products:products!warranties_product_id_fkey(name),
   sales(invoice_number, created_at, branch_id, payment_method, amount_cash, amount_transfer, total),
@@ -18,7 +18,8 @@ const DETAIL_SELECT = `
   requested_by_user:users!warranties_requested_by_fkey(name),
   reviewed_by_user:users!warranties_reviewed_by_fkey(name),
   processed_by_user:users!processed_by(name),
-  replacement_product:products!warranties_replacement_product_id_fkey(name)
+  replacement_product:products!warranties_replacement_product_id_fkey(name),
+  product_imei_unit:product_imei_units(id, imei)
 `;
 
 function pickOne<T>(value: T | T[] | null | undefined): T | null {
@@ -119,6 +120,9 @@ export async function GET(
     processed_by_user: pickOne(w.processed_by_user as { name: string } | { name: string }[] | null),
     replacement_product: pickOne(
       w.replacement_product as { name: string } | { name: string }[] | null
+    ),
+    product_imei_unit: pickOne(
+      w.product_imei_unit as { id: string; imei: string } | { id: string; imei: string }[] | null
     ),
   };
 

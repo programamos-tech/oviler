@@ -153,7 +153,7 @@ export async function GET(
     );
   }
 
-  const [itemsRes, warrantiesRes, creditRes, addressRes] = await Promise.all([
+  const [itemsRes, warrantiesRes, creditRes, addressRes, imeiRes] = await Promise.all([
     supabase.from("sale_items").select(ITEMS_SELECT).eq("sale_id", saleId),
     supabase
       .from("warranties")
@@ -176,9 +176,22 @@ export async function GET(
           .eq("id", deliveryAddressId)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    supabase
+      .from("product_imei_units")
+      .select("id, imei, sale_item_id")
+      .eq("sale_id", saleId)
+      .order("imei"),
   ]);
 
   const { sale, salesMode, branchOrgId } = buildSalePayload(saleRow as Record<string, unknown>);
+
+  const imeisBySaleItem: Record<string, { id: string; imei: string }[]> = {};
+  for (const row of imeiRes.data ?? []) {
+    const sid = row.sale_item_id as string | null;
+    if (!sid) continue;
+    if (!imeisBySaleItem[sid]) imeisBySaleItem[sid] = [];
+    imeisBySaleItem[sid].push({ id: row.id as string, imei: row.imei as string });
+  }
 
   const items = (itemsRes.data ?? []).map((item) => {
     const row = item as {
@@ -195,6 +208,7 @@ export async function GET(
       ...row,
       quantity_picked: row.quantity_picked ?? null,
       products: pickOne(row.products),
+      imeis: imeisBySaleItem[row.id] ?? [],
     };
   });
 

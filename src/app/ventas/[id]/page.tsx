@@ -28,6 +28,10 @@ import {
   fetchSaleDetailExtras,
   getCachedSaleDetail,
 } from "@/lib/ventas-detail-cache";
+import { formatImeiDisplay } from "@/lib/imei";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const IME = STORE_TECH_COPY.imei;
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
@@ -154,6 +158,7 @@ type SaleItemRow = {
   discount_amount: number;
   quantity_picked: number | null;
   products: { name: string; sku: string | null } | null;
+  imeis?: { id: string; imei: string }[];
 };
 
 /** Forma de location con jerarquía stands/aisles/zones/floors/warehouses (para path de ubicación). */
@@ -778,7 +783,9 @@ export default function SaleDetailPage() {
       const qty = it.quantity_picked !== null && it.quantity_picked !== undefined ? it.quantity_picked : it.quantity;
       const sub = it.quantity <= 0 ? 0 : Math.round((qty / it.quantity) * (it.quantity * it.unit_price - (Number(it.discount_percent) || 0) / 100 * it.quantity * it.unit_price - (Number(it.discount_amount) || 0)));
       const productLabel = `${it.products?.name ?? "—"}${it.products?.sku ? ` (${it.products.sku})` : ""}`;
-      return `<tr><td class="cell">${esc(productLabel)}</td><td class="cell num">${qty}</td><td class="cell num">$ ${formatMoney(it.unit_price)}</td><td class="cell num">$ ${formatMoney(sub)}</td></tr>`;
+      const imeiLines = (it.imeis ?? []).map((u) => `${IME.onInvoice}: ${formatImeiDisplay(u.imei)}`).join("<br>");
+      const productCell = imeiLines ? `${esc(productLabel)}<br><span class="imei">${imeiLines}</span>` : esc(productLabel);
+      return `<tr><td class="cell">${productCell}</td><td class="cell num">${qty}</td><td class="cell num">$ ${formatMoney(it.unit_price)}</td><td class="cell num">$ ${formatMoney(sub)}</td></tr>`;
     }).join("");
 
     const subtotalDispatch = items.reduce((sum, it) => {
@@ -1724,6 +1731,16 @@ export default function SaleDetailPage() {
                     <p className="text-slate-500 dark:text-slate-400">P. unit.: <span className="font-medium text-slate-700 dark:text-slate-200">$ {formatMoney(it.unit_price)}</span></p>
                     <p className="text-slate-500 dark:text-slate-400">Subtotal: <span className="font-semibold text-slate-800 dark:text-slate-100">$ {formatMoney(displaySubtotal)}</span></p>
                   </div>
+                  {(it.imeis ?? []).length > 0 && (
+                    <div className="mt-2 border-t border-slate-200/80 pt-2 dark:border-slate-700">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{IME.onInvoice}</p>
+                      <ul className="mt-1 space-y-0.5 font-mono text-[12px] text-slate-700 dark:text-slate-200">
+                        {(it.imeis ?? []).map((u) => (
+                          <li key={u.id}>{formatImeiDisplay(u.imei)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1775,6 +1792,11 @@ export default function SaleDetailPage() {
                             {hasLineDiscount(it) && (
                               <span className="inline-flex w-fit items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
                                 Descuento: {lineDiscountLabel(it)}
+                              </span>
+                            )}
+                            {(it.imeis ?? []).length > 0 && (
+                              <span className="mt-1 block font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                                {IME.onInvoice}: {(it.imeis ?? []).map((u) => formatImeiDisplay(u.imei)).join(" · ")}
                               </span>
                             )}
                           </div>

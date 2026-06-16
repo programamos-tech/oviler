@@ -11,6 +11,7 @@ import {
   getCachedClienteDetail,
 } from "@/lib/clientes-detail-cache";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
 import WorkspaceCharacterAvatar from "@/app/components/WorkspaceCharacterAvatar";
 import { getAvatarVariant } from "@/app/components/app-nav-data";
@@ -374,7 +375,7 @@ export default function CustomerDetailPage() {
                 <svg className="h-10 w-10 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <p className="mt-3 text-[15px] font-semibold text-slate-800 dark:text-slate-200">Aún no hay ventas registradas</p>
+                <p className="mt-3 text-[15px] font-semibold text-slate-800 dark:text-slate-200">{STORE_TECH_COPY.clientes.noVentas}</p>
                 <p className="mt-2 max-w-[280px] text-center text-[13px] font-medium leading-snug text-pretty text-slate-500 dark:text-slate-400">
                   Cuando registres ventas con este cliente, aquí verás el detalle.
                 </p>
@@ -412,7 +413,7 @@ export default function CustomerDetailPage() {
 
         <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-7 sm:py-7">
           <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-            Top productos comprados
+            {STORE_TECH_COPY.clientes.topProducts}
           </h2>
             {topProductsLoading ? (
               <div className="mt-5 min-h-[200px] animate-pulse rounded-2xl border border-dashed border-slate-200 bg-slate-50/30 dark:border-slate-700 dark:bg-slate-800/20" aria-hidden />

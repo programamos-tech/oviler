@@ -28,7 +28,7 @@ export function LandingDashboardMockup() {
             <p className="berea-landing-mockup-text mt-0.5 text-[12px]">Ventas e ingresos de tu sucursal</p>
           </div>
           <div className="flex gap-2">
-            <span className="berea-landing-mockup-text hidden h-8 rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] px-2.5 text-[11px] font-medium leading-8 sm:inline-block">
+            <span className="berea-landing-mockup-text hidden h-8 rounded-lg border border-[var(--landing-mockup-border)] bg-[var(--landing-mockup-surface)] px-2.5 text-[11px] font-medium leading-8 sm:inline-block">
               Hoy
             </span>
             <span className="berea-landing-mockup-btn">Actualizar</span>
@@ -56,13 +56,13 @@ export function LandingDashboardMockup() {
         </div>
 
         <div className="berea-landing-mockup-panel min-w-0 overflow-x-auto rounded-xl border">
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_auto_auto] gap-x-2 border-b border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-[9px] font-semibold uppercase tracking-wider berea-landing-mockup-text sm:px-4">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_auto_auto] gap-x-2 border-b border-[var(--landing-mockup-border)] bg-[var(--landing-mockup-surface)] px-3 py-2 text-[9px] font-semibold uppercase tracking-wider berea-landing-mockup-text sm:px-4">
             <span>Factura</span>
             <span className="min-w-0">Cliente</span>
             <span className="text-right">Total</span>
             <span className="text-right">Estado</span>
           </div>
-          <div className="divide-y divide-[var(--landing-border)]">
+          <div className="divide-y divide-[var(--landing-mockup-border)]">
             {rows.map((r) => (
               <div
                 key={r.inv}
@@ -83,7 +83,7 @@ export function LandingDashboardMockup() {
               </div>
             ))}
           </div>
-          <div className="berea-landing-mockup-text border-t border-[var(--landing-border)] px-3 py-2 text-center text-[10px] sm:px-4 sm:text-left">
+          <div className="berea-landing-mockup-text border-t border-[var(--landing-mockup-border)] px-3 py-2 text-center text-[10px] sm:px-4 sm:text-left">
             Mostrando 4 ventas recientes · datos de ejemplo
           </div>
         </div>

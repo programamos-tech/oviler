@@ -1,3 +1,5 @@
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
 export type ExpenseConceptKind = "inventory" | "operating";
 
 const INVENTORY_PATTERNS = [/inventario/i, /mercanc[ií]a/i, /proveedor/i, /insumos/i];
@@ -10,8 +12,8 @@ export function getExpenseConceptKind(concept: string): ExpenseConceptKind {
 }
 
 export const EXPENSE_KIND_LABELS: Record<ExpenseConceptKind, string> = {
-  inventory: "Inventario",
-  operating: "Operativo",
+  inventory: STORE_TECH_COPY.expenses.kindInventory,
+  operating: STORE_TECH_COPY.expenses.kindOperating,
 };
 
 export const EXPENSE_KIND_BADGE_STYLES: Record<ExpenseConceptKind, string> = {

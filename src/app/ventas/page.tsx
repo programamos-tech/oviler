@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback, useMemo, Fragment } from "react";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
-import { isSameLocalCalendarDay, startOfLocalCalendarDay } from "@/lib/calendar-day-bounds";
 import { useLocalCalendarToday } from "@/app/components/useLocalCalendarToday";
 import { getSalesDateBounds } from "@/lib/sales-list-filters";
 import {
@@ -30,6 +29,9 @@ import {
   SALES_STATUS_FILTERS,
 } from "./sales-mode";
 import DatePickerCard from "@/app/components/DatePickerCard";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const V = STORE_TECH_COPY.ventas;
 const PAGE_SIZE = 20;
 
 type PaymentTotals = {
@@ -185,10 +187,9 @@ export default function SalesPage() {
   const [searchQueryDebounced, setSearchQueryDebounced] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
-  const [dateFrom, setDateFrom] = useState<Date | null>(() => startOfLocalCalendarDay());
-  const [dateTo, setDateTo] = useState<Date | null>(() => startOfLocalCalendarDay());
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
   const calendarToday = useLocalCalendarToday();
-  const [pinToToday, setPinToToday] = useState(true);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -560,40 +561,21 @@ export default function SalesPage() {
   const actionIconClass =
     "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--berea-ink-subtle)] transition-colors hover:bg-[var(--shell-workspace)] hover:text-[var(--berea-accent)]";
 
-  const isFilteredToTodayOnly =
-    dateFrom !== null &&
-    dateTo !== null &&
-    isSameLocalCalendarDay(dateFrom, dateTo) &&
-    isSameLocalCalendarDay(dateFrom, calendarToday);
-
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
     statusFilter !== "all" ||
     paymentFilter !== "all" ||
-    !isFilteredToTodayOnly;
+    dateFrom !== null ||
+    dateTo !== null;
 
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
     setPaymentFilter("all");
-    setPinToToday(true);
-    setDateFrom(calendarToday);
-    setDateTo(calendarToday);
+    setDateFrom(null);
+    setDateTo(null);
     setPage(1);
   };
-
-  useEffect(() => {
-    if (!dateFrom || !dateTo) return;
-    const onToday =
-      isSameLocalCalendarDay(dateFrom, dateTo) && isSameLocalCalendarDay(dateFrom, calendarToday);
-    setPinToToday(onToday);
-  }, [dateFrom, dateTo, calendarToday]);
-
-  useEffect(() => {
-    if (!pinToToday) return;
-    setDateFrom(calendarToday);
-    setDateTo(calendarToday);
-  }, [pinToToday, calendarToday]);
 
   const today = calendarToday;
 
@@ -729,7 +711,7 @@ export default function SalesPage() {
                     type="search"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Factura, cliente…"
+                    placeholder={V.searchPlaceholder}
                     className={`${bereaFieldClass} py-2.5 pl-11 pr-4`}
                   />
                 </div>
@@ -777,7 +759,6 @@ export default function SalesPage() {
                           id="ventas-filter-from"
                           value={dateFrom}
                           onChange={(d) => {
-                            setPinToToday(false);
                             setDateFrom(d);
                             if (d && dateTo && d > dateTo) setDateTo(d);
                           }}
@@ -792,7 +773,6 @@ export default function SalesPage() {
                           id="ventas-filter-to"
                           value={dateTo}
                           onChange={(d) => {
-                            setPinToToday(false);
                             setDateTo(d);
                             if (d && dateFrom && d < dateFrom) setDateFrom(d);
                           }}

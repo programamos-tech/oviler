@@ -31,8 +31,8 @@ export const metadata: Metadata = {
     "Inventario, ventas, clientes y créditos. Berea Comercios para tu negocio. Licencia con soporte.",
   applicationName: "Berea Comercios",
   icons: {
-    icon: "/logo-berea.2.png",
-    apple: "/logo-berea.2.png",
+    icon: "/logo-berea-tech.png",
+    apple: "/logo-berea-tech.png",
   },
 };
 

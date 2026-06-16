@@ -9,6 +9,10 @@ import { createClient } from "@/lib/supabase/client";
 import { loadOrgPlanSnapshot, type OrgPlanSnapshot } from "@/lib/org-plan-snapshot";
 import { PlanLimitHeaderNote, PLAN_LIMIT_DISABLED_BUTTON_CLASS } from "@/app/components/PlanLimitNotice";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+import AdjustStockIcon from "@/app/components/AdjustStockIcon";
+
+const INV = STORE_TECH_COPY.inventario;
 import {
   shouldShowListSkeleton,
   visibleCountFromCache,
@@ -138,8 +142,8 @@ function InventoryFilters({
           type="search"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Nombre o código (ej. Coca-Cola, REST-BB-04)"
-          aria-label="Buscar producto por nombre o por código"
+          placeholder={INV.searchPlaceholder}
+          aria-label={INV.searchAriaLabel}
           className={`${bereaFieldClass} py-2.5 pl-11 pr-4`}
         />
       </div>
@@ -555,10 +559,10 @@ function InventoryPage() {
       <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
         <div className="min-w-0 shrink-0">
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--berea-ink)] sm:text-[1.65rem]">
-            Productos
+            {INV.title}
           </h1>
           <p className="mt-0.5 text-[14px] text-[var(--berea-ink-muted)]">
-            Lista de tus productos. Busca, filtra y gestiona stock desde aquí.
+            {INV.subtitle}
           </p>
         </div>
         <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
@@ -626,14 +630,10 @@ function InventoryPage() {
 
             <div className="px-2 py-8 text-center sm:px-4">
               <p className="text-[15px] font-semibold text-[var(--berea-ink)]">
-                {isDatabaseEmpty
-                  ? "Aún no tienes productos"
-                  : "Ningún producto coincide con tu búsqueda o filtros"}
+                {isDatabaseEmpty ? INV.emptyTitle : INV.emptyFiltered}
               </p>
               <p className="mt-2 text-[13px] text-[var(--berea-ink-muted)]">
-                {isDatabaseEmpty
-                  ? "Crea tu primer producto para verlo aquí."
-                  : "Ajusta la búsqueda, el estado de stock o la categoría."}
+                {isDatabaseEmpty ? INV.emptyHint : INV.emptyFilteredHint}
               </p>
               {isDatabaseEmpty ? (
                 planSnapshot && !planSnapshot.canCreateProduct ? (
@@ -662,8 +662,8 @@ function InventoryPage() {
                 className={`${desktopInventoryHeaderGrid} border-b border-[var(--berea-card-border)]`}
                 aria-hidden
               >
-                <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Producto</div>
-                <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Código</div>
+                <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">{INV.columnProduct}</div>
+                <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">{INV.columnCode}</div>
                 <div className="min-w-0 text-[13px] font-semibold text-[var(--berea-ink-muted)]">Categoría</div>
                 {displayHasBodega === true ? (
                   <>
@@ -745,10 +745,10 @@ function InventoryPage() {
                       <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Editar nombre, precio, categoría y más</span>
                     </span>
                     <span className="relative inline-flex group/tooltip">
-                      <Link href={`/inventario/actualizar-stock?productId=${p.id}`} className={actionIconClass} aria-label="Ajustar stock">
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                      <Link href={`/inventario/actualizar-stock?productId=${p.id}`} className={actionIconClass} aria-label="Actualizar stock">
+                        <AdjustStockIcon className="h-4 w-4" />
                       </Link>
-                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Ajustar o contar el stock de este producto</span>
+                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover/tooltip:opacity-100 z-50">Registrar entradas o corregir cantidades</span>
                     </span>
                     {SHOW_TRANSFER_OPTION && (
                       <span className="relative inline-flex group/tooltip">
@@ -834,13 +834,11 @@ function InventoryPage() {
                           </span>
                         </span>
                         <span className="relative inline-flex group/tooltip">
-                          <Link href={`/inventario/actualizar-stock?productId=${p.id}`} className={actionIconClass} aria-label="Ajustar stock" title="Ajustar stock">
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                            </svg>
+                          <Link href={`/inventario/actualizar-stock?productId=${p.id}`} className={actionIconClass} aria-label="Actualizar stock" title="Actualizar stock">
+                            <AdjustStockIcon className="h-4 w-4" />
                           </Link>
                           <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 dark:bg-slate-700">
-                            Ajustar stock
+                            Actualizar stock
                           </span>
                         </span>
                         {SHOW_TRANSFER_OPTION && (

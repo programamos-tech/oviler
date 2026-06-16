@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/app/components/SessionProvider";
@@ -12,13 +12,43 @@ import {
   type InventarioDetailProduct,
 } from "@/lib/inventario-detail-cache";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { SearchParamsBoundary } from "@/app/components/SearchParamsBoundary";
 import ConfirmDeleteModal from "@/app/components/ConfirmDeleteModal";
-import LocationPathWithIcons from "@/app/components/LocationPathWithIcons";
+import AdjustStockIcon from "@/app/components/AdjustStockIcon";
+import { formatImeiDisplay } from "@/lib/imei";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+import type { InventarioImeiUnit, InventarioImeiRemovedUnit } from "@/lib/inventario-detail-cache";
+
+const IME = STORE_TECH_COPY.imei;
+
+const IMEI_STATUS_LABEL: Record<string, string> = {
+  in_stock: "En stock",
+  sold: "Vendido",
+  warranty: "En garantía",
+  defective: "Defectuoso",
+  returned: "Devuelto",
+};
+
+const IMEI_LOCATION_LABEL: Record<string, string> = {
+  local: "Local",
+  bodega: "Bodega",
+};
 
 const IVA_RATE = 0.19;
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
+}
+
+function formatRemovedDate(iso: string) {
+  try {
+    return new Intl.DateTimeFormat("es-CO", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
 }
 
 type Product = InventarioDetailProduct;
@@ -28,9 +58,12 @@ function salePrice(p: Product): number {
   return p.apply_iva ? base + Math.round(base * IVA_RATE) : base;
 }
 
-export default function ProductDetailPage() {
+function ProductDetailContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const stockRefreshToken = searchParams.get("refresh");
+  const detailRefreshKey = stockRefreshToken ? Number(stockRefreshToken) || Date.now() : 0;
   const { branch, ready: sessionReady } = useSession();
   const branchId = branch?.id ?? null;
   const id = params?.id as string | undefined;
@@ -40,8 +73,8 @@ export default function ProductDetailPage() {
   const [stockBodega, setStockBodega] = useState<number>(0);
   const [hasBodega, setHasBodega] = useState<boolean | null>(null);
   const [stockReserved, setStockReserved] = useState<number>(0);
-  const [locationRows, setLocationRows] = useState<{ quantity: number; path: string; locationId: string }[]>([]);
-  const [locationsLoading, setLocationsLoading] = useState(true);
+  const [imeiUnits, setImeiUnits] = useState<InventarioImeiUnit[]>([]);
+  const [imeiRemovedUnits, setImeiRemovedUnits] = useState<InventarioImeiRemovedUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -61,14 +94,14 @@ export default function ProductDetailPage() {
       return;
     }
     if (!branchId) {
-      setNotFound(true);
-      setLoading(false);
-      setLocationsLoading(false);
+      setLoading(true);
       return;
     }
 
     let cancelled = false;
-    const cached = getCachedInventarioDetail(id, branchId);
+    setNotFound(false);
+    const skipCache = detailRefreshKey > 0;
+    const cached = skipCache ? null : getCachedInventarioDetail(id, branchId, detailRefreshKey);
     if (cached) {
       setProduct(cached.product);
       setHasBodega(cached.hasBodega);
@@ -76,17 +109,16 @@ export default function ProductDetailPage() {
       setStockBodega(cached.stockBodega);
       setStock(cached.stockTotal);
       setStockReserved(cached.stockReserved);
-      setLocationRows(cached.locationRows);
+      setImeiUnits(cached.imeiUnits ?? []);
+      setImeiRemovedUnits(cached.imeiRemovedUnits ?? []);
       setNotFound(false);
       setLoading(false);
-      setLocationsLoading(false);
     } else {
       setLoading(true);
-      setLocationsLoading(true);
     }
 
     (async () => {
-      const bundle = await fetchInventarioDetailBundle(id, branchId);
+      const bundle = await fetchInventarioDetailBundle(id, branchId, detailRefreshKey);
       if (cancelled) return;
       if (!bundle) {
         setNotFound(true);
@@ -98,17 +130,20 @@ export default function ProductDetailPage() {
         setStockBodega(bundle.stockBodega);
         setStock(bundle.stockTotal);
         setStockReserved(bundle.stockReserved);
-        setLocationRows(bundle.locationRows);
+        setImeiUnits(bundle.imeiUnits ?? []);
+        setImeiRemovedUnits(bundle.imeiRemovedUnits ?? []);
         setNotFound(false);
       }
       setLoading(false);
-      setLocationsLoading(false);
+      if (skipCache && !cancelled) {
+        router.replace(`/inventario/${id}`, { scroll: false });
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [id, branchId, sessionReady, activeBranchEpoch]);
+  }, [id, branchId, sessionReady, activeBranchEpoch, detailRefreshKey, router]);
 
   async function handleDelete() {
     if (!product?.id) return;
@@ -153,6 +188,10 @@ export default function ProductDetailPage() {
   const inversiónEnStock = cost * stock;
   const gananciaBrutaEstimada = (price - cost) * stock;
   const margenGanancia = price > 0 ? Math.round(((price - cost) / price) * 100) : 0;
+  const iconActionClass =
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200";
+  const iconActionDangerClass =
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30";
 
   return (
     <div className="mx-auto min-w-0 max-w-[1600px] space-y-8 font-sans text-[13px] font-normal leading-normal tracking-normal text-slate-800 antialiased dark:text-slate-100">
@@ -176,42 +215,40 @@ export default function ProductDetailPage() {
           <div className="flex min-w-0 w-full max-w-full shrink-0 flex-nowrap items-center justify-end gap-1.5 overflow-x-auto overflow-y-visible pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] print:hidden sm:w-auto sm:max-w-none sm:gap-2 sm:overflow-visible sm:pb-0 sm:pt-0.5 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/70 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600/60">
             <Link
               href="/inventario"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200"
+              className={iconActionClass}
               title="Volver a inventario"
               aria-label="Volver a inventario"
             >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </Link>
             <Link
               href={`/inventario/${product.id}/editar`}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[color:var(--shell-sidebar)] text-white shadow-[0_1px_2px_rgba(15,23,42,0.12)] transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+              className={iconActionClass}
               title="Editar producto"
               aria-label="Editar producto"
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
               </svg>
             </Link>
             <Link
               href={`/inventario/actualizar-stock?productId=${product.id}`}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
-              title="Ajustar stock"
-              aria-label="Ajustar stock"
+              className={iconActionClass}
+              title="Actualizar stock"
+              aria-label="Actualizar stock"
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
+              <AdjustStockIcon className="h-5 w-5" />
             </Link>
             {SHOW_TRANSFER_OPTION && (
               <Link
                 href={`/inventario/transferir?productId=${product.id}`}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+                className={iconActionClass}
                 title="Transferir stock"
                 aria-label="Transferir stock"
               >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
                 </svg>
               </Link>
@@ -219,11 +256,11 @@ export default function ProductDetailPage() {
             <button
               type="button"
               onClick={() => setDeleteOpen(true)}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-red-600 transition-colors hover:bg-red-50 dark:border-slate-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
+              className={iconActionDangerClass}
               title="Eliminar producto"
               aria-label="Eliminar producto"
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
@@ -319,82 +356,113 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      {/* Datos del producto: tres cards en grid simétrico */}
-      <section className="grid min-w-0 gap-6 sm:grid-cols-1 lg:grid-cols-3">
+      {product.requires_imei && (
         <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
-          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-            Identificación
-          </h2>
-            <dl className="mt-4 space-y-2 text-[13px]">
-              <div className="flex justify-between gap-2"><dt className="font-medium text-slate-500 dark:text-slate-400">Código</dt><dd className="font-semibold text-slate-800 dark:text-slate-100">{product.sku || "—"}</dd></div>
-              <div className="flex justify-between gap-2"><dt className="font-medium text-slate-500 dark:text-slate-400">Categoría</dt><dd className="font-semibold text-slate-800 dark:text-slate-100">{product.category_name ?? "—"}</dd></div>
-              {product.brand && <div className="flex justify-between gap-2"><dt className="font-medium text-slate-500 dark:text-slate-400">Marca</dt><dd className="font-semibold text-slate-800 dark:text-slate-100">{product.brand}</dd></div>}
-              <div className="flex flex-col gap-1">
-                <dt className="font-medium text-slate-500 dark:text-slate-400">Ubicación</dt>
-                <dd className="font-semibold text-slate-800 dark:text-slate-100">
-                  {locationsLoading ? (
-                    <span className="font-medium text-slate-400 dark:text-slate-500">Cargando…</span>
-                  ) : locationRows.length > 0 ? (
-                    <LocationPathWithIcons path={locationRows.map((r) => r.path).join("; ")} iconClass="text-[13px]" />
-                  ) : (
-                    <span className="font-medium text-slate-500 dark:text-slate-400">Sin ubicación específica</span>
-                  )}
-                </dd>
-              </div>
-            </dl>
-        </div>
-
-        <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
-          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-            Descripción
-          </h2>
-          <p className="mt-4 text-[13px] font-medium leading-relaxed text-slate-600 dark:text-slate-400">
-            {product.description?.trim() ? product.description : "Sin descripción."}
-          </p>
-        </div>
-
-        <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
-          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
-            Ubicación en bodega
-          </h2>
-            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-              Dónde está el producto en esta sucursal.
-            </p>
-            {locationsLoading ? (
-              <p className="mt-3 text-[13px] font-medium text-slate-400 dark:text-slate-500">Cargando ubicaciones…</p>
-            ) : locationRows.length > 0 ? (
-              <>
-                <ul className="mt-3 space-y-2">
-                  {locationRows.map((row, i) => (
-                    <li key={i} className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/40 px-3 py-2.5 text-[13px] dark:border-slate-800 dark:bg-slate-800/25">
-                      <span className="min-w-0 flex-1">
-                        <LocationPathWithIcons path={row.path} iconClass="text-[13px]" />
-                      </span>
-                      <span className="shrink-0 font-semibold text-slate-700 dark:text-slate-300">{row.quantity} und</span>
-                    </li>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+                {IME.registerTitle}
+              </h2>
+              <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                Unidades registradas en esta sucursal con su IMEI.
+              </p>
+            </div>
+            <Link
+              href={`/inventario/actualizar-stock?productId=${product.id}`}
+              className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              Actualizar stock
+            </Link>
+          </div>
+          {imeiUnits.length === 0 ? (
+            <p className="mt-4 text-[13px] text-slate-500 dark:text-slate-400">{IME.notInStock}</p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[480px] text-[13px]">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">IMEI</th>
+                    {hasBodega && (
+                      <th className="pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">Ubicación</th>
+                    )}
+                    <th className="pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">Estado</th>
+                    <th className="pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">Factura</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {imeiUnits.map((unit) => (
+                    <tr key={unit.id} className="border-b border-slate-100 dark:border-slate-800">
+                      <td className="py-2 font-mono text-slate-800 dark:text-slate-100">{formatImeiDisplay(unit.imei)}</td>
+                      {hasBodega && (
+                        <td className="py-2 text-slate-600 dark:text-slate-300">
+                          {IMEI_LOCATION_LABEL[unit.location ?? "local"] ?? "Local"}
+                        </td>
+                      )}
+                      <td className="py-2 text-slate-600 dark:text-slate-300">{IMEI_STATUS_LABEL[unit.status] ?? unit.status}</td>
+                      <td className="py-2">
+                        {unit.sale_id ? (
+                          <Link href={`/ventas/${unit.sale_id}`} className="font-medium text-sky-600 hover:underline dark:text-sky-400">
+                            Ver factura
+                          </Link>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
                   ))}
-                </ul>
-                <Link href="/inventario/ubicaciones" className="mt-3 inline-block text-[13px] font-medium text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">
-                  Gestionar ubicaciones
-                </Link>
-              </>
-            ) : hasBodega === true && stockBodega === 0 ? (
-              <p className="mt-3 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                No hay unidades en bodega en esta sucursal. Cuando ingreses stock en bodega (alta o ajuste), podrás asignar una ubicación en estante desde{" "}
-                <Link href="/inventario/ubicaciones" className="font-semibold text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">Ubicaciones bodega</Link>.
-              </p>
-            ) : hasBodega === true ? (
-              <p className="mt-3 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Sin ubicación específica en estante. El stock en bodega ({stockBodega} und) está en inventario general. Puedes asignar una ubicación al actualizar el stock o desde{" "}
-                <Link href="/inventario/ubicaciones" className="font-semibold text-[color:var(--shell-sidebar)] hover:underline dark:text-zinc-300">Ubicaciones bodega</Link>.
-              </p>
-            ) : (
-              <p className="mt-3 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                Sin ubicación en estante. El inventario ({stock} und) está en esta sucursal. Si activas bodega en la sucursal, podrás separar local y bodega.
-              </p>
-            )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      </section>
+      )}
+
+      {product.requires_imei && (
+        <div className="min-w-0 rounded-3xl bg-white px-5 py-6 dark:bg-slate-900 sm:px-6 sm:py-7">
+          <div>
+            <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-500">
+              {IME.removedTitle}
+            </h2>
+            <p className="mt-1 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+              {IME.removedSubtitle}
+            </p>
+          </div>
+          {imeiRemovedUnits.length === 0 ? (
+            <p className="mt-4 text-[13px] text-slate-500 dark:text-slate-400">{IME.removedEmpty}</p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[520px] text-[13px]">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">IMEI</th>
+                    {hasBodega && (
+                      <th className="pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">Ubicación</th>
+                    )}
+                    <th className="pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">{IME.removedAt}</th>
+                    <th className="pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">{IME.removedBy}</th>
+                    <th className="pb-2 text-left font-semibold text-slate-600 dark:text-slate-300">{IME.removedReason}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {imeiRemovedUnits.map((unit) => (
+                    <tr key={unit.id} className="border-b border-slate-100 dark:border-slate-800">
+                      <td className="py-2 font-mono text-slate-600 dark:text-slate-300">{formatImeiDisplay(unit.imei)}</td>
+                      {hasBodega && (
+                        <td className="py-2 text-slate-500 dark:text-slate-400">
+                          {IMEI_LOCATION_LABEL[unit.location] ?? "Local"}
+                        </td>
+                      )}
+                      <td className="py-2 text-slate-500 dark:text-slate-400">{formatRemovedDate(unit.removed_at)}</td>
+                      <td className="py-2 text-slate-700 dark:text-slate-300">{unit.removed_by_name ?? "—"}</td>
+                      <td className="py-2 text-slate-700 dark:text-slate-300">{unit.removal_reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       <ConfirmDeleteModal
         isOpen={deleteOpen}
@@ -406,5 +474,13 @@ export default function ProductDetailPage() {
         ariaTitle={`Eliminar producto ${product.name}`}
       />
     </div>
+  );
+}
+
+export default function ProductDetailPage() {
+  return (
+    <SearchParamsBoundary>
+      <ProductDetailContent />
+    </SearchParamsBoundary>
   );
 }

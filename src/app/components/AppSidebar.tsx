@@ -14,6 +14,9 @@ import {
   type SidebarNavEntry,
 } from "./app-nav-data";
 import { useSession } from "./SessionProvider";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const HELP = STORE_TECH_COPY.nav.helpFooter;
 
 const SIDEBAR_EXPANDED_KEY = "nou.sidebar.expandedGroups";
 
@@ -292,8 +295,8 @@ export default function AppSidebar() {
             title={isInterno ? "Bernabé BackOffice" : "Bernabé Comercios"}
             aria-label="Berea — Ir al inicio"
           >
-            <span className="sidebar-logo-crop">
-              <img src="/logo-berea.2.png" alt="" className="sidebar-logo-img" decoding="async" />
+            <span className="berea-tech-logo-frame berea-tech-logo-frame--sidebar">
+              <img src="/logo-berea-tech.png" alt="" decoding="async" />
             </span>
           </Link>
         </div>
@@ -346,10 +349,10 @@ export default function AppSidebar() {
             <SidebarSproutIcon />
             <span className="min-w-0 flex-1">
               <span className="block text-[12px] font-medium leading-tight text-[var(--shell-nav-fg)]">
-                ¿Necesitas ayuda?
+                {HELP.title}
               </span>
               <span className="mt-0.5 block text-[11px] leading-snug text-[var(--shell-nav-fg-muted)]">
-                Escríbenos, estamos para apoyarte.
+                {HELP.subtitle}
               </span>
             </span>
             <svg

@@ -13,7 +13,6 @@ import {
 } from "@/lib/expense-concept-kind";
 import {
   buildRecentActivities,
-  conicGradientFromChannels,
   DASHBOARD_CARD_ITEM_LIMIT,
   saleChannelLabel,
   saleStatusLabel,
@@ -24,6 +23,14 @@ import {
   type DashboardActivityKind,
   type DashboardPaymentSlice,
 } from "@/lib/dashboard-berea";
+import {
+  dashboardExpensesLabel,
+  dashboardMarginKpiLabel,
+  dashboardSalesKpiLabel,
+  STORE_TECH_COPY,
+} from "@/lib/store-tech-copy";
+
+const D = STORE_TECH_COPY.dashboard;
 
 const IncomeTrendChart = dynamic(
   () => import("@/app/components/IncomeTrendChart").then((m) => m.IncomeTrendChart),
@@ -143,12 +150,12 @@ function TopProductsCard({
   const visibleProducts = products.slice(0, TOP_PRODUCTS_LIMIT);
 
   return (
-    <BereaCard enterIndex={enterIndex} className="flex min-w-0 flex-col p-3 sm:col-span-5 sm:p-4">
+    <BereaCard enterIndex={enterIndex} className="flex min-w-0 flex-col p-3 sm:p-4 lg:col-span-5">
       <div
         className="berea-enter-layer mb-3 flex items-center justify-between gap-2"
         style={bereaEnterItemStyle(0)}
       >
-        <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">Más vendidos</h2>
+        <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">{D.topProducts}</h2>
         <Link href="/ventas" className="text-[12px] font-semibold text-[var(--berea-accent)] hover:underline">
           Ver todos
         </Link>
@@ -401,7 +408,7 @@ function RecentActivityCard({
         className="berea-enter-layer text-[15px] font-semibold text-[var(--berea-ink)]"
         style={bereaEnterItemStyle(0)}
       >
-        Actividades recientes
+        {D.activities}
       </h2>
       <ul className="berea-enter-layer mt-3 space-y-2.5" style={bereaEnterItemStyle(1)}>
         {visibleActivities.length === 0 ? (
@@ -723,6 +730,56 @@ function PeriodExpensesCard({
   );
 }
 
+function describeDonutSlice(
+  startAngle: number,
+  endAngle: number,
+  cx: number,
+  cy: number,
+  outerR: number,
+  innerR: number
+): string {
+  const start = (startAngle * Math.PI) / 180;
+  const end = (endAngle * Math.PI) / 180;
+  const x1 = cx + outerR * Math.cos(start);
+  const y1 = cy + outerR * Math.sin(start);
+  const x2 = cx + outerR * Math.cos(end);
+  const y2 = cy + outerR * Math.sin(end);
+  const x3 = cx + innerR * Math.cos(end);
+  const y3 = cy + innerR * Math.sin(end);
+  const x4 = cx + innerR * Math.cos(start);
+  const y4 = cy + innerR * Math.sin(start);
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  return [
+    `M ${x1} ${y1}`,
+    `A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2} ${y2}`,
+    `L ${x3} ${y3}`,
+    `A ${innerR} ${innerR} 0 ${largeArc} 0 ${x4} ${y4}`,
+    "Z",
+  ].join(" ");
+}
+
+function PaymentMixDonut({ slices }: { slices: DashboardPaymentSlice[] }) {
+  const active = slices.filter((s) => s.value > 0);
+  const total = active.reduce((sum, s) => sum + s.value, 0);
+  if (total <= 0) {
+    return <div className="absolute inset-0 rounded-full bg-[var(--berea-card-border)]" aria-hidden />;
+  }
+  let angle = -90;
+  return (
+    <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" aria-hidden>
+      {active.map((slice) => {
+        const sweep = (slice.value / total) * 360;
+        const start = angle;
+        const end = angle + sweep;
+        angle = end;
+        return (
+          <path key={slice.key} d={describeDonutSlice(start, end, 50, 50, 42, 28)} fill={slice.color} />
+        );
+      })}
+    </svg>
+  );
+}
+
 export default function BereaReportsDashboard(props: BereaDashboardProps) {
   const {
     loading,
@@ -757,12 +814,9 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
   } = props;
 
   const firstName = userName.trim().split(/\s+/)[0] || "equipo";
-  const salesKpiLabel =
-    dateFilterMode === "today" || !reportsFullAccess ? "Total ventas hoy" : "Total ventas";
-  const expensesPeriodLabel =
-    dateFilterMode === "today" || !reportsFullAccess ? "Egresos de hoy" : "Egresos del período";
-  const marginKpiLabel =
-    dateFilterMode === "today" || !reportsFullAccess ? "Margen bruto hoy" : "Margen bruto";
+  const salesKpiLabel = dashboardSalesKpiLabel(dateFilterMode === "today" || !reportsFullAccess);
+  const expensesPeriodLabel = dashboardExpensesLabel(dateFilterMode === "today" || !reportsFullAccess);
+  const marginKpiLabel = dashboardMarginKpiLabel(dateFilterMode === "today" || !reportsFullAccess);
   const salesKpiSubdetail = formatTotalEnCajaSubdetail(kpis.cash, kpis.transfer, hideSensitive, formatValue);
   const stockKpiSubdetail = formatStockKpiSubdetail(
     kpis.grossProfit,
@@ -784,7 +838,6 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
   );
   const cashIsNegative = kpis.cash < 0;
   const visibleOrders = recentOrders.slice(0, DASHBOARD_CARD_ITEM_LIMIT);
-  const donutBg = conicGradientFromChannels(paymentMix);
   const paymentTotal = useMemo(
     () => paymentMix.reduce((sum, slice) => sum + slice.value, 0),
     [paymentMix]
@@ -809,8 +862,8 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
           </h1>
           <p className="mt-1 text-[13px] text-[var(--berea-ink-muted)]">
             {isViewingCalendarToday && dateFilterMode === "today"
-              ? "Así va tu negocio hoy"
-              : `Resumen del ${selectedDay.toLocaleDateString("es-CO", {
+              ? D.greetingToday
+              : `${D.greetingDayPrefix} ${selectedDay.toLocaleDateString("es-CO", {
                   weekday: "long",
                   day: "numeric",
                   month: "long",
@@ -910,9 +963,9 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
       </header>
 
       {loading ? (
-        <div className="space-y-4" aria-busy aria-label="Cargando reportes">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-            <div className="grid grid-cols-2 gap-2 sm:gap-2.5 lg:col-span-9 lg:grid-cols-4">
+        <div className="space-y-4 md:space-y-5" aria-busy aria-label="Cargando reportes">
+          <div className="grid grid-cols-1 gap-4 md:gap-5 xl:grid-cols-12">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 xl:col-span-9 xl:grid-cols-4">
               {[0, 1, 2, 3].map((i) => (
                 <div
                   key={i}
@@ -920,9 +973,9 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                 />
               ))}
             </div>
-            <div className={`berea-loading-shimmer min-h-[200px] rounded-xl lg:col-span-3 ${reportsSurfaceClass}`} />
+            <div className={`berea-loading-shimmer min-h-[200px] rounded-xl xl:col-span-3 ${reportsSurfaceClass}`} />
           </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+          <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
             <div className={`berea-loading-shimmer min-h-[220px] rounded-xl lg:col-span-7 ${reportsSurfaceClass}`} />
             <div className={`berea-loading-shimmer min-h-[220px] rounded-xl lg:col-span-5 ${reportsSurfaceClass}`} />
           </div>
@@ -930,15 +983,15 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
         </div>
       ) : (
         <div className={refreshing ? "pointer-events-none opacity-[0.72] transition-opacity duration-200" : undefined}>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">
-            <div className="flex min-w-0 flex-col gap-3 lg:col-span-9">
-              <div className="grid grid-cols-2 gap-2 sm:gap-2.5 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:gap-5 xl:grid-cols-12 xl:items-stretch">
+            <div className="flex min-w-0 flex-col gap-4 md:gap-5 xl:col-span-9">
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 xl:grid-cols-4">
                 <KpiCard
                   enterIndex={0}
                   icon={KPI_ICONS.sales}
                   label={salesKpiLabel}
                   labelSuffix={
-                    <InfoTip tone="berea" ariaLabel="Total ventas">
+                    <InfoTip tone="berea" ariaLabel={D.infoTipSales}>
                       Monto facturado. Abajo: efectivo + transferencia disponibles tras egresos (no es lo vendido).
                     </InfoTip>
                   }
@@ -953,7 +1006,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                 <KpiCard
                   enterIndex={1}
                   icon={KPI_ICONS.cash}
-                  label="Caja efectivo"
+                  label={D.cashKpi}
                   labelSuffix={
                     <InfoTip tone="berea" ariaLabel="Caja efectivo">
                       Parte del total en caja. Entró = cobros; salió = egresos pagados en efectivo.
@@ -971,7 +1024,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                 <KpiCard
                   enterIndex={2}
                   icon={KPI_ICONS.transfer}
-                  label="Caja transferencia"
+                  label={D.transferKpi}
                   labelSuffix={
                     <InfoTip tone="berea" ariaLabel="Caja transferencia">
                       Parte del total en caja. Entró = cobros; salió = egresos pagados por transferencia.
@@ -988,9 +1041,9 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                 <KpiCard
                   enterIndex={3}
                   icon={KPI_ICONS.stock}
-                  label="Stock invertido"
+                  label={D.stockKpi}
                   labelSuffix={
-                    <InfoTip tone="berea" ariaLabel="Stock invertido">
+                    <InfoTip tone="berea" ariaLabel={D.infoTipStock}>
                       Arriba: inventario al costo. Abajo: margen bruto (precio − costo en ventas), distinto del dinero en caja.
                     </InfoTip>
                   }
@@ -1004,17 +1057,17 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                 />
               </div>
 
-              <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-12">
-                <BereaCard enterIndex={4} className="flex min-w-0 flex-col p-3 sm:col-span-7 sm:p-4">
+              <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-12">
+                <BereaCard enterIndex={4} className="flex min-w-0 flex-col p-3 sm:p-4 lg:col-span-7">
                   <div
                     className="berea-enter-layer mb-3 flex items-center justify-between gap-2"
                     style={bereaEnterItemStyle(0)}
                   >
-                    <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">Resumen de ventas</h2>
+                    <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">{D.salesSummary}</h2>
                     <span
                       className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold text-[var(--berea-ink-muted)] ${reportsSurfaceClass}`}
                     >
-                      Últimos 7 días
+                      {D.last7Days}
                       <svg
                         className="h-3.5 w-3.5 opacity-55"
                         viewBox="0 0 16 16"
@@ -1036,26 +1089,22 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                   </div>
                 </BereaCard>
 
-                <BereaCard enterIndex={5} className="flex min-w-0 flex-col p-3 sm:col-span-5 sm:p-4">
+                <BereaCard enterIndex={5} className="flex min-w-0 flex-col p-3 sm:p-4 lg:col-span-5">
                   <div
                     className="berea-enter-layer mb-3 flex items-center justify-between gap-2"
                     style={bereaEnterItemStyle(0)}
                   >
-                    <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">Formas de pago</h2>
+                    <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">{D.paymentMix}</h2>
                     <span
                       className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-semibold text-[var(--berea-ink-muted)] ${reportsSurfaceClass}`}
                     >
-                      Este período
+                      {D.thisPeriod}
                     </span>
                   </div>
-                  <div className="berea-chart-reveal flex min-h-[13rem] flex-1 items-center sm:min-h-[14rem]">
-                    <div className="flex w-full items-center justify-between gap-2">
-                      <div className="relative flex h-[7.75rem] w-[7.75rem] shrink-0 items-center justify-center sm:h-[8.25rem] sm:w-[8.25rem]">
-                      <div
-                        className="absolute inset-0 rounded-full"
-                        style={{ background: donutBg }}
-                        aria-hidden
-                      />
+                  <div className="berea-chart-reveal flex min-h-[13rem] flex-1 items-center lg:min-h-[14rem]">
+                    <div className="flex w-full flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="relative mx-auto flex h-[7.75rem] w-[7.75rem] shrink-0 items-center justify-center sm:mx-0 sm:h-[8.25rem] sm:w-[8.25rem]">
+                      <PaymentMixDonut slices={paymentMix} />
                       <div className="absolute inset-[16%] rounded-full bg-[var(--shell-workspace-search-bg)]" aria-hidden />
                       <div className="relative z-[1] flex flex-col items-center px-2 text-center">
                         {topPayment && paymentTotal > 0 ? (
@@ -1072,7 +1121,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                         )}
                       </div>
                     </div>
-                    <ul className="min-w-0 flex-1 space-y-2 pl-1">
+                    <ul className="min-w-0 flex-1 space-y-2 sm:pl-1">
                       {paymentMix.map((p) => (
                         <li key={p.key} className="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
                           <span className="flex min-w-0 items-center gap-1.5">
@@ -1090,22 +1139,22 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                 </BereaCard>
               </div>
 
-              <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-12">
-                <BereaCard enterIndex={6} className="flex min-w-0 flex-col overflow-hidden p-3 sm:col-span-7 sm:p-4">
+              <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-12">
+                <BereaCard enterIndex={6} className="flex min-w-0 flex-col overflow-hidden p-3 sm:p-4 lg:col-span-7">
                   <div
                     className="berea-enter-layer mb-3 flex items-center justify-between gap-2"
                     style={bereaEnterItemStyle(0)}
                   >
-                    <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">Últimos pedidos</h2>
+                    <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">{D.recentOrders}</h2>
                     <Link href="/ventas" className="text-[12px] font-semibold text-[var(--berea-accent)] hover:underline">
-                      Ver todos
+                      {D.recentOrdersLink}
                     </Link>
                   </div>
                   <div className="berea-enter-layer overflow-x-auto" style={bereaEnterItemStyle(1)}>
                     <table className="w-full min-w-[420px] border-collapse text-left text-[12px] leading-normal">
                       <thead>
                         <tr className="text-[var(--berea-ink-muted)]">
-                          <th className="pb-2.5 pr-3 font-semibold">Pedido</th>
+                          <th className="pb-2.5 pr-3 font-semibold">{D.recentOrdersColumnOrder}</th>
                           <th className="pb-2.5 pr-3 font-semibold">Cliente</th>
                           <th className="pb-2.5 pr-3 font-semibold">Canal</th>
                           <th className="pb-2.5 pr-3 font-semibold">Total</th>
@@ -1116,7 +1165,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                         {visibleOrders.length === 0 ? (
                           <tr>
                             <td colSpan={5} className="py-5 text-[var(--berea-ink-muted)]">
-                              No hay pedidos en el período.
+                              {D.recentOrdersEmpty}
                             </td>
                           </tr>
                         ) : (
@@ -1161,7 +1210,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-4 lg:col-span-3 lg:self-start">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:col-span-3 xl:flex xl:flex-col xl:gap-5">
               <RecentActivityCard enterIndex={8} activities={activities} />
               <PeriodExpensesCard
                 enterIndex={9}

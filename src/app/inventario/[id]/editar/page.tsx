@@ -7,6 +7,9 @@ import { createClient } from "@/lib/supabase/client";
 import { resolveActiveBranchId } from "@/lib/active-branch";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const IME = STORE_TECH_COPY.imei;
 
 type Category = { id: string; name: string };
 
@@ -29,6 +32,7 @@ export default function EditProductPage() {
   const [referencia, setReferencia] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [marca, setMarca] = useState("");
+  const [requiresImei, setRequiresImei] = useState(false);
   const [categoria, setCategoria] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +55,7 @@ export default function EditProductPage() {
 
       const [categoriesRes, productRes] = await Promise.all([
         supabase.from("categories").select("id, name").eq("organization_id", userRow.organization_id).order("name", { ascending: true }),
-        supabase.from("products").select("id, name, sku, description, brand, category_id, base_cost, base_price, apply_iva, image_url").eq("id", id).single(),
+        supabase.from("products").select("id, name, sku, description, brand, category_id, base_cost, base_price, apply_iva, image_url, requires_imei").eq("id", id).single(),
       ]);
 
       if (cancelled) return;
@@ -74,6 +78,7 @@ export default function EditProductPage() {
         setReferencia(p.sku ?? "");
         setDescripcion(p.description ?? "");
         setMarca(p.brand ?? "");
+        setRequiresImei(!!(p as { requires_imei?: boolean }).requires_imei);
         setCategoria(p.category_id ?? "");
         setAplicarIva(!!p.apply_iva);
         setImageUrl((p as { image_url?: string | null }).image_url ?? null);
@@ -164,6 +169,7 @@ export default function EditProductPage() {
         base_cost: numBaseCosto,
         base_price: numBasePrecio,
         apply_iva: responsableIva ? aplicarIva : false,
+        requires_imei: requiresImei,
         ...(nextImageUrl !== undefined && productImageFile ? { image_url: nextImageUrl } : {}),
         updated_at: new Date().toISOString(),
       })
@@ -337,6 +343,18 @@ export default function EditProductPage() {
                   )}
                 </div>
               </div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/50">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[color:var(--shell-sidebar)] focus:ring-slate-400/40"
+                  checked={requiresImei}
+                  onChange={(e) => setRequiresImei(e.target.checked)}
+                />
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-semibold text-slate-800 dark:text-slate-100">{IME.requiresLabel}</span>
+                  <span className="mt-0.5 block text-[12px] leading-snug text-slate-500 dark:text-slate-400">{IME.requiresHint}</span>
+                </span>
+              </label>
             </div>
           </div>
         </div>

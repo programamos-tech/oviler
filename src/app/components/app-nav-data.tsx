@@ -1,4 +1,7 @@
 import type React from "react";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const NAV = STORE_TECH_COPY.nav;
 
 const iconClass = "h-5 w-5 shrink-0";
 const sidebarStroke = 1.5;
@@ -181,11 +184,11 @@ export const navItems: NavItem[] = [
     href: "/dashboard",
     icon: <NavIconCart />,
     items: [
-      { label: "Reportes", href: "/dashboard", icon: <IconChart />, description: "Indicadores y resumen" },
-      { label: "Ventas", href: "/ventas", icon: <IconList />, description: "Facturas y pedidos" },
-      { label: "Clientes", href: "/clientes", icon: <NavIconUsers />, description: "Directorio de clientes" },
-      { label: "Garantías", href: "/garantias", icon: <NavIconShield />, description: "Garantías y devoluciones" },
-      { label: "Créditos", href: "/creditos", icon: <IconCredits />, description: "Créditos y cobros a clientes" },
+      { label: "Reportes", href: "/dashboard", icon: <IconChart />, description: NAV.descriptions.reportes },
+      { label: NAV.modules.ventas, href: "/ventas", icon: <IconList />, description: NAV.descriptions.ventas },
+      { label: NAV.modules.clientes, href: "/clientes", icon: <NavIconUsers />, description: NAV.descriptions.clientes },
+      { label: NAV.modules.garantias, href: "/garantias", icon: <NavIconShield />, description: NAV.descriptions.garantias },
+      { label: NAV.modules.creditos, href: "/creditos", icon: <IconCredits />, description: NAV.descriptions.creditos },
       ...(SHOW_COMERCIAL_CATALOGO_MODULE
         ? [
             {
@@ -206,13 +209,13 @@ export const navItems: NavItem[] = [
     href: "/inventario",
     icon: <NavIconBox />,
     items: [
-      { label: "Productos", href: "/inventario", icon: <IconList />, description: "Catálogo e inventario" },
+      { label: "Productos", href: "/inventario", icon: <IconList />, description: NAV.descriptions.productos },
       ...(SHOW_BODEGA_IN_SIDEBAR
         ? [{ label: "Bodega", href: "/inventario/ubicaciones", icon: <IconLocation />, description: "Ubicaciones y bodega" }]
         : []),
-      { label: "Roles", href: "/roles", icon: <NavIconUserGroup />, description: "Colaboradores y permisos" },
-      { label: "Actividades", href: "/actividades", icon: <NavIconClipboard />, description: "Actividad de la sucursal" },
-      { label: "Egresos", href: "/egresos", icon: <IconEgresos />, description: "Gastos y salidas de efectivo" },
+      { label: NAV.modules.roles, href: "/roles", icon: <NavIconUserGroup />, description: NAV.descriptions.roles },
+      { label: NAV.modules.actividades, href: "/actividades", icon: <NavIconClipboard />, description: NAV.descriptions.actividades },
+      { label: NAV.modules.egresos, href: "/egresos", icon: <IconEgresos />, description: NAV.descriptions.egresos },
     ],
   },
   ...(SHOW_SUCURSALES_MODULE
@@ -222,8 +225,8 @@ export const navItems: NavItem[] = [
           href: "/sucursales",
           icon: <NavIconBuilding />,
           items: [
-            { label: "Sucursales", href: "/sucursales", icon: <IconList />, description: "Sucursales de la organización" },
-            { label: "Cuenta", href: "/cuenta", icon: <IconSettings />, description: "Perfil del propietario y avatar" },
+            { label: "Sucursales", href: "/sucursales", icon: <IconList />, description: NAV.descriptions.sucursales },
+            { label: "Cuenta", href: "/cuenta", icon: <IconSettings />, description: NAV.descriptions.cuenta },
           ],
         },
       ]
@@ -261,7 +264,7 @@ export type SidebarNavEntry = {
 /** Lista plana del sidebar (estilo Berea): sin encabezados COMERCIAL / OPERACIÓN. */
 export const sidebarNavEntries: SidebarNavEntry[] = [
   {
-    label: "Resumen",
+    label: NAV.sidebar.resumen.label,
     href: "/dashboard",
     navModule: "COMERCIAL",
     icon: (
@@ -269,7 +272,15 @@ export const sidebarNavEntries: SidebarNavEntry[] = [
     ),
   },
   {
-    label: "Ventas",
+    label: NAV.sidebar.inventario.label,
+    href: "/inventario",
+    navModule: "OPERACIÓN",
+    icon: (
+      <SidebarSvg d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+    ),
+  },
+  {
+    label: NAV.sidebar.ventas.label,
     href: "/ventas",
     navModule: "COMERCIAL",
     icon: (
@@ -277,7 +288,7 @@ export const sidebarNavEntries: SidebarNavEntry[] = [
     ),
   },
   {
-    label: "Clientes",
+    label: NAV.sidebar.clientes.label,
     href: "/clientes",
     navModule: "COMERCIAL",
     icon: (
@@ -285,7 +296,7 @@ export const sidebarNavEntries: SidebarNavEntry[] = [
     ),
   },
   {
-    label: "Garantías",
+    label: NAV.sidebar.garantias.label,
     href: "/garantias",
     navModule: "COMERCIAL",
     icon: (
@@ -293,7 +304,7 @@ export const sidebarNavEntries: SidebarNavEntry[] = [
     ),
   },
   {
-    label: "Créditos",
+    label: NAV.sidebar.creditos.label,
     href: "/creditos",
     navModule: "COMERCIAL",
     icon: (
@@ -315,15 +326,7 @@ export const sidebarNavEntries: SidebarNavEntry[] = [
       ]
     : []),
   {
-    label: "Inventario",
-    href: "/inventario",
-    navModule: "OPERACIÓN",
-    icon: (
-      <SidebarSvg d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-    ),
-  },
-  {
-    label: "Colaboradores",
+    label: NAV.sidebar.colaboradores.label,
     href: "/roles",
     navModule: "OPERACIÓN",
     icon: (
@@ -331,7 +334,7 @@ export const sidebarNavEntries: SidebarNavEntry[] = [
     ),
   },
   {
-    label: "Actividades",
+    label: NAV.sidebar.actividades.label,
     href: "/actividades",
     navModule: "OPERACIÓN",
     icon: (
@@ -339,7 +342,7 @@ export const sidebarNavEntries: SidebarNavEntry[] = [
     ),
   },
   {
-    label: "Egresos",
+    label: NAV.sidebar.egresos.label,
     href: "/egresos",
     navModule: "OPERACIÓN",
     icon: <SidebarSvg d="M19 14l-7 7m0 0l-7-7m7 7V3" />,
@@ -347,7 +350,7 @@ export const sidebarNavEntries: SidebarNavEntry[] = [
   ...(SHOW_SUCURSALES_MODULE
     ? [
         {
-          label: "Sucursales",
+          label: NAV.sidebar.sucursales.label,
           href: "/sucursales",
           navModule: "CONFIGURACIÓN" as const,
           icon: (
@@ -355,7 +358,7 @@ export const sidebarNavEntries: SidebarNavEntry[] = [
           ),
         },
         {
-          label: "Configuración",
+          label: NAV.sidebar.configuracion.label,
           href: "/cuenta",
           navModule: "CONFIGURACIÓN" as const,
           icon: (

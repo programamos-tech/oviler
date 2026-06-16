@@ -11,6 +11,10 @@ import {
   getCachedGarantiaDetail,
 } from "@/lib/garantias-detail-cache";
 import Breadcrumb from "@/app/components/Breadcrumb";
+import { formatImeiDisplay } from "@/lib/imei";
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
+const IME = STORE_TECH_COPY.imei;
 
 /** Inventario puede ser UNIQUE(product_id, branch_id) o UNIQUE(product_id, branch_id, location). */
 type InventoryRow = { id: string; quantity: number | null; location?: string | null };
@@ -147,6 +151,8 @@ type WarrantyDetail = {
   reviewed_by_user: { name: string } | null;
   processed_by_user: { name: string } | null;
   replacement_product: { name: string } | null;
+  product_imei_unit_id?: string | null;
+  product_imei_unit?: { id: string; imei: string } | null;
 };
 
 /** Monto a reembolsar (misma lógica que al procesar). */
@@ -753,6 +759,11 @@ export default function WarrantyDetailPage() {
                     {warranty.products?.name ?? "—"}
                   </span>
                   <span className="ml-1.5 text-[12px] text-slate-500 dark:text-slate-400">(producto con garantía)</span>
+                  {warranty.product_imei_unit?.imei && (
+                    <span className="mt-1 block font-mono text-[12px] text-slate-600 dark:text-slate-300">
+                      {IME.onInvoice}: {formatImeiDisplay(warranty.product_imei_unit.imei)}
+                    </span>
+                  )}
                 </td>
                 <td className="py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-200">{coveredQty}</td>
                 <td className="py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-200">$ {formatMoney(unitPrice)}</td>
@@ -822,6 +833,14 @@ export default function WarrantyDetailPage() {
               <div className="flex justify-between gap-2">
                 <dt className="text-slate-500 dark:text-slate-400">Cantidad</dt>
                 <dd className="font-medium text-slate-800 dark:text-slate-100">{warranty.quantity}</dd>
+              </div>
+            )}
+            {warranty.product_imei_unit?.imei && (
+              <div className="flex justify-between gap-2">
+                <dt className="text-slate-500 dark:text-slate-400">{IME.warrantyLink}</dt>
+                <dd className="font-mono text-[13px] font-medium text-slate-800 dark:text-slate-100">
+                  {formatImeiDisplay(warranty.product_imei_unit.imei)}
+                </dd>
               </div>
             )}
           </dl>

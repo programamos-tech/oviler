@@ -1,3 +1,5 @@
+import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
+
 /** Helpers UI / agregados para el dashboard estilo Berea (sin queries extra). */
 
 /** Filas mostradas en tarjetas del dashboard (actividades, pedidos, más vendidos). */
@@ -70,16 +72,16 @@ export type DashboardPaymentSlice = {
 };
 
 const CHANNEL_COLORS = {
-  store: "#5c4a3a",
-  online: "#7a8f6a",
-  delivery: "#a89279",
-  other: "#d4c4b0",
+  store: "#15406b",
+  online: "#1e5082",
+  delivery: "#3d7aab",
+  other: "#cbd5e1",
 } as const;
 
 const PAYMENT_COLORS = {
-  cash: "#5c4a3a",
-  transfer: "#7a8f6a",
-  mixed: "#a89279",
+  cash: "#15406b",
+  transfer: "#1e5082",
+  mixed: "#3d7aab",
 } as const;
 
 type SaleChannelRow = {
@@ -114,14 +116,14 @@ export function computeChannelMix(completed: SaleChannelRow[]): DashboardChannel
 
   const total = store + online + delivery + other;
   const raw = [
-    { key: "store", label: "Tienda física", value: store, color: CHANNEL_COLORS.store },
-    { key: "online", label: "Tienda en línea", value: online, color: CHANNEL_COLORS.online },
-    { key: "delivery", label: "Domicilio", value: delivery, color: CHANNEL_COLORS.delivery },
-    { key: "other", label: "Otros", value: other, color: CHANNEL_COLORS.other },
+    { key: "store", label: STORE_TECH_COPY.channels.store, value: store, color: CHANNEL_COLORS.store },
+    { key: "online", label: STORE_TECH_COPY.channels.online, value: online, color: CHANNEL_COLORS.online },
+    { key: "delivery", label: STORE_TECH_COPY.channels.delivery, value: delivery, color: CHANNEL_COLORS.delivery },
+    { key: "other", label: STORE_TECH_COPY.channels.other, value: other, color: CHANNEL_COLORS.other },
   ].filter((x) => x.value > 0);
 
   if (total <= 0) {
-    return [{ key: "store", label: "Sin ventas", value: 0, percent: 100, color: CHANNEL_COLORS.other }];
+    return [{ key: "store", label: STORE_TECH_COPY.channels.noSales, value: 0, percent: 100, color: CHANNEL_COLORS.other }];
   }
 
   return raw.map((x) => ({
@@ -420,20 +422,4 @@ export function sparklinePath(values: number[], width = 72, height = 28): string
       return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
-}
-
-export function conicGradientFromChannels(
-  slices: Array<{ percent: number; color: string; value?: number }>
-): string {
-  if (slices.length === 0 || slices.every((s) => (s.value ?? 0) <= 0)) {
-    return CHANNEL_COLORS.other;
-  }
-  let cursor = 0;
-  const stops: string[] = [];
-  for (const s of slices) {
-    const end = cursor + s.percent;
-    stops.push(`${s.color} ${cursor}% ${end}%`);
-    cursor = end;
-  }
-  return `conic-gradient(${stops.join(", ")})`;
 }

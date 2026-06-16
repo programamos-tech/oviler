@@ -23,13 +23,14 @@ const steps = [
   },
 ] as const;
 
-const LICENSE_START_PRICE = "$799.000";
+const LANDING_CALL_TEL = "+573152802343";
+const LANDING_CALL_DISPLAY = "315 280 2343";
 
 export function LandingImplementationSection() {
   return (
     <section
       id="implementacion"
-      className="berea-landing-section berea-landing-section--gradient relative py-16 sm:py-20 lg:py-24"
+      className="berea-landing-section relative py-16 sm:py-20 lg:py-24"
       aria-labelledby="landing-impl-heading"
     >
       <div className="berea-landing-section-line" aria-hidden />
@@ -51,10 +52,10 @@ export function LandingImplementationSection() {
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/registro" className="berea-landing-btn-primary">
-                Solicitar licencia · desde {LICENSE_START_PRICE}
+                Solicitar licencia
               </Link>
-              <a href="tel:+573002061711" className="berea-landing-btn-secondary">
-                Llamar · 300 206 1711
+              <a href={`tel:${LANDING_CALL_TEL}`} className="berea-landing-btn-secondary">
+                Llamar · {LANDING_CALL_DISPLAY}
               </a>
             </div>
           </div>
