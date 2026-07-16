@@ -7,8 +7,10 @@ import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/app/components/SessionProvider";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
 import {
+  clearInventarioListCache,
   fetchInventarioDetailBundle,
   getCachedInventarioDetail,
+  invalidateInventarioDetail,
   type InventarioDetailProduct,
 } from "@/lib/inventario-detail-cache";
 import Breadcrumb from "@/app/components/Breadcrumb";
@@ -79,6 +81,7 @@ function ProductDetailContent() {
   const [notFound, setNotFound] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [activeBranchEpoch, setActiveBranchEpoch] = useState(0);
   const SHOW_TRANSFER_OPTION = true;
 
@@ -148,9 +151,24 @@ function ProductDetailContent() {
   async function handleDelete() {
     if (!product?.id) return;
     setDeleting(true);
+    setDeleteError(null);
     const supabase = createClient();
-    await supabase.from("products").delete().eq("id", product.id);
+    const { data, error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", product.id)
+      .select("id");
     setDeleting(false);
+    if (error) {
+      setDeleteError(error.message || "No se pudo eliminar el producto.");
+      return;
+    }
+    if (!data?.length) {
+      setDeleteError("No se pudo eliminar el producto. Puede que no tengas permiso o ya no exista.");
+      return;
+    }
+    invalidateInventarioDetail(product.id);
+    clearInventarioListCache();
     setDeleteOpen(false);
     router.push("/inventario");
   }
@@ -255,7 +273,10 @@ function ProductDetailContent() {
             )}
             <button
               type="button"
-              onClick={() => setDeleteOpen(true)}
+              onClick={() => {
+                setDeleteError(null);
+                setDeleteOpen(true);
+              }}
               className={iconActionDangerClass}
               title="Eliminar producto"
               aria-label="Eliminar producto"
@@ -466,9 +487,18 @@ function ProductDetailContent() {
 
       <ConfirmDeleteModal
         isOpen={deleteOpen}
-        onClose={() => setDeleteOpen(false)}
+        onClose={() => {
+          if (deleting) return;
+          setDeleteOpen(false);
+          setDeleteError(null);
+        }}
         title="Eliminar producto"
         message={`¿Estás seguro de que quieres eliminar "${product.name}"? Se borrará del catálogo y el inventario asociado.`}
+        warning={
+          deleteError ? (
+            <p className="text-[13px] font-medium text-red-600 dark:text-red-400">{deleteError}</p>
+          ) : undefined
+        }
         onConfirm={handleDelete}
         loading={deleting}
         ariaTitle={`Eliminar producto ${product.name}`}
