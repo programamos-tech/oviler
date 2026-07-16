@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchGlobalSearch, type GlobalSearchResult } from "@/lib/global-search-query";
+import {
+  INVENTARIO_DATA_CHANGED_EVENT,
+  type InventarioDataChangedDetail,
+} from "@/lib/inventario-detail-cache";
 
 const DEBOUNCE_MS = 280;
 const MIN_CHARS = 1;
@@ -59,6 +63,28 @@ export function GlobalSearchCombobox({
     return () => {
       cancelled = true;
     };
+  }, [debounced]);
+
+  /** Si se elimina un producto, quitarlo del panel sin esperar a recargar. */
+  useEffect(() => {
+    const onInventarioChanged = (event: Event) => {
+      const removedId = (event as CustomEvent<InventarioDataChangedDetail>).detail?.removedProductId;
+      if (!removedId) return;
+      setData((prev) =>
+        prev
+          ? { ...prev, products: prev.products.filter((p) => p.id !== removedId) }
+          : prev
+      );
+      if (debounced.length < MIN_CHARS) return;
+      void fetchGlobalSearch(debounced).then((res) => {
+        setData({
+          ...res,
+          products: res.products.filter((p) => p.id !== removedId),
+        });
+      });
+    };
+    window.addEventListener(INVENTARIO_DATA_CHANGED_EVENT, onInventarioChanged);
+    return () => window.removeEventListener(INVENTARIO_DATA_CHANGED_EVENT, onInventarioChanged);
   }, [debounced]);
 
   const showPanel = open && query.trim().length >= MIN_CHARS;

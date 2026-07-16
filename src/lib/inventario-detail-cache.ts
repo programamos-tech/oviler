@@ -69,6 +69,17 @@ export type InventarioDetailBundle = {
 const listCache = new Map<string, { at: number; payload: InventarioListBundle }>();
 const detailCache = new Map<string, { at: number; payload: InventarioDetailBundle }>();
 const detailInflight = new Map<string, Promise<InventarioDetailBundle | null>>();
+const listInflight = new Map<string, Promise<InventarioListBundle | null>>();
+
+/** Sube al invalidar para descartar writes de fetches/prefetches iniciados antes del clear. */
+let listCacheEpoch = 0;
+
+/** Evento de ventana: producto eliminado u otro cambio de catálogo de inventario. */
+export const INVENTARIO_DATA_CHANGED_EVENT = "inventario:data-changed";
+
+export type InventarioDataChangedDetail = {
+  removedProductId?: string;
+};
 
 export function inventarioListCacheKey(parts: Record<string, string | number>) {
   return Object.entries(parts)
@@ -83,15 +94,24 @@ export function getCachedInventarioList(key: string): InventarioListBundle | nul
   return hit.payload;
 }
 
-export function setCachedInventarioList(key: string, payload: InventarioListBundle) {
+export function setCachedInventarioList(
+  key: string,
+  payload: InventarioListBundle,
+  epoch?: number
+) {
+  if (epoch !== undefined && epoch !== listCacheEpoch) return;
   listCache.set(key, { at: Date.now(), payload });
 }
 
 export function clearInventarioListCache() {
   listCache.clear();
+  listInflight.clear();
+  listCacheEpoch += 1;
 }
 
-const listInflight = new Map<string, Promise<InventarioListBundle | null>>();
+export function getInventarioListCacheEpoch() {
+  return listCacheEpoch;
+}
 
 export function defaultInventarioListCacheKey(branchId: string, refreshKey = 0) {
   return inventarioListCacheKey({
@@ -121,14 +141,16 @@ export async function prefetchInventarioList(branchId: string, refreshKey = 0): 
     search: "",
     stockStatus: "all",
   });
+  const epoch = listCacheEpoch;
 
   const run = (async () => {
     const res = await fetch(`/api/inventario/query-bundle?${params.toString()}`, {
       credentials: "include",
+      cache: "no-store",
     });
     if (!res.ok) return null;
     const bundle = (await res.json()) as InventarioListBundle;
-    setCachedInventarioList(cacheKey, bundle);
+    setCachedInventarioList(cacheKey, bundle, epoch);
     return bundle;
   })();
 
@@ -170,6 +192,18 @@ export function invalidateInventarioDetail(id: string) {
   for (const key of detailInflight.keys()) {
     if (key.startsWith(`${id}|`)) detailInflight.delete(key);
   }
+}
+
+/** Invalida cachés y avisa a lista/buscador para quitar el producto al instante. */
+export function notifyInventarioProductRemoved(productId: string) {
+  invalidateInventarioDetail(productId);
+  clearInventarioListCache();
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<InventarioDataChangedDetail>(INVENTARIO_DATA_CHANGED_EVENT, {
+      detail: { removedProductId: productId },
+    })
+  );
 }
 
 export async function fetchInventarioDetailBundle(

@@ -7,10 +7,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/app/components/SessionProvider";
 import { ACTIVE_BRANCH_CHANGED_EVENT } from "@/lib/active-branch";
 import {
-  clearInventarioListCache,
   fetchInventarioDetailBundle,
   getCachedInventarioDetail,
-  invalidateInventarioDetail,
+  notifyInventarioProductRemoved,
   type InventarioDetailProduct,
 } from "@/lib/inventario-detail-cache";
 import Breadcrumb from "@/app/components/Breadcrumb";
@@ -167,10 +166,9 @@ function ProductDetailContent() {
       setDeleteError("No se pudo eliminar el producto. Puede que no tengas permiso o ya no exista.");
       return;
     }
-    invalidateInventarioDetail(product.id);
-    clearInventarioListCache();
+    notifyInventarioProductRemoved(product.id);
     setDeleteOpen(false);
-    router.push("/inventario");
+    router.push(`/inventario?refresh=${Date.now()}`);
   }
 
   if (loading) {

@@ -5,6 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { fetchGlobalSearch, GLOBAL_SEARCH_LIMIT } from "@/lib/global-search-query";
+import {
+  INVENTARIO_DATA_CHANGED_EVENT,
+  type InventarioDataChangedDetail,
+} from "@/lib/inventario-detail-cache";
 
 function BuscarContent() {
   const searchParams = useSearchParams();
@@ -31,6 +35,27 @@ function BuscarContent() {
     return () => {
       cancelled = true;
     };
+  }, [q]);
+
+  useEffect(() => {
+    const onInventarioChanged = (event: Event) => {
+      const removedId = (event as CustomEvent<InventarioDataChangedDetail>).detail?.removedProductId;
+      if (!removedId) return;
+      setData((prev) =>
+        prev
+          ? { ...prev, products: prev.products.filter((p) => p.id !== removedId) }
+          : prev
+      );
+      if (!q) return;
+      void fetchGlobalSearch(q).then((res) => {
+        setData({
+          ...res,
+          products: res.products.filter((p) => p.id !== removedId),
+        });
+      });
+    };
+    window.addEventListener(INVENTARIO_DATA_CHANGED_EVENT, onInventarioChanged);
+    return () => window.removeEventListener(INVENTARIO_DATA_CHANGED_EVENT, onInventarioChanged);
   }, [q]);
 
   if (!q) {

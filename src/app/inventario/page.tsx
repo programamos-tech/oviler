@@ -22,9 +22,12 @@ import {
   clearInventarioListCache,
   fetchInventarioDetailBundle,
   getCachedInventarioList,
+  getInventarioListCacheEpoch,
+  INVENTARIO_DATA_CHANGED_EVENT,
   inventarioListCacheKey,
   prefetchInventarioDetails,
   setCachedInventarioList,
+  type InventarioDataChangedDetail,
   type InventarioListBundle,
   type InventarioProductRow,
 } from "@/lib/inventario-detail-cache";
@@ -279,6 +282,35 @@ function InventoryPage() {
     return () => window.removeEventListener(ACTIVE_BRANCH_CHANGED_EVENT, onBranch);
   }, []);
 
+  /** Tras eliminar un producto (u otro cambio), quitarlo de la UI al instante y refetch. */
+  useEffect(() => {
+    const onInventarioChanged = (event: Event) => {
+      const removedId = (event as CustomEvent<InventarioDataChangedDetail>).detail?.removedProductId;
+      if (removedId) {
+        setProducts((prev) => prev.filter((p) => p.id !== removedId));
+        setStockSplitByProduct((prev) => {
+          if (!(removedId in prev)) return prev;
+          const next = { ...prev };
+          delete next[removedId];
+          return next;
+        });
+        setTotalCount((c) => Math.max(0, c - 1));
+      }
+      clearInventarioListCache();
+      setRefreshKey((k) => k + 1);
+    };
+    window.addEventListener(INVENTARIO_DATA_CHANGED_EVENT, onInventarioChanged);
+    return () => window.removeEventListener(INVENTARIO_DATA_CHANGED_EVENT, onInventarioChanged);
+  }, []);
+
+  /** Fuerza refetch cuando se vuelve tras eliminar (?refresh=…). */
+  useEffect(() => {
+    const token = searchParams.get("refresh");
+    if (!token) return;
+    clearInventarioListCache();
+    setRefreshKey((k) => k + 1);
+  }, [searchParams]);
+
   useEffect(() => {
     setPage(1);
   }, [effectiveSearchQuery, categoryFilter, stockStatusOption]);
@@ -325,6 +357,7 @@ function InventoryPage() {
     if (products.length === 0) setLoading(true);
     else setRefreshing(true);
     setLoadError(null);
+    const epoch = getInventarioListCacheEpoch();
 
     (async () => {
       try {
@@ -338,13 +371,14 @@ function InventoryPage() {
         if (categoryFilter) params.set("categoryId", categoryFilter);
         const res = await fetch(`/api/inventario/query-bundle?${params.toString()}`, {
           credentials: "include",
+          cache: "no-store",
         });
         if (!res.ok) {
           const err = (await res.json().catch(() => ({}))) as { error?: string };
           throw new Error(err.error ?? "Error al cargar inventario");
         }
         const bundle = (await res.json()) as InventarioListBundle;
-        setCachedInventarioList(cacheKey, bundle);
+        setCachedInventarioList(cacheKey, bundle, epoch);
 
         if (cancelled) return;
         setProducts(bundle.products);
