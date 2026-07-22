@@ -13,6 +13,7 @@ import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
 import { formatImeiDisplay } from "@/lib/imei";
 
 const IME = STORE_TECH_COPY.imei;
+const VCOPY = STORE_TECH_COPY.ventas;
 
 const IVA_RATE = 0.19;
 
@@ -98,6 +99,7 @@ export default function NewSalePage() {
   const [deliveryPersons, setDeliveryPersons] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [selectedDeliveryPersonId, setSelectedDeliveryPersonId] = useState<string | null>(null);
   const [paymentPending, setPaymentPending] = useState(false);
+  const [saleNotes, setSaleNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
@@ -743,6 +745,8 @@ export default function NewSalePage() {
         payload.delivery_paid = false; // Por defecto no pagado
         if (paymentPending) payload.payment_pending = true;
       }
+      const notesTrimmed = saleNotes.trim();
+      if (notesTrimmed) payload.notes = notesTrimmed;
       const { data: sale, error: saleError } = await supabase
         .from("sales")
         .insert(payload)
@@ -1502,6 +1506,24 @@ export default function NewSalePage() {
                 })()}
               </div>
             )}
+          </div>
+
+          <div className={cardClass}>
+            <label htmlFor="sale-notes" className="text-[13px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              {VCOPY.notesLabel}
+            </label>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+              {VCOPY.notesHint}
+            </p>
+            <textarea
+              id="sale-notes"
+              rows={3}
+              maxLength={2000}
+              value={saleNotes}
+              onChange={(e) => setSaleNotes(e.target.value)}
+              placeholder={VCOPY.notesPlaceholder}
+              className="mt-3 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-[14px] leading-snug text-slate-800 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-600/25"
+            />
           </div>
 
           {/* Resumen */}

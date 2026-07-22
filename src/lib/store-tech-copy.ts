@@ -152,6 +152,9 @@ export const STORE_TECH_COPY = {
     productsEmpty: "Sin equipos ni accesorios en esta factura",
     addProductTitle: "Agregar equipo o accesorio",
     consumerFinal: "Consumidor final",
+    notesLabel: "Nota adicional",
+    notesHint: "Opcional. Queda guardada en la factura (instrucciones, referencia interna, etc.).",
+    notesPlaceholder: "Ej. Entregar después de las 5 pm, verificar IMEI con el cliente…",
   },
 
   inventario: {

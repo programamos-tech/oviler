@@ -127,6 +127,8 @@ type SaleDetail = {
   cancellation_reason?: string | null;
   cancellation_requested_at?: string | null;
   cancellation_requested_by?: string | null;
+  /** Nota adicional escrita al crear la factura. */
+  notes?: string | null;
   customers: { name: string; phone: string | null; cedula: string | null } | null;
   users: { name: string } | null;
   delivery_persons: { name: string; code: string } | null;
@@ -944,6 +946,7 @@ export default function SaleDetailPage() {
       <p><strong>${esc(docPrint.printNumberLabel)}:</strong> ${esc(invoiceNum)}</p>
       <p><strong>Fecha de expedición:</strong> ${esc(saleDate)}</p>
       <p><strong>Forma de pago:</strong> ${esc(paymentLabel)}</p>
+      ${sale?.notes?.trim() ? `<p><strong>Nota adicional:</strong> ${esc(sale.notes.trim())}</p>` : ""}
       ${sale?.is_delivery ? `<p><strong>Transportador:</strong> ${esc(transporterLine)}</p>` : ""}
     </div>
   </div>
@@ -1201,6 +1204,16 @@ export default function SaleDetailPage() {
               <p className="mt-1.5 max-w-xl text-[12px] leading-snug text-amber-900 dark:text-amber-100/90">
                 El total aún no se ha registrado como cobrado. En el detalle del crédito ves saldo pendiente, abonos y estado.
               </p>
+            )}
+            {sale.notes?.trim() && (
+              <div className="mt-2 max-w-2xl rounded-lg border border-slate-200 bg-slate-50/95 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800/90">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Nota adicional
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-slate-800 dark:text-slate-200">
+                  {sale.notes.trim()}
+                </p>
+              </div>
             )}
             {sale.cancellation_reason?.trim() && (
               <div className="mt-2 max-w-2xl rounded-lg border border-slate-200 bg-slate-50/95 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800/90">
