@@ -10,6 +10,7 @@ import {
   fetchCreditoDetailBundle,
   getCachedCreditoDetail,
   invalidateCreditoDetail,
+  clearCreditosListCache,
   type CreditPaymentRow,
 } from "@/lib/creditos-detail-cache";
 import type { CreditDetailPayload } from "@/lib/creditos-normalize";
@@ -239,30 +240,82 @@ function CreditoDetalleInner() {
     if (!user) return;
     setSubmitting(true);
     setError(null);
-    const { error: insErr } = await supabase.from("credit_payments").insert({
+
+    const insertPayload: {
+      credit_id: string;
+      amount: number;
+      payment_method: "cash" | "transfer" | "mixed";
+      notes: string | null;
+      created_by: string;
+      payment_source: "customer_payment";
+      amount_cash?: number;
+      amount_transfer?: number;
+    } = {
       credit_id: credit.id,
       amount,
       payment_method: abonoMethod,
-      amount_cash,
-      amount_transfer,
       notes: abonoNotes.trim() || null,
       created_by: user.id,
       payment_source: "customer_payment",
-    });
-    setSubmitting(false);
-    if (insErr) {
-      setError(insErr.message);
+    };
+    if (abonoMethod === "mixed") {
+      insertPayload.amount_cash = amount_cash ?? 0;
+      insertPayload.amount_transfer = amount_transfer ?? 0;
+    }
+
+    const { data: inserted, error: insErr } = await supabase
+      .from("credit_payments")
+      .insert(insertPayload)
+      .select(
+        "id, amount, payment_method, amount_cash, amount_transfer, payment_source, notes, created_at, created_by"
+      )
+      .single();
+
+    if (insErr || !inserted) {
+      setSubmitting(false);
+      setError(insErr?.message ?? "No se pudo registrar el abono.");
       return;
     }
+
+    const { data: me } = await supabase.from("users").select("name").eq("id", user.id).maybeSingle();
+    const optimisticPay: PaymentRow = {
+      id: inserted.id,
+      amount: Number(inserted.amount),
+      payment_method: inserted.payment_method as PaymentRow["payment_method"],
+      amount_cash: inserted.amount_cash == null ? null : Number(inserted.amount_cash),
+      amount_transfer: inserted.amount_transfer == null ? null : Number(inserted.amount_transfer),
+      payment_source: inserted.payment_source,
+      notes: inserted.notes,
+      created_at: inserted.created_at,
+      created_by: inserted.created_by,
+      users: { name: me?.name?.trim() || "—" },
+    };
+
+    setPayments((prev) => [optimisticPay, ...prev.filter((p) => p.id !== optimisticPay.id)]);
+    setCredit((c) =>
+      c
+        ? {
+            ...c,
+            amount_paid: Math.round((Number(c.amount_paid) + amount) * 100) / 100,
+          }
+        : c
+    );
+
     const notesForLog = abonoNotes.trim() || null;
     setShowAbono(false);
     setAbonoAmountStr("");
     setCashStr("");
     setTransferStr("");
     setAbonoNotes("");
+    setSubmitting(false);
     router.replace(`/creditos/${credit.id}`);
     invalidateCreditoDetail(credit.id);
+    clearCreditosListCache();
     setRefreshKey((k) => k + 1);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("berea:invalidate-dashboard"));
+    }
+
     void (async () => {
       const { data: orgRow } = await supabase.from("users").select("organization_id").eq("id", user.id).maybeSingle();
       const orgId = orgRow?.organization_id;

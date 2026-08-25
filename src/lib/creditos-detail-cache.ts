@@ -144,7 +144,11 @@ export async function fetchCreditoDetailBundle(
   if (pending) return pending;
 
   const run = (async () => {
-    const res = await fetch(`/api/creditos/${id}/detail`, { credentials: "include", signal });
+    const res = await fetch(`/api/creditos/${id}/detail`, {
+      credentials: "include",
+      cache: "no-store",
+      signal,
+    });
     if (res.status === 404) return null;
     if (!res.ok) return null;
     const bundle = (await res.json()) as CreditoDetailBundle;

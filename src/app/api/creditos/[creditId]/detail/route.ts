@@ -5,8 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const CACHE_SECONDS = 25;
-
 const CREDIT_SELECT = `id, public_ref, total_amount, amount_paid, due_date, status, cancelled_at, notes, created_at, customer_id, sale_id, branch_id, created_by,
   customers(id, name),
   branches(name),
@@ -89,7 +87,7 @@ export async function GET(
     },
     {
       headers: {
-        "Cache-Control": `private, max-age=${CACHE_SECONDS}, stale-while-revalidate=${CACHE_SECONDS * 2}`,
+        "Cache-Control": "private, no-store",
       },
     }
   );

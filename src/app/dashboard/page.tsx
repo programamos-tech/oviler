@@ -311,6 +311,15 @@ function DashboardPage() {
   }, [calendarToday, dateFilterMode, pinReportToToday]);
 
   useEffect(() => {
+    const onInvalidate = () => {
+      dashboardBundleCache.clear();
+      setRefreshKey((k) => k + 1);
+    };
+    window.addEventListener("berea:invalidate-dashboard", onInvalidate);
+    return () => window.removeEventListener("berea:invalidate-dashboard", onInvalidate);
+  }, []);
+
+  useEffect(() => {
     if (queryBranchId && queryBranchId !== branchId) {
       void refreshSession(queryBranchId);
     }
