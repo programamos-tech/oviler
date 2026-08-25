@@ -21,7 +21,7 @@ export function LandingProductShowcaseSection() {
           </h2>
           <p className="berea-landing-body mt-4 text-[15px] leading-relaxed sm:text-base">
             Vistas reales del flujo de trabajo: desde el detalle de una factura hasta la cartera y el stock. Todo integrado en
-            Berea Tech — capturas ilustrativas.
+            Berea Tecnología — capturas ilustrativas.
           </p>
         </div>
 

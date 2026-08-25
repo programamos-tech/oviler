@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Catálogo — Berea Tech',
+  title: 'Catálogo — Berea Tecnología',
   description: 'Catálogo de productos',
 }
 

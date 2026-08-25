@@ -183,6 +183,17 @@ export function getPedidoPaymentMethodChipClass(method: string): string {
   return "berea-pay-method-chip berea-pay-method-chip--unknown";
 }
 
+/** Estado de venta en listados: mismo tamaño/borde que método de pago. */
+export function getPedidoSaleStatusChipClass(status: string): string {
+  const s = String(status || "").toLowerCase().trim();
+  if (s === "cancelled") return "berea-pay-method-chip berea-pay-method-chip--status-cancelled";
+  if (s === "completed" || s === "delivered") {
+    return "berea-pay-method-chip berea-pay-method-chip--status-completed";
+  }
+  if (s === "pending") return "berea-pay-method-chip berea-pay-method-chip--status-pending";
+  return "berea-pay-method-chip berea-pay-method-chip--status-progress";
+}
+
 /** Pago del pedido / envío: pendiente (ámbar), pagado (verde), cancelado (rojo). */
 export function getPedidoPaymentStateChipClass(state: "pending" | "completed" | "cancelled"): string {
   if (state === "cancelled") {

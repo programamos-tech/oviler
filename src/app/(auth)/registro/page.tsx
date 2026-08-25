@@ -114,7 +114,7 @@ export default function RegistroPage() {
             <header className="berea-auth-card-header">
               <h1>Crea tu cuenta</h1>
               <p>
-                Regístrate gratis y prueba Berea Tech: inventario, ventas, clientes y reportes en un solo panel.
+                Regístrate gratis y prueba Berea Tecnología: inventario, ventas, clientes y reportes en un solo panel.
               </p>
             </header>
 

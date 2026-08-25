@@ -1589,6 +1589,31 @@ body {
   color: #334155;
 }
 
+/* Estado de venta — mismo tamaño/borde que método de pago */
+.berea-pay-method-chip--status-completed {
+  border-color: #6ee7b7;
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.berea-pay-method-chip--status-progress {
+  border-color: rgba(21, 64, 107, 0.35);
+  background-color: #dce6f0;
+  color: #0d2137;
+}
+
+.berea-pay-method-chip--status-pending {
+  border-color: #fcd34d;
+  background-color: #fef3c7;
+  color: #78350f;
+}
+
+.berea-pay-method-chip--status-cancelled {
+  border-color: #fda4af;
+  background-color: #ffe4e6;
+  color: #9f1239;
+}
+
 .berea-amount-chip--paid {
   border-color: #5eead4;
   background-color: #ccfbf1;
@@ -1614,9 +1639,9 @@ body {
 }
 
 .berea-house-logo--sidebar {
-  width: 6.5rem;
+  width: 7.75rem;
   height: auto;
-  max-height: 2.85rem;
+  max-height: 3.35rem;
   mix-blend-mode: lighten;
 }
 

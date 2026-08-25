@@ -679,12 +679,20 @@ function ActivityFeedPage() {
                         {formatDateTime(a.created_at)} · {timeAgo(a.created_at)}
                       </span>
                     </div>
-                    <div className="mt-1 flex items-start gap-2">
+                    <div className="mt-1 flex items-start gap-1.5">
                       <span
-                        className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-500"
+                        className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center leading-none ${
+                          a.entity_type === "credit"
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-slate-400 dark:text-slate-500"
+                        }`}
                         title={typeIcon.label}
                       >
-                        <span className="material-symbols-outlined text-[14px]" aria-hidden>
+                        <span
+                          className="material-symbols-outlined !text-[16px] leading-none"
+                          style={{ fontVariationSettings: "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 16" }}
+                          aria-hidden
+                        >
                           {typeIcon.icon}
                         </span>
                       </span>

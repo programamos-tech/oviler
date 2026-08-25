@@ -24,19 +24,19 @@ const youngSerif = Young_Serif({
 
 export const metadata: Metadata = {
   title: {
-    default: "Berea Tech - Sistema para tu tienda de tecnología.",
-    template: "%s · Berea Tech",
+    default: "Berea Tecnología — Sistema para tiendas de tecnología",
+    template: "%s · Berea Tecnología",
   },
   description:
-    "Inventario, ventas, clientes y créditos. Berea Tech — sistema para tu tienda de tecnología. Licencia con soporte.",
-  applicationName: "Berea Tech",
+    "Inventario, ventas, clientes y créditos para tiendas de tecnología. Berea Tecnología — licencia con soporte.",
+  applicationName: "Berea Tecnología",
   icons: {
     icon: [
       { url: "/favicon.png", type: "image/png", sizes: "32x32" },
-      { url: "/logo-berea-house.png", type: "image/png" },
+      { url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" },
     ],
     shortcut: "/favicon.png",
-    apple: "/logo-berea-house.png",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 

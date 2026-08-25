@@ -1,7 +1,7 @@
 /**
- * Permisos y roles — Berea Tech
+ * Permisos y roles — Berea Tecnología
  * =====================================
- * **Nombre comercial:** Berea Tech (lo que ven los comercios en pantalla).
+ * **Nombre comercial:** Berea Tecnología (lo que ven las tiendas de tecnología en pantalla).
  * **Nombre interno / código:** a veces referido como «NOU Tiendas»; es el mismo producto.
  *
  * Cada usuario tiene un `role` en `public.users` (`owner` | `admin` | `cashier` | `delivery`) y opcionalmente
@@ -20,7 +20,7 @@
 export type AppRole = "owner" | "admin" | "cashier" | "delivery" | string;
 
 /** Nombre comercial del producto (UI). El mismo software se denomina internamente «NOU Tiendas» en algunos textos. */
-export const PRODUCT_DISPLAY_NAME = "Berea Tech";
+export const PRODUCT_DISPLAY_NAME = "Berea Tecnología";
 export const PRODUCT_INTERNAL_NAME = "NOU Tiendas";
 export type PermissionKey =
   | "dashboard.view"

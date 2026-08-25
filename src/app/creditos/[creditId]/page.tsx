@@ -718,41 +718,57 @@ function CreditoDetalleInner() {
               <span className="hidden sm:inline">Registrado por</span>
               <span className="text-right sm:text-left">Fecha</span>
             </div>
-            {payments.map((p) => (
-              <div
-                key={p.id}
-                className="grid grid-cols-1 gap-1 border-b border-slate-100 px-3 py-3 last:border-0 dark:border-slate-800 sm:grid-cols-[1fr_1fr_1fr_1fr] sm:items-center sm:gap-2 sm:px-4"
-              >
-                <div className="flex items-center gap-1 text-[14px] font-semibold tabular-nums text-slate-900 dark:text-slate-50">
-                  <span className="text-slate-400" aria-hidden>
-                    $
-                  </span>
-                  {formatMoney(Number(p.amount))}
+            {payments.map((p) => {
+              const noteText = p.notes?.trim() || "";
+              return (
+                <div
+                  key={p.id}
+                  className="border-b border-slate-100 px-3 py-3 last:border-0 dark:border-slate-800 sm:px-4"
+                >
+                  <div className="grid grid-cols-1 gap-1 sm:grid-cols-[1fr_1fr_1fr_1fr] sm:items-center sm:gap-2">
+                    <div className="flex items-center gap-1 text-[14px] font-semibold tabular-nums text-slate-900 dark:text-slate-50">
+                      <span className="text-slate-400" aria-hidden>
+                        $
+                      </span>
+                      {formatMoney(Number(p.amount))}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={getPedidoPaymentMethodChipClass(p.payment_method)}>
+                        {paymentMethodLabel(p.payment_method)}
+                        {p.payment_method === "mixed" &&
+                          p.amount_cash != null &&
+                          p.amount_transfer != null &&
+                          ` (${formatMoney(Number(p.amount_cash))} + ${formatMoney(Number(p.amount_transfer))})`}
+                      </span>
+                      {p.payment_source === "warranty_refund" && (
+                        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100">
+                          Reembolso garantía
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[13px] text-slate-700 dark:text-slate-200 sm:hidden">
+                      <span className="text-slate-500">Por </span>
+                      {p.users?.name ?? "—"}
+                    </div>
+                    <div className="hidden text-[13px] text-slate-700 dark:text-slate-200 sm:block">
+                      {p.users?.name ?? "—"}
+                    </div>
+                    <div className="text-[13px] text-[var(--berea-ink-muted)] sm:text-[14px] sm:text-slate-700 dark:sm:text-slate-200">
+                      {formatDateTime(p.created_at)}
+                    </div>
+                  </div>
+                  {noteText ? (
+                    <p
+                      className="mt-1.5 max-w-full truncate text-[12px] leading-snug text-slate-500 dark:text-slate-400"
+                      title={noteText}
+                    >
+                      <span className="font-medium text-slate-400 dark:text-slate-500">Nota · </span>
+                      {noteText}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className={getPedidoPaymentMethodChipClass(p.payment_method)}>
-                    {paymentMethodLabel(p.payment_method)}
-                    {p.payment_method === "mixed" &&
-                      p.amount_cash != null &&
-                      p.amount_transfer != null &&
-                      ` (${formatMoney(Number(p.amount_cash))} + ${formatMoney(Number(p.amount_transfer))})`}
-                  </span>
-                  {p.payment_source === "warranty_refund" && (
-                    <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100">
-                      Reembolso garantía
-                    </span>
-                  )}
-                </div>
-                <div className="text-[13px] text-slate-700 dark:text-slate-200 sm:hidden">
-                  <span className="text-slate-500">Por </span>
-                  {p.users?.name ?? "—"}
-                </div>
-                <div className="hidden text-[13px] text-slate-700 dark:text-slate-200 sm:block">{p.users?.name ?? "—"}</div>
-                <div className="text-[13px] text-[var(--berea-ink-muted)] sm:text-[14px] sm:text-slate-700 dark:sm:text-slate-200">
-                  {formatDateTime(p.created_at)}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

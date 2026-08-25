@@ -6,20 +6,20 @@ export function programamosWhatsAppUrl(prefill: string): string {
   return `https://wa.me/${WA_PHONE}?text=${text}`;
 }
 
-/** WhatsApp ayuda en sidebar / header (Berea Tech). */
+/** WhatsApp ayuda en sidebar / header (Berea Tecnología). */
 export const WORKSPACE_HELP_WA_E164 = "573001575829";
 
 export const WORKSPACE_HELP_WA_DISPLAY = "300 157 5829";
 
 /** Icono de ayuda (WhatsApp) en el navbar / header del workspace. */
 export function workspaceHelpWhatsAppUrl(): string {
-  const prefill = "Hola, Andrew! Necesito un soporte desde Berea tech...";
+  const prefill = "Hola, Andrew! Necesito un soporte desde Berea Tecnología...";
   return `https://wa.me/${WORKSPACE_HELP_WA_E164}?text=${encodeURIComponent(prefill)}`;
 }
 
 export const PROGRAMAMOS_WA_LICENSE =
   programamosWhatsAppUrl(
-    "Hola programamos, escribo desde Berea Tech para adquirir o renovar la licencia (catálogo en línea y demás módulos)."
+    "Hola programamos, escribo desde Berea Tecnología para adquirir o renovar la licencia (catálogo en línea y demás módulos)."
   );
 
 /** Licencia comercial — contacto directo (WhatsApp y llamada). */
@@ -28,18 +28,18 @@ export const COMMERCIAL_LICENSE_WA_E164 = WORKSPACE_HELP_WA_E164;
 export const COMMERCIAL_LICENSE_TEL_HREF = `tel:+${COMMERCIAL_LICENSE_WA_E164}`;
 
 export function commercialLicenseWhatsAppUrl(
-  prefill = "Hola, quiero información sobre la licencia comercial de Berea Tech."
+  prefill = "Hola, quiero información sobre la licencia comercial de Berea Tecnología."
 ): string {
   return `https://wa.me/${COMMERCIAL_LICENSE_WA_E164}?text=${encodeURIComponent(prefill)}`;
 }
 
 export function commercialLicenseWhatsAppPrefill(planLabelForUser: string): string {
-  return `Hola, quiero información sobre la licencia comercial de Berea Tech. Mi plan actual: ${planLabelForUser}.`;
+  return `Hola, quiero información sobre la licencia comercial de Berea Tecnología. Mi plan actual: ${planLabelForUser}.`;
 }
 
 /** WhatsApp programamos: pasar de Lite a Estándar / Pro (precio por definir). */
 export function bernabePlanUpgradeWhatsAppUrl(): string {
   return programamosWhatsAppUrl(
-    "Hola programamos, uso Berea Tech con licencia Lite y quiero pasar a plan Estándar o Pro. ¿Me comparten opciones y precios?"
+    "Hola programamos, uso Berea Tecnología con licencia Lite y quiero pasar a plan Estándar o Pro. ¿Me comparten opciones y precios?"
   );
 }

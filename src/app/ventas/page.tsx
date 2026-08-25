@@ -19,11 +19,12 @@ import {
   ventasListCacheKey,
 } from "@/lib/ventas-list-cache";
 import { useSession } from "@/app/components/SessionProvider";
-import { MdOutlineLocalShipping, MdOutlinePublic, MdOutlineReceiptLong, MdOutlineStorefront } from "react-icons/md";
+import { MdOutlineLocalShipping, MdOutlinePayments, MdOutlinePublic, MdOutlineStorefront } from "react-icons/md";
 import {
   getCopy,
   getStatusLabelForSale,
   getPedidoPaymentMethodChipClass,
+  getPedidoSaleStatusChipClass,
   type SalesMode,
   ORDER_STATUS_FILTERS,
   SALES_STATUS_FILTERS,
@@ -94,26 +95,6 @@ const PAYMENT_FILTER_OPTIONS: { value: PaymentFilter; label: string }[] = [
 ];
 
 const REPORTS_SURFACE = "berea-reports-surface";
-
-const BEREA_STATUS_STYLES: Record<string, string> = {
-  success: "bg-emerald-100 text-emerald-900 ring-emerald-300",
-  warning: "bg-amber-100 text-amber-950 ring-amber-300",
-  info: "bg-sky-100 text-sky-950 ring-sky-300",
-  danger: "bg-rose-100 text-rose-900 ring-rose-300",
-};
-
-const statusBadgeClass = (tone: keyof typeof BEREA_STATUS_STYLES) =>
-  `inline-flex rounded-md px-2.5 py-1 text-[13px] font-semibold ring-1 ring-inset ${BEREA_STATUS_STYLES[tone]}`;
-
-const paymentChipClass = (method: string) =>
-  `${getPedidoPaymentMethodChipClass(method)} px-2.5 py-1 text-[13px] font-semibold`;
-
-function rowStatusTone(status: string): keyof typeof BEREA_STATUS_STYLES {
-  if (status === "cancelled") return "danger";
-  if (status === "completed" || status === "delivered") return "success";
-  if (status === "pending") return "warning";
-  return "info";
-}
 
 const bereaFieldClass =
   "h-11 w-full rounded-xl border border-[var(--shell-workspace-search-border)] bg-[var(--shell-workspace-search-bg)] text-[14px] text-[var(--berea-ink)] shadow-[inset_0_0_0_0.5px_rgba(44,40,36,0.04)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--berea-ink-muted)] focus:border-[rgba(44,40,36,0.22)] focus:ring-0 dark:border-[var(--shell-nav-border)] dark:bg-[var(--shell-nav-card-bg)] dark:text-[var(--shell-nav-fg)] dark:placeholder:text-[var(--shell-nav-fg-subtle)]";
@@ -585,12 +566,12 @@ export default function SalesPage() {
     const isWeb = sale.channel === "web_catalog";
     const hasProof = Boolean(sale.payment_proof_url);
     const creditPending = Boolean(sale.payment_pending);
-    const iconClass = "h-6 w-6 shrink-0 text-[var(--berea-ink-muted)]";
-    const creditIconClass = "h-6 w-6 shrink-0 text-amber-700 dark:text-amber-300";
+    const iconClass = "h-4 w-4 shrink-0 text-[var(--berea-ink-muted)]";
+    const creditIconClass = "h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400";
 
     const channelLabel = isWeb
       ? "Catálogo"
-      : creditPending && !isWeb
+      : creditPending
         ? sale.is_delivery
           ? "Pedido a crédito"
           : "Factura a crédito"
@@ -600,7 +581,7 @@ export default function SalesPage() {
 
     const secondaryLabel = hasProof
       ? "Comprobante adjunto"
-      : creditPending && !isWeb
+      : creditPending
         ? "Cobro del cliente pendiente"
         : sale.is_delivery && sale.delivery_fee && sale.delivery_fee > 0
           ? unpaid
@@ -610,10 +591,10 @@ export default function SalesPage() {
 
     return (
       <span className="group relative inline-flex shrink-0 items-center">
-        {isWeb ? (
+        {creditPending ? (
+          <MdOutlinePayments className={creditIconClass} aria-hidden />
+        ) : isWeb ? (
           <MdOutlinePublic className={iconClass} aria-hidden />
-        ) : creditPending ? (
-          <MdOutlineReceiptLong className={creditIconClass} aria-hidden />
         ) : sale.is_delivery ? (
           <MdOutlineLocalShipping className={iconClass} aria-hidden />
         ) : (
@@ -841,7 +822,6 @@ export default function SalesPage() {
               {displaySales.map((s, index) => {
                 const isSelected = index === selectedIndex;
                 const customerName = s.customers?.name ?? "Cliente final";
-                const tone = rowStatusTone(s.status);
                 return (
                   <tr
                     key={s.id}
@@ -855,7 +835,7 @@ export default function SalesPage() {
                     }`}
                   >
                     <td className="py-4 pr-4">
-                      <div className="flex min-w-0 items-center gap-2.5">
+                      <div className="flex min-w-0 items-center gap-2">
                         {channelIconWrap(s)}
                         <span className="truncate text-[15px] font-semibold tabular-nums text-[var(--berea-ink)]">
                           {displayInvoiceNumber(s.invoice_number)}
@@ -867,10 +847,10 @@ export default function SalesPage() {
                     </td>
                     <td className="max-w-[12rem] truncate py-4 pr-4 font-medium text-[var(--berea-ink)]">{customerName}</td>
                     <td className="py-4 pr-4">
-                      <span className={paymentChipClass(s.payment_method)}>{paymentLabel(s)}</span>
+                      <span className={getPedidoPaymentMethodChipClass(s.payment_method)}>{paymentLabel(s)}</span>
                     </td>
                     <td className="py-4 pr-4">
-                      <span className={statusBadgeClass(tone)}>
+                      <span className={getPedidoSaleStatusChipClass(s.status)}>
                         {statusLabel(s)}
                       </span>
                     </td>
@@ -897,7 +877,6 @@ export default function SalesPage() {
               {displaySales.map((s, index) => {
                 const isSelected = index === selectedIndex;
                 const customerName = s.customers?.name ?? "Cliente final";
-                const tone = rowStatusTone(s.status);
                 return (
                   <div
                     key={s.id}
@@ -933,8 +912,8 @@ export default function SalesPage() {
                       <div className="flex items-center justify-between gap-2">
                         <span className={bereaFilterLabel}>Pago · Estado</span>
                         <span className="flex flex-wrap items-center justify-end gap-2">
-                          <span className={paymentChipClass(s.payment_method)}>{paymentLabel(s)}</span>
-                          <span className={statusBadgeClass(tone)}>
+                          <span className={getPedidoPaymentMethodChipClass(s.payment_method)}>{paymentLabel(s)}</span>
+                          <span className={getPedidoSaleStatusChipClass(s.status)}>
                             {statusLabel(s)}
                           </span>
                         </span>

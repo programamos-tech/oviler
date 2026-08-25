@@ -3,7 +3,7 @@ import Link from "next/link";
 const steps = [
   {
     title: "Implementamos el sistema",
-    body: "Dejamos Berea Tech alineado con tu operación: sucursales, impuestos y formas de pago.",
+    body: "Dejamos Berea Tecnología alineado con tu operación: sucursales, impuestos y formas de pago.",
   },
   {
     title: "Importamos tus productos",
@@ -46,7 +46,7 @@ export function LandingImplementationSection() {
               Nosotros montamos el sistema, tú sigues vendiendo
             </h2>
             <p className="berea-landing-body mt-5 text-[15px] leading-relaxed sm:text-[16px]">
-              No es solo software: el equipo Berea implementa Berea Tech en tu negocio, migra tu información y deja a tu
+              No es solo software: el equipo Berea implementa Berea Tecnología en tu negocio, migra tu información y deja a tu
               gente lista para operar. Soporte durante todo el año para que el sistema acompañe tu ritmo comercial.
             </p>
 

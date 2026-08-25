@@ -225,13 +225,13 @@ function LoginContent() {
                   Crear cuenta
                 </Link>
                 <p className="berea-auth-register-hint">
-                  Prueba Berea Tech gratis: inventario, ventas y clientes en minutos.
+                  Prueba Berea Tecnología gratis: inventario, ventas y clientes en minutos.
                 </p>
               </div>
             </form>
 
             <p className="berea-auth-footer">
-              ¿Primera vez en Berea?{" "}
+              ¿Primera vez en Berea Tecnología?{" "}
               <Link href="/registro" className="berea-auth-link-accent hover:underline">
                 Regístrate aquí
               </Link>

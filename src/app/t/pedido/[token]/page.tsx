@@ -381,7 +381,7 @@ export default function PedidoPublicPage() {
 
       <p className="text-center text-[11px] text-slate-400 dark:text-slate-500">
         Guarda este enlace para ver el estado de tu pedido.{" "}
-        <span className="font-semibold text-[#1e3522] dark:text-emerald-400/90">Berea Tech</span>
+        <span className="font-semibold text-[#1e3522] dark:text-emerald-400/90">Berea Tecnología</span>
       </p>
     </div>
   );

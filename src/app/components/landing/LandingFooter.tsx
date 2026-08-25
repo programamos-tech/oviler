@@ -70,7 +70,7 @@ export function LandingFooter() {
 
         <div className="berea-landing-muted mt-12 flex flex-col items-center justify-between gap-3 border-t border-[var(--landing-border)] pt-8 sm:flex-row">
           <p className="text-center text-[12px] sm:text-left">
-            © {new Date().getFullYear()} Berea Tech. Todos los derechos reservados.
+            © {new Date().getFullYear()} Berea Tecnología. Todos los derechos reservados.
           </p>
           <p className="max-w-sm text-center text-[12px] leading-relaxed sm:text-right">
             Desde Sincelejo, Colombia — licencias, implementación y soporte para comercios en todo el país.
