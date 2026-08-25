@@ -19,9 +19,7 @@ export function BereaAuthMobileLogo({ href = "/" }: { href?: string }) {
 
 export function BereaAuthLogo({ href = "/" }: { href?: string }) {
   const mark = (
-    <span className="berea-tech-logo-frame berea-tech-logo-frame--auth">
-      <img src="/logo-berea-house.png" alt="Berea House" decoding="async" />
-    </span>
+    <img src="/logo-berea-house.png" alt="Berea House" decoding="async" />
   );
 
   if (!href) {

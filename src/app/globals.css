@@ -847,8 +847,9 @@ body {
 
 .berea-auth-aside-logo img {
   display: block;
-  width: 12.5rem;
-  height: 12.5rem;
+  width: 13.5rem;
+  height: auto;
+  max-height: 7.5rem;
   object-fit: contain;
 }
 
@@ -969,6 +970,14 @@ body {
   opacity: 0.85;
 }
 
+.berea-auth-logo img {
+  display: block;
+  width: 12.5rem;
+  height: auto;
+  max-height: 5.5rem;
+  object-fit: contain;
+}
+
 .berea-auth-logo-mobile {
   display: flex;
   justify-content: center;
@@ -982,10 +991,11 @@ body {
 
 .berea-auth-logo-mobile img {
   display: block;
-  width: 7.5rem;
-  height: 7.5rem;
+  width: 9.5rem;
+  height: auto;
+  max-height: 5.25rem;
   object-fit: contain;
-  border-radius: 1rem;
+  border-radius: 0.5rem;
 }
 
 @media (min-width: 1024px) {
@@ -1222,6 +1232,14 @@ body {
   opacity: 0.88;
 }
 
+.berea-landing-logo img {
+  display: block;
+  width: 9.5rem;
+  height: auto;
+  max-height: 3.25rem;
+  object-fit: contain;
+}
+
 /* Mockups */
 .berea-landing-mockup-glow {
   display: none;
@@ -1436,20 +1454,23 @@ body {
 }
 
 .berea-house-logo--sidebar {
-  width: 9.75rem;
-  height: 9.75rem;
+  width: 10.5rem;
+  height: auto;
+  max-height: 5.75rem;
   mix-blend-mode: lighten;
 }
 
 .berea-house-logo--topnav {
-  width: 2.85rem;
-  height: 2.85rem;
-  border-radius: 0.4rem;
+  width: 4.75rem;
+  height: auto;
+  max-height: 2.65rem;
+  border-radius: 0.35rem;
 }
 
 .berea-house-logo--boot {
-  width: min(72vw, 14.5rem);
-  height: min(72vw, 14.5rem);
+  width: min(78vw, 16rem);
+  height: auto;
+  max-height: min(42vw, 8.75rem);
 }
 
 .berea-boot-progress {
