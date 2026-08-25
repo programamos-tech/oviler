@@ -14,14 +14,16 @@ import {
 } from "@/lib/creditos-detail-cache";
 import type { CreditDetailPayload } from "@/lib/creditos-normalize";
 import { MdBadge, MdBusiness, MdPerson, MdSchedule, MdStorefront } from "react-icons/md";
-import { getPaymentListChipClass, getStatusListChipClass } from "@/app/ventas/sales-mode";
+import { getPedidoPaymentMethodChipClass } from "@/app/ventas/sales-mode";
 import {
   creditLineDisplayStatus,
+  creditPaymentStateChip,
   creditRowPending,
   creditStatusChip,
   formatDateShort,
   formatDateTime,
   formatMoney,
+  paymentMethodChipClass,
   paymentMethodLabel,
 } from "../credit-ui";
 
@@ -195,8 +197,13 @@ function CreditoDetalleInner() {
     [saleItems]
   );
 
-  const paymentChipKey = pendiente > 0.005 && !credit?.cancelled_at ? "pending" : "completed";
-  const paymentChipLabel = pendiente > 0.005 && !credit?.cancelled_at ? "Pendiente" : "Pagado";
+  const paymentChipKey =
+    credit?.cancelled_at
+      ? ("cancelled" as const)
+      : pendiente > 0.005
+        ? ("pending" as const)
+        : ("completed" as const);
+  const paymentChip = creditPaymentStateChip(paymentChipKey);
 
   async function handleAbono(e: React.FormEvent) {
     e.preventDefault();
@@ -435,13 +442,21 @@ function CreditoDetalleInner() {
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Método de pago (factura)</p>
               <div className="mt-1">
-                <span className={getPaymentListChipClass()}>{salePaymentLabel}</span>
+                <span
+                  className={
+                    credit.sales?.payment_method
+                      ? getPedidoPaymentMethodChipClass(credit.sales.payment_method)
+                      : paymentMethodChipClass(null)
+                  }
+                >
+                  {salePaymentLabel}
+                </span>
               </div>
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Estado del pago</p>
               <div className="mt-1">
-                <span className={getStatusListChipClass(paymentChipKey)}>{paymentChipLabel}</span>
+                <span className={paymentChip.className}>{paymentChip.label}</span>
               </div>
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
@@ -674,7 +689,7 @@ function CreditoDetalleInner() {
                   {formatMoney(Number(p.amount))}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[12px] font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                  <span className={paymentMethodChipClass(p.payment_method)}>
                     {paymentMethodLabel(p.payment_method)}
                     {p.payment_method === "mixed" &&
                       p.amount_cash != null &&

@@ -89,3 +89,45 @@ export function paymentMethodLabel(m: "cash" | "transfer" | "mixed"): string {
   if (m === "transfer") return "Transferencia";
   return "Mixto";
 }
+
+/** Chip de forma de pago (efectivo navy, transferencia teal, mixto ámbar). */
+export function paymentMethodChipClass(method: string | null | undefined): string {
+  const base =
+    "inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-left text-[12px] font-medium leading-tight";
+  const m = String(method || "").toLowerCase();
+  if (m === "cash") {
+    return `${base} border-[#15406b]/25 bg-[#15406b]/08 text-[#15406b]`;
+  }
+  if (m === "transfer") {
+    return `${base} border-teal-200/90 bg-teal-50/95 text-teal-900`;
+  }
+  if (m === "mixed") {
+    return `${base} border-amber-200/90 bg-amber-50/95 text-amber-950`;
+  }
+  return `${base} border-slate-200/90 bg-slate-50/95 text-slate-700`;
+}
+
+/** Estado del cobro del crédito: pendiente / pagado / anulado. */
+export function creditPaymentStateChip(state: "pending" | "completed" | "cancelled"): {
+  label: string;
+  className: string;
+} {
+  const base =
+    "inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-left text-[12px] font-medium leading-tight";
+  if (state === "cancelled") {
+    return {
+      label: "Anulado",
+      className: `${base} border-red-200/90 bg-red-50/90 text-red-800`,
+    };
+  }
+  if (state === "completed") {
+    return {
+      label: "Pagado",
+      className: `${base} border-emerald-200 bg-emerald-50 text-emerald-900`,
+    };
+  }
+  return {
+    label: "Pendiente",
+    className: `${base} border-amber-200/90 bg-amber-50/95 text-amber-950`,
+  };
+}

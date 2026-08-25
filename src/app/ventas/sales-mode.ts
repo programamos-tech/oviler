@@ -178,13 +178,13 @@ export function getPaymentListChipClass(): string {
 export function getPedidoPaymentMethodChipClass(method: string): string {
   const m = String(method || "").toLowerCase();
   if (m === "cash") {
-    return `${LIST_CHIP_BASE} border-emerald-200/90 bg-emerald-50/95 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/35 dark:text-emerald-100`;
+    return `${LIST_CHIP_BASE} border-[#15406b]/25 bg-[#15406b]/08 text-[#15406b] dark:border-sky-800/55 dark:bg-sky-950/35 dark:text-sky-100`;
   }
   if (m === "transfer") {
-    return `${LIST_CHIP_BASE} border-sky-200/90 bg-sky-50/95 text-sky-950 dark:border-sky-800/55 dark:bg-sky-950/35 dark:text-sky-100`;
+    return `${LIST_CHIP_BASE} border-teal-200/90 bg-teal-50/95 text-teal-900 dark:border-teal-800/55 dark:bg-teal-950/35 dark:text-teal-100`;
   }
   if (m === "mixed") {
-    return `${LIST_CHIP_BASE} border-violet-200/90 bg-violet-50/95 text-violet-950 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-100`;
+    return `${LIST_CHIP_BASE} border-amber-200/90 bg-amber-50/95 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100`;
   }
   return getPaymentListChipClass();
 }
