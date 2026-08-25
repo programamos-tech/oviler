@@ -478,13 +478,16 @@ function CreditoDetalleInner() {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--berea-card-border)] pt-4">
+        <div className="mt-4 flex flex-wrap gap-2.5 border-t border-[var(--berea-card-border)] pt-4">
           {pendiente > 0.005 && !credit.cancelled_at && (
             <button
               type="button"
               onClick={() => setShowAbono(true)}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[color:var(--shell-sidebar)] px-4 text-[13px] font-semibold text-white shadow-sm hover:bg-[color:var(--shell-sidebar-cta-hover)]"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-emerald-700 px-5 text-[14px] font-semibold text-white shadow-md shadow-emerald-900/20 transition-colors hover:bg-emerald-800"
             >
+              <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
               Registrar abono
             </button>
           )}
@@ -493,7 +496,7 @@ function CreditoDetalleInner() {
               type="button"
               onClick={handleCancelarCredito}
               disabled={cancelling}
-              className="inline-flex h-10 items-center rounded-lg border border-[var(--berea-card-border)] px-4 text-[13px] font-semibold text-[var(--berea-ink)] hover:bg-[var(--shell-workspace)]"
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-red-200 bg-white px-4 text-[14px] font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60 dark:border-red-900/50 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-950/30"
             >
               {cancelling ? "Anulando…" : "Anular crédito"}
             </button>
@@ -842,7 +845,7 @@ function CreditoDetalleInner() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="h-11 rounded-lg bg-[color:var(--shell-sidebar)] px-5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-[color:var(--shell-sidebar-cta-hover)] disabled:opacity-50"
+                  className="h-11 rounded-xl bg-emerald-700 px-5 text-[14px] font-semibold text-white shadow-md shadow-emerald-900/20 transition-colors hover:bg-emerald-800 disabled:opacity-50"
                 >
                   {submitting ? "Guardando…" : "Guardar abono"}
                 </button>
