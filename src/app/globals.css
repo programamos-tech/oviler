@@ -1589,6 +1589,24 @@ body {
   color: #334155;
 }
 
+.berea-amount-chip--paid {
+  border-color: #5eead4;
+  background-color: #ccfbf1;
+  color: #134e4a;
+}
+
+.berea-amount-chip--due {
+  border-color: #fcd34d;
+  background-color: #fef3c7;
+  color: #78350f;
+}
+
+.berea-amount-chip--clear {
+  border-color: #5eead4;
+  background-color: #ccfbf1;
+  color: #134e4a;
+}
+
 .berea-house-logo--sidebar {
   width: 6.5rem;
   height: auto;

@@ -41,13 +41,13 @@ export function creditLineDisplayStatus(
 }
 
 const CREDIT_BADGE_BASE =
-  "inline-flex max-w-full items-center rounded-md px-2.5 py-1 text-[13px] font-semibold ring-1 ring-inset";
+  "inline-flex max-w-full items-center rounded-full border px-2.5 py-0.5 text-[12px] font-semibold leading-tight";
 
 const CREDIT_STATUS_BADGE: Record<CreditStatus, string> = {
-  overdue: `${CREDIT_BADGE_BASE} bg-rose-100 text-rose-900 ring-rose-300`,
-  pending: `${CREDIT_BADGE_BASE} bg-amber-100 text-amber-950 ring-amber-300`,
-  completed: `${CREDIT_BADGE_BASE} bg-emerald-100 text-emerald-900 ring-emerald-300`,
-  cancelled: `${CREDIT_BADGE_BASE} bg-red-100 text-red-800 ring-red-300`,
+  overdue: `${CREDIT_BADGE_BASE} border-rose-300 bg-rose-100 text-rose-900`,
+  pending: `${CREDIT_BADGE_BASE} border-amber-300 bg-amber-100 text-amber-950`,
+  completed: `${CREDIT_BADGE_BASE} border-emerald-300 bg-emerald-100 text-emerald-900`,
+  cancelled: `${CREDIT_BADGE_BASE} border-red-300 bg-red-100 text-red-800`,
 };
 
 export function creditStatusChip(status: CreditStatus): { label: string; className: string } {

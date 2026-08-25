@@ -18,7 +18,6 @@ import { MdBadge, MdBusiness, MdPerson, MdSchedule, MdStorefront } from "react-i
 import { getPedidoPaymentMethodChipClass } from "@/app/ventas/sales-mode";
 import {
   creditLineDisplayStatus,
-  creditPaymentStateChip,
   creditRowPending,
   creditStatusChip,
   formatDateShort,
@@ -196,14 +195,6 @@ function CreditoDetalleInner() {
     () => saleItems.reduce((s, it) => s + lineItemSubtotal(it), 0),
     [saleItems]
   );
-
-  const paymentChipKey =
-    credit?.cancelled_at
-      ? ("cancelled" as const)
-      : pendiente > 0.005
-        ? ("pending" as const)
-        : ("completed" as const);
-  const paymentChip = creditPaymentStateChip(paymentChipKey);
 
   async function handleAbono(e: React.FormEvent) {
     e.preventDefault();
@@ -404,7 +395,7 @@ function CreditoDetalleInner() {
   }
 
   const disp = creditLineDisplayStatus(credit.status, Number(credit.total_amount), Number(credit.amount_paid), credit.cancelled_at);
-  const chip = creditStatusChip(disp);
+  const statusChip = creditStatusChip(disp);
   const isCreditAnnulled = disp === "cancelled" || Boolean(credit.cancelled_at);
   const customerName = credit.customers?.name ?? "—";
   const branchName = credit.branches?.name ?? "—";
@@ -500,15 +491,9 @@ function CreditoDetalleInner() {
               </div>
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Estado del pago</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Estado</p>
               <div className="mt-1">
                 <span className={paymentChip.className}>{paymentChip.label}</span>
-              </div>
-            </div>
-            <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Estado del crédito</p>
-              <div className="mt-1">
-                <span className={chip.className}>{chip.label}</span>
               </div>
             </div>
             {credit.sales?.id && (
@@ -517,7 +502,7 @@ function CreditoDetalleInner() {
                 <div className="mt-1">
                   <Link
                     href={`/ventas/${credit.sales.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="text-[13px] font-semibold text-sky-700 underline-offset-2 transition-colors hover:text-sky-800 hover:underline"
                   >
                     #{displayInvoiceNumber(credit.sales.invoice_number)}
                   </Link>
@@ -526,21 +511,25 @@ function CreditoDetalleInner() {
             )}
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Pagado</p>
-              <p className="mt-0.5 text-[15px] font-semibold tabular-nums text-[var(--berea-ink)] sm:text-base">
-                $ {formatMoney(Number(credit.amount_paid))}
-              </p>
+              <div className="mt-1">
+                <span className="berea-pay-method-chip berea-amount-chip--paid">
+                  $ {formatMoney(Number(credit.amount_paid))}
+                </span>
+              </div>
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Pendiente</p>
-              <p
-                className={
-                  pendiente > 0.005
-                    ? "mt-0.5 text-[15px] font-semibold tabular-nums text-[var(--berea-accent)] sm:text-base"
-                    : "mt-0.5 text-[15px] font-semibold tabular-nums text-[var(--berea-ink)] sm:text-base"
-                }
-              >
-                $ {formatMoney(pendiente)}
-              </p>
+              <div className="mt-1">
+                <span
+                  className={
+                    pendiente > 0.005
+                      ? "berea-pay-method-chip berea-amount-chip--due"
+                      : "berea-pay-method-chip berea-amount-chip--clear"
+                  }
+                >
+                  $ {formatMoney(pendiente)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
