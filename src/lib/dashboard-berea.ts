@@ -78,10 +78,11 @@ const CHANNEL_COLORS = {
   other: "#cbd5e1",
 } as const;
 
+/** Tonos bien separados: navy / teal / ámbar (no tres azules cercanos). */
 const PAYMENT_COLORS = {
   cash: "#15406b",
-  transfer: "#1e5082",
-  mixed: "#3d7aab",
+  transfer: "#0f766e",
+  mixed: "#b45309",
 } as const;
 
 type SaleChannelRow = {
