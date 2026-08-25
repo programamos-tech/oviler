@@ -525,16 +525,40 @@ function CreditoDetalleInner() {
               </div>
             )}
           </div>
-          <div className="grid w-full grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-[13px] dark:border-slate-800 sm:w-auto sm:border-t-0 sm:pt-0">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Pagado</p>
-              <p className="mt-0.5 font-semibold tabular-nums text-[var(--berea-ink)]">
+          <div className="grid w-full grid-cols-2 gap-2.5 border-t border-slate-100 pt-4 sm:w-auto sm:min-w-[220px] sm:border-t-0 sm:pt-0">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 dark:border-emerald-800/50 dark:bg-emerald-950/30">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800/80 dark:text-emerald-200/80">
+                Pagado
+              </p>
+              <p className="mt-0.5 text-[15px] font-semibold tabular-nums text-emerald-950 dark:text-emerald-100">
                 $ {formatMoney(Number(credit.amount_paid))}
               </p>
             </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Pendiente</p>
-              <p className="mt-0.5 font-semibold tabular-nums text-[var(--berea-ink)]">$ {formatMoney(pendiente)}</p>
+            <div
+              className={
+                pendiente > 0.005
+                  ? "rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-800/50 dark:bg-amber-950/30"
+                  : "rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 dark:border-emerald-800/50 dark:bg-emerald-950/30"
+              }
+            >
+              <p
+                className={
+                  pendiente > 0.005
+                    ? "text-[10px] font-semibold uppercase tracking-wider text-amber-900/80 dark:text-amber-200/80"
+                    : "text-[10px] font-semibold uppercase tracking-wider text-emerald-800/80 dark:text-emerald-200/80"
+                }
+              >
+                Pendiente
+              </p>
+              <p
+                className={
+                  pendiente > 0.005
+                    ? "mt-0.5 text-[15px] font-semibold tabular-nums text-amber-950 dark:text-amber-100"
+                    : "mt-0.5 text-[15px] font-semibold tabular-nums text-emerald-950 dark:text-emerald-100"
+                }
+              >
+                $ {formatMoney(pendiente)}
+              </p>
             </div>
           </div>
         </div>
