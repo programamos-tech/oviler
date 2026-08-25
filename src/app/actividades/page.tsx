@@ -22,8 +22,6 @@ const bereaSectionLabel = "text-[11px] font-semibold uppercase tracking-wider te
 
 const bereaCardClass = `rounded-xl p-4 sm:p-5 ${REPORTS_SURFACE}`;
 
-const bereaBadgeBase = "inline-flex items-center rounded-md px-2.5 py-1 text-[13px] font-semibold ring-1 ring-inset";
-
 type Activity = {
   id: string;
   organization_id: string;
@@ -670,11 +668,11 @@ function ActivityFeedPage() {
                 <div className="flex gap-3">
                   <FeedActorAvatar activity={a} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                       <span className="text-[13px] font-semibold text-[var(--berea-ink)]">
                         {actorName(a)}
                       </span>
-                      <span className={`${bereaBadgeBase} bg-sky-100 text-sky-950 ring-sky-300 text-[11px] uppercase tracking-wide`}>
+                      <span className="text-[11px] font-medium text-[var(--berea-ink-subtle)]">
                         {getActionLabel(a)}
                       </span>
                       <span className="text-[11px] text-[var(--berea-ink-muted)]">
