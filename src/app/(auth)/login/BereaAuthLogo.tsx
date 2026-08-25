@@ -3,7 +3,7 @@ import Link from "next/link";
 /** Logo compacto en la tarjeta de login/registro (solo móvil; en desktop va al panel derecho). */
 export function BereaAuthMobileLogo({ href = "/" }: { href?: string }) {
   const mark = (
-    <img src="/logo-berea-tech.png" alt="Berea Tech, tiendas de tecnología" decoding="async" />
+    <img src="/logo-berea-house.png" alt="Berea House, tiendas de tecnología" decoding="async" />
   );
 
   if (!href) {
@@ -20,7 +20,7 @@ export function BereaAuthMobileLogo({ href = "/" }: { href?: string }) {
 export function BereaAuthLogo({ href = "/" }: { href?: string }) {
   const mark = (
     <span className="berea-tech-logo-frame berea-tech-logo-frame--auth">
-      <img src="/logo-berea-tech.png" alt="Berea Tech" decoding="async" />
+      <img src="/logo-berea-house.png" alt="Berea House" decoding="async" />
     </span>
   );
 

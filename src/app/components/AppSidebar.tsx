@@ -296,7 +296,7 @@ export default function AppSidebar() {
             aria-label="Berea Tech — Ir al inicio"
           >
             <img
-              src="/logo-berea-tech.png"
+              src="/logo-berea-house.png"
               alt=""
               className="berea-house-logo berea-house-logo--sidebar"
               decoding="async"

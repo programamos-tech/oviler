@@ -33,10 +33,10 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/favicon.png", type: "image/png", sizes: "32x32" },
-      { url: "/logo-berea-tech.png", type: "image/png" },
+      { url: "/logo-berea-house.png", type: "image/png" },
     ],
     shortcut: "/favicon.png",
-    apple: "/logo-berea-tech.png",
+    apple: "/logo-berea-house.png",
   },
 };
 

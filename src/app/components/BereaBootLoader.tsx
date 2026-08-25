@@ -147,8 +147,8 @@ export default function BereaBootLoader() {
     >
       <div className="berea-boot-panel">
         <img
-          src="/logo-berea-tech.png"
-          alt="Berea Tech"
+          src="/logo-berea-house.png"
+          alt="Berea House"
           className="berea-house-logo berea-house-logo--boot"
           decoding="async"
         />
