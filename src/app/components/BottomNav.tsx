@@ -277,27 +277,33 @@ function BoxIcon({ active }: { active: boolean }) {
 }
 export default function BottomNav() {
   const pathname = usePathname();
-  const { profile, branch } = useSession();
+  const { profile, branch, ready: sessionReady } = useSession();
   const showExpenses = branch?.show_expenses ?? null;
   const userRole = (profile?.role ?? null) as AppRole | null;
   const userPermissions = profile?.permissions ?? null;
 
-  const displayMasItems = useMemo(
-    () =>
-      (showExpenses === false ? masItems.filter((g) => g.href !== "/egresos") : masItems)
-        .filter((group) => canAccessNavModule(userRole, group.label, userPermissions))
-        .map((group) => ({
-          ...group,
-          items: (group.items ?? []).filter((sub) => canAccessPath(userRole, sub.href, userPermissions)),
-        }))
-        .filter((group) => canAccessPath(userRole, group.href, userPermissions) || (group.items?.length ?? 0) > 0),
-    [showExpenses, userRole, userPermissions]
-  );
+  const displayMasItems = useMemo(() => {
+    const base = showExpenses === false ? masItems.filter((g) => g.href !== "/egresos") : masItems;
+    if (!sessionReady) return base;
+    return base
+      .filter((group) => canAccessNavModule(userRole, group.label, userPermissions))
+      .map((group) => ({
+        ...group,
+        items: (group.items ?? []).filter((sub) => canAccessPath(userRole, sub.href, userPermissions)),
+      }))
+      .filter((group) => canAccessPath(userRole, group.href, userPermissions) || (group.items?.length ?? 0) > 0);
+  }, [showExpenses, userRole, userPermissions, sessionReady]);
 
   const bottomNavItems = useMemo(() => {
-    const primary = primaryTabs
-      .filter((t) => canAccessPath(userRole, t.href, userPermissions))
-      .map((t) => ({ label: t.label, shortLabel: t.shortLabel, href: t.href, Icon: t.icon }));
+    const primarySource = !sessionReady
+      ? primaryTabs
+      : primaryTabs.filter((t) => canAccessPath(userRole, t.href, userPermissions));
+    const primary = primarySource.map((t) => ({
+      label: t.label,
+      shortLabel: t.shortLabel,
+      href: t.href,
+      Icon: t.icon,
+    }));
     const extra = displayMasItems.map((g) => ({
       label: g.label,
       shortLabel: g.shortLabel ?? g.label,
@@ -305,7 +311,7 @@ export default function BottomNav() {
       Icon: masIconToNavIcon(g.icon),
     }));
     return [...primary, ...extra];
-  }, [userRole, userPermissions, displayMasItems]);
+  }, [userRole, userPermissions, displayMasItems, sessionReady]);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/sucursales/reportes" || pathname === "/";

@@ -91,7 +91,7 @@ const navItemActive = "sidebar-nav-item--active font-medium text-[var(--shell-na
 export default function AppSidebar() {
   const pathname = usePathname();
   const isInterno = pathname === "/interno" || pathname.startsWith("/interno/");
-  const { profile, branch } = useSession();
+  const { profile, branch, ready: sessionReady } = useSession();
   const user = profile
     ? {
         name: profile.name,
@@ -109,6 +109,11 @@ export default function AppSidebar() {
     const result: SidebarNavEntry[] = [];
     for (const entry of sidebarNavEntries) {
       if (branch && branch.show_expenses === false && entry.href.startsWith("/egresos")) continue;
+      // Mientras la sesión carga, mostrar todos los módulos (evita el flash de un solo ítem).
+      if (!sessionReady) {
+        result.push(entry);
+        continue;
+      }
       if (!canAccessNavModule(role, entry.navModule, customPermissions)) continue;
       const children = (entry.children ?? []).filter((child) => {
         if (branch && branch.show_expenses === false && child.href.startsWith("/egresos")) return false;
@@ -119,7 +124,7 @@ export default function AppSidebar() {
       result.push({ ...entry, children: children.length > 0 ? children : undefined });
     }
     return result;
-  }, [role, customPermissions, branch]);
+  }, [sessionReady, role, customPermissions, branch]);
 
   const internalNavItems: NavItem[] = [
     {
