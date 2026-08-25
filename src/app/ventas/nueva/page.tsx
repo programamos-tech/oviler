@@ -346,7 +346,7 @@ export default function NewSalePage() {
       .select("id, name, cedula, email, phone")
       .eq("organization_id", orgId)
       .eq("active", true)
-      .order("name")
+      .order("created_at", { ascending: false })
       .limit(10);
     setCustomerResults((data ?? []) as CustomerOption[]);
   }, [orgId]);
@@ -364,7 +364,7 @@ export default function NewSalePage() {
         .eq("organization_id", orgId)
         .eq("active", true)
         .or(`name.ilike.%${q}%,cedula.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`)
-        .order("name")
+        .order("created_at", { ascending: false })
         .limit(10);
       const { data, error: err } = await req;
       if (err) {
@@ -373,7 +373,7 @@ export default function NewSalePage() {
           .select("id, name, cedula, email, phone")
           .eq("organization_id", orgId)
           .or(`name.ilike.%${q}%,cedula.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`)
-          .order("name")
+          .order("created_at", { ascending: false })
           .limit(10);
         setCustomerResults((fallback.data ?? []) as CustomerOption[]);
         return;
