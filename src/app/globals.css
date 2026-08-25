@@ -1551,6 +1551,44 @@ body {
   object-fit: contain;
 }
 
+/* Método de pago — mismo chip en factura, créditos y abonos */
+.berea-pay-method-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  padding: 0.125rem 0.625rem;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.berea-pay-method-chip--cash {
+  border-color: rgba(21, 64, 107, 0.35);
+  background-color: #dce6f0;
+  color: #0d2137;
+}
+
+.berea-pay-method-chip--transfer {
+  border-color: #5eead4;
+  background-color: #ccfbf1;
+  color: #134e4a;
+}
+
+.berea-pay-method-chip--mixed {
+  border-color: #fcd34d;
+  background-color: #fef3c7;
+  color: #78350f;
+}
+
+.berea-pay-method-chip--unknown {
+  border-color: #e2e8f0;
+  background-color: #f8fafc;
+  color: #334155;
+}
+
 .berea-house-logo--sidebar {
   width: 6.5rem;
   height: auto;
