@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { BereaAuthLogo } from "../login/BereaAuthLogo";
+import { BereaAuthMobileLogo } from "../login/BereaAuthLogo";
 import { LoginBrandPanel } from "../login/LoginBrandPanel";
 
 export default function RegistroPage() {
@@ -109,12 +109,12 @@ export default function RegistroPage() {
       <div className="berea-auth-layout">
         <main className="berea-auth-main">
           <div className="berea-auth-card">
-            <BereaAuthLogo href="/" />
+            <BereaAuthMobileLogo href="/" />
 
             <header className="berea-auth-card-header">
               <h1>Crea tu cuenta</h1>
               <p>
-                Regístrate gratis y prueba Berea Comercios: inventario, ventas, clientes y reportes en un solo panel.
+                Regístrate gratis y prueba Berea Tech: inventario, ventas, clientes y reportes en un solo panel.
               </p>
             </header>
 

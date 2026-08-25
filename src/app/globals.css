@@ -526,8 +526,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 5rem;
-  padding: 0.5rem 0.25rem 0.625rem;
+  min-height: 0;
+  padding: 0.125rem 0.25rem 0.25rem;
 }
 
 /* Menú central: reparte ítems en el alto disponible (sin huecos grandes) */
@@ -550,7 +550,7 @@ body {
   opacity: 0.88;
 }
 
-.shell-nav a:hover .berea-tech-logo-frame--topnav img {
+.shell-nav a:hover .berea-house-logo--topnav {
   opacity: 0.88;
 }
 
@@ -592,7 +592,7 @@ body {
 }
 
 .berea-auth-card-header {
-  margin-top: 1.5rem;
+  margin-top: 0;
   text-align: center;
 }
 
@@ -834,6 +834,24 @@ body {
   max-width: 22rem;
 }
 
+.berea-auth-aside-logo {
+  display: inline-block;
+  margin-bottom: 1.75rem;
+  line-height: 0;
+  transition: opacity 0.15s ease;
+}
+
+.berea-auth-aside-logo:hover {
+  opacity: 0.88;
+}
+
+.berea-auth-aside-logo img {
+  display: block;
+  width: 12.5rem;
+  height: 12.5rem;
+  object-fit: contain;
+}
+
 .berea-auth-aside h2 {
   font-size: 1.75rem;
   font-weight: 700;
@@ -949,6 +967,31 @@ body {
 
 .berea-auth-logo:hover {
   opacity: 0.85;
+}
+
+.berea-auth-logo-mobile {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  transition: opacity 0.15s ease;
+}
+
+.berea-auth-logo-mobile:hover {
+  opacity: 0.88;
+}
+
+.berea-auth-logo-mobile img {
+  display: block;
+  width: 7.5rem;
+  height: 7.5rem;
+  object-fit: contain;
+  border-radius: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .berea-auth-logo-mobile {
+    display: none;
+  }
 }
 
 /* Landing — fondo blanco, texto azul casi negro */
@@ -1360,7 +1403,7 @@ body {
   outline: none;
 }
 
-/* Pantalla de carga al recargar (marca Berea) */
+/* Pantalla de carga al recargar (marca Berea House) */
 .berea-boot-overlay {
   position: fixed;
   inset: 0;
@@ -1368,7 +1411,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--shell-workspace);
+  background: #0c2344;
   transition: opacity 0.35s ease, visibility 0.35s ease;
 }
 
@@ -1382,9 +1425,31 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.25rem;
-  width: min(92vw, 14rem);
+  gap: 1.35rem;
+  width: min(92vw, 16rem);
   text-align: center;
+}
+
+.berea-house-logo {
+  display: block;
+  object-fit: contain;
+}
+
+.berea-house-logo--sidebar {
+  width: 9.75rem;
+  height: 9.75rem;
+  mix-blend-mode: lighten;
+}
+
+.berea-house-logo--topnav {
+  width: 2.85rem;
+  height: 2.85rem;
+  border-radius: 0.4rem;
+}
+
+.berea-house-logo--boot {
+  width: min(72vw, 14.5rem);
+  height: min(72vw, 14.5rem);
 }
 
 .berea-boot-progress {
@@ -1392,13 +1457,13 @@ body {
   height: 3px;
   overflow: hidden;
   border-radius: 9999px;
-  background: var(--berea-card-border);
+  background: rgba(247, 242, 238, 0.18);
 }
 
 .berea-boot-progress-fill {
   height: 100%;
   border-radius: 9999px;
-  background: var(--berea-accent);
+  background: #f7f2ee;
   transition: width 0.12s ease-out;
 }
 
@@ -1407,7 +1472,7 @@ body {
   font-size: 0.8125rem;
   font-weight: 500;
   letter-spacing: -0.01em;
-  color: var(--berea-ink-muted);
+  color: rgba(247, 242, 238, 0.72);
 }
 
 /* Google Material Symbols Outlined - NOU Tiendas */

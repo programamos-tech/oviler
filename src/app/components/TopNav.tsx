@@ -97,12 +97,15 @@ export default function TopNav() {
                 ? "flex min-w-0 max-w-[min(100%,20rem)] shrink-0 items-center gap-2.5 overflow-visible rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--shell-nav-fg)]/35"
                 : "flex shrink-0 items-center overflow-visible rounded-md outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--shell-nav-fg)]/35"
             }
-            title={branch?.name ? `Berea Comercios · ${branch.name}` : "Berea Comercios"}
-            aria-label="Berea Comercios — Ir al inicio"
+            title={branch?.name ? `Berea Tech · ${branch.name}` : "Berea Tech"}
+            aria-label="Berea Tech — Ir al inicio"
           >
-            <span className="berea-tech-logo-frame berea-tech-logo-frame--topnav shrink-0">
-              <img src="/logo-berea-tech.png" alt="" decoding="async" />
-            </span>
+            <img
+              src="/logo-berea-tech.png"
+              alt=""
+              className="berea-house-logo berea-house-logo--topnav shrink-0"
+              decoding="async"
+            />
             {branch ? (
               <>
                 <span className="h-8 w-px shrink-0 rounded-full bg-[var(--shell-nav-border)]" aria-hidden />

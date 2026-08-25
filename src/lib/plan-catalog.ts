@@ -1,5 +1,5 @@
 /**
- * Membresías Bernabé Comercios (IDs en BD: `free` = Lite, `basic` = Estándar, `pro` = Pro).
+ * Membresías Berea Tech (IDs en BD: `free` = Lite, `basic` = Estándar, `pro` = Pro).
  * Precios anuales: `null` = por definir comercialmente.
  */
 

@@ -964,7 +964,7 @@ export default function SaleDetailPage() {
   <div class="legal">
     Comprobante emitido por <strong>${esc(branchName)}</strong>. Consérvese como soporte de la operación.
     <br />
-    <strong>Tecnología / software:</strong> Bernabé Comercios.
+    <strong>Tecnología / software:</strong> Berea Tech.
   </div>
 </body>
 </html>`;
@@ -1146,7 +1146,7 @@ export default function SaleDetailPage() {
               {sale.branches?.responsable_iva ? "Sí" : "No"}
             </p>
             <p className={`print:mt-2 print:text-neutral-500 ${invoicePrintType === "tirilla" ? "print:text-[8px]" : "print:text-[10px]"}`}>
-              Tecnología / software: Bernabé Comercios
+              Tecnología / software: Berea Tech
             </p>
           </div>
         </div>

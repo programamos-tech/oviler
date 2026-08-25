@@ -12,13 +12,11 @@ const LANDING_CALL_TEL = "+573152802343";
 const LANDING_CALL_DISPLAY = "315 280 2343";
 
 export const metadata: Metadata = {
-  title: "Berea Comercios — Gestiona tu negocio",
-  description:
-    "Inventario, ventas, clientes y créditos. Berea Comercios para tu negocio. Licencia con soporte.",
-  icons: {
-    icon: "/logo-berea-tech.png",
-    apple: "/logo-berea-tech.png",
+  title: {
+    absolute: "Berea Tech - Sistema para tu tienda de tecnología.",
   },
+  description:
+    "Inventario, ventas, clientes y créditos. Berea Tech — sistema para tu tienda de tecnología. Licencia con soporte.",
 };
 
 export default function LandingPage() {
@@ -69,7 +67,7 @@ export default function LandingPage() {
                 <p className="berea-landing-badge">
                   <span className="inline-flex items-center gap-2">
                     <span className="berea-landing-badge-dot" aria-hidden />
-                    Berea Comercios · inventario, ventas y clientes
+                    Berea Tech · inventario, ventas y clientes
                   </span>
                   <span className="inline-flex items-center gap-1.5 berea-landing-muted">
                     <span aria-hidden>·</span>
@@ -83,7 +81,7 @@ export default function LandingPage() {
                 </h1>
                 <p className="berea-landing-body mt-5 text-[15px] leading-relaxed sm:text-lg">
                   Controla inventario, registra ventas y haz seguimiento a clientes desde un solo panel.
-                  Implementamos Berea Comercios contigo y capacitamos a tu equipo para usarlo bien desde el primer día.
+                  Implementamos Berea Tech contigo y capacitamos a tu equipo para usarlo bien desde el primer día.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center gap-3">
                   <Link href="/registro" className="berea-landing-btn-primary">

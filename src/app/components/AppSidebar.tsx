@@ -292,12 +292,15 @@ export default function AppSidebar() {
           <Link
             href={isInterno ? "/interno" : "/dashboard"}
             className="sidebar-logo-link outline-offset-4 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--shell-nav-fg)]/35"
-            title={isInterno ? "Bernabé BackOffice" : "Bernabé Comercios"}
-            aria-label="Berea — Ir al inicio"
+            title={isInterno ? "Berea Tech BackOffice" : "Berea Tech"}
+            aria-label="Berea Tech — Ir al inicio"
           >
-            <span className="berea-tech-logo-frame berea-tech-logo-frame--sidebar">
-              <img src="/logo-berea-tech.png" alt="" decoding="async" />
-            </span>
+            <img
+              src="/logo-berea-tech.png"
+              alt=""
+              className="berea-house-logo berea-house-logo--sidebar"
+              decoding="async"
+            />
           </Link>
         </div>
 

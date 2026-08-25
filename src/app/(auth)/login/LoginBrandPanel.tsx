@@ -1,6 +1,11 @@
+import Link from "next/link";
+
 export function LoginBrandPanel() {
   return (
     <div className="berea-auth-aside-inner">
+      <Link href="/" className="berea-auth-aside-logo" aria-label="Berea Tech — Ir al inicio">
+        <img src="/logo-berea-tech.png" alt="Berea Tech, tiendas de tecnología" decoding="async" />
+      </Link>
       <h2>Tu equipo y tu negocio, organizados</h2>
       <p>Inventario, ventas y clientes en un solo lugar. Menos caos, más claridad en el día a día.</p>
       <ul className="berea-auth-aside-list">

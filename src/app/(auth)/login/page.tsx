@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { BereaAuthLogo } from "./BereaAuthLogo";
+import { BereaAuthMobileLogo } from "./BereaAuthLogo";
 import { LoginBrandPanel } from "./LoginBrandPanel";
 
 function LoginContent() {
@@ -131,7 +131,7 @@ function LoginContent() {
       <div className="berea-auth-layout">
         <main className="berea-auth-main">
           <div className="berea-auth-card">
-            <BereaAuthLogo href="/" />
+            <BereaAuthMobileLogo href="/" />
 
             <header className="berea-auth-card-header">
               <h1>Bienvenido de nuevo</h1>
@@ -225,7 +225,7 @@ function LoginContent() {
                   Crear cuenta
                 </Link>
                 <p className="berea-auth-register-hint">
-                  Prueba Berea Comercios gratis: inventario, ventas y clientes en minutos.
+                  Prueba Berea Tech gratis: inventario, ventas y clientes en minutos.
                 </p>
               </div>
             </form>

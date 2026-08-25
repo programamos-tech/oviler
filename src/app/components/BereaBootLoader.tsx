@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BereaAuthLogo } from "@/app/(auth)/login/BereaAuthLogo";
 import { BEREA_SESSION_READY_EVENT } from "./SessionProvider";
 
 const AUTH_PATHS = ["/login", "/registro", "/onboarding"];
@@ -144,10 +143,15 @@ export default function BereaBootLoader() {
       aria-valuenow={pct}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label="Cargando Berea Comercios"
+      aria-label="Cargando Berea Tech"
     >
       <div className="berea-boot-panel">
-        <BereaAuthLogo />
+        <img
+          src="/logo-berea-tech.png"
+          alt="Berea Tech"
+          className="berea-house-logo berea-house-logo--boot"
+          decoding="async"
+        />
         <div className="berea-boot-progress">
           <div className="berea-boot-progress-fill" style={{ width: `${pct}%` }} />
         </div>
