@@ -10,6 +10,7 @@ const SALE_SELECT = `
   payment_pending, is_delivery, delivery_address_id, delivery_fee, delivery_person_id,
   delivery_paid, created_at, channel, public_tracking_token, payment_proof_url,
   cancellation_reason, cancellation_requested_at, cancellation_requested_by, notes,
+  amount_cash, amount_transfer,
   customers(name, phone, cedula),
   users!user_id(name),
   delivery_persons(name, code),
@@ -66,6 +67,8 @@ function buildSalePayload(saleRow: Record<string, unknown>) {
       cancellation_requested_at: saleRow.cancellation_requested_at,
       cancellation_requested_by: saleRow.cancellation_requested_by,
       notes: saleRow.notes ?? null,
+      amount_cash: saleRow.amount_cash ?? null,
+      amount_transfer: saleRow.amount_transfer ?? null,
       customers: pickOne(
         saleRow.customers as
           | { name: string; phone: string | null; cedula: string | null }

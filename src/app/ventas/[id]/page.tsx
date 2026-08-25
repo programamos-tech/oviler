@@ -112,6 +112,8 @@ type SaleDetail = {
   invoice_number: string;
   total: number;
   payment_method: "cash" | "transfer" | "mixed";
+  amount_cash?: number | null;
+  amount_transfer?: number | null;
   status: string;
   payment_pending?: boolean;
   is_delivery: boolean;
@@ -946,6 +948,12 @@ export default function SaleDetailPage() {
       <p><strong>${esc(docPrint.printNumberLabel)}:</strong> ${esc(invoiceNum)}</p>
       <p><strong>Fecha de expedición:</strong> ${esc(saleDate)}</p>
       <p><strong>Forma de pago:</strong> ${esc(paymentLabel)}</p>
+      ${
+        sale?.payment_method === "mixed" &&
+        (sale.amount_cash != null || sale.amount_transfer != null)
+          ? `<p><strong>Efectivo:</strong> $ ${formatMoney(Number(sale.amount_cash ?? 0))} · <strong>Transferencia:</strong> $ ${formatMoney(Number(sale.amount_transfer ?? 0))}</p>`
+          : ""
+      }
       ${sale?.notes?.trim() ? `<p><strong>Nota adicional:</strong> ${esc(sale.notes.trim())}</p>` : ""}
       ${sale?.is_delivery ? `<p><strong>Transportador:</strong> ${esc(transporterLine)}</p>` : ""}
     </div>
@@ -1365,6 +1373,23 @@ export default function SaleDetailPage() {
                   {paymentLabel}
                 </span>
               </div>
+              {sale.payment_method === "mixed" &&
+                (sale.amount_cash != null || sale.amount_transfer != null) && (
+                  <div className="mt-2 space-y-1 text-[12px] leading-snug text-slate-600 dark:text-slate-300">
+                    <p>
+                      <span className="font-medium text-slate-500 dark:text-slate-400">Efectivo:</span>{" "}
+                      <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                        $ {formatMoney(Number(sale.amount_cash ?? 0))}
+                      </span>
+                    </p>
+                    <p>
+                      <span className="font-medium text-slate-500 dark:text-slate-400">Transferencia:</span>{" "}
+                      <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                        $ {formatMoney(Number(sale.amount_transfer ?? 0))}
+                      </span>
+                    </p>
+                  </div>
+                )}
             </div>
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Estado del pago</p>
