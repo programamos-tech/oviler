@@ -470,6 +470,89 @@ body {
   animation: berea-skeleton-pulse 1.4s ease-in-out infinite;
 }
 
+/* Enlace “ver más” de cards: pie de tarjeta, no link SaaS azul + → */
+.berea-card-more {
+  margin-top: 0.75rem;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-top: 1px solid var(--berea-card-border);
+  padding-top: 0.7rem;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--berea-ink-muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.berea-card-more:hover {
+  color: var(--berea-accent);
+}
+
+.berea-card-more::after {
+  content: "";
+  width: 0.9rem;
+  height: 0.9rem;
+  flex-shrink: 0;
+  opacity: 0.55;
+  background-color: currentColor;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='black' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 5l7 7-7 7'/%3E%3C/svg%3E");
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='black' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 5l7 7-7 7'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.berea-card-more:hover::after {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.berea-card-more-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--berea-ink-subtle);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.berea-card-more-inline:hover {
+  color: var(--berea-accent);
+}
+
+.berea-card-more-inline::after {
+  content: "";
+  width: 0.7rem;
+  height: 0.7rem;
+  flex-shrink: 0;
+  opacity: 0.45;
+  background-color: currentColor;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='black' stroke-width='2.25'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 5l7 7-7 7'/%3E%3C/svg%3E");
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='black' stroke-width='2.25'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 5l7 7-7 7'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.berea-card-more-inline:hover::after {
+  opacity: 0.9;
+  transform: translateX(1px);
+}
+
 @keyframes berea-skeleton-pulse {
   0%,
   100% {

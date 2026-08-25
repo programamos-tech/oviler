@@ -156,7 +156,7 @@ function TopProductsCard({
         style={bereaEnterItemStyle(0)}
       >
         <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">{D.topProducts}</h2>
-        <Link href="/ventas" className="text-[12px] font-semibold text-[var(--berea-accent)] hover:underline">
+        <Link href="/ventas" className="berea-card-more-inline">
           Ver todos
         </Link>
       </div>
@@ -436,11 +436,10 @@ function RecentActivityCard({
       </ul>
       <Link
         href="/actividades"
-        className="berea-enter-layer mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--berea-accent)] hover:underline"
+        className="berea-card-more berea-enter-layer"
         style={bereaEnterItemStyle(2)}
       >
         Ver todas las actividades
-        <span aria-hidden>→</span>
       </Link>
     </BereaCard>
   );
@@ -720,11 +719,10 @@ function PeriodExpensesCard({
       </ul>
       <Link
         href="/egresos"
-        className="berea-enter-layer mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--berea-accent)] hover:underline"
+        className="berea-card-more berea-enter-layer"
         style={bereaEnterItemStyle(2)}
       >
         Ver todos los egresos
-        <span aria-hidden>→</span>
       </Link>
     </BereaCard>
   );
@@ -1146,7 +1144,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                     style={bereaEnterItemStyle(0)}
                   >
                     <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">{D.recentOrders}</h2>
-                    <Link href="/ventas" className="text-[12px] font-semibold text-[var(--berea-accent)] hover:underline">
+                    <Link href="/ventas" className="berea-card-more-inline">
                       {D.recentOrdersLink}
                     </Link>
                   </div>
