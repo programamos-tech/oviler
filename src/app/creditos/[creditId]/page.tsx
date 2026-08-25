@@ -689,7 +689,7 @@ function CreditoDetalleInner() {
                   {formatMoney(Number(p.amount))}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className={paymentMethodChipClass(p.payment_method)}>
+                  <span className={getPedidoPaymentMethodChipClass(p.payment_method)}>
                     {paymentMethodLabel(p.payment_method)}
                     {p.payment_method === "mixed" &&
                       p.amount_cash != null &&

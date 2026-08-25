@@ -176,15 +176,15 @@ export function getPaymentListChipClass(): string {
 
 /** Forma de pago en detalle de pedido con envío: colores suaves por canal. */
 export function getPedidoPaymentMethodChipClass(method: string): string {
-  const m = String(method || "").toLowerCase();
+  const m = String(method || "").toLowerCase().trim();
   if (m === "cash") {
-    return `${LIST_CHIP_BASE} border-[#15406b]/25 bg-[#15406b]/08 text-[#15406b] dark:border-sky-800/55 dark:bg-sky-950/35 dark:text-sky-100`;
+    return `${LIST_CHIP_BASE} border-[#15406b]/35 bg-[#dce6f0] font-semibold text-[#0d2137] dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-100`;
   }
   if (m === "transfer") {
-    return `${LIST_CHIP_BASE} border-teal-200/90 bg-teal-50/95 text-teal-900 dark:border-teal-800/55 dark:bg-teal-950/35 dark:text-teal-100`;
+    return `${LIST_CHIP_BASE} border-teal-300 bg-teal-100 font-semibold text-teal-950 dark:border-teal-700 dark:bg-teal-950/40 dark:text-teal-100`;
   }
   if (m === "mixed") {
-    return `${LIST_CHIP_BASE} border-amber-200/90 bg-amber-50/95 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100`;
+    return `${LIST_CHIP_BASE} border-amber-300 bg-amber-100 font-semibold text-amber-950 dark:border-amber-700 dark:bg-amber-950/35 dark:text-amber-100`;
   }
   return getPaymentListChipClass();
 }
