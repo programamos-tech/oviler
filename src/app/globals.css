@@ -836,7 +836,7 @@ body {
 
 .berea-auth-aside-logo {
   display: inline-block;
-  margin-bottom: 1.75rem;
+  margin-bottom: 1rem;
   line-height: 0;
   transition: opacity 0.15s ease;
 }
@@ -847,9 +847,9 @@ body {
 
 .berea-auth-aside-logo img {
   display: block;
-  width: 13.5rem;
+  width: 9.75rem;
   height: auto;
-  max-height: 7.5rem;
+  max-height: 4.15rem;
   object-fit: contain;
 }
 
