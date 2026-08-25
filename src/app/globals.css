@@ -527,7 +527,8 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 0;
-  padding: 0.125rem 0.25rem 0.25rem;
+  padding: 0.125rem 0.25rem 0.75rem;
+  margin-bottom: 0.35rem;
 }
 
 /* Menú central: reparte ítems en el alto disponible (sin huecos grandes) */
@@ -1454,9 +1455,9 @@ body {
 }
 
 .berea-house-logo--sidebar {
-  width: 10.5rem;
+  width: 8.25rem;
   height: auto;
-  max-height: 5.75rem;
+  max-height: 4.25rem;
   mix-blend-mode: lighten;
 }
 
