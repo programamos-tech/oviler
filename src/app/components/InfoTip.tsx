@@ -84,7 +84,7 @@ export function InfoTip({
         role="tooltip"
         className={`absolute left-0 top-full z-50 mt-1.5 w-[min(calc(100vw-2rem),16rem)] rounded-lg px-2.5 py-2 text-left text-[11px] font-medium leading-snug transition-opacity sm:left-1/2 sm:w-60 sm:-translate-x-1/2 ${
           tone === "berea"
-            ? "berea-reports-surface text-[var(--berea-ink-muted)] shadow-md"
+            ? "bg-[#111219] text-[#f4f4f5] shadow-lg ring-1 ring-black/25"
             : "bg-slate-800 text-white shadow-lg ring-1 ring-black/10 dark:bg-slate-700 dark:ring-white/10"
         } ${open ? "visible opacity-100 pointer-events-auto" : "invisible opacity-0 pointer-events-none"}`}
       >
