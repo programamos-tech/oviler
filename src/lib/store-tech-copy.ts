@@ -72,7 +72,7 @@ export const STORE_TECH_COPY = {
     },
     helpFooter: {
       title: "¿Necesitas ayuda?",
-      subtitle: "WhatsApp · 315 280 2343",
+      subtitle: "WhatsApp · 300 157 5829",
     },
   },
 

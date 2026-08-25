@@ -7,9 +7,9 @@ export function programamosWhatsAppUrl(prefill: string): string {
 }
 
 /** WhatsApp ayuda en sidebar / header (Berea Tech). */
-export const WORKSPACE_HELP_WA_E164 = "573152802343";
+export const WORKSPACE_HELP_WA_E164 = "573001575829";
 
-export const WORKSPACE_HELP_WA_DISPLAY = "315 280 2343";
+export const WORKSPACE_HELP_WA_DISPLAY = "300 157 5829";
 
 /** Icono de ayuda (WhatsApp) en el navbar / header del workspace. */
 export function workspaceHelpWhatsAppUrl(): string {
