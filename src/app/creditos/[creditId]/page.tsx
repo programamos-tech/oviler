@@ -478,7 +478,7 @@ function CreditoDetalleInner() {
           <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:gap-4">
             <div className="min-w-0 p-0">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Total</p>
-              <p className="mt-0.5 text-xl font-semibold tabular-nums text-[var(--berea-ink)] sm:text-2xl">
+              <p className="mt-0.5 text-[15px] font-semibold tabular-nums text-[var(--berea-ink)]">
                 $ {formatMoney(Number(credit.total_amount))}
               </p>
             </div>
@@ -493,7 +493,7 @@ function CreditoDetalleInner() {
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Estado</p>
               <div className="mt-1">
-                <span className={paymentChip.className}>{paymentChip.label}</span>
+                <span className={statusChip.className}>{statusChip.label}</span>
               </div>
             </div>
             {credit.sales?.id && (
