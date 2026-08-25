@@ -1444,8 +1444,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.35rem;
-  width: min(92vw, 16rem);
+  gap: 1.1rem;
+  width: min(88vw, 13rem);
   text-align: center;
 }
 
@@ -1469,9 +1469,9 @@ body {
 }
 
 .berea-house-logo--boot {
-  width: min(78vw, 16rem);
+  width: min(58vw, 11rem);
   height: auto;
-  max-height: min(42vw, 8.75rem);
+  max-height: min(30vw, 5.75rem);
   /* El PNG ya trae fondo #111219; sin blend para evitar el “cuadrado” más oscuro */
   mix-blend-mode: normal;
 }
