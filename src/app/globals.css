@@ -28,8 +28,8 @@ html {
   --shell-sidebar: #15406b;
   --shell-sidebar-accent: #3d7aab;
   --shell-sidebar-cta-hover: #0d2137;
-  /* Sidebar / top móvil: tono Arc (carbón indigo, casi negro) */
-  --shell-nav-bg: #12121a;
+  /* Sidebar / top móvil / loader: oscuro de marca Berea */
+  --shell-nav-bg: #111219;
   --shell-nav-fg: #ececef;
   --shell-nav-fg-muted: rgba(236, 236, 239, 0.68);
   --shell-nav-fg-subtle: rgba(236, 236, 239, 0.44);
@@ -1421,7 +1421,7 @@ body {
   outline: none;
 }
 
-/* Pantalla de carga al recargar (marca Berea House) */
+/* Pantalla de carga al recargar (marca Berea) */
 .berea-boot-overlay {
   position: fixed;
   inset: 0;
@@ -1429,7 +1429,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0c2344;
+  background: #111219;
   transition: opacity 0.35s ease, visibility 0.35s ease;
 }
 
@@ -1471,6 +1471,8 @@ body {
   width: min(78vw, 16rem);
   height: auto;
   max-height: min(42vw, 8.75rem);
+  /* El PNG ya trae fondo #111219; sin blend para evitar el “cuadrado” más oscuro */
+  mix-blend-mode: normal;
 }
 
 .berea-boot-progress {
