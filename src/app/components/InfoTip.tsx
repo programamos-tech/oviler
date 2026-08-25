@@ -1,10 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 
 /**
  * Icono (i) con texto explicativo. Se abre y cierra con clic/tap (iPad y móvil);
- * clic fuera o Escape cierra. Así no dependemos de :hover ni del foco táctil inconsistente.
+ * clic fuera o Escape cierra. El panel se renderiza en portal (fixed) para no
+ * quedar recortado por overflow:hidden de cards/grids.
  */
 export function InfoTip({
   children,
@@ -16,16 +26,51 @@ export function InfoTip({
   tone?: "default" | "berea";
 }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
   const rootRef = useRef<HTMLSpanElement>(null);
+  const panelRef = useRef<HTMLSpanElement>(null);
   const tooltipId = useId();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const updatePosition = useCallback(() => {
+    const btn = rootRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const maxW = Math.min(window.innerWidth - 16, 240);
+    let left = rect.left + rect.width / 2 - maxW / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - maxW - 8));
+    const top = rect.bottom + 8;
+    setCoords({ top, left, width: maxW });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    updatePosition();
+    const onScrollOrResize = () => updatePosition();
+    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    return () => {
+      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+    };
+  }, [open, updatePosition]);
 
   useEffect(() => {
     if (!open) return;
     const closeIfOutside = (e: MouseEvent | TouchEvent) => {
-      const el = rootRef.current;
-      if (!el) return;
+      const root = rootRef.current;
+      const panel = panelRef.current;
       const target = e.target;
-      if (target instanceof Node && !el.contains(target)) setOpen(false);
+      if (!(target instanceof Node)) return;
+      if (root?.contains(target) || panel?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", closeIfOutside);
     document.addEventListener("touchstart", closeIfOutside, { passive: true });
@@ -49,6 +94,11 @@ export function InfoTip({
     e.stopPropagation();
     setOpen((v) => !v);
   }, []);
+
+  const panelClass =
+    tone === "berea"
+      ? "bg-[#111219] text-[#f4f4f5] shadow-lg ring-1 ring-black/25"
+      : "bg-slate-800 text-white shadow-lg ring-1 ring-black/10 dark:bg-slate-700 dark:ring-white/10";
 
   return (
     <span ref={rootRef} className="relative inline-flex shrink-0 align-middle">
@@ -79,17 +129,21 @@ export function InfoTip({
           />
         </svg>
       </button>
-      <span
-        id={tooltipId}
-        role="tooltip"
-        className={`absolute left-0 top-full z-50 mt-1.5 w-[min(calc(100vw-2rem),16rem)] rounded-lg px-2.5 py-2 text-left text-[11px] font-medium leading-snug transition-opacity sm:left-1/2 sm:w-60 sm:-translate-x-1/2 ${
-          tone === "berea"
-            ? "bg-[#111219] text-[#f4f4f5] shadow-lg ring-1 ring-black/25"
-            : "bg-slate-800 text-white shadow-lg ring-1 ring-black/10 dark:bg-slate-700 dark:ring-white/10"
-        } ${open ? "visible opacity-100 pointer-events-auto" : "invisible opacity-0 pointer-events-none"}`}
-      >
-        {children}
-      </span>
+      {mounted &&
+        open &&
+        coords &&
+        createPortal(
+          <span
+            ref={panelRef}
+            id={tooltipId}
+            role="tooltip"
+            className={`fixed z-[200] rounded-lg px-2.5 py-2 text-left text-[11px] font-medium leading-snug ${panelClass}`}
+            style={{ top: coords.top, left: coords.left, width: coords.width }}
+          >
+            {children}
+          </span>,
+          document.body
+        )}
     </span>
   );
 }
