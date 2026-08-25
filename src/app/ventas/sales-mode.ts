@@ -174,19 +174,13 @@ export function getPaymentListChipClass(): string {
   return `${LIST_CHIP_BASE} border-slate-200/90 bg-slate-50/95 text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200`;
 }
 
-/** Forma de pago en detalle de pedido con envío: colores suaves por canal. */
+/** Forma de pago: mismo chip CSS en factura, créditos y abonos. */
 export function getPedidoPaymentMethodChipClass(method: string): string {
   const m = String(method || "").toLowerCase().trim();
-  if (m === "cash") {
-    return `${LIST_CHIP_BASE} border-[#15406b]/35 bg-[#dce6f0] font-semibold text-[#0d2137] dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-100`;
-  }
-  if (m === "transfer") {
-    return `${LIST_CHIP_BASE} border-teal-300 bg-teal-100 font-semibold text-teal-950 dark:border-teal-700 dark:bg-teal-950/40 dark:text-teal-100`;
-  }
-  if (m === "mixed") {
-    return `${LIST_CHIP_BASE} border-amber-300 bg-amber-100 font-semibold text-amber-950 dark:border-amber-700 dark:bg-amber-950/35 dark:text-amber-100`;
-  }
-  return getPaymentListChipClass();
+  if (m === "cash") return "berea-pay-method-chip berea-pay-method-chip--cash";
+  if (m === "transfer") return "berea-pay-method-chip berea-pay-method-chip--transfer";
+  if (m === "mixed") return "berea-pay-method-chip berea-pay-method-chip--mixed";
+  return "berea-pay-method-chip berea-pay-method-chip--unknown";
 }
 
 /** Pago del pedido / envío: pendiente (ámbar), pagado (verde), cancelado (rojo). */
