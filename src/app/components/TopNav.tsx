@@ -109,16 +109,16 @@ export default function TopNav() {
             {branch ? (
               <>
                 <span className="h-8 w-px shrink-0 rounded-full bg-[var(--shell-nav-border)]" aria-hidden />
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)]">
+                <div className="sidebar-branch-logo flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
                   {branch.logo_url ? (
                     <img
                       src={branch.logo_url}
                       alt=""
-                      className="max-h-full max-w-full object-contain object-center"
+                      className="object-contain object-center"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <span className="flex h-full w-full items-center justify-center text-[11px] font-bold text-[var(--shell-nav-fg-muted)]">
+                    <span className="flex h-full w-full items-center justify-center text-[11px] font-bold text-zinc-600">
                       {(branch.name || "L").slice(0, 1).toUpperCase()}
                     </span>
                   )}

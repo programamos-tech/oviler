@@ -315,13 +315,13 @@ export default function AppSidebar() {
             className="sidebar-card flex items-center gap-3 border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)] px-3 py-2.5 transition-colors hover:bg-[var(--shell-nav-hover-bg)]"
           >
             {branch.logo_url ? (
-              <div className="sidebar-icon-box flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden border border-[var(--shell-nav-border)] bg-[var(--shell-nav-card-bg)]">
+              <div className="sidebar-icon-box sidebar-branch-logo flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden border">
                 <img
                   src={branch.logo_url}
                   alt=""
                   width={36}
                   height={36}
-                  className="max-h-full max-w-full object-contain object-center"
+                  className="object-contain object-center"
                   referrerPolicy="no-referrer"
                 />
               </div>

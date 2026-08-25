@@ -178,6 +178,20 @@ body {
   border-radius: 4px;
 }
 
+/* Logo de sucursal: fondo claro para que se vean marcas oscuras (Apple, etc.) */
+.shell-sidebar .sidebar-branch-logo,
+.shell-nav .sidebar-branch-logo {
+  background-color: #f4f4f5 !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+.shell-sidebar .sidebar-branch-logo img,
+.shell-nav .sidebar-branch-logo img {
+  max-height: 78%;
+  max-width: 78%;
+  object-fit: contain;
+}
+
 /* Navbar desktop: mismo lienzo que workspace; tipografía e iconos alineados al shell */
 .shell-workspace-header {
   font-family: var(--font-shell), var(--font-plus-jakarta), system-ui, sans-serif;
