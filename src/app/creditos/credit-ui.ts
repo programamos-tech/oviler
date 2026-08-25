@@ -1,5 +1,7 @@
 /** Utilidades UI compartidas del módulo Créditos. */
 
+import { getPedidoPaymentMethodChipClass } from "@/app/ventas/sales-mode";
+
 export function formatMoney(value: number) {
   return new Intl.NumberFormat("es-CO", { style: "decimal", minimumFractionDigits: 0 }).format(value);
 }
@@ -90,21 +92,9 @@ export function paymentMethodLabel(m: "cash" | "transfer" | "mixed"): string {
   return "Mixto";
 }
 
-/** Chip de forma de pago (efectivo navy, transferencia teal, mixto ámbar). */
+/** Chip de forma de pago — mismo criterio visual que en detalle de factura. */
 export function paymentMethodChipClass(method: string | null | undefined): string {
-  const base =
-    "inline-flex max-w-full items-center rounded-full border px-2.5 py-0.5 text-left text-[12px] font-semibold leading-tight";
-  const m = String(method || "").toLowerCase().trim();
-  if (m === "cash") {
-    return `${base} border-[#15406b]/35 bg-[#dce6f0] text-[#0d2137]`;
-  }
-  if (m === "transfer") {
-    return `${base} border-teal-300 bg-teal-100 text-teal-950`;
-  }
-  if (m === "mixed") {
-    return `${base} border-amber-300 bg-amber-100 text-amber-950`;
-  }
-  return `${base} border-slate-200 bg-slate-100 text-slate-700`;
+  return getPedidoPaymentMethodChipClass(String(method ?? ""));
 }
 
 /** Estado del cobro del crédito: pendiente / pagado / anulado. */

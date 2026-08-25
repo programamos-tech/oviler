@@ -23,7 +23,6 @@ import {
   formatDateShort,
   formatDateTime,
   formatMoney,
-  paymentMethodChipClass,
   paymentMethodLabel,
 } from "../credit-ui";
 
@@ -442,13 +441,7 @@ function CreditoDetalleInner() {
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:dark:border-slate-700">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--berea-ink-muted)]">Método de pago (factura)</p>
               <div className="mt-1">
-                <span
-                  className={
-                    credit.sales?.payment_method
-                      ? getPedidoPaymentMethodChipClass(credit.sales.payment_method)
-                      : paymentMethodChipClass(null)
-                  }
-                >
+                <span className={getPedidoPaymentMethodChipClass(credit.sales?.payment_method ?? "")}>
                   {salePaymentLabel}
                 </span>
               </div>

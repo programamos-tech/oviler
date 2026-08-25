@@ -14,7 +14,6 @@ import {
   getStatusLabelForSale,
   getStatusClass,
   getStatusListChipClass,
-  getPaymentListChipClass,
   getPedidoPaymentMethodChipClass,
   getPedidoPaymentStateChipClass,
   getPedidoOrderStatusButtonSurfaceClass,
@@ -972,7 +971,7 @@ export default function SaleDetailPage() {
   <div class="legal">
     Comprobante emitido por <strong>${esc(branchName)}</strong>. Consérvese como soporte de la operación.
     <br />
-    <strong>Tecnología / software:</strong> Berea Tech.
+    <strong>Tecnología / software:</strong> Berea Tecnología.
   </div>
 </body>
 </html>`;
@@ -1154,7 +1153,7 @@ export default function SaleDetailPage() {
               {sale.branches?.responsable_iva ? "Sí" : "No"}
             </p>
             <p className={`print:mt-2 print:text-neutral-500 ${invoicePrintType === "tirilla" ? "print:text-[8px]" : "print:text-[10px]"}`}>
-              Tecnología / software: Berea Tech
+              Tecnología / software: Berea Tecnología
             </p>
           </div>
         </div>
@@ -1369,7 +1368,7 @@ export default function SaleDetailPage() {
             <div className="min-w-0 sm:border-l sm:border-slate-200 sm:pl-4 sm:pl-6 sm:dark:border-slate-700">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Método de pago</p>
               <div className="mt-1">
-                <span className={pedidoVisual ? getPedidoPaymentMethodChipClass(sale.payment_method) : getPaymentListChipClass()}>
+                <span className={getPedidoPaymentMethodChipClass(sale.payment_method)}>
                   {paymentLabel}
                 </span>
               </div>
