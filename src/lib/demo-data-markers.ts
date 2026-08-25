@@ -16,7 +16,8 @@ export function isHistDemoWarrantyReason(reason: string | null | undefined): boo
 
 export function isHistDemoInvoice(invoiceNumber: string | null | undefined): boolean {
   const inv = String(invoiceNumber ?? "");
-  return inv.startsWith("FV-HIST-") || inv.startsWith("FV-LIVE-");
+  // Solo FV-HIST- se oculta del panel operativo. FV-LIVE- es demo “sistema en marcha”.
+  return inv.startsWith("FV-HIST-");
 }
 
 export function isHistDemoCreditPayment(row: {
