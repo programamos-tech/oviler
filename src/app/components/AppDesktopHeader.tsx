@@ -139,7 +139,7 @@ export default function AppDesktopHeader() {
               </svg>
             </a>
 
-            <Link href="/actividades" className={iconBtn} title="Actividades" aria-label="Actividades">
+            <Link href="/actividades" className={iconBtn} title="Actividad" aria-label="Actividad">
               <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>

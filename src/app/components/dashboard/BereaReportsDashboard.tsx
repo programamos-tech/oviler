@@ -439,7 +439,7 @@ function RecentActivityCard({
         className="berea-card-more berea-enter-layer"
         style={bereaEnterItemStyle(2)}
       >
-        Ver todas las actividades
+        Ver toda la actividad
       </Link>
     </BereaCard>
   );

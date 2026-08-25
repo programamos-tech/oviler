@@ -62,7 +62,7 @@ const navItems = [
   },
   {
     href: "/actividades",
-    label: "Actividades",
+    label: "Actividad",
     icon: (
       <svg className="h-full w-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path

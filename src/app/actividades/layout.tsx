@@ -4,8 +4,8 @@ export default function ActividadesLayout({ children }: { children: React.ReactN
   return (
     <PlanFeatureGate
       gatedModule="branch_activities"
-      title="Actividades"
-      description="El registro de actividades de sucursal está disponible desde el plan Estándar."
+      title="Actividad"
+      description="El registro de actividad de sucursal está disponible desde el plan Estándar."
     >
       {children}
     </PlanFeatureGate>
