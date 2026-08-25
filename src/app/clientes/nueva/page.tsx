@@ -9,6 +9,7 @@ import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { formatCedulaForStorage, normalizeCedulaForUniqueness } from "@/lib/customer-cedula";
 import { workspaceFormInputMdClass } from "@/lib/workspace-field-classes";
+import { clearClientesListCache } from "@/lib/clientes-detail-cache";
 
 const LABEL_OPTIONS = [
   { value: "Casa", label: "Casa" },
@@ -164,7 +165,8 @@ export default function NewCustomerPage() {
                 addressLabels.length > 8 ? "…" : ""
               }`;
 
-      router.push("/clientes");
+      clearClientesListCache();
+      router.push("/clientes?fresh=1");
 
       const meta: Record<string, unknown> = {
         name: nameTrim,

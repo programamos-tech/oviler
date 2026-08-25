@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     .eq("organization_id", organizationId)
     .eq("branch_id", branchId)
     .eq("active", true)
-    .order("name", { ascending: true })
+    .order("created_at", { ascending: false })
     .range(from, to);
 
   if (search) {
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       .select(LIST_SELECT, { count: "exact" })
       .eq("organization_id", organizationId)
       .eq("branch_id", branchId)
-      .order("name", { ascending: true })
+      .order("created_at", { ascending: false })
       .range(from, to);
     if (search) {
       const esc = search.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
@@ -88,6 +88,6 @@ export async function GET(request: NextRequest) {
       page,
       pageSize,
     },
-    { headers: { "Cache-Control": "private, max-age=20, stale-while-revalidate=40" } }
+    { headers: { "Cache-Control": "private, no-store" } }
   );
 }

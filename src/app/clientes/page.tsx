@@ -119,6 +119,14 @@ function CustomersPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    if (searchParams.get("fresh") !== "1") return;
+    clearClientesListCache();
+    setPage(1);
+    setRefreshKey((k) => k + 1);
+    router.replace("/clientes", { scroll: false });
+  }, [searchParams, router]);
+
+  useEffect(() => {
     const id = window.setTimeout(() => {
       setDebouncedSearch(searchInput.trim());
     }, SEARCH_DEBOUNCE_MS);
@@ -179,6 +187,7 @@ function CustomersPage() {
         });
         const res = await fetch(`/api/clientes/query-bundle?${params.toString()}`, {
           credentials: "include",
+          cache: "no-store",
         });
         if (!res.ok) {
           const err = (await res.json().catch(() => ({}))) as { error?: string };

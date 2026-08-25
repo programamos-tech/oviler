@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { logActivity } from "@/lib/activities";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { formatCedulaForStorage, normalizeCedulaForUniqueness } from "@/lib/customer-cedula";
+import { clearClientesListCache } from "@/lib/clientes-detail-cache";
 
 const LABEL_OPTIONS = [
   { value: "Casa", label: "Casa" },
@@ -276,6 +277,7 @@ export default function EditCustomerPage() {
       // No bloquear el flujo si falla el registro de actividad
     }
 
+    clearClientesListCache();
     router.push(`/clientes/${id}`);
   }
 

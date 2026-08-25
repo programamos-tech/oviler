@@ -192,6 +192,7 @@ export async function prefetchClientesList(branchId: string, refreshKey = 0): Pr
   const run = (async () => {
     const res = await fetch(`/api/clientes/query-bundle?${params.toString()}`, {
       credentials: "include",
+      cache: "no-store",
     });
     if (!res.ok) return null;
     const bundle = await res.json();

@@ -9,6 +9,7 @@ import {
   fetchClienteDetailBundle,
   fetchClienteDetailExtras,
   getCachedClienteDetail,
+  clearClientesListCache,
 } from "@/lib/clientes-detail-cache";
 import Breadcrumb from "@/app/components/Breadcrumb";
 import { STORE_TECH_COPY } from "@/lib/store-tech-copy";
@@ -201,7 +202,8 @@ export default function CustomerDetailPage() {
     }
     setDeleting(false);
     setDeleteOpen(false);
-    router.push("/clientes");
+    clearClientesListCache();
+    router.push("/clientes?fresh=1");
   }
 
   if (loading) {
