@@ -50,6 +50,8 @@ html {
   --berea-accent: #15406b;
   --berea-accent-hover: #0d2137;
   --berea-accent-soft: rgba(13, 33, 55, 0.14);
+  --berea-brand-logo-width: 11.5rem;
+  --berea-brand-logo-ratio: 775 / 356;
 }
 
 @theme inline {
@@ -1542,7 +1544,8 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 1.25rem;
-  width: min(88vw, 14.5rem);
+  width: var(--berea-brand-logo-width);
+  max-width: calc(100vw - 2rem);
   text-align: center;
 }
 
@@ -1638,23 +1641,28 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.berea-house-logo--sidebar {
-  width: 100%;
-  max-width: 12.25rem;
+.berea-house-logo--sidebar,
+.berea-house-logo--boot {
+  width: var(--berea-brand-logo-width);
+  max-width: 100%;
   height: auto;
+  aspect-ratio: var(--berea-brand-logo-ratio);
+  object-fit: contain;
+}
+
+.berea-house-logo--sidebar {
   mix-blend-mode: lighten;
 }
 
 .berea-house-logo--topnav {
-  width: 8rem;
+  width: calc(var(--berea-brand-logo-width) * 0.72);
   height: auto;
-  max-height: 2.5rem;
+  aspect-ratio: var(--berea-brand-logo-ratio);
+  object-fit: contain;
   border-radius: 0.35rem;
 }
 
 .berea-house-logo--boot {
-  width: min(68vw, 14rem);
-  height: auto;
   /* El PNG ya trae fondo #111219; sin blend para evitar el “cuadrado” más oscuro */
   mix-blend-mode: normal;
 }
