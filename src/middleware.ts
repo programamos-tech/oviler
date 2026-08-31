@@ -127,10 +127,12 @@ export async function middleware(request: NextRequest) {
     isCatalogPublic ||
     publicPaths.some((path) => pathStr === path || pathStr.startsWith(path + '/'))
 
-  // APIs que deben funcionar sin sesión (registro de nueva cuenta)
+  // APIs que deben funcionar sin sesión (registro de nueva cuenta, webhook WhatsApp)
   const publicApiPaths = ['/api/admin/create-user', '/api/auth/create-organization']
   const isPublicApi =
-    publicApiPaths.some((path) => pathStr === path) || pathStr.startsWith('/api/catalog/')
+    publicApiPaths.some((path) => pathStr === path) ||
+    pathStr.startsWith('/api/catalog/') ||
+    pathStr.startsWith('/api/whatsapp/')
 
   // Usuario con sesión pero licencia bloqueada: puede validar clave sin redirigir al modal de bloqueo
   const licenseUnlockApi = request.nextUrl.pathname === '/api/auth/unlock-license'
@@ -216,6 +218,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/whatsapp(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

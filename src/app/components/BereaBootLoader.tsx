@@ -143,12 +143,12 @@ export default function BereaBootLoader() {
       aria-valuenow={pct}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label="Cargando Berea Tecnología"
+      aria-label="Cargando Berea Tech"
     >
       <div className="berea-boot-panel">
         <img
-          src="/logo-berea-tecnologia.png"
-          alt="Berea Tecnología"
+          src="/logo-berea-tech.png"
+          alt="Berea Tech"
           className="berea-house-logo berea-house-logo--boot"
           decoding="async"
         />

@@ -24,12 +24,12 @@ const youngSerif = Young_Serif({
 
 export const metadata: Metadata = {
   title: {
-    default: "Berea Tecnología — Sistema para tiendas de tecnología",
-    template: "%s · Berea Tecnología",
+    default: "Berea Tech — Sistema para tiendas de tecnología",
+    template: "%s · Berea Tech",
   },
   description:
-    "Inventario, ventas, clientes y créditos para tiendas de tecnología. Berea Tecnología — licencia con soporte.",
-  applicationName: "Berea Tecnología",
+    "Inventario, ventas, clientes y créditos para tiendas de tecnología. Berea Tech — licencia con soporte.",
+  applicationName: "Berea Tech",
   icons: {
     icon: [
       { url: "/favicon.png", type: "image/png", sizes: "32x32" },

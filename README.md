@@ -1,6 +1,6 @@
-# Bernabe Comercios
+# Berea Tech
 
-Aplicación Next.js del proyecto **Bernabe Comercios** (antes carpeta `oviler`).
+Aplicación Next.js del proyecto **Berea Tech** (tiendas de tecnología).
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 

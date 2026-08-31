@@ -146,6 +146,12 @@ export default function InternoPage() {
           </div>
           <div className="w-full lg:overflow-x-auto">
             <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:min-w-max lg:flex-nowrap lg:items-center lg:justify-end">
+              <Link
+                href="/interno/whatsapp"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-100/90 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-200/70 sm:w-auto dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                Leads WhatsApp
+              </Link>
               <button
                 type="button"
                 onClick={() => setRefreshKey((k) => k + 1)}

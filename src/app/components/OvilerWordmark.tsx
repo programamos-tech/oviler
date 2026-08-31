@@ -33,9 +33,9 @@ function BrandLogoMark({
 export function OvilerWordmark({
   className,
   variant = "onLight",
-  companyName = "Bernabé",
+  companyName = "Berea",
   companyClassName,
-  productLine = "Comercios",
+  productLine = "Tech",
   /** Ruta del PNG del lockup; por defecto `/ceiling.png` */
   logoSrc,
   /** Solo ícono, sin texto de marca / línea / producto */

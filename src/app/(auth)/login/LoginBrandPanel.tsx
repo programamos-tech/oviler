@@ -3,10 +3,10 @@ import Link from "next/link";
 export function LoginBrandPanel() {
   return (
     <div className="berea-auth-aside-inner">
-      <Link href="/" className="berea-auth-aside-logo" aria-label="Berea Tecnología — Ir al inicio">
+      <Link href="/" className="berea-auth-aside-logo" aria-label="Berea Tech — Ir al inicio">
         <img
-          src="/logo-berea-tecnologia.png"
-          alt="Berea Tecnología, desarrollo de software para tiendas de tecnología"
+          src="/logo-berea-tech.png"
+          alt="Berea Tech, tiendas de tecnología"
           decoding="async"
         />
       </Link>
