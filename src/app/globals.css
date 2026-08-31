@@ -1542,7 +1542,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 1.25rem;
-  width: min(88vw, 22rem);
+  width: min(88vw, 14.5rem);
   text-align: center;
 }
 
@@ -1640,20 +1640,20 @@ body {
 
 .berea-house-logo--sidebar {
   width: 100%;
-  max-width: 15rem;
+  max-width: 12.25rem;
   height: auto;
   mix-blend-mode: lighten;
 }
 
 .berea-house-logo--topnav {
-  width: 9.5rem;
+  width: 8rem;
   height: auto;
-  max-height: 2.85rem;
+  max-height: 2.5rem;
   border-radius: 0.35rem;
 }
 
 .berea-house-logo--boot {
-  width: min(86vw, 22rem);
+  width: min(68vw, 14rem);
   height: auto;
   /* El PNG ya trae fondo #111219; sin blend para evitar el “cuadrado” más oscuro */
   mix-blend-mode: normal;
