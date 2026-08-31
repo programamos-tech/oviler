@@ -7,8 +7,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/app/components/SessionProvider";
 import { creditRowPending } from "@/app/creditos/credit-ui";
 import { cashTransferFromLine, addCreditPaymentSplits as addCreditPaymentsToCashTransfer } from "@/lib/cash-transfer-from-line";
-import BereaReportsDashboard from "@/app/components/dashboard/BereaReportsDashboard";
+import BereaReportsDashboard, {
+  type ReportsDateFilterMode,
+  type ReportsViewMode,
+} from "@/app/components/dashboard/BereaReportsDashboard";
 import { useLocalCalendarToday } from "@/app/components/useLocalCalendarToday";
+import { canViewFullReports } from "@/lib/permissions";
 import {
   filterRowsByCreatedAtRange,
   getLocalCalendarDayBounds,
@@ -124,11 +128,6 @@ function dashboardBundleCacheKey(
   return [branchId, start, end, yStart, yEnd, trendStart, trendEnd].join("|");
 }
 
-/** Reporte completo: rango de fechas, bloque inventario/resultado y gráfica de tendencia. Cajero solo ve día a día. */
-function hasFullDashboardReports(role: string | null | undefined): boolean {
-  const r = String(role ?? "").toLowerCase();
-  return r === "owner" || r === "admin" || r === "delivery";
-}
 
 const TREND_MONTH_SHORT = [
   "ene",
@@ -251,6 +250,31 @@ function getRangeBounds(dateFrom: Date, dateTo: Date): { start: string; end: str
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
+function getWeekBounds(anchorDay: Date): { start: string; end: string } {
+  const end = new Date(anchorDay.getFullYear(), anchorDay.getMonth(), anchorDay.getDate());
+  const start = new Date(end);
+  start.setDate(start.getDate() - 6);
+  return getRangeBounds(start, end);
+}
+
+function getMonthBounds(anchorDay: Date): { start: string; end: string } {
+  const start = new Date(anchorDay.getFullYear(), anchorDay.getMonth(), 1);
+  const end = new Date(anchorDay.getFullYear(), anchorDay.getMonth(), anchorDay.getDate());
+  return getRangeBounds(start, end);
+}
+
+function getDashboardPeriodBounds(
+  mode: ReportsDateFilterMode,
+  selectedDay: Date,
+  dateFrom: Date,
+  dateTo: Date
+): { start: string; end: string } {
+  if (mode === "today") return getLocalCalendarDayBounds(selectedDay);
+  if (mode === "week") return getWeekBounds(selectedDay);
+  if (mode === "month") return getMonthBounds(selectedDay);
+  return getRangeBounds(dateFrom, dateTo);
+}
+
 function firstDayOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
@@ -284,9 +308,9 @@ function DashboardPage() {
   const queryBranchId = searchParams.get("branchId");
   const { branchId, profile, ready: sessionReady, refreshSession } = useSession();
   const [, startDataTransition] = useTransition();
-  type DateFilterMode = "today" | "range";
 
-  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>("today");
+  const [dateFilterMode, setDateFilterMode] = useState<ReportsDateFilterMode>("today");
+  const [reportsViewMode, setReportsViewMode] = useState<ReportsViewMode>("admin");
   const [selectedDay, setSelectedDay] = useState<Date>(() => startOfLocalCalendarDay());
   const [pinReportToToday, setPinReportToToday] = useState(true);
   const calendarToday = useLocalCalendarToday();
@@ -302,13 +326,25 @@ function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const loadedPeriodKeyRef = useRef<string | null>(null);
   const dashboardRole = profile?.role ?? null;
+  const dashboardPermissions = profile?.permissions ?? null;
   const today = calendarToday;
+  const userHasFullReports = canViewFullReports(dashboardRole, dashboardPermissions);
+  const reportsFullAccess = userHasFullReports && reportsViewMode === "admin";
+  const blurInventoryKpi = !reportsFullAccess;
+  const canSwitchReportsView = userHasFullReports;
 
   useEffect(() => {
     if (dateFilterMode !== "today" || !pinReportToToday) return;
     setSelectedDay(calendarToday);
     dashboardBundleCache.clear();
   }, [calendarToday, dateFilterMode, pinReportToToday]);
+
+  useEffect(() => {
+    if (reportsFullAccess) return;
+    setDateFilterMode("today");
+    setPinReportToToday(true);
+    setSelectedDay(calendarToday);
+  }, [reportsFullAccess, calendarToday]);
 
   useEffect(() => {
     const onInvalidate = () => {
@@ -325,10 +361,11 @@ function DashboardPage() {
     }
   }, [queryBranchId, branchId, refreshSession]);
 
-  const reportsFullAccess = hasFullDashboardReports(dashboardRole);
+  const reportsPeriodDay = reportsFullAccess ? selectedDay : calendarToday;
 
   useEffect(() => {
-    if (!reportsFullAccess && dateFilterMode === "range") {
+    if (reportsFullAccess && dateFilterMode === "range") return;
+    if (!reportsFullAccess && dateFilterMode !== "today") {
       setDateFilterMode("today");
     }
   }, [reportsFullAccess, dateFilterMode]);
@@ -345,11 +382,8 @@ function DashboardPage() {
     }
     let cancelled = false;
     const dateMode = reportsFullAccess ? dateFilterMode : "today";
-    const { start, end } =
-      dateMode === "today"
-        ? getLocalCalendarDayBounds(selectedDay)
-        : getRangeBounds(dateFrom, dateTo);
-    const anchorForPrevDay = dateMode === "today" ? selectedDay : dateTo;
+    const { start, end } = getDashboardPeriodBounds(dateMode, reportsPeriodDay, dateFrom, dateTo);
+    const anchorForPrevDay = dateMode === "today" ? reportsPeriodDay : dateTo;
     const dayBeforeRef = new Date(anchorForPrevDay);
     dayBeforeRef.setDate(dayBeforeRef.getDate() - 1);
     const { start: yStart, end: yEnd } = getLocalCalendarDayBounds(dayBeforeRef);
@@ -1027,9 +1061,10 @@ function DashboardPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [branchId, sessionReady, dateFilterMode, selectedDay, dateFrom, dateTo, refreshKey, reportsFullAccess]);
+  }, [branchId, sessionReady, dateFilterMode, selectedDay, dateFrom, dateTo, refreshKey, reportsFullAccess, reportsPeriodDay]);
 
   const effectiveDateMode = reportsFullAccess ? dateFilterMode : "today";
+  const effectiveSelectedDay = reportsFullAccess ? selectedDay : calendarToday;
 
   const data = useMemo((): DashboardData => {
     if (dashboardData) return dashboardData;
@@ -1118,26 +1153,44 @@ function DashboardPage() {
         }}
         userName={displayName}
         reportsFullAccess={reportsFullAccess}
-        dateFilterMode={effectiveDateMode}
-        onDateFilterMode={(mode) =>
+        canSwitchReportsView={canSwitchReportsView}
+        reportsViewMode={reportsViewMode}
+        onReportsViewModeChange={(mode) =>
           startDataTransition(() => {
-            setDateFilterMode(mode);
-            if (mode === "today") {
+            setReportsViewMode(mode);
+            if (mode === "cashier") {
+              setDateFilterMode("today");
               setPinReportToToday(true);
               setSelectedDay(calendarToday);
             }
           })
         }
-        selectedDay={selectedDay}
-        onSelectedDay={(d) =>
+        blurInventoryKpi={blurInventoryKpi}
+        dateFilterMode={effectiveDateMode}
+        onDateFilterMode={(mode) =>
+          startDataTransition(() => {
+            if (!reportsFullAccess) return;
+            setDateFilterMode(mode);
+            if (mode === "today") {
+              setPinReportToToday(true);
+              setSelectedDay(calendarToday);
+            } else if (mode === "week" || mode === "month") {
+              setPinReportToToday(false);
+              setSelectedDay(calendarToday);
+            }
+          })
+        }
+        selectedDay={effectiveSelectedDay}
+        onSelectedDay={(d) => {
+          if (!reportsFullAccess) return;
           startDataTransition(() => {
             const day = startOfLocalCalendarDay(d);
             setSelectedDay(day);
             setPinReportToToday(isSameLocalCalendarDay(day, calendarToday));
-          })
-        }
+          });
+        }}
         isViewingCalendarToday={
-          effectiveDateMode === "today" && isSameLocalCalendarDay(selectedDay, calendarToday)
+          effectiveDateMode === "today" && isSameLocalCalendarDay(effectiveSelectedDay, calendarToday)
         }
         dateFrom={dateFrom}
         dateTo={dateTo}

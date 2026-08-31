@@ -574,6 +574,40 @@ body {
   animation: berea-refresh-pulse 0.9s ease-in-out infinite;
 }
 
+.berea-reports-period-btn--locked {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.berea-reports-period-btn--locked:hover {
+  background: transparent;
+}
+
+.berea-restricted-blur {
+  filter: blur(8px);
+  opacity: 0.62;
+  user-select: none;
+  pointer-events: none;
+}
+
+.berea-reports-restricted-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background: rgba(248, 250, 252, 0.55);
+  backdrop-filter: blur(1px);
+  padding: 0.75rem;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--berea-ink-muted);
+}
+
 @keyframes berea-refresh-pulse {
   0%,
   100% {

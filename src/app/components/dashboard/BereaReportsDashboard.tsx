@@ -32,6 +32,16 @@ import {
 
 const D = STORE_TECH_COPY.dashboard;
 
+export type ReportsDateFilterMode = "today" | "week" | "month" | "range";
+export type ReportsViewMode = "admin" | "cashier";
+
+const REPORT_PERIOD_OPTIONS: Array<{ id: ReportsDateFilterMode; label: string }> = [
+  { id: "today", label: "Hoy" },
+  { id: "week", label: "Semana" },
+  { id: "month", label: "Mes" },
+  { id: "range", label: "Rango" },
+];
+
 const IncomeTrendChart = dynamic(
   () => import("@/app/components/IncomeTrendChart").then((m) => m.IncomeTrendChart),
   {
@@ -51,8 +61,12 @@ export type BereaDashboardProps = {
   onRefresh: () => void;
   userName: string;
   reportsFullAccess: boolean;
-  dateFilterMode: "today" | "range";
-  onDateFilterMode: (mode: "today" | "range") => void;
+  canSwitchReportsView?: boolean;
+  reportsViewMode?: ReportsViewMode;
+  onReportsViewModeChange?: (mode: ReportsViewMode) => void;
+  blurInventoryKpi?: boolean;
+  dateFilterMode: ReportsDateFilterMode;
+  onDateFilterMode: (mode: ReportsDateFilterMode) => void;
   selectedDay: Date;
   onSelectedDay: (d: Date) => void;
   dateFrom: Date;
@@ -445,6 +459,20 @@ function RecentActivityCard({
   );
 }
 
+function LockIcon({ className = "h-3 w-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M4.5 7V5.25a3.75 3.75 0 117.5 0V7M3.75 7h8.5a.75.75 0 01.75.75v5.5a.75.75 0 01-.75.75h-8.5a.75.75 0 01-.75-.75v-5.5A.75.75 0 013.75 7z"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function KpiCard({
   icon,
   label,
@@ -455,6 +483,7 @@ function KpiCard({
   prev,
   spark,
   hide,
+  blurValue = false,
   showDelta,
   comparisonHint,
   subdetail,
@@ -469,6 +498,7 @@ function KpiCard({
   prev: number;
   spark: number[];
   hide: boolean;
+  blurValue?: boolean;
   showDelta: boolean;
   comparisonHint?: string;
   subdetail?: ReactNode;
@@ -499,13 +529,15 @@ function KpiCard({
           <p
             className={`berea-enter-value text-xl font-semibold leading-none tabular-nums tracking-tight sm:text-[1.35rem] ${
               valueClassName ?? "text-[var(--berea-ink)]"
-            }`}
+            } ${blurValue ? "berea-restricted-blur" : ""}`}
           >
-            {value}
+            {hide ? "***" : value}
           </p>
           {subdetail ? (
             <div
-              className="berea-enter-layer mt-1.5 text-[11px] leading-snug text-[var(--berea-ink-muted)]"
+              className={`berea-enter-layer mt-1.5 text-[11px] leading-snug text-[var(--berea-ink-muted)] ${
+                blurValue ? "berea-restricted-blur" : ""
+              }`}
               style={bereaEnterItemStyle(2)}
             >
               {subdetail}
@@ -564,6 +596,7 @@ function formatStockKpiSubdetail(
   grossProfit: number,
   marginLabel: string,
   hide: boolean,
+  blurRestricted: boolean,
   formatValue: (n: number, type?: "currency" | "number") => string
 ): ReactNode {
   return (
@@ -572,6 +605,11 @@ function formatStockKpiSubdetail(
       {hide ? (
         <span>
           {marginLabel}: ***
+        </span>
+      ) : blurRestricted ? (
+        <span>
+          {marginLabel}:{" "}
+          <span className="font-semibold tabular-nums text-emerald-800">{formatValue(grossProfit)}</span>
         </span>
       ) : (
         <span>
@@ -787,6 +825,10 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
     onRefresh,
     userName,
     reportsFullAccess,
+    canSwitchReportsView = false,
+    reportsViewMode = "admin",
+    onReportsViewModeChange,
+    blurInventoryKpi = false,
     dateFilterMode,
     onDateFilterMode,
     selectedDay,
@@ -820,6 +862,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
     kpis.grossProfit,
     marginKpiLabel,
     hideSensitive,
+    blurInventoryKpi,
     formatValue
   );
   const cashKpiSubdetail = formatCashFlowSubdetail(
@@ -876,34 +919,61 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
-          {reportsFullAccess ? (
+          {canSwitchReportsView ? (
             <div className={`inline-grid grid-cols-2 rounded-lg p-0.5 ${reportsSurfaceClass}`}>
               <button
                 type="button"
-                onClick={() => onDateFilterMode("today")}
+                onClick={() => onReportsViewModeChange?.("admin")}
                 className={`rounded-md px-3 py-1.5 text-[12px] font-semibold ${
-                  dateFilterMode === "today"
+                  reportsViewMode === "admin"
                     ? "bg-[var(--berea-accent)] text-[var(--shell-nav-fg)]"
                     : "text-[var(--berea-ink-muted)]"
                 }`}
               >
-                Hoy
+                {D.viewModeAdmin}
               </button>
               <button
                 type="button"
-                onClick={() => onDateFilterMode("range")}
+                onClick={() => onReportsViewModeChange?.("cashier")}
                 className={`rounded-md px-3 py-1.5 text-[12px] font-semibold ${
-                  dateFilterMode === "range"
+                  reportsViewMode === "cashier"
                     ? "bg-[var(--berea-accent)] text-[var(--shell-nav-fg)]"
                     : "text-[var(--berea-ink-muted)]"
                 }`}
               >
-                Rango
+                {D.viewModeCashier}
               </button>
             </div>
           ) : null}
 
-          {dateFilterMode === "today" || !reportsFullAccess ? (
+          <div className={`inline-grid grid-cols-4 rounded-lg p-0.5 ${reportsSurfaceClass}`}>
+            {REPORT_PERIOD_OPTIONS.map((option) => {
+              const active = dateFilterMode === option.id;
+              const locked = !reportsFullAccess && option.id !== "today";
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  disabled={locked}
+                  title={locked ? D.restrictedPeriodHint : undefined}
+                  onClick={() => {
+                    if (locked) return;
+                    onDateFilterMode(option.id);
+                  }}
+                  className={`inline-flex items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold sm:px-3 sm:text-[12px] ${
+                    active
+                      ? "bg-[var(--berea-accent)] text-[var(--shell-nav-fg)]"
+                      : "text-[var(--berea-ink-muted)]"
+                  } ${locked ? "berea-reports-period-btn--locked" : ""}`}
+                >
+                  {option.label}
+                  {locked ? <LockIcon /> : null}
+                </button>
+              );
+            })}
+          </div>
+
+          {reportsFullAccess && dateFilterMode === "today" ? (
             <DatePickerCard
               id="berea-dashboard-day"
               value={selectedDay}
@@ -915,7 +985,7 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
               triggerTone="berea"
               aria-label="Fecha del reporte"
             />
-          ) : (
+          ) : reportsFullAccess && dateFilterMode === "range" ? (
             <div className="flex items-center gap-1.5">
               <DatePickerCard
                 id="berea-dashboard-from"
@@ -940,6 +1010,12 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                 aria-label="Hasta"
               />
             </div>
+          ) : (
+            <span
+              className={`inline-flex h-9 items-center rounded-lg px-3 text-[12px] font-semibold text-[var(--berea-ink-muted)] ${reportsSurfaceClass}`}
+            >
+              {D.todayOnlyBadge}
+            </span>
           )}
 
           <button
@@ -1048,7 +1124,8 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                   value={formatValue(kpis.stockInvestment)}
                   cur={kpis.stockInvestment}
                   prev={kpis.stockInvestment}
-                  hide={hideSensitive}
+                  hide={hideSensitive && !blurInventoryKpi}
+                  blurValue={blurInventoryKpi}
                   showDelta={false}
                   spark={[]}
                   subdetail={stockKpiSubdetail}
@@ -1063,9 +1140,12 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                   >
                     <h2 className="text-[15px] font-semibold text-[var(--berea-ink)]">{D.salesSummary}</h2>
                     <span
-                      className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold text-[var(--berea-ink-muted)] ${reportsSurfaceClass}`}
+                      className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold text-[var(--berea-ink-muted)] ${reportsSurfaceClass} ${
+                        !reportsFullAccess ? "berea-reports-period-btn--locked" : ""
+                      }`}
                     >
                       {D.last7Days}
+                      {!reportsFullAccess ? <LockIcon className="h-3 w-3" /> : null}
                       <svg
                         className="h-3.5 w-3.5 opacity-55"
                         viewBox="0 0 16 16"
@@ -1082,8 +1162,16 @@ export default function BereaReportsDashboard(props: BereaDashboardProps) {
                       </svg>
                     </span>
                   </div>
-                  <div className="berea-chart-reveal h-[13rem] w-full min-w-0 sm:h-[14rem]">
+                  <div className="berea-chart-reveal relative h-[13rem] w-full min-w-0 sm:h-[14rem]">
                     <IncomeTrendChart days={trendDays} hideSensitiveInfo={hideSensitive} comparePreviousWeek />
+                    {!reportsFullAccess ? (
+                      <div className="berea-reports-restricted-overlay">
+                        <span className="inline-flex items-center gap-1.5">
+                          <LockIcon className="h-3.5 w-3.5" />
+                          {D.restrictedTrendHint}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                 </BereaCard>
 

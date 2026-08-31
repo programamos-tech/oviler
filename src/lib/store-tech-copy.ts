@@ -129,6 +129,12 @@ export const STORE_TECH_COPY = {
     expensesPeriod: "Gastos del período",
     infoTipSales: "Facturación del período",
     infoTipStock: "Valor en inventario",
+    viewModeAdmin: "Administrador",
+    viewModeCashier: "Cajero",
+    restrictedPeriodHint: "Solo disponible con permisos de administrador",
+    restrictedInventoryHint: "Valor de inventario reservado para administradores",
+    restrictedTrendHint: "Tendencia multi-día reservada para administradores",
+    todayOnlyBadge: "Solo hoy",
   },
 
   channels: {

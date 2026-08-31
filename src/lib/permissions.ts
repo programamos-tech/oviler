@@ -24,6 +24,7 @@ export const PRODUCT_DISPLAY_NAME = "Berea Tecnología";
 export const PRODUCT_INTERNAL_NAME = "NOU Tiendas";
 export type PermissionKey =
   | "dashboard.view"
+  | "reports.full"
   | "sales.view"
   | "sales.create"
   | "customers.view"
@@ -49,6 +50,7 @@ export type PermissionKey =
 
 export const PERMISSION_OPTIONS: Array<{ key: PermissionKey; label: string; group: string }> = [
   { key: "dashboard.view", label: "Inicio / Reportes", group: "Inicio" },
+  { key: "reports.full", label: "Reportes completos (inventario y períodos)", group: "Inicio" },
   { key: "sales.view", label: "Ventas", group: "Ventas" },
   { key: "sales.create", label: "Crear ventas", group: "Ventas" },
   { key: "customers.view", label: "Ver clientes", group: "Clientes" },
@@ -77,6 +79,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionKey[]> = {
   owner: PERMISSION_OPTIONS.map((p) => p.key),
   admin: [
     "dashboard.view",
+    "reports.full",
     "sales.view",
     "sales.create",
     "customers.view",
@@ -253,4 +256,15 @@ export function canAccessNavModule(
   };
   const required = moduleMap[label];
   return required ? p.has(required) : true;
+}
+
+/** Reportes completos: rangos de fechas, inventario valorizado y tendencias multi-día. */
+export function canViewFullReports(
+  role: AppRole | null | undefined,
+  customPermissions?: string[] | null
+): boolean {
+  const perms = resolvePermissions(role, customPermissions);
+  if (perms.has("reports.full")) return true;
+  const r = String(role ?? "").toLowerCase();
+  return r === "owner" || r === "admin" || r === "delivery";
 }
