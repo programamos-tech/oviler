@@ -624,8 +624,8 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 0;
-  padding: 0.35rem 0.25rem 0.85rem;
-  margin-bottom: 0.35rem;
+  padding: 0.15rem 0.65rem 0.75rem;
+  margin-bottom: 0.25rem;
 }
 
 /* Menú central: reparte ítems en el alto disponible (sin huecos grandes) */
@@ -1542,7 +1542,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 1.25rem;
-  width: min(88vw, 20rem);
+  width: min(88vw, 22rem);
   text-align: center;
 }
 
@@ -1639,23 +1639,22 @@ body {
 }
 
 .berea-house-logo--sidebar {
-  width: 12.5rem;
+  width: 100%;
+  max-width: 15rem;
   height: auto;
-  max-height: 6.5rem;
   mix-blend-mode: lighten;
 }
 
 .berea-house-logo--topnav {
-  width: 7rem;
+  width: 9.5rem;
   height: auto;
-  max-height: 3.75rem;
+  max-height: 2.85rem;
   border-radius: 0.35rem;
 }
 
 .berea-house-logo--boot {
-  width: min(78vw, 18rem);
+  width: min(86vw, 22rem);
   height: auto;
-  max-height: min(78vw, 18rem);
   /* El PNG ya trae fondo #111219; sin blend para evitar el “cuadrado” más oscuro */
   mix-blend-mode: normal;
 }
