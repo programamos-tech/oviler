@@ -305,7 +305,7 @@ export default function AppSidebar() {
             <img
               src="/logo-berea-tech.png"
               alt=""
-              className="berea-house-logo berea-house-logo--sidebar"
+              className="berea-brand-logo berea-brand-logo--blend"
               decoding="async"
             />
           </Link>

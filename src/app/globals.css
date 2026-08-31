@@ -50,7 +50,7 @@ html {
   --berea-accent: #15406b;
   --berea-accent-hover: #0d2137;
   --berea-accent-soft: rgba(13, 33, 55, 0.14);
-  --berea-brand-logo-width: 11.5rem;
+  --berea-brand-logo-width: 9rem;
   --berea-brand-logo-ratio: 775 / 356;
 }
 
@@ -626,8 +626,8 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 0;
-  padding: 0.15rem 0.65rem 0.75rem;
-  margin-bottom: 0.25rem;
+  padding: 0.25rem 1rem 0.65rem;
+  margin-bottom: 0.15rem;
 }
 
 /* Menú central: reparte ítems en el alto disponible (sin huecos grandes) */
@@ -641,9 +641,10 @@ body {
 }
 
 .shell-sidebar .sidebar-logo-link {
-  display: flex;
+  display: inline-flex;
   justify-content: center;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
 }
 
 .shell-sidebar .sidebar-logo-link:hover img {
@@ -1549,6 +1550,25 @@ body {
   text-align: center;
 }
 
+.berea-brand-logo {
+  display: block;
+  width: var(--berea-brand-logo-width);
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: var(--berea-brand-logo-ratio);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.shell-sidebar .sidebar-logo-link .berea-brand-logo,
+.berea-boot-panel .berea-brand-logo {
+  width: var(--berea-brand-logo-width);
+}
+
+.berea-brand-logo--blend {
+  mix-blend-mode: lighten;
+}
+
 .berea-house-logo {
   display: block;
   object-fit: contain;
@@ -1641,30 +1661,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.berea-house-logo--sidebar,
-.berea-house-logo--boot {
-  width: var(--berea-brand-logo-width);
-  max-width: 100%;
-  height: auto;
-  aspect-ratio: var(--berea-brand-logo-ratio);
-  object-fit: contain;
-}
-
-.berea-house-logo--sidebar {
-  mix-blend-mode: lighten;
-}
-
 .berea-house-logo--topnav {
-  width: calc(var(--berea-brand-logo-width) * 0.72);
+  width: calc(var(--berea-brand-logo-width) * 0.78);
   height: auto;
   aspect-ratio: var(--berea-brand-logo-ratio);
   object-fit: contain;
   border-radius: 0.35rem;
-}
-
-.berea-house-logo--boot {
-  /* El PNG ya trae fondo #111219; sin blend para evitar el “cuadrado” más oscuro */
-  mix-blend-mode: normal;
 }
 
 .berea-boot-progress {
